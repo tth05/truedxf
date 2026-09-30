@@ -5,6 +5,7 @@ import "./mtext.ts";
 import "./hatch.ts";
 import "./dimension.ts";
 import "./leader.ts";
+import "./viewport.ts";
 
 import type {
   ArcEntity,
@@ -25,6 +26,7 @@ import type { LeaderEntity, MultiLeaderEntity, ToleranceEntity } from "./leader.
 import type { MTextEntity } from "./mtext.ts";
 import type { LwPolylineEntity, PolylineEntity, VertexEntity } from "./polyline.ts";
 import type { AttribEntity, InsertEntity, TextEntity } from "./text.ts";
+import type { ViewportEntity } from "./viewport.ts";
 
 export * from "./basic.ts";
 export * from "./common.ts";
@@ -34,6 +36,7 @@ export * from "./leader.ts";
 export * from "./mtext.ts";
 export * from "./polyline.ts";
 export * from "./text.ts";
+export * from "./viewport.ts";
 
 /** Entity of a type without a dedicated parser. Tags are available via `record`. */
 export interface UnknownEntity extends EntityBase {
@@ -64,6 +67,7 @@ export type Entity =
   | LeaderEntity
   | MultiLeaderEntity
   | ToleranceEntity
+  | ViewportEntity
   | UnknownEntity;
 
 export type EntityType = Entity["type"];

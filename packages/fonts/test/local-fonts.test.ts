@@ -8,6 +8,7 @@ import {
   compileShp,
   DirectoryFontProvider,
   decompileShx,
+  disassemble,
   FontManager,
   parseShx,
   ShxFont,
@@ -85,6 +86,25 @@ describe.skipIf(!hasAcad)("AutoCAD 2027 SHX fonts (local)", () => {
     expect(problems).toEqual([]);
     expect(glyphs).toBeGreaterThan(100000);
   }, 120_000);
+
+  it("unifont 2-byte subshape numbers are big-endian (every reference resolves only that way)", () => {
+    let be = 0;
+    let le = 0;
+    for (const n of shxFiles) {
+      const file = parseShx(read(ACAD, n));
+      if (file.kind !== "unifont") continue;
+      const numbers = new Set(file.shapes.map((s) => s.number));
+      for (const s of file.shapes)
+        for (const o of disassemble(s.bytes, "unifont").ops) {
+          if (o.op !== "subshape") continue;
+          const swapped = ((o.shape & 0xff) << 8) | (o.shape >> 8);
+          if (numbers.has(o.shape)) be++;
+          if (numbers.has(swapped) && swapped !== o.shape) le++;
+        }
+    }
+    expect(be).toBeGreaterThan(800);
+    expect(le).toBe(0);
+  });
 
   it("matches the AutoCAD 2027 TEXTBOX measurements of note 04 §4.6 (h = 10)", () => {
     const at10 = (n: string) => {

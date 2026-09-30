@@ -78,11 +78,24 @@ export interface DashElement {
 
 export interface DashPattern {
   readonly elements: readonly DashElement[];
+  /**
+   * Declared pattern length (LTYPE 40, already scaled) used by the A-type fit for k and r; may
+   * differ from Σ|eᵢ| in odd files. Default Σ|eᵢ|.
+   */
+  readonly period?: number;
 }
 
 /** Pattern from plain signed lengths (LTYPE 49 values) times `scale`. */
 export function dashPattern(lengths: readonly number[], scale = 1): DashPattern {
   return { elements: lengths.map((l) => ({ length: l * scale })) };
+}
+
+/** Pattern with every element length multiplied by `f` (complex elements unchanged). */
+export function scaledPattern(p: DashPattern, f: number): DashPattern {
+  return {
+    elements: p.elements.map((e) => ({ ...e, length: e.length * f })),
+    ...(p.period !== undefined ? { period: p.period * f } : {}),
+  };
 }
 
 /** Σ|eᵢ| */
@@ -96,32 +109,70 @@ export function patternPeriod(p: DashPattern): number {
 
 /**
  * How a unit of length L is dashed: `continuous`, or the periodic pattern with pattern
- * coordinate `u = s + phase` on the interior `[head, L − tail]` plus forced dashes `[0, head]`
- * and `[L − tail, L]` (0 = none).
+ * coordinate `u = s + phase` on the interior `[head, interiorEnd]` (default `L − tail`), plus a
+ * forced head dash `[0, head]` and a forced tail dash `[interiorEnd, interiorEnd + tail]`
+ * (clipped to L; 0 = none). With `endDots` the head and tail are dots at 0 and at
+ * `min(L, interiorEnd + head)` instead of dashes.
  */
 export type DashFit =
   | { readonly kind: "continuous" }
-  | { readonly kind: "pattern"; readonly phase: number; readonly head: number; readonly tail: number };
+  | {
+      readonly kind: "pattern";
+      readonly phase: number;
+      readonly head: number;
+      readonly tail: number;
+      /** End of the periodic interior (default `L − tail`). */
+      readonly interiorEnd?: number;
+      /** Head and tail are dots (patterns starting with a dot). */
+      readonly endDots?: boolean;
+      /** Length multiplier applied to the pattern elements for this unit (default 1). */
+      readonly scale?: number;
+    };
 
 export type DashFitStrategy = (length: number, pattern: DashPattern, closed: boolean) => DashFit;
 
 const CONTINUOUS: DashFit = { kind: "continuous" };
 
 /**
- * UNVERIFIED candidate for AutoCAD's A-type alignment (note 06 §2.6 hypothesis; test L1/L2 in
- * the question backlog decide it). Patterns that do not start with a dash or dot (e₀ < 0) are
- * run unfitted from phase 0 (A-type requires e₀ ≥ 0, note 06 §2.4). Closed units use the same
- * rule; the engine joins the end dashes across the seam.
+ * AutoCAD's A-type alignment (note 06 §2.6, VERIFIED-BY-ACAD 2026-09-30). Pattern e₀ … eₙ₋₁,
+ * Σ = Σ|eᵢ|, P = declared length (LTYPE 40, normally = Σ), L = unit length:
+ * - **open unit** (LINE, ARC, open ELLIPSE, PLINEGEN-off polyline segment): k = ⌊L/P⌋,
+ *   r = L − kP, h = (e₀ + r)/2. AutoCAD walks the element sequence
+ *   `[h, e₁ … eₙ₋₁, (k − 1) × (e₀ … eₙ₋₁), e₀ + r]` from s = 0 and clips it at L. For a normal
+ *   pattern both end dashes are h = e₀/2 + r/2 and the interior has phase e₀/2 − r/2
+ *   (`linetypes/fit-*`, `arc-*`, `ellipse-*-partial`); with 40 ≠ Σ or a leading gap the same
+ *   walk explains `linetypes/odd-*` (the tail `e₀ + r` is then not clipped).
+ *   L < P → continuous. Patterns starting with a dot (e₀ = 0) draw a dot at both ends instead
+ *   of end dashes (`linetypes/odd-dot-dash-start`); a pure dot pattern (no dash, e.g. DOT) does
+ *   so even for L < P (`linetypes/fit-dot*`).
+ * - **closed unit** (CIRCLE, full ELLIPSE): L < P → continuous; else the pattern is **stretched**
+ *   to n = max(2, round(L/P)) whole periods and starts with e₀ at the curve start
+ *   (`linetypes/circle-*`, `ellipse-*-full`).
+ * P ≤ 0 (LTYPE 40 = 0) → continuous (`linetypes/odd-total-zero`).
  */
-export const autocadCandidateFit: DashFitStrategy = (length, pattern) => {
-  const P = patternPeriod(pattern);
-  if (!(P > 0) || length < P) return CONTINUOUS;
+export const autocadCandidateFit: DashFitStrategy = (length, pattern, closed) => {
+  const S = patternPeriod(pattern);
+  const P = pattern.period ?? S;
+  if (!(P > 0) || !(S > 0)) return CONTINUOUS;
   const e0 = pattern.elements[0]!.length;
-  if (e0 < 0) return { kind: "pattern", phase: 0, head: 0, tail: 0 };
+  if (closed) {
+    if (length < P) return CONTINUOUS;
+    const n = Math.max(2, Math.round(length / P));
+    return { kind: "pattern", phase: 0, head: 0, tail: 0, scale: length / (n * P) };
+  }
+  if (length < P && (e0 !== 0 || pattern.elements.some((e) => e.length > 0))) return CONTINUOUS;
   const k = Math.floor(length / P);
   const r = length - k * P;
-  const a = e0 / 2 + r / 2;
-  return { kind: "pattern", phase: e0 / 2 - r / 2, head: a, tail: a };
+  const h = (e0 + r) / 2;
+  const a0 = Math.abs(e0);
+  return {
+    kind: "pattern",
+    phase: a0 - h,
+    head: h,
+    tail: e0 + r,
+    interiorEnd: h + k * S - a0,
+    endDots: e0 === 0,
+  };
 };
 
 /** Plain pattern starting at pattern coordinate `phase`, no end fitting, no short rule. */
@@ -490,20 +541,33 @@ export function dashMeasured(
       continue;
     }
     const head = Math.min(Math.max(f.head, 0), L);
-    const tail = Math.min(Math.max(f.tail, 0), L - head);
-    if (head > 0) intervals.push(off, off + head, u);
+    const iEnd = Math.min(Math.max(f.interiorEnd ?? L - Math.max(f.tail, 0), head), L);
+    const tailEnd = Math.min(iEnd + Math.max(f.tail, 0), L);
+    const pat = f.scale !== undefined && f.scale !== 1 ? scaledPattern(pattern, f.scale) : pattern;
+    if (f.endDots) dotS.push(off);
+    else if (head > 0) intervals.push(off, off + head, u);
     const sink: PatternEventSink = {
       dash: (a, b) => intervals.push(off + a, off + b, u),
       dot: (s) => dotS.push(off + s),
       complex: (s, el, idx) => complexS.push({ s: off + s, el, idx }),
     };
-    const c = walkPattern(pattern, f.phase, head, L - tail, sink, limit - count, head > 0, tail > 0);
+    const c = walkPattern(
+      pat,
+      f.phase,
+      head,
+      iEnd,
+      sink,
+      limit - count,
+      head > 0 || f.endDots === true,
+      tailEnd > iEnd || f.endDots === true,
+    );
     if (c < 0) {
       tooDense = true;
       break;
     }
     count += c;
-    if (tail > 0) intervals.push(off + L - tail, off + L, u);
+    if (f.endDots) dotS.push(off + Math.min(L, iEnd + head));
+    else if (tailEnd > iEnd) intervals.push(off + iEnd, off + tailEnd, u);
   }
   if (tooDense) {
     intervals = total > 0 ? [0, total, 0] : [];

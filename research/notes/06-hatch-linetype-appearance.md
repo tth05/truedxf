@@ -40,10 +40,11 @@ Source abbreviations:
    **even-odd** over all remaining loops (ezdxf/dxf-viewer both effectively do odd-parity).
    Text-box loops (flag 8) are holes only in the sense of island detection; ezdxf drops them. (§1.5)
 4. Arc/ellipse edges with ccw=0 store *complementary* angles (360−a). (§1.3.3)
-5. Linetypes: AutoCAD uses "A-type alignment" — the pattern is fitted per LINE/ARC/segment so that
-   both ends carry at least half of the first dash (end dashes lengthened), and a segment shorter
-   than one pattern period is drawn continuous. Exact formula is **UNKNOWN** (hypothesis in §2.6).
-   No reference library implements it; ezdxf/mlightcad start the pattern at offset 0. (§2.6)
+5. Linetypes: AutoCAD's "A-type alignment" is **VERIFIED-BY-ACAD** (2026-09-30, §2.6.1): per
+   unit (LINE, ARC, open curve, PLINEGEN-off segment) k = ⌊L/P⌋, r = L − kP and both end dashes
+   become e0/2 + r/2; L < P → continuous. Closed curves (CIRCLE, full ELLIPSE, closed PLINEGEN
+   polyline) are **stretched** to max(2, round(L/P)) whole periods. INSERT scale never scales
+   linetypes; XLINE/RAY are clipped to the plot window first. (§2.6.1)
 6. Complex linetype text/shape rotation (DXF 50) is written in **degrees** by AutoCAD (acs-sample),
    not radians as the DXF reference claims. 74 bit 8 = upright ("U="). (§2.2)
 7. ACI→RGB: there is **no single agreed table** — two palettes circulate (a "light" one with
@@ -717,11 +718,16 @@ s = LTSCALE (header $LTSCALE, default 1)
 - `$MSLTSCALE` (AutoCAD 2008+, default 1): model-space linetypes scaled by the annotation scale
   (CANNOSCALE) — affects model-space *display/plot* when plotting from model space with an
   annotation scale ≠ 1. ASSUMPTION; harness keeps annotation scale 1:1 or MSLTSCALE=0.
-- **Block inserts:** ASSUMPTION (common AutoCAD knowledge): the linetype pattern of block content
-  is scaled with the INSERT scale (the block is transformed after linetype generation in block
-  coordinates). **CONFLICT with ezdxf**, which applies linetypes after transforming the virtual
-  entities to WCS (pipeline.py `LinetypeStage2d.draw_path` on WCS paths) → no insert scaling.
-  Non-uniform scaling and mirroring? UNKNOWN. Test L5.
+- **Block inserts: VERIFIED-BY-ACAD (2026-09-30, `linetypes/insert-scale-s1|s3|s0-5|mirror|mirror3|
+  nonuniform-2-1|nonuniform-1-2|nonuniform-2-1-rot45`): the INSERT scale does NOT scale linetypes.**
+  The block content is transformed to WCS first and the pattern (LTSCALE × entity 48) is applied
+  there, like ezdxf does — a block line of WCS length 120 inserted at scale 3 has exactly the dashes
+  of a directly drawn 120-unit line; non-uniform scales and mirroring change nothing either. The
+  INSERT's own group 48 does not multiply into the content (`insert-ltscale-vs-child`,
+  `byblock-ltscale2`: BYBLOCK content uses its own 48 and LTSCALE only).
+- Scale chain **VERIFIED-BY-ACAD** (`linetypes/scale-ltscale-*`, `scale-equiv-*`, `scale-bylayer-48`,
+  `scale-celtscale-*`): effective scale = $LTSCALE × entity 48 (48 = 0.5 with LTSCALE 2 equals
+  48 = 1 with LTSCALE 1); $CELTSCALE has no effect on existing entities.
 - ezdxf's min dash length 0.1 × vp-scale (`min_dash_length`, pipeline.py:596) is an ezdxf
   display hack.
 - CTB "adaptive linetype" + "linepattern_size" apply only when the plot style overrides the
@@ -757,22 +763,58 @@ implements the end alignment:
   but it is the closest in spirit to A-type alignment.
 - dxf-viewer: no linetype support at all (`_GetLineType` returns 0, DxfScene.js:391).
 
-**Hypothesis for the exact A-type rule (UNKNOWN, test L1/L2):** Let pattern `e0 (dash ≥ 0),
-e1…e(n−1)`, period `P = Σ|ei|`, segment length `L` (after scaling).
-1. If `L < P` → draw a continuous line.
-2. Otherwise `k = floor(L / P)` periods fit. Phase the pattern so the segment starts in the
-   **middle of e0**: the segment covers `[e0/2, e0/2 + L]` of the infinite pattern… but with
-   `L = k·P + r` and the residual `r` split equally: both end dashes become `e0/2 + r/2`.
-   Equivalent construction: start at distance 0 with a dash of length `e0/2 + r/2`, then
-   `e1 … e(n−1)`, then (k−1) full periods, then a final dash `e0/2 + r/2`.
-   This satisfies "at least half of the first dash begins and ends the line" and "first and last
-   dashes are lengthened".
-3. Dots (e0 = 0): ends get a dash of length r/2 (i.e. a short dash, not a dot)?? UNKNOWN.
-Other candidates to test: (a) start at offset 0 with the full e0 and lengthen only the last dash;
-(b) QCAD-style centering. The test file L1 (lines of lengths P·{0.5, 0.99, 1, 1.01, 1.5, 2, 2.5,
-3.7} with DASHED/CENTER/DASHDOT) plotted at high DPI distinguishes them.
+#### 2.6.1 The rule AutoCAD 2027 PLOT uses (VERIFIED-BY-ACAD, 2026-09-30)
 
-**Which primitive is "an individual line"?**
+Measured on the vector PDF references (1/600 in) of the `linetypes` suite: every dash end of 226
+cases is reproduced to < 0.35 px by the rules below (scratch oracle comparing our smooth-mode
+strokes with the PDF strokes; implementation `packages/geometry/src/dash.ts` `autocadCandidateFit`).
+Pattern `e0 … e(n−1)` (already × scale), Σ = Σ|ei|, **P = LTYPE group 40** (normally = Σ; the fit
+uses 40, not Σ — `odd-total-exceeds|less|zero`), L = unit length along the curve (exact arc length).
+
+**Open unit** (LINE, ARC, open ELLIPSE, SPLINE — also a closed SPLINE —, PLINEGEN-off polyline
+segment, clipped XLINE/RAY; cases `fit-*` (all acad/acadiso simple linetypes × 10 lengths),
+`fitzoom-*`, `direction-*`, `arc-*`, `arc-short-*`, `ellipse-*-half|partial`, `spline-*`):
+1. k = ⌊L/P⌋, r = L − kP, h = (e0 + r)/2.
+2. AutoCAD walks the element sequence `[h, e1 … e(n−1), (k−1) × (e0 … e(n−1)), e0 + r]` from the
+   start and clips it at L (> 0 pen down, < 0 pen up, 0 dot). For a normal pattern (40 = Σ,
+   e0 ≥ 0) this is exactly: both end dashes h = e0/2 + r/2, interior periodic with phase
+   e0/2 − r/2 (dashes symmetric about the midpoint). With 40 ≠ Σ the walk ends early (40 > Σ:
+   the last dash is `e0 + r` long and the rest of the line stays empty) or is cut at L (40 < Σ).
+   A leading gap (e0 < 0, `odd-leading-gap`) gives a head dash h = (e0 + r)/2 merged into e1.
+3. L < P → one continuous line, **except** patterns without any dash (only dots and gaps, e.g.
+   DOT): they draw a dot at both ends even when L < P (`fit-dot`: 0.5 P → two dots).
+4. Patterns starting with a dot (e0 = 0) draw **dots at 0 and at L** instead of the end dashes
+   h (`fit-dot*`, `odd-dot-dash-start`); interior dots sit at h + e1 + m·P.
+5. 40 = 0 → continuous (`odd-total-zero`); 73 = 0 (no elements) → continuous, also for a record
+   named DASHED with any $MEASUREMENT (`odd-empty-40-5`, `odd-dashed-empty-meas-*`): AutoCAD does
+   not reload .lin data. Consecutive dashes (`odd-two-dashes`) are just walked.
+
+**Closed unit** (CIRCLE, full ELLIPSE, closed LWPOLYLINE/POLYLINE with PLINEGEN; `circle-*`,
+`ellipse-*-full`, `pl-zigzag-*-closed-gen1`, `pl-fine-gen1`, `pl-bulge-circle-gen1`,
+`odd-*` circles): L < P → continuous; else n = **max(2, round(L/P))** whole periods and every
+element is multiplied by L/(n·P) (with 40 ≠ Σ the stretched real elements are walked and clipped at
+L). The pattern starts with e0 at the curve start: CIRCLE at OCS angle 0 running CCW about the
+extrusion (`circle-ocs-neg`: WCS 180°, clockwise), full ELLIPSE at parameter 0, closed PLINEGEN
+polyline at **vertex 1** (not vertex 0!). CENTER on a circle of 1.24 P gets 2 periods, DASHED on
+1.65 P gets 2, on 3.30 P 3, on 19.79 P 20.
+
+**Units:** LWPOLYLINE / 2D POLYLINE with PLINEGEN (70 bit 128) off: every segment is an open unit
+(dashes meet at each vertex); on: the whole polyline is one unit (open: A-type ends at the first and
+last vertex; closed: closed rule). The entity flag decides, $PLINEGEN is irrelevant
+(`pl-header-*`, `polyline2d-*`). 3D POLYLINEs, polygon/polyface meshes and 3DFACE edges plot
+**continuous** (`other-polyline3d`, `other-polymesh`, `other-3dface`). XLINE and RAY are first
+clipped to the plot window and then fitted as a LINE of the clipped length (`infinite-*`: the dashes
+end symmetrically at the window edges; a RAY starts with a head dash at its base point).
+
+**Lineweights** do not change the pattern (`lw-*`); ISO W100 linetypes are not adjusted to the
+pen width (Q-0313: `lw-iso02-scaled` — only 48 scales them).
+
+**Too dense** (`dense-*`, 10 px/unit): DASHED with period 0.95 px (1890 periods per 180-unit line)
+and DOT with 0.64 px (2835) are still dashed; DASHED 0.38 px (4724) / DOT 0.32 px (5669) and
+denser plot **continuous**. Whether the criterion is the device period (≈ 0.4–0.6 px) or the dash
+count per entity is still open (T-LT-DENSE in docs/questions.md Q-0312).
+
+**Which primitive is "an individual line"?** (pre-test notes; §2.6.1 has the verified answers)
 - LINE: one unit.
 - ARC: one unit along the arc length, from start angle CCW to end angle ("dashes at the endpoints").
 - CIRCLE: no endpoints → "adjusted to provide a reasonable display"; ASSUMPTION: pattern starts at
@@ -1349,9 +1391,9 @@ Notes:
 
 ## 9. Consolidated UNKNOWN list (to resolve with AutoCAD)
 
-1. A-type linetype alignment exact formula; circles/ellipses/splines/closed polylines; PLINEGEN runs;
-   dots at the ends. (§2.6)
-2. Linetype scaling by INSERT scale (and mirror/non-uniform). (§2.5)
+1. ~~A-type linetype alignment exact formula; circles/ellipses/splines/closed polylines; PLINEGEN runs;
+   dots at the ends.~~ ANSWERED §2.6.1 (only the too-dense criterion is open).
+2. ~~Linetype scaling by INSERT scale (and mirror/non-uniform).~~ ANSWERED §2.5: never.
 3. Complex linetype placement origin (end of element?), upright flip threshold, text insertion
    point. (§2.2–2.3)
 4. Which ACI→RGB palette PLOT uses (light/dark, gray adjustments). (§3.3)

@@ -73,6 +73,7 @@ export class LinetypeResolver {
     let period = 0;
     for (const el of elements) period += Math.abs(el.length);
     if (period === 0) return undefined;
-    return { entry, pattern: { elements }, period };
+    // the A-type fit uses the declared length 40, not Σ|49| (VERIFIED-BY-ACAD linetypes/odd-*)
+    return { entry, pattern: { elements, period: entry.patternLength * scale }, period };
   }
 }

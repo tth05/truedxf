@@ -43,9 +43,17 @@ import { type DrawState, type Frontend, registerDrawer } from "../frontend.ts";
 import type { Resolved } from "../props.ts";
 import { pointSymbol } from "./points.ts";
 
-function curve(fe: Frontend, c: Curve3, e: Entity, st: DrawState, r: Resolved, closed = false): void {
+function curve(
+  fe: Frontend,
+  c: Curve3,
+  e: Entity,
+  st: DrawState,
+  r: Resolved,
+  closed = false,
+  noLinetype = false,
+): void {
   const sp = projectCurve3(c, st.m);
-  fe.strokePath({ subpaths: [closed ? { ...sp, closed } : sp] }, r, e, st);
+  fe.strokePath({ subpaths: [closed ? { ...sp, closed } : sp] }, r, e, st, { noLinetype });
 }
 
 registerDrawer("LINE", (fe, e, st) => {
@@ -121,7 +129,10 @@ function polyline2d(
   const wide = constantWidth !== 0 || verts.some((v) => (v.startWidth ?? 0) > 0 || (v.endWidth ?? 0) > 0);
   const units = plinegen ? DashUnits.Continuous : DashUnits.PerSegment;
   if (!wide) {
-    const sub = bulgePolylineToSubpath(verts, closed);
+    // A closed PLINEGEN polyline is one closed linetype unit whose pattern starts at vertex 1.
+    // VERIFIED-BY-ACAD (note 06 §2.6; linetypes/pl-zigzag-*-closed-gen1, pl-fine-gen1)
+    const vs = closed && plinegen && verts.length > 1 ? [...verts.slice(1), verts[0]!] : verts;
+    const sub = bulgePolylineToSubpath(vs, closed);
     fe.strokePath(transformPath({ subpaths: [sub] }, plane), r, e, st, { units });
     return;
   }
@@ -162,6 +173,7 @@ registerDrawer("POLYLINE", (fe, e, st) => {
   const verts = p.vertices.filter((v) => (v.flags & 16) === 0);
   if (verts.length === 0) return;
   if (flags & 8) {
+    // 3D polylines plot continuous (no linetype). VERIFIED-BY-ACAD (linetypes/other-polyline3d)
     const r = fe.resolve(p, st);
     curve(
       fe,
@@ -209,7 +221,8 @@ function drawPolyface(fe: Frontend, p: PolylineEntity, st: DrawState): void {
       const key = `${lo}-${hi}`;
       if (seen.has(key)) continue;
       seen.add(key);
-      curve(fe, line3(pa, pb), p, st, r);
+      // mesh edges plot continuous. VERIFIED-BY-ACAD (linetypes/other-polymesh)
+      curve(fe, line3(pa, pb), p, st, r, false, true);
     }
   }
 }
@@ -225,7 +238,9 @@ function drawPolygonMesh(fe: Frontend, p: PolylineEntity, st: DrawState): void {
   }
   const closedM = (p.flags & 1) !== 0;
   const closedN = (p.flags & 32) !== 0;
-  for (let i = 0; i < m; i++) curve(fe, polyline3(pts.slice(i * n, i * n + n), closedN), p, st, r, closedN);
+  // mesh edges plot continuous. VERIFIED-BY-ACAD (linetypes/other-polymesh)
+  for (let i = 0; i < m; i++)
+    curve(fe, polyline3(pts.slice(i * n, i * n + n), closedN), p, st, r, closedN, true);
   for (let j = 0; j < n; j++) {
     const col: Vec3[] = [];
     for (let i = 0; i < m; i++) col.push(pts[i * n + j]!);
@@ -297,7 +312,8 @@ registerDrawer("3DFACE", (fe, e, st) => {
     const a = v[i]!;
     const b = v[(i + 1) % 4]!;
     if (a.x === b.x && a.y === b.y && a.z === b.z) continue;
-    curve(fe, line3(a, b), f, st, r);
+    // 3DFACE edges plot continuous. VERIFIED-BY-ACAD (linetypes/other-3dface)
+    curve(fe, line3(a, b), f, st, r, false, true);
   }
 });
 
@@ -308,16 +324,22 @@ registerDrawer(["RAY", "XLINE"], (fe, e, st) => {
   const d = st.m.transformDirection(x.direction);
   const len = Math.hypot(d.x, d.y);
   if (len === 0) return;
-  // extend beyond the view (the renderer clips to the canvas); linetype phase starts at the
-  // ray origin (UNVERIFIED for XLINE)
+  // Clipped to the plot window first, then fitted like a LINE of that length (A-type ends at
+  // the window edges). VERIFIED-BY-ACAD (note 06 §2.6; linetypes/infinite-xline*, infinite-ray)
   const v = fe.view;
-  const reach =
-    Math.hypot(v.maxX - v.minX, v.maxY - v.minY) +
-    Math.hypot(p.x - (v.minX + v.maxX) / 2, p.y - (v.minY + v.maxY) / 2);
-  const k = reach / len;
-  const t0 = x.type === "XLINE" ? -k : 0;
+  let t0 = x.type === "XLINE" ? Number.NEGATIVE_INFINITY : 0;
+  let t1 = Number.POSITIVE_INFINITY;
+  const clipAxis = (p0: number, dd: number, lo: number, hi: number): boolean => {
+    if (dd === 0) return p0 >= lo && p0 <= hi;
+    const a = (lo - p0) / dd;
+    const b = (hi - p0) / dd;
+    t0 = Math.max(t0, Math.min(a, b));
+    t1 = Math.min(t1, Math.max(a, b));
+    return true;
+  };
+  if (!clipAxis(p.x, d.x, v.minX, v.maxX) || !clipAxis(p.y, d.y, v.minY, v.maxY) || !(t1 > t0)) return;
   const a = { x: p.x + d.x * t0, y: p.y + d.y * t0 };
-  const b = { x: p.x + d.x * k, y: p.y + d.y * k };
+  const b = { x: p.x + d.x * t1, y: p.y + d.y * t1 };
   fe.strokePath({ subpaths: [{ segments: [{ kind: "line", p0: a, p1: b }], closed: false }] }, r, x, st);
 });
 

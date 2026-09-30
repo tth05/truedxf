@@ -67,6 +67,12 @@ export interface DrawState {
   readonly inh: Inherited;
   /** Block names on the INSERT stack (cycle guard). */
   readonly stack: readonly string[];
+  /**
+   * Linetype pattern units → target units (default 1). INSERT transforms do not scale
+   * linetypes (note 06 §2.5, VERIFIED-BY-ACAD `linetypes/insert-scale-*`); a viewport
+   * (PSLTSCALE) is the only place that sets this.
+   */
+  readonly linetypeScale?: number;
 }
 
 export type EntityDrawer = (fe: Frontend, e: Entity, st: DrawState) => void;
@@ -267,7 +273,7 @@ export class Frontend {
   }
 
   linetypeFor(e: Entity, r: Resolved, st: DrawState): LinetypeSpec | undefined {
-    return this.linetypes.spec(r.linetype, e.linetypeScale, this.transformScale(st.m));
+    return this.linetypes.spec(r.linetype, e.linetypeScale, st.linetypeScale ?? 1);
   }
 
   /**

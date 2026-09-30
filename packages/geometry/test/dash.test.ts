@@ -32,7 +32,7 @@ function covered(r: { ranges: Float64Array }, total: number): number {
   return s;
 }
 
-describe("A-type candidate fit (UNVERIFIED hypothesis, note 06 §2.6)", () => {
+describe("A-type fit (VERIFIED-BY-ACAD, note 06 §2.6)", () => {
   it("lengthens both end dashes by half the residual", () => {
     const r = dashPolyline(line(2), DASHED);
     const got = rangesOf(r);
@@ -83,19 +83,50 @@ describe("A-type candidate fit (UNVERIFIED hypothesis, note 06 §2.6)", () => {
     );
   });
 
-  it("dot-first patterns: dots on the ends when the residual is zero, short dashes otherwise", () => {
+  it("dot-first patterns: dots on both ends, even below one period (linetypes/fit-dot)", () => {
     const DOT = dashPattern([0, -0.25]);
     const exact = dashPolyline(line(1), DOT);
     expect(exact.dashes.length).toBe(0);
     expect(exact.dots.length / 3).toBe(5);
     const r = dashPolyline(line(1.1), DOT);
-    expect(rangesOf(r).map(([a, b]) => b! - a!)).toEqual([
-      expect.closeTo(0.05, 12),
-      expect.closeTo(0.05, 12),
-    ]);
+    expect(r.dashes.length).toBe(0);
     const xs = [];
     for (let i = 0; i < r.dots.length; i += 3) xs.push(r.dots[i]!);
-    expect(xs.map((x) => Math.round(x * 1e9) / 1e9)).toEqual([0.3, 0.55, 0.8]);
+    expect(xs.map((x) => Math.round(x * 1e9) / 1e9).sort((a, b) => a - b)).toEqual([0, 0.3, 0.55, 0.8, 1.1]);
+    const short = dashPolyline(line(0.1), DOT);
+    expect(short.dashes.length).toBe(0);
+    expect(Array.from(short.dots).filter((_, i) => i % 3 === 0)).toEqual([0, 0.1]);
+    // a dot-first pattern with a dash is continuous below one period (linetypes/odd-dot-dash-start)
+    const mixed = dashPolyline(line(0.5), dashPattern([0, -0.25, 0.5, -0.25]));
+    expect(rangesOf(mixed)).toEqual([[0, 0.5]]);
+  });
+
+  it("uses the declared length 40 for k and r and walks the real elements (linetypes/odd-total-*)", () => {
+    // 40 = 25.4 > Σ = 19.05 (odd-total-exceeds, L = 95): [15.75] gap [22.1, 34.8] gap [41.15, 53.85] gap [60.2, 91.7]
+    const p = { elements: [{ length: 12.7 }, { length: -6.35 }], period: 25.4 };
+    const got = rangesOf(dashPolyline(line(95), p));
+    const want = [
+      [0, 15.75],
+      [22.1, 34.8],
+      [41.15, 53.85],
+      [60.2, 91.7],
+    ];
+    expect(got.length).toBe(want.length);
+    for (let i = 0; i < want.length; i++) {
+      expectClose(got[i]![0]!, want[i]![0]!, 1e-9);
+      expectClose(got[i]![1]!, want[i]![1]!, 1e-9);
+    }
+    // 40 = 0 → continuous (odd-total-zero)
+    expect(rangesOf(dashPolyline(line(95), { ...p, period: 0 }))).toEqual([[0, 95]]);
+  });
+
+  it("a leading gap starts with a short dash (e0 + r)/2 (linetypes/odd-leading-gap)", () => {
+    const got = rangesOf(dashPolyline(line(47.5), dashPattern([-6.35, 12.7])));
+    // h = 1.525: [0, h + 12.7], gap 6.35, then dash 12.7 + 2h, nothing after
+    expect(got.length).toBe(2);
+    expectClose(got[0]![1]!, 14.225, 1e-9);
+    expectClose(got[1]![0]!, 20.575, 1e-9);
+    expectClose(got[1]![1]!, 36.325, 1e-9);
   });
 });
 
@@ -128,17 +159,20 @@ describe("units: per segment (PLINEGEN off) vs continuous (PLINEGEN on)", () => 
     expectClose(covered(r, 8), 0.5 + 10 * 0.5, 1e-12);
   });
 
-  it("closed input merges the end dashes across the seam", () => {
+  it("closed input stretches the pattern to round(L/P) whole periods from the start", () => {
     const ring = Float64Array.of(0, 0, 2, 0, 2, 2, 0, 2);
     const r = dashPolyline(ring, DASHED, { closed: true });
     const rg = rangesOf(r);
-    const last = rg[rg.length - 1]!;
-    expect(last[0]!).toBeGreaterThan(last[1]!); // runs over the seam
-    expectClose(covered(r, 8), 5.5, 1e-12);
-    const seamDash = r.dashes[r.dashes.length - 1]!;
-    expect(Array.from(seamDash.slice(-4))).toEqual([0, 0, 0.5, 0]);
+    const n = Math.round(8 / 0.75);
+    expect(rg.length).toBe(n);
+    expectClose(rg[0]![0]!, 0, 1e-12);
+    expectClose(rg[1]![0]!, 8 / n, 1e-12);
+    expectClose(covered(r, 8), (8 * 2) / 3, 1e-12);
     const tiny = dashPolyline(Float64Array.of(0, 0, 0.1, 0, 0.1, 0.1), DASHED, { closed: true });
     expect(tiny.whole).toBe(true);
+    // at least two periods (linetypes/circle-center-r10: 1.24 P → 2 periods)
+    const two = dashPolyline(Float64Array.of(0, 0, 0.3, 0, 0.3, 0.165), DASHED, { closed: true });
+    expect(two.dashes.length).toBe(2);
   });
 });
 
@@ -165,12 +199,11 @@ describe("paths: exact arc length", () => {
     }
   });
 
-  it("a circle is one closed unit; the seam dash is merged", () => {
+  it("a circle is one closed unit with whole periods (linetypes/circle-*)", () => {
     const path = { subpaths: [{ segments: [arcSegment(circleArc({ x: 0, y: 0 }, 5))], closed: true }] };
     const res = dashPath(path, DASHED, 0.001)[0]!;
     const L = 2 * Math.PI * 5;
-    const k = Math.floor(L / 0.75);
-    expect(res.dashes.length).toBe(k); // k+1 dashes, head and tail merged
+    expect(res.dashes.length).toBe(Math.round(L / 0.75)); // stretched whole periods
   });
 
   it("per-segment units follow path segments", () => {

@@ -160,7 +160,13 @@ export class Frontend {
    */
   readonly entityFilters: ((e: Entity, st: DrawState) => boolean)[] = [];
   /** Clip stack (intersected regions, display-list clip indices); see pushClip. */
-  private readonly clipStack: { rings: Float64Array[]; index: number; pointIndex: number }[] = [];
+  private readonly clipStack: {
+    rings: Float64Array[];
+    index: number;
+    pointIndex: number;
+    /** Boundary edges (x0, y0, x1, y1 …) whose collinear strokes are dropped, see pushClip. */
+    edges?: Float64Array;
+  }[] = [];
   private readonly pixelScratch: number[] = [];
 
   constructor(
@@ -308,8 +314,12 @@ export class Frontend {
    * the pixels AutoCAD draws for a line clipped geometrically, boundary included (the end pixel
    * of a clipped line is the one containing the boundary point; lines lying on the boundary stay).
    */
-  pushClip(rings: readonly Float64Array[]): void {
+  pushClip(rings: readonly Float64Array[], options: { dropOnBoundary?: boolean } = {}): void {
     let r = rings.filter((x) => x.length >= 6);
+    // polygonal XCLIP boundaries drop strokes lying on them (xclip/rect-4pt vs rect-block, note 07
+    // §7.5; layouts/clip-thick-bulge); inherited by nested clips
+    let edges = this.clipStack[this.clipStack.length - 1]?.edges;
+    if (options.dropOnBoundary) edges = concatEdges(edges, r);
     const top = this.clipStack[this.clipStack.length - 1];
     if (top) {
       r = booleanPolygons(BooleanOp.Intersection, top.rings, r, {
@@ -326,7 +336,7 @@ export class Frontend {
       const d = dilateBySquare(r, this.pixelSize / 2, { tolerance: this.tolerance / 16 });
       pointIndex = this.builder.addClip({ rings: d.flatMap((p) => [p.outer, ...p.holes]) });
     }
-    this.clipStack.push({ rings: r, index, pointIndex });
+    this.clipStack.push({ rings: r, index, pointIndex, ...(edges ? { edges } : {}) });
     this.builder.setClip(index, pointIndex);
   }
 
@@ -432,6 +442,14 @@ export class Frontend {
   /** Strokes a flattened polyline (target coordinates) with the entity's lineweight. */
   strokeFlat(points: Float64Array, closed: boolean, r: Resolved): void {
     if (points.length < 2) return;
+    const edges = this.clipStack[this.clipStack.length - 1]?.edges;
+    if (edges && points.length >= 4) {
+      const parts = dropOnEdges(points, closed, edges, this.pixelSize * 1e-3);
+      if (parts) {
+        for (const p of parts) this.strokeFlat(p, false, r);
+        return;
+      }
+    }
     if (this.grid) {
       this.rasterStroke(points, closed, r);
       return;
@@ -612,4 +630,103 @@ export async function renderPlot(
   const fe = new Frontend(doc, request, view, calibration, env);
   drawSpace(fe, space);
   return { displayList: fe.build(), view, unsupported: fe.unsupported };
+}
+
+function concatEdges(prev: Float64Array | undefined, rings: readonly Float64Array[]): Float64Array {
+  const out: number[] = prev ? Array.from(prev) : [];
+  for (const ring of rings) {
+    const n = ring.length >> 1;
+    for (let k = 0; k < n; k++) {
+      const q = (k + 1) % n;
+      out.push(ring[k * 2]!, ring[k * 2 + 1]!, ring[q * 2]!, ring[q * 2 + 1]!);
+    }
+  }
+  return Float64Array.from(out);
+}
+
+/**
+ * Parameter interval [u0, u1] of segment a→b lying on edge e (collinear within tol), or
+ * undefined.
+ */
+function onEdge(
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+  e: Float64Array,
+  k: number,
+  tol: number,
+): [number, number] | undefined {
+  const ex = e[k]!;
+  const ey = e[k + 1]!;
+  const dx = e[k + 2]! - ex;
+  const dy = e[k + 3]! - ey;
+  const len2 = dx * dx + dy * dy;
+  if (len2 === 0) return undefined;
+  const len = Math.sqrt(len2);
+  if (Math.abs((ax - ex) * dy - (ay - ey) * dx) / len > tol) return undefined;
+  if (Math.abs((bx - ex) * dy - (by - ey) * dx) / len > tol) return undefined;
+  // edge extent [0, 1] expressed in the segment's parameter
+  const ta = ((ax - ex) * dx + (ay - ey) * dy) / len2;
+  const tb = ((bx - ex) * dx + (by - ey) * dy) / len2;
+  if (ta === tb) return undefined;
+  let u0 = (0 - ta) / (tb - ta);
+  let u1 = (1 - ta) / (tb - ta);
+  if (u0 > u1) [u0, u1] = [u1, u0];
+  u0 = Math.max(0, u0);
+  u1 = Math.min(1, u1);
+  return u1 - u0 > 1e-12 ? [u0, u1] : undefined;
+}
+
+/** Removes the segments of a polyline lying on one of the edges; undefined when none does. */
+export function dropOnEdges(
+  points: Float64Array,
+  closed: boolean,
+  edges: Float64Array,
+  tol: number,
+): Float64Array[] | undefined {
+  const n = points.length >> 1;
+  const count = closed ? n : n - 1;
+  const out: Float64Array[] = [];
+  let cur: number[] = [];
+  let hit = false;
+  const flush = () => {
+    if (cur.length >= 4) out.push(Float64Array.from(cur));
+    cur = [];
+  };
+  for (let sg = 0; sg < count; sg++) {
+    const a = sg;
+    const b = (sg + 1) % n;
+    const ax = points[a * 2]!;
+    const ay = points[a * 2 + 1]!;
+    const bx = points[b * 2]!;
+    const by = points[b * 2 + 1]!;
+    // only segments lying entirely on an edge are dropped; partial overlaps are pixel ties in
+    // the fixtures (note 07 §7.5)
+    const cut: [number, number][] = [];
+    for (let k = 0; k + 3 < edges.length; k += 4) {
+      const iv = onEdge(ax, ay, bx, by, edges, k, tol);
+      if (iv && iv[0] <= 1e-9 && iv[1] >= 1 - 1e-9) cut.push(iv);
+    }
+    if (cut.length === 0) {
+      if (cur.length === 0) cur.push(ax, ay);
+      cur.push(bx, by);
+      continue;
+    }
+    hit = true;
+    cut.sort((p, q) => p[0] - q[0]);
+    let u = 0;
+    const at = (t: number): [number, number] => [ax + (bx - ax) * t, ay + (by - ay) * t];
+    for (const [u0, u1] of cut) {
+      if (u0 > u) {
+        if (cur.length === 0) cur.push(...at(u));
+        cur.push(...at(u0));
+      }
+      flush();
+      u = Math.max(u, u1);
+    }
+    if (u < 1) cur.push(...at(u), bx, by);
+  }
+  flush();
+  return hit ? out : undefined;
 }

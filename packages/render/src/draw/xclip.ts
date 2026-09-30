@@ -126,7 +126,8 @@ function clipHook(fe: Frontend, parent: Entity, st: DrawState): (() => void) | u
       units: DashUnits.PerSegment,
     });
   }
-  fe.pushClip([ring]);
+  // a line on a polygon edge is dropped, on a 2-point rectangle's edge it stays (note 07 §7.5)
+  fe.pushClip([ring], { dropOnBoundary: sf.boundary.length > 2 });
   if (sf.frontClip !== undefined || sf.backClip !== undefined) {
     // front/back planes along the clip normal (boundary-system z): front keeps z ≤ 40, back
     // keeps z ≥ 41 (VERIFIED-BY-ACAD xclip/frontback-*). Entity-level culling of the direct block

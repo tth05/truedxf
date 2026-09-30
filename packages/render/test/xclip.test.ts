@@ -2,6 +2,7 @@ import { dilateBySquare } from "@truedxf/geometry";
 import type { SpatialFilterObject } from "@truedxf/model";
 import { describe, expect, it } from "vitest";
 import { blockBoundary } from "../src/draw/xclip.ts";
+import { dropOnEdges } from "../src/frontend.ts";
 
 const I = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0];
 
@@ -74,5 +75,16 @@ describe("dilateBySquare", () => {
     expect(Math.max(...xs)).toBeCloseTo(10.5, 6);
     expect(Math.min(...ys)).toBeCloseTo(-0.5, 6);
     expect(Math.max(...ys)).toBeCloseTo(5.5, 6);
+  });
+});
+
+describe("dropOnEdges", () => {
+  const edges = Float64Array.of(0, 0, 10, 0, 10, 0, 10, 10);
+  it("drops segments lying entirely on a boundary edge", () => {
+    const parts = dropOnEdges(Float64Array.of(2, 0, 8, 0, 8, 5), false, edges, 1e-9);
+    expect(parts?.map((p) => [...p])).toEqual([[8, 0, 8, 5]]);
+  });
+  it("keeps segments only partly on an edge", () => {
+    expect(dropOnEdges(Float64Array.of(-5, 0, 5, 0), false, edges, 1e-9)).toBeUndefined();
   });
 });

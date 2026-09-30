@@ -642,11 +642,14 @@ References `samples/refs/acad2027-R26.0/xclip/*`; implementation `packages/rende
 - **Front/back clip** along the boundary normal (z in the boundary system): front 40 keeps
   z ≤ 40, back 41 keeps z ≥ 41; a ramp crossing a plane is cut geometrically (frontback-*;
   Q-0638). truedxf culls whole entities by their point depth range (crossing entities kept).
-- **Boundary edges**: a model line lying exactly on a 2-point rectangle's edge is drawn (rect-block,
-  x = 10 and 60 grid lines), on a polygon edge it is not (rect-4pt with the same rectangle as a
-  4-point polygon: those lines vanish; polygon-concave x = 40). Lines crossing the boundary end in
-  the pixel that contains the boundary point (truedxf: single-pixel output clipped against the
-  region dilated by ½ px; fills and thick strokes by pixel centre).
+- **Boundary edges** (fixtures put them on exact pixel ties, so partly noise): model lines lying
+  on a 2-point rectangle's edges are drawn (rect-block, x = 10 / 60 grid lines), the same lines on
+  the same rectangle given as a 4-point polygon vanish (rect-4pt), while a grid line partly on a
+  concave polygon edge stays (polygon-concave x = 40). truedxf drops stroke segments lying
+  *entirely* on a polygon boundary edge (block-coords-* improve to F1 1.0) and keeps partial
+  overlaps. Lines crossing the boundary end in the pixel that contains the boundary point
+  (truedxf: single-pixel output clipped against the region dilated by ½ px; fills and thick
+  strokes by pixel centre).
 - **Inverted clips** written by ezdxf (ACAD_XREC_ROUNDTRIP) are rejected by AutoCAD
   ("Invalid or incomplete DXF input", inverted-ezdxf; Q-0633/Q-0639 stay open for AutoCAD-written
   inverted clips).

@@ -18,8 +18,9 @@
  *   nothing (fitflags-*, ezdxf#353);
  * - SHX control characters execute the font's shape if it has one (LF = shape 10 moves the pen
  *   down without returning), otherwise "?" (caret-controls);
- * - %%u/%%o/%%k lines at −0.2 h / 1.2 h / 0.5 h, spanning the characters' advances shifted by
- *   −0.15 h (special-* with simplex.shx; the shift's origin is unknown);
+ * - %%u/%%o/%%k lines: SHX at −0.2 h / 1.2 h / 0.5 h spanning the advances shifted by −0.15 h
+ *   (special-* with simplex.shx; the shift's origin is unknown); TTF at −descent / ascent / 0.5 h
+ *   (hhea), unshifted (text-lato/text-*);
  * - $QTEXTMODE: a rectangle [box] × [−descent, h] instead of the glyphs (qtextmode-1).
  *
  * Transform order: glyph → height/width factor → oblique shear about the baseline
@@ -29,7 +30,7 @@
 import type { StyleFont } from "@truedxf/fonts";
 import { Affine2, Matrix44, ocsToWcsMatrix, type Vec3 } from "@truedxf/geometry";
 import { glyphCode, type TextFontSource } from "./fonts.ts";
-import { InkBox, type MeasuredGlyph, measureGlyph } from "./glyphs.ts";
+import { decorationOffsets, InkBox, type MeasuredGlyph, measureGlyph } from "./glyphs.ts";
 import { decodeTextString, type TextChar } from "./specials.ts";
 import type { DecorationLine, GlyphPlacement, TextLayout } from "./types.ts";
 
@@ -65,13 +66,13 @@ export interface TextLayoutOptions {
   /** $QTEXTMODE ≠ 0: draw boxes instead of glyphs. */
   quickText?: boolean;
   /** Decoration offsets in text heights (default {@link TEXT_DECORATION}). */
-  decoration?: Partial<typeof TEXT_DECORATION>;
+  decoration?: Partial<{ underline: number; overline: number; strike: number; shift: number }>;
 }
 
 /**
- * Decoration geometry in text heights: y of underline/overline/strike-through above the baseline
- * and the x shift of the lines relative to the characters (VERIFIED-BY-ACAD with simplex.shx,
- * TTF not measured yet).
+ * Decoration geometry in text heights for SHX fonts: y of underline/overline/strike-through above
+ * the baseline and the x shift of the lines (VERIFIED-BY-ACAD with simplex.shx; TrueType fonts use
+ * their hhea metrics and no shift, see {@link decorationOffsets}).
  */
 export const TEXT_DECORATION = { underline: -0.2, overline: 1.2, strike: 0.5, shift: -0.15 } as const;
 
@@ -286,7 +287,11 @@ export function layoutText(e: TextInput, fonts: TextFontSource, options: TextLay
       color: undefined,
     });
   }
-  const lines = decorations(line, frame, { ...TEXT_DECORATION, ...options.decoration });
+  const style = fonts.style(e.style);
+  const fontDeco = style.font ? decorationOffsets(style.font) : TEXT_DECORATION;
+  // SHX decoration lines start 0.15 h left of the characters, TTF ones at the pen (VERIFIED-BY-ACAD)
+  const shift = style.font?.kind === "ttf" ? 0 : TEXT_DECORATION.shift;
+  const lines = decorations(line, frame, { ...TEXT_DECORATION, ...fontDeco, shift, ...options.decoration });
   return { plane, backgrounds: [], glyphs, lines, notes };
 }
 
@@ -307,7 +312,11 @@ export function quickBox(frame: Affine2, x0: number, x1: number, y0: number, y1:
   return out;
 }
 
-function decorations(line: LineMetrics, frame: Affine2, d: typeof TEXT_DECORATION): DecorationLine[] {
+function decorations(
+  line: LineMetrics,
+  frame: Affine2,
+  d: { underline: number; overline: number; strike: number; shift: number },
+): DecorationLine[] {
   const out: DecorationLine[] = [];
   const kinds = [
     ["underline", d.underline],

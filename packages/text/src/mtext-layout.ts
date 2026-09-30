@@ -20,7 +20,7 @@
 import type { Bounds, StyleFont } from "@truedxf/fonts";
 import { Affine2, Matrix44, ocsToWcsMatrix, type Vec3, wcsToOcsMatrix } from "@truedxf/geometry";
 import { glyphCode, type TextFontSource } from "./fonts.ts";
-import { InkBox, type MeasuredGlyph, measureGlyph, measureResolved } from "./glyphs.ts";
+import { decorationOffsets, InkBox, type MeasuredGlyph, measureGlyph, measureResolved } from "./glyphs.ts";
 import {
   defaultContext,
   type MTextChar,
@@ -310,7 +310,8 @@ export function layoutMText(
     }
     const availL = ln.margin;
     const availR = frameW - ln.paragraph.right;
-    if (align === "left") ln.x = availL;
+    // left: the line ink (not the pen origin) starts at the margin (VERIFIED-BY-ACAD text-lato/mtext-attach-1)
+    if (align === "left") ln.x = availL - ln.ext0;
     else if (align === "right") ln.x = availR - ln.ext1;
     else ln.x = (availL + availR) / 2 - (ln.ext0 + ln.ext1) / 2;
   }
@@ -853,10 +854,11 @@ class Engine {
 
   /** Underline/overline/strike runs; strokes continue across spaces (note 04 §3.3). */
   private decorations(ln: Line, base: Affine2, decor: DecorationLine[]): void {
+    const d = decorationOffsets(this.baseFont);
     const kinds: readonly [DecorationKind, "underline" | "overline" | "strike", number][] = [
-      ["underline", "underline", this.o.underlineOffset ?? MTEXT_DECORATION.underline],
-      ["overline", "overline", this.o.overlineOffset ?? MTEXT_DECORATION.overline],
-      ["strike", "strike", this.o.strikeOffset ?? MTEXT_DECORATION.strike],
+      ["underline", "underline", this.o.underlineOffset ?? d.underline],
+      ["overline", "overline", this.o.overlineOffset ?? d.overline],
+      ["strike", "strike", this.o.strikeOffset ?? d.strike],
     ];
     const lastInk = lastInkIndex(ln);
     for (const [kind, flag, off] of kinds) {

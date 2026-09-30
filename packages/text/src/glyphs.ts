@@ -54,3 +54,15 @@ export class InkBox {
     this.add(o, 0, 0);
   }
 }
+
+/**
+ * Decoration line heights in text heights (above the baseline) for a font (VERIFIED-BY-ACAD
+ * 2026-09-30): SHX (simplex.shx) underline −0.2 h, overline 1.2 h, strike 0.5 h; TrueType (Lato)
+ * underline at −hhea descent, overline at the hhea ascent, strike 0.5 h.
+ */
+export function decorationOffsets(font: StyleFont): { underline: number; overline: number; strike: number } {
+  const p = font.primary;
+  if (p.kind === "ttf")
+    return { underline: -p.descent / p.capHeight, overline: p.ascent / p.capHeight, strike: 0.5 };
+  return { underline: -0.2, overline: 1.2, strike: 0.5 };
+}

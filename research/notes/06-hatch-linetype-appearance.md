@@ -48,7 +48,8 @@ Source abbreviations:
    not radians as the DXF reference claims. 74 bit 8 = upright ("U="). (§2.2)
 7. ACI→RGB: there is **no single agreed table** — two palettes circulate (a "light" one with
    CC/99/7F/4C ramps and a "dark" one with A5/7F/4C/26 ramps), and AutoCAD itself switches
-   display palettes by background color. Which RGB PLOT uses is **UNKNOWN** → measure. (§3.3)
+   display palettes by background color. **VERIFIED-BY-ACAD: PLOT uses a third table** (ramps
+   FF/DD/B8/95/72, 9 = DCDCDC, 255 = FAFAFA) in model and paper space, PNG and PDF. (§3.5)
 8. ACI 7 plots black on white paper. BYBLOCK at top level → color 7, CONTINUOUS, default lineweight.
 9. 440 transparency: `0x02000000 | alpha`, alpha = trunc(255·(100−t%)/100); `0x01000000` = BYBLOCK;
    absent = BYLAYER. Transparency is only plotted if the page setup's "plot transparency" is on
@@ -901,6 +902,53 @@ color for ACI 7"). Only ACI 7 is inverted — ACI 255 and true color 255,255,255
 (ASSUMPTION; test C2). BYBLOCK/BYLAYER resolving to 7 behaves like 7. ezdxf also treats layer
 color 7 specially (`has_aci_color_7` → layout foreground) unless the layer has a true color.
 
+### 3.5 Plotted ACI palette (VERIFIED-BY-ACAD, AutoCAD 2027)
+
+Measured 2026-09-30 with the tools/acad harness (cases `calibration/palette-model`, `palette-paper`,
+`palette-mono`; 255 solid-hatch swatches + 16 true colours; references under
+`samples/refs/acad2027-R26.0/calibration/`; `tools/acad/calibration/analyze_palette.py --dump`;
+details in note 08 §10.7):
+
+- With `acad.ctb` ("use object color") AutoCAD 2027 plots a palette that matches **neither**
+  candidate of §3.3 (55/255 entries equal each). Identical results in model space, in paper
+  space, through a VIEWPORT, in the PNG (raster driver) and in the PDF (255/255) — so it is the
+  plot palette, not a driver or background artefact. Swatches are uniform (no dithering; CTB
+  `color_policy=1` has no visible effect).
+- Structure: pure ramps **FF / DD / B8 / 95 / 72** (the "light" CC/99/7F/4C and "dark" A5/7F/4C/26
+  ramps are both wrong for plots); half-saturated columns use value/2 rounded down (ACI 11 =
+  FF7F7F, 13 = DD6E6E, 15 = B85C5C, 17 = 954A4A, 19 = 723939). ACI 8 = 808080, **ACI 9 = DCDCDC**
+  (not C0C0C0), 250–255 = **545454 767676 989898 BABABA DBDBDB FAFAFA** — ACI 255 is *not*
+  white.
+- ACI 7 → **000000** on the white sheet (also via a viewport).
+- True colours (420) plot exactly (16/16: FFFFFF, 000000, 010203, FEFDFC, 804020, …); true-colour
+  white is invisible on the white sheet.
+- `monochrome.ctb`: every ACI swatch → 000000, but **true-colour objects keep their RGB** (the
+  ASSUMPTION in §6.3 "true-color objects also plot black" is wrong).
+
+Measured table (row label = first ACI of the row; index 0 unused):
+
+```
+  0: 000000 FF0000 FFFF00 00FF00 00FFFF 0000FF FF00FF 000000 808080 DCDCDC FF0000 FF7F7F DD0000 DD6E6E B80000 B85C5C
+ 16: 950000 954A4A 720000 723939 FF3F00 FF9F7F DD3700 DD8A6E B82E00 B8735C 952500 955D4A 721C00 724739 FF7F00 FFBF7F
+ 32: DD6E00 DDA56E B85C00 B88A5C 954A00 95704A 723900 725639 FFBF00 FFDF7F DDA500 DDC16E B88A00 B8A15C 957000 95834A
+ 48: 725600 726439 FFFF00 FFFF7F DDDD00 DDDD6E B8B800 B8B85C 959500 95954A 727200 727239 BFFF00 DFFF7F A5DD00 C1DD6E
+ 64: 8AB800 A1B85C 709500 83954A 567200 647239 7FFF00 BFFF7F 6EDD00 A5DD6E 5CB800 8AB85C 4A9500 70954A 397200 567239
+ 80: 3FFF00 9FFF7F 37DD00 8ADD6E 2EB800 73B85C 259500 5D954A 1C7200 477239 00FF00 7FFF7F 00DD00 6EDD6E 00B800 5CB85C
+ 96: 009500 4A954A 007200 397239 00FF3F 7FFF9F 00DD37 6EDD8A 00B82E 5CB873 009525 4A955D 00721C 397247 00FF7F 7FFFBF
+112: 00DD6E 6EDDA5 00B85C 5CB88A 00954A 4A9570 007239 397256 00FFBF 7FFFDF 00DDA5 6EDDC1 00B88A 5CB8A1 009570 4A9583
+128: 007256 397264 00FFFF 7FFFFF 00DDDD 6EDDDD 00B8B8 5CB8B8 009595 4A9595 007272 397272 00BFFF 7FDFFF 00A5DD 6EC1DD
+144: 008AB8 5CA1B8 007095 4A8395 005672 396472 007FFF 7FBFFF 006EDD 6EA5DD 005CB8 5C8AB8 004A95 4A7095 003972 395672
+160: 003FFF 7F9FFF 0037DD 6E8ADD 002EB8 5C73B8 002595 4A5D95 001C72 394772 0000FF 7F7FFF 0000DD 6E6EDD 0000B8 5C5CB8
+176: 000095 4A4A95 000072 393972 3F00FF 9F7FFF 3700DD 8A6EDD 2E00B8 735CB8 250095 5D4A95 1C0072 473972 7F00FF BF7FFF
+192: 6E00DD A56EDD 5C00B8 8A5CB8 4A0095 704A95 390072 563972 BF00FF DF7FFF A500DD C16EDD 8A00B8 A15CB8 700095 834A95
+208: 560072 643972 FF00FF FF7FFF DD00DD DD6EDD B800B8 B85CB8 950095 954A95 720072 723972 FF00BF FF7FDF DD00A5 DD6EC1
+224: B8008A B85CA1 950070 954A83 720056 723964 FF007F FF7FBF DD006E DD6EA5 B8005C B85C8A 95004A 954A70 720039 723956
+240: FF003F FF7F9F DD0037 DD6E8A B8002E B85C73 950025 954A5D 72001C 723947 545454 767676 989898 BABABA DBDBDB FAFAFA
+```
+
+The renderer's plot mode should use this table (the display palettes of §3.3 / Appendix A remain
+relevant only for on-screen emulation).
+
 ---
 
 ## 4. Transparency
@@ -965,7 +1013,8 @@ netDxf:Transparency.cs)
 ### 5.2 Rendering lineweights in plots
 
 - Physical width on paper in mm (not scaled by drawing scale). Raster plot: width_px =
-  lw_mm × DPI / 25.4; rounding rule **UNKNOWN** (test W1: plot all 24 weights at 300/600 DPI
+  lw_mm × DPI / 25.4; rounding rule **VERIFIED-BY-ACAD (note 08 §10.4): px = max(1, round(mm × 100/25.4)) at the
+  fixed 100 dpi raster DPI, PDF width = round(mm × 600/25.4)/600 in; caps round**; earlier text: (test W1: plot all 24 weights at 300/600 DPI
   and measure).
 - Lineweight 0: "thinnest line the plotter can draw" = 1 device pixel (ASSUMPTION; W1).
 - On screen: weights ≤ 0.25 mm (LWDEFAULT) display as 1 px (irrelevant for PLOT).
@@ -1089,7 +1138,7 @@ luminance 0.30R+0.59G+0.11B). Screening s %: ASSUMPTION `c' = 255 − (255 − c
 Standard tables (ASSUMPTION, typical AutoCAD installs): `acad.ctb` — every pen use object color,
 no dithering changes, screening 100, object linetype/lineweight/end/join/fill → equivalent to "no
 plot style". `monochrome.ctb` — all 255 pens color black (0,0,0), rest object → everything black
-(ASSUMPTION: true-color objects also plot black). `Grayscale.ctb`, `Screening xx%.ctb`, `Fill
+(**wrong — VERIFIED-BY-ACAD §3.5: true-color objects keep their RGB under monochrome.ctb**). `Grayscale.ctb`, `Screening xx%.ctb`, `Fill
 Patterns.ctb`. "None" = no plot style table → object properties.
 
 ### 6.4 Pen selection for true-color objects (CTB mode)

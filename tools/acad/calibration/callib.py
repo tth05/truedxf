@@ -35,6 +35,7 @@ class Case:
         self.png_path = refs_dir() / f"{name}.png"
         self.pdf_path = refs_dir() / f"{name}.pdf"
         self._rgb: np.ndarray | None = None
+        self._ink: np.ndarray | None = None
         plot = self.meta["plot"]
         self.W, self.H = plot["canvas"]
         area = plot["area"]
@@ -51,8 +52,10 @@ class Case:
 
     @property
     def ink(self) -> np.ndarray:
-        """Boolean mask of non-white pixels."""
-        return self.rgb.min(axis=2) < 255
+        """Boolean mask of non-white pixels (cached)."""
+        if self._ink is None:
+            self._ink = self.rgb.min(axis=2) < 255
+        return self._ink
 
     # device coordinates: u to the right, v UP from the bottom edge, both in pixels, [0, W] x [0, H]
     def u(self, x: float) -> float:
@@ -63,9 +66,9 @@ class Case:
 
 
 def pixel_index(t: float, n: int) -> int:
-    """VERIFIED-BY-ACAD mapping of a device coordinate to a pixel index (FINDINGS.md §2):
-    floor(t), except that exact integer ties above the centre line go to the lower pixel
-    (ties round toward the canvas centre, so t = n maps to pixel n - 1)."""
+    """VERIFIED-BY-ACAD mapping of a device coordinate to a pixel index (research/notes/08 §10.2):
+    floor(t). Exact integer ties are floating-point noise in AutoCAD (floor in the lower ~56 % of
+    the axis, t - 1 above); this approximation sends ties in the upper half and t = n to t - 1."""
     if t > n / 2 and t == math.floor(t):
         return int(t) - 1
     return math.floor(t)

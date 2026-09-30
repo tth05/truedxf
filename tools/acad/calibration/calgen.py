@@ -206,6 +206,39 @@ def _ties(name: str, canvas: tuple[int, int]) -> None:
     )
 
 
+def _scan(name: str, canvas: tuple[int, int]) -> None:
+    """Every integer device coordinate as an exact tie (8 px/unit): even k in one band, odd k in
+    another, so neighbouring probes never share a pixel column/row."""
+    W, H = canvas
+    ppu = 8
+    ww, wh = W / ppu, H / ppu
+    doc = new_doc()
+    msp = doc.modelspace()
+    bands = {"x_even": (0.10, 0.20), "x_odd": (0.25, 0.35), "y_even": (0.55, 0.65), "y_odd": (0.75, 0.85)}
+    for k in range(0, W + 1):
+        y0, y1 = bands["x_even" if k % 2 == 0 else "x_odd"]
+        msp.add_line((k / ppu, y0 * wh), (k / ppu, y1 * wh), dxfattribs={"lineweight": 0})
+    for k in range(0, H + 1):
+        x0, x1 = bands["y_even" if k % 2 == 0 else "y_odd"]
+        msp.add_line((x0 * ww, k / ppu), (x1 * ww, k / ppu), dxfattribs={"lineweight": 0})
+    write(
+        name,
+        doc,
+        title=f"Exact-tie scan of every pixel boundary {W}x{H} (8 px/unit)",
+        tags=["LINE", "calibration", "T-PL-1"],
+        params={"ppu": ppu, "bands": bands, "window": [[0, 0], [ww, wh]]},
+        canvas=canvas,
+        window=((0.0, 0.0), (ww, wh)),
+    )
+
+
+@case
+def mapping_scan() -> None:
+    _scan("mapping-scan-2000x1500", (2000, 1500))
+    _scan("mapping-scan-1000x1000", (1000, 1000))
+    _scan("mapping-scan-800x600", (800, 600))
+
+
 @case
 def mapping_ties() -> None:
     _ties("mapping-ties-2000x1500", (2000, 1500))
@@ -398,6 +431,48 @@ def lineweights() -> None:
     _lineweights("lineweights-2000x1500", (2000, 1500), 0.0)
     _lineweights("lineweights-2000x1500-half", (2000, 1500), 0.5)
     _lineweights("lineweights-4000x3000", (4000, 3000), 0.0)
+
+
+@case
+def thick_probe() -> None:
+    """Thick-stroke model probes at 10 px/unit, sub-pixel offsets 0.13 / 0.38 / 0.63 / 0.88 px.
+
+    Per lineweight (row): a POINT, a zero-length LINE, short H/V lines, 30/45/60 deg lines and a
+    long 10 deg line, each in its own 12 x 10-unit cell. No coordinate is on a pixel boundary.
+    """
+    doc = new_doc()
+    msp = doc.modelspace()
+    items = []
+    lws = [211, 158, 100, 70, 50, 40, 35]
+    offs = [0.013, 0.038, 0.063, 0.088]
+    for r, lw in enumerate(lws):
+        for k, off in enumerate(offs):
+            base_y = 5 + r * 20 + (k // 2) * 10 + off
+            base_x = 5 + (k % 2) * 100 + off
+            shapes = [
+                ("point", (base_x, base_y), None),
+                ("zero", (base_x + 8, base_y), (base_x + 8, base_y)),
+                ("h", (base_x + 16, base_y), (base_x + 22.33, base_y)),
+                ("v", (base_x + 28, base_y - 3), (base_x + 28, base_y + 3.33)),
+                ("d30", (base_x + 34, base_y - 2), (base_x + 34 + 6 * math.cos(math.radians(30)), base_y - 2 + 6 * math.sin(math.radians(30)))),
+                ("d45", (base_x + 46, base_y - 2), (base_x + 46 + 5, base_y - 2 + 5)),
+                ("d60", (base_x + 56, base_y - 3), (base_x + 56 + 3.5, base_y - 3 + 3.5 * math.tan(math.radians(60)))),
+                ("d10", (base_x + 64, base_y - 1), (base_x + 64 + 25, base_y - 1 + 25 * math.tan(math.radians(10)))),
+            ]
+            for kind, p0, p1 in shapes:
+                if kind == "point":
+                    msp.add_point(p0, dxfattribs={"lineweight": lw})
+                else:
+                    msp.add_line(p0, p1, dxfattribs={"lineweight": lw})
+                items.append({"lw": lw, "kind": kind, "p0": list(p0), "p1": list(p1) if p1 else None, "off": off})
+    write(
+        "thick-probe",
+        doc,
+        title="Thick stroke shape probes (points, zero-length and short lines) at sub-pixel offsets",
+        tags=["LINE", "POINT", "lineweight", "calibration", "T-PL-3", "T-PL-4"],
+        params={"items": items},
+        outputs=("png", "pdf"),
+    )
 
 
 @case

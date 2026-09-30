@@ -1,6 +1,6 @@
 // Builds accoreconsole .scr scripts from case metadata (docs/fixtures.md) and the list of
 // (prompt, answer) steps the echoed log must show (research/notes/08 §6.4, prompt texts
-// VERIFIED-BY-ACAD 2027 transcript in tools/acad/FINDINGS.md §1).
+// VERIFIED-BY-ACAD 2027 transcript in research/notes/08 §10.1).
 import { PDF_PC3, PNG_PC3, pdfPaperName, pngPaperName } from "./sizes.ts";
 
 export type PlotArea =
@@ -95,7 +95,7 @@ export function plotSteps(meta: CaseMeta, device: "png" | "pdf", outFile: string
   // Raster devices have no paper-units prompt (VERIFIED-BY-ACAD); PDF sheets are in inches = px/100.
   if (device === "pdf") steps.push({ prompt: "Enter paper units [Inches/Millimeters]", answer: "_I" });
   steps.push(
-    // Square sheets: "Landscape" rotates the plot by 90 deg (VERIFIED-BY-ACAD, FINDINGS.md §1);
+    // Square sheets: "Landscape" rotates the plot by 90 deg (VERIFIED-BY-ACAD, note 08 §10.1);
     // "Portrait" keeps +X to the right. Wider-than-high sheets use Landscape.
     {
       prompt: "Enter drawing orientation [Portrait/Landscape]",
@@ -171,7 +171,7 @@ export type BuiltScript = {
  * When the plot window lies inside the current view, AutoCAD trims the window to the geometry
  * extents on every side where the extents come closer to the window edge than ~2 % of the view
  * height, and then centres the trimmed area — shifting the whole plot (VERIFIED-BY-ACAD,
- * FINDINGS.md §2.3). A view smaller than the window disables the trimming.
+ * note 08 §10.1). A view smaller than the window disables the trimming.
  */
 export function zoomSteps(meta: CaseMeta): Step[] | undefined {
   const p = meta.plot;

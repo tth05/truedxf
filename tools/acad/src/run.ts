@@ -125,7 +125,41 @@ export function runConsole(opts: {
 
 export type AcadInfo = { product: string; build: string; acadver: string; vernum: string; dir: string };
 
-export async function probeAcad(work: string): Promise<AcadInfo> {
+const slotLock = (tmp: string, n: number) => join(tmp, `slot-${n}.lock`);
+
+function pidAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Claims the lowest free worker slot (stale locks of dead runner processes are taken over). */
+export function claimSlot(tmp: string): number {
+  for (let n = 0; n < 64; n++) {
+    const lock = slotLock(tmp, n);
+    try {
+      writeFileSync(lock, String(process.pid), { flag: "wx" });
+      return n;
+    } catch {
+      const owner = Number(readFileSync(lock, "utf8").trim());
+      if (owner !== process.pid && !pidAlive(owner)) {
+        rmSync(lock, { force: true });
+        try {
+          writeFileSync(lock, String(process.pid), { flag: "wx" });
+          return n;
+        } catch {
+          // raced with another runner; try the next slot
+        }
+      }
+    }
+  }
+  throw new Error(`no free harness slot in ${tmp}`);
+}
+
+export async function probeAcad(work: string, slot: number): Promise<AcadInfo> {
   mkdirSync(work, { recursive: true });
   const scr = join(work, "probe.scr");
   writeFileSync(
@@ -135,7 +169,7 @@ export async function probeAcad(work: string): Promise<AcadInfo> {
   const r = await runConsole({
     script: scr,
     cwd: work,
-    isolate: { id: "truedxf-probe", dir: join(work, "profile") },
+    isolate: { id: `truedxf-w${slot}`, dir: join(work, "..", `profile-w${slot}`) },
     timeoutMs: 60_000,
   });
   // Anchored: the echoed LISP command line contains the marker text too.
@@ -427,7 +461,14 @@ async function main() {
     requireFile(f, `${basename(f)} (run node tools/acad/src/configs.ts)`);
   const tmp = harnessTmp();
   mkdirSync(tmp, { recursive: true });
-  const acad = await probeAcad(join(tmp, "probe"));
+  // Several runner processes may run at once (e.g. different suites): every worker owns a slot
+  // (work dir + /isolate profile) guarded by a lock file.
+  const slots = Array.from({ length: Math.max(1, args.jobs) }, () => claimSlot(tmp));
+  const release = () => {
+    for (const s of slots) rmSync(slotLock(tmp, s), { force: true });
+  };
+  process.on("exit", release);
+  const acad = await probeAcad(join(tmp, `w${slots[0]}`), slots[0]!);
   console.log(
     `${acad.product} ${acad.build} -> samples/refs/${acad.dir}; ${cases.length} case(s), ${args.jobs} job(s)`,
   );
@@ -450,7 +491,7 @@ async function main() {
         );
     }
   };
-  await Promise.all(Array.from({ length: Math.max(1, args.jobs) }, (_, i) => worker(i)));
+  await Promise.all(slots.map((slot) => worker(slot)));
   console.log(`done in ${((Date.now() - t0) / 1000).toFixed(1)}s:`, JSON.stringify(counts));
   if (Object.keys(counts).some((k) => k !== "ok" && k !== "skipped")) process.exitCode = 2;
 }

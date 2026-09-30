@@ -17,7 +17,8 @@
     "corpus:model": "node --disable-warning=ExperimentalWarning tools/corpus/src/load-model.ts",
     "test:visual": "node --disable-warning=ExperimentalWarning packages/testkit/src/visual.ts",
     "playground": "pnpm --filter @truedxf/playground dev",
-    "playground:build": "pnpm --filter @truedxf/playground build"
+    "playground:build": "pnpm --filter @truedxf/playground build",
+    "perf:viewer": "node --disable-warning=ExperimentalWarning apps/playground/scripts/perf.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.14",

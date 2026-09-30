@@ -104,7 +104,7 @@ const BACKGROUNDS = {
 };
 const SELECT_COLOR = new THREE.Color(0x2f81f7);
 const HOVER_COLOR = new THREE.Color(0xf0a33e);
-const MEASURE_COLOR = new THREE.Color(0x22c55e);
+const MEASURE_COLOR = new THREE.Color(0xff2d95);
 
 interface CurrentList {
   key: string;

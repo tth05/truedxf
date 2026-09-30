@@ -11,6 +11,10 @@ function fonts(): Plugin {
     configureServer(server) {
       server.middlewares.use(fontMiddleware(() => [BUNDLED_FONT_DIR, ...localFontDirs()]));
     },
+    // `vite preview` is local too (perf and smoke tests)
+    configurePreviewServer(server) {
+      server.middlewares.use(fontMiddleware(() => [BUNDLED_FONT_DIR, ...localFontDirs()]));
+    },
     generateBundle() {
       for (const f of readdirSync(BUNDLED_FONT_DIR)) {
         if (!/\.(shx|ttf|otf|ttc)$/i.test(f)) continue;
@@ -24,12 +28,15 @@ function fonts(): Plugin {
   };
 }
 
-/** Dev only: fixture / corpus API over the local samples/ folder (absent → empty lists). */
+/** Dev / preview only: fixture / corpus API over the local samples/ folder (absent → empty lists). */
 function samples(): Plugin {
   return {
     name: "truedxf-samples",
     apply: "serve",
     configureServer(server) {
+      server.middlewares.use(samplesMiddleware());
+    },
+    configurePreviewServer(server) {
       server.middlewares.use(samplesMiddleware());
     },
   };

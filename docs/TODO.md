@@ -67,5 +67,22 @@ Tick items off (or delete them) when done.
 ## Later phases (not started)
 
 - [ ] Phase 6 — AI fix loop (docs/agent-loop.md, `fix:next`, regression gate, hold-out seeds).
-- [ ] Phase 7 — viewer package and playground app.
+- [x] Phase 7 — viewer package and playground app (2026-10-01): `@truedxf/viewer` (worker
+      pipeline, LOD, layouts, layers, picking, inspector, measure) and `apps/playground` (fixture
+      compare, corpus browser). Follow-ups in "Viewer" below.
 - [ ] Phase 8 — writer, editing API, release.
+
+## Viewer (packages/viewer, apps/playground)
+
+- [ ] Frontend view culling: every LOD step re-tessellates the whole drawing (a window only sets
+      the pixel size), so deep zoom into large files costs a full render each time. Cull entities
+      (block references by bounds) outside the requested window + margin and re-request on pan.
+- [ ] Hairlines while navigating: lineweight-widened strokes scale with the list until the next
+      LOD step (up to 2× too thick / thin).
+- [ ] Publishable worker entry: the default worker URL (`./worker.ts`) only works when the
+      package is consumed from source; emit a `dist/worker.js` and resolve it in builds.
+- [ ] Layers panel: per-layout VP-freeze state, layer colour / linetype overrides; xref layers.
+- [ ] Picking inside block references returns the innermost entity; offer "select parent INSERT".
+- [ ] Measure: object snaps (endpoint, midpoint, intersection) and a thicker overlay line.
+- [ ] WebGPU renderer trial (PLAN Phase 7.1).
+

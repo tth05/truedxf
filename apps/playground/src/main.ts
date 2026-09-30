@@ -163,6 +163,25 @@ let lastRender: RenderStats | undefined;
 let loadStart = 0;
 let firstFrame: number | undefined;
 
+/** First-frame metrics per opened file (read by the perf script and the smoke test). */
+export interface LoadMetrics {
+  name: string;
+  bytes: number;
+  entities: number;
+  parse: number;
+  frontend: number;
+  upload: number;
+  firstFrame: number;
+  batches: number;
+  vertices: number;
+  backend: string;
+}
+const metrics: LoadMetrics[] = [];
+(window as unknown as { truedxf: { viewer: DxfViewer; metrics: LoadMetrics[] } }).truedxf = {
+  viewer,
+  metrics,
+};
+
 viewer.on("load", (d) => {
   info = d;
   emptyState.style.display = "none";
@@ -179,7 +198,21 @@ viewer.on("load", (d) => {
 viewer.on("layout", () => renderLayouts());
 viewer.on("render", (r) => {
   lastRender = r;
-  if (firstFrame === undefined && loadStart) firstFrame = performance.now() - loadStart;
+  if (firstFrame === undefined && loadStart) {
+    firstFrame = performance.now() - loadStart;
+    metrics.push({
+      name: info?.name ?? "",
+      bytes: info?.byteLength ?? 0,
+      entities: info?.entityCount ?? 0,
+      parse: info?.ms.parse ?? 0,
+      frontend: r.ms.frontend,
+      upload: r.ms.upload,
+      firstFrame,
+      batches: r.batches,
+      vertices: r.vertices,
+      backend: viewer.backendKind,
+    });
+  }
   const parse = info?.ms.parse ?? 0;
   status.timing.textContent =
     `parse ${fmtMs(parse)} · render ${fmtMs(r.ms.frontend)} · upload ${fmtMs(r.ms.upload)}` +

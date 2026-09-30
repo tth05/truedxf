@@ -105,7 +105,7 @@ function framePlotted(doc: DxfDocument): boolean {
 function clipHook(fe: Frontend, parent: Entity, st: DrawState): (() => void) | undefined {
   if (parent.type !== "INSERT") return undefined;
   const sf = spatialFilter(fe.doc, parent);
-  if (!sf || !sf.enabled || sf.boundary.length < 2) return undefined;
+  if (!sf?.enabled || sf.boundary.length < 2) return undefined;
   const m = st.m.multiply(insertMatrix(fe.doc, parent));
   const pts = blockBoundary(sf).map((p) => m.transformPoint(p));
   if (pts.length < 3) return undefined;

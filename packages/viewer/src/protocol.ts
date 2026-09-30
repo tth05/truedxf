@@ -33,6 +33,8 @@ export interface LayoutInfo {
   tabOrder: number;
   /** Paper sheet in paper-space units (approximate: margins/offset), for paper-space layouts. */
   paper?: Rect;
+  /** Paper-space extents stored in the LAYOUT object (when valid), for layouts without a sheet. */
+  extents?: Rect;
 }
 
 export interface LayerInfo {
@@ -91,6 +93,11 @@ export interface RenderResult {
   list: DisplayList;
   pick: PickData;
   view: Rect;
+  /**
+   * Bounds of what is visible: like `list.bounds`, but clipped batches (viewport content) count
+   * only within their clip region's bounding box. Undefined for an empty list.
+   */
+  bounds: Rect | undefined;
   unsupported: Record<string, number>;
   ms: { frontend: number; pick: number };
 }
@@ -246,6 +253,7 @@ export class ViewerCore {
       list: res.displayList,
       pick,
       view: { ...res.view },
+      bounds: visibleBounds(res.displayList),
       unsupported: res.unsupported,
       ms: { frontend: t1 - t0, pick: t2 - t1 },
     };
@@ -314,6 +322,65 @@ export class ViewerCore {
     if (!this.doc) throw new Error("no document loaded");
     return this.doc;
   }
+}
+
+/** Display-list bounds with clipped batches limited to their clip region (see RenderResult.bounds). */
+export function visibleBounds(list: Pick<DisplayList, "batches" | "clips">): Rect | undefined {
+  let out: Rect | undefined;
+  const clipBox = new Map<number, Rect>();
+  for (const b of list.batches) {
+    const p = b.positions;
+    if (p.length < 2) continue;
+    let minX = Number.POSITIVE_INFINITY;
+    let minY = Number.POSITIVE_INFINITY;
+    let maxX = Number.NEGATIVE_INFINITY;
+    let maxY = Number.NEGATIVE_INFINITY;
+    for (let i = 0; i + 1 < p.length; i += 2) {
+      const x = p[i]!;
+      const y = p[i + 1]!;
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    }
+    let r: Rect = {
+      minX: minX + b.originX,
+      minY: minY + b.originY,
+      maxX: maxX + b.originX,
+      maxY: maxY + b.originY,
+    };
+    if (b.clip >= 0) {
+      let c = clipBox.get(b.clip);
+      if (!c) {
+        c = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
+        for (const ring of list.clips[b.clip]?.rings ?? []) {
+          for (let i = 0; i + 1 < ring.length; i += 2) {
+            c.minX = Math.min(c.minX, ring[i]!);
+            c.maxX = Math.max(c.maxX, ring[i]!);
+            c.minY = Math.min(c.minY, ring[i + 1]!);
+            c.maxY = Math.max(c.maxY, ring[i + 1]!);
+          }
+        }
+        clipBox.set(b.clip, c);
+      }
+      r = {
+        minX: Math.max(r.minX, c.minX),
+        minY: Math.max(r.minY, c.minY),
+        maxX: Math.min(r.maxX, c.maxX),
+        maxY: Math.min(r.maxY, c.maxY),
+      };
+      if (!(r.maxX >= r.minX && r.maxY >= r.minY)) continue;
+    }
+    out = out
+      ? {
+          minX: Math.min(out.minX, r.minX),
+          minY: Math.min(out.minY, r.minY),
+          maxX: Math.max(out.maxX, r.maxX),
+          maxY: Math.max(out.maxY, r.maxY),
+        }
+      : r;
+  }
+  return out;
 }
 
 function formatValue(v: string | number | bigint | boolean | Uint8Array): string {
@@ -385,12 +452,22 @@ export function describe(doc: DxfDocument, name: string, byteLength: number, par
       };
       const o = l.object;
       if (!l.isModel && o) {
-        const lim = { minX: o.limitsMin.x, minY: o.limitsMin.y, maxX: o.limitsMax.x, maxY: o.limitsMax.y };
-        if (lim.maxX > lim.minX && lim.maxY > lim.minY && Number.isFinite(lim.maxX + lim.maxY)) {
-          // layout limits are the paper sheet as AutoCAD shows it (plot scale included)
-          info.paper = lim;
-        } else if (o.paperWidth > 0 && o.paperHeight > 0) {
-          // paper size (mm) → paper units (72 = 0 inches) × plot scale; rotated paper swaps w, h
+        const ext = {
+          minX: o.extentsMin.x,
+          minY: o.extentsMin.y,
+          maxX: o.extentsMax.x,
+          maxY: o.extentsMax.y,
+        };
+        if (
+          ext.maxX > ext.minX &&
+          ext.maxY > ext.minY &&
+          Math.max(ext.maxX - ext.minX, ext.maxY - ext.minY) < 1e12
+        )
+          info.extents = ext;
+        // paper size (mm) → paper units (72 = 0 inches) × plot scale; rotated paper swaps w, h
+        let sheet: Rect | undefined;
+        let size: [number, number] | undefined;
+        if (o.paperWidth > 0 && o.paperHeight > 0) {
           const scale =
             o.scaleNumerator > 0 && o.scaleDenominator > 0 ? o.scaleDenominator / o.scaleNumerator : 1;
           const k = (o.paperUnits === 0 ? 1 / 25.4 : 1) * scale;
@@ -402,8 +479,22 @@ export function describe(doc: DxfDocument, name: string, byteLength: number, par
             [w, h] = [h, w];
             [ml, mb] = [mb, ml];
           }
-          info.paper = { minX: -ml, minY: -mb, maxX: w - ml, maxY: h - mb };
+          size = [w, h];
+          sheet = { minX: -ml, minY: -mb, maxX: w - ml, maxY: h - mb };
         }
+        // Layout limits are the sheet as AutoCAD shows it (margins / offset included) — unless
+        // they do not match the paper size (e.g. Revit's (0,0)-(12,9) on an A3 sheet).
+        const lim = { minX: o.limitsMin.x, minY: o.limitsMin.y, maxX: o.limitsMax.x, maxY: o.limitsMax.y };
+        const lw = lim.maxX - lim.minX;
+        const lh = lim.maxY - lim.minY;
+        const near = (a: number, b: number) => Math.abs(a - b) <= 0.05 * Math.max(a, b);
+        const limitsOk =
+          lw > 0 &&
+          lh > 0 &&
+          Number.isFinite(lw + lh) &&
+          (!size || (near(lw, size[0]) && near(lh, size[1])) || (near(lw, size[1]) && near(lh, size[0])));
+        const paper = limitsOk ? lim : sheet;
+        if (paper) info.paper = paper;
       }
       return info;
     })

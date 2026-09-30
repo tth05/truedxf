@@ -8,7 +8,7 @@
  *   old one stays visible (lod.ts).
  * - After GPU upload only positions (for picking/highlighting) stay on the CPU.
  */
-import type { Batch, DisplayList } from "@truedxf/render";
+import type { Batch } from "@truedxf/render";
 import { DisplayListRenderer } from "@truedxf/three";
 import * as THREE from "three";
 import { type Backend, LocalBackend, WorkerBackend } from "./backend.ts";
@@ -519,7 +519,7 @@ export class DxfViewer {
   private checkLod(): void {
     const cur = this.current;
     if (!this.view || !cur) return;
-    const target = targetPixelSize(this.view.scale, this.dpr, cur.bounds, this.options.lod);
+    const target = targetPixelSize(this.view.scale, this.dpr, this.fitRectangle(), this.options.lod);
     if (needsRetessellation(cur.pixelSize, target, this.options.lod)) this.requestList();
   }
 
@@ -535,9 +535,17 @@ export class DxfViewer {
       raster: "smooth" as const,
       dpi: 100 * this.dpr,
     };
-    if (this.fitPending || !this.view) return { ...base, area: { type: "extents" } };
+    if (this.fitPending || !this.view) {
+      // Paper layouts fit their sheet. Not the display-list extents: those include model-space
+      // content outside the viewports (clipped by the stencil, but still in the bounds), which
+      // made the sheet a dot on a far too coarse list.
+      const frame = this.layoutFrame();
+      if (!frame) return { ...base, area: { type: "extents" } };
+      const r = viewRect(fitRect(frame, this.cssWidth(), this.cssHeight()));
+      return { ...base, area: { type: "window", min: [r.minX, r.minY], max: [r.maxX, r.maxY] } };
+    }
     // the frontend tessellates the whole drawing; the window only sets the pixel size
-    const px = targetPixelSize(this.view.scale, this.dpr, this.current?.bounds, this.options.lod);
+    const px = targetPixelSize(this.view.scale, this.dpr, this.fitRectangle(), this.options.lod);
     const hw = (w * px) / 2;
     const hh = (h * px) / 2;
     return {
@@ -585,7 +593,8 @@ export class DxfViewer {
     const t0 = performance.now();
     this.renderer.setDisplayList(list);
     this.applyClearColor();
-    const bounds = boundsOf(list);
+    // clipped bounds: viewport content outside its viewport does not count (fit, LOD clamp)
+    const bounds = res.bounds;
     const batches = list.batches.map(slimBatch);
     this.current = {
       key,
@@ -627,9 +636,14 @@ export class DxfViewer {
     this.emit("render", this.lastRender);
   }
 
+  /** The sheet (or stored paper-space extents) of a paper layout; undefined for model space. */
+  private layoutFrame(): Rect | undefined {
+    const l = this.layoutInfo();
+    return l && !l.isModel ? (l.paper ?? l.extents) : undefined;
+  }
+
   private fitRectangle(): Rect | undefined {
-    const paper = this.layoutInfo()?.paper;
-    return unionRect(this.current?.bounds, paper);
+    return unionRect(this.layoutFrame(), this.current?.bounds);
   }
 
   // ---- drawing ------------------------------------------------------------------------------
@@ -907,11 +921,6 @@ export class DxfViewer {
 
 function slimBatch(b: Batch): PickBatch {
   return { kind: b.kind, originX: b.originX, originY: b.originY, positions: b.positions };
-}
-
-function boundsOf(list: DisplayList): Rect | undefined {
-  const b = list.bounds;
-  return b.maxX >= b.minX && b.maxY >= b.minY ? { ...b } : undefined;
 }
 
 function resolveBackground(bg: Background): [number, number, number] {

@@ -3,8 +3,58 @@
 > A TypeScript DXF library (parser, lossless data model, renderer and demo viewer) whose rendering
 > matches **AutoCAD's PLOT output** pixel-for-pixel. AutoCAD is the ground truth.
 
-Status: **Phase 0 (research) done** — see [§2](#2-where-we-are-phase-0-results). This document is the
-plan of record; update it when decisions change.
+Status: **Phases 0–5 done** (see the Status section below). This document is the plan of record;
+update it when decisions change.
+
+---
+
+## Status (2026-09-30): Phases 0–5 done
+
+| Phase | State |
+|---|---|
+| 0 Research | Done: knowledge base (research/notes), corpus of 5 542 files, 736-question backlog (docs/questions.md) |
+| 1 Core | Done: ASCII/binary tokenizer (~140 MB/s), encodings, lossless tag store, writers; whole corpus tokenizes without exceptions |
+| 2 Model | Done: typed parsers for all common entity/object types (182 corpus entities of 14 custom classes remain UNKNOWN), property resolution, DIMSTYLE resolution; 99.77 % attribute agreement with ezdxf over 50.8 M compared attributes, residuals classified |
+| 3 References | Done: AutoCAD 2027 harness (tools/acad), calibration (note 08 §10), generator with 3 734 fixtures in 29 suites (tools/gen) |
+| 4 Renderer | Done: frontend → display list, three.js renderer, visual harness (Chromium/SwiftShader) + CPU scorer, AutoCAD raster-rule emulation |
+| 5 Feature ladder | Done except rung 15 (CTB/STB plot styles: `@truedxf/plot` is still a placeholder) and the ezdxf baseline score (Phase 3.5) |
+| 6–8 | Not started |
+
+**Scoreboard** (CPU scorer = same pixels as the browser renderer in plot mode; `--hide-fonts
+^liberation`, see below): **3 486 cases with references, 3 128 (90 %) at F1(r=1) ≥ 0.99,
+1 282 (37 %) pixel-exact.**
+
+| Suite | Cases | Exact | F1(r=1) ≥ 0.99 | | Suite | Cases | Exact | F1(r=1) ≥ 0.99 |
+|---|---:|---:|---:|---|---|---:|---:|---:|
+| calibration | 38 | 5 | 38 | | linetypes | 230 | 79 | 215 |
+| lines-curves | 119 | 78 | 114 | | hatches | 280 | 125 | 224 |
+| ocs | 91 | 50 | 81 | | text | 294 | 0 | 284 |
+| polylines | 99 | 51 | 98 | | text-lato | 23 | 0 | 17 |
+| points | 155 | 115 | 153 | | mtext | 250 | 1 | 204 |
+| ellipses | 51 | 22 | 51 | | attribs | 65 | 1 | 64 |
+| splines | 59 | 0 | 57 | | acad-default-fonts | 14 | 1 | 7 |
+| solids | 43 | 38 | 43 | | dimensions | 366 | 146 | 348 |
+| colors | 44 | 30 | 44 | | leaders | 128 | 80 | 105 |
+| lineweights | 64 | 16 | 64 | | layouts | 169 | 7 | 155 |
+| blocks | 88 | 49 | 82 | | xclip | 44 | 0 | 36 |
+| transparency | 23 | 3 | 21 | | images | 174 | 137 | 156 |
+| draworder | 34 | 33 | 34 | | mline | 54 | 16 | 40 |
+| misc | 45 | 21 | 40 | | extents | 18 | 0 | 7 |
+| mixed | 37 | 0 | 29 | | fileformat | 387 | 178 | 317 |
+
+Reproduce: `node packages/testkit/src/cpu-suite.ts <suite> --quiet --hide-fonts "^liberation"`.
+
+**Known limitations / next steps** (details in the notes and docs/questions.md):
+- **Fonts:** the Liberation TTFs were installed during the AutoCAD session, so the references of
+  text/mtext/attribs/… were plotted with AutoCAD's simplex.shx substitution. After a Windows
+  log-off/on, re-run `node tools/acad/src/run.ts --suite <s> --force` for text-bearing suites and
+  score without `--hide-fonts`.
+- **accoreconsole limits:** IMAGE/WIPEOUT never plot in the console (implemented, unverified);
+  MPOLYGON needs `AcMPolygonObj26.dbx` loaded by the harness; proxy fixtures are rejected on load.
+- **Raster:** exact-tie noise at pixel boundaries (not modelled), spline tessellation, hatch
+  islands, clipped huge arcs, extents-plot padding.
+- **Features:** CTB/STB plot styles, PDF underlay content, wide polylines with linetypes, some
+  MULTILEADER variants, vertical text, MTEXT columns breaking, perspective viewports.
 
 ---
 

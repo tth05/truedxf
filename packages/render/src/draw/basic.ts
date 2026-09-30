@@ -91,7 +91,10 @@ function extruded(fe: Frontend, c: Curve3, st: DrawState, r: Resolved, d: Vec3, 
   }
 }
 
-/** Extrusion 210 = (0, 0, 0): AutoCAD keeps such ARC/CIRCLE entities but does not draw them. */
+/**
+ * Extrusion 210 = (0, 0, 0) (kept by AutoCAD): an ARC is not drawn, a CIRCLE is drawn in the XY
+ * plane around the WCS origin (its centre collapses to 0). VERIFIED-BY-ACAD ocs/zero-extrusion-*
+ */
 function zeroVector(n: Vec3): boolean {
   return n.x === 0 && n.y === 0 && n.z === 0;
 }
@@ -104,11 +107,24 @@ registerDrawer("LINE", (fe, e, st) => {
   else curve(fe, line3(l.start, l.end), l, st, r);
 });
 
+/** A negative CIRCLE/ARC radius is repaired to 1 on load (DXFOUT writes 40 = 1). VERIFIED-BY-ACAD
+ * lines-curves/circle-degenerate-0002, degenerate-lw-0002/0004, fileformat/corpus-ezdxf-circle-radius-le-0 */
+function radius(r: number): number {
+  return r < 0 ? 1 : r;
+}
+
 registerDrawer("CIRCLE", (fe, e, st) => {
   const c = e as CircleEntity;
   // VERIFIED-BY-ACAD ocs/zero-extrusion-circle (Q-0124)
-  if (zeroVector(c.extrusion)) return;
-  const arc = ocsArcToEllipticArc3(c.center, c.radius, 0, Math.PI * 2, c.extrusion);
+  const zero = zeroVector(c.extrusion);
+  const center = zero ? { x: 0, y: 0, z: 0 } : c.center;
+  const arc = ocsArcToEllipticArc3(
+    center,
+    radius(c.radius),
+    0,
+    Math.PI * 2,
+    zero ? { x: 0, y: 0, z: 1 } : c.extrusion,
+  );
   const r = fe.resolve(c, st);
   const d = thicknessOffset(fe, st, c.thickness, c.extrusion);
   if (d) extruded(fe, ellipticArcCurve3(arc), st, r, d, true);
@@ -119,8 +135,10 @@ registerDrawer("ARC", (fe, e, st) => {
   const a = e as ArcEntity;
   // VERIFIED-BY-ACAD ocs/zero-extrusion-arc (Q-0124)
   if (zeroVector(a.extrusion)) return;
-  const sweep = degToRad(arcSpanDeg(a.startAngle, a.endAngle));
-  const arc = ocsArcToEllipticArc3(a.center, a.radius, degToRad(a.startAngle), sweep, a.extrusion);
+  // end − start ≥ 360° plots a full circle (30 … 450 is not reduced to 60°). VERIFIED-BY-ACAD
+  // lines-curves/arc-normalise-0004 (0005: 0 … 720)
+  const sweep = degToRad(a.endAngle - a.startAngle >= 360 ? 360 : arcSpanDeg(a.startAngle, a.endAngle));
+  const arc = ocsArcToEllipticArc3(a.center, radius(a.radius), degToRad(a.startAngle), sweep, a.extrusion);
   const r = fe.resolve(a, st);
   const d = thicknessOffset(fe, st, a.thickness, a.extrusion);
   if (d) extruded(fe, ellipticArcCurve3(arc), st, r, d);
@@ -137,21 +155,32 @@ registerDrawer("ELLIPSE", (fe, e, st) => {
     endParam: x.endParam,
     extrusion: x.extrusion,
   });
-  const full = Math.abs(Math.abs(el.sweep) - Math.PI * 2) < 1e-12;
-  curve(fe, ellipticArcCurve3(el), x, st, fe.resolve(x, st), full);
+  // A parameter span ≥ 2π is a full ellipse (not reduced modulo 2π to a tiny arc): 0 … 6.2831855
+  // and 0 … 7 plot the full ellipse. VERIFIED-BY-ACAD ellipses/param-2pi-*, param-0008 (Q-0166)
+  const span = x.endParam - x.startParam;
+  const arc = span >= Math.PI * 2 - 1e-12 ? { ...el, sweep: Math.PI * 2 } : el;
+  const full = Math.abs(Math.abs(arc.sweep) - Math.PI * 2) < 1e-12;
+  curve(fe, ellipticArcCurve3(arc), x, st, fe.resolve(x, st), full);
 });
 
 registerDrawer("SPLINE", (fe, e, st) => {
   const s = e as SplineEntity;
+  // AutoCAD rebuilds interpolating fit-point splines (fit tolerance 0) from the fit points on load,
+  // ignoring stored control points and the 70 bits 64/128 (always chord-length knots), with the
+  // 12/13 tangents unnormalized. VERIFIED-BY-ACAD via DXFOUT: splines/fit-and-control,
+  // fit-param-64/128(-tangents), fit-tangents-*. With a fit tolerance the stored control points
+  // are AutoCAD's own approximation (its algorithm is unknown, splines/fit-tolerance*).
+  const fromFit = s.fitPoints.length >= 2 && (s.controlPoints.length === 0 || !(s.fitTolerance > 1e-9));
   const res = buildSplineCurve({
     degree: s.degree,
-    flags: s.flags,
+    flags: fromFit ? s.flags & ~(64 | 128) : s.flags,
     knots: s.knots,
-    controlPoints: s.controlPoints,
+    controlPoints: fromFit ? [] : s.controlPoints,
     weights: s.weights,
     fitPoints: s.fitPoints,
     startTangent: s.startTangent,
     endTangent: s.endTangent,
+    rawTangents: true,
   });
   if (!res.curve) {
     fe.note("spline-invalid");
@@ -412,6 +441,9 @@ registerDrawer(["SOLID", "TRACE"], (fe, e, st) => {
       ring[i * 2 + 1] = q.y;
     });
     fe.fillRings([ring], fe.color(r), FillRule.NonZero);
+    // zero-area SOLIDs draw nothing but still count for the extents. VERIFIED-BY-ACAD
+    // (fileformat/corpus-gdal-solid-less-than-4-vertices: $EXTMIN/$EXTMAX span the degenerate ones)
+    if (fe.props.extents) fe.builder.points(ring, fe.color(r));
   } else {
     const path: Path2 = { subpaths: [projectCurve3(polyline3(corners, true), m)] };
     fe.strokePath(path, r, s, st);

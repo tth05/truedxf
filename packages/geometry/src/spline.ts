@@ -34,6 +34,8 @@ export interface DxfSplineData {
   readonly startTangent?: Vec3;
   /** Code 13. */
   readonly endTangent?: Vec3;
+  /** Fit-point construction: use 12/13 unnormalized (AutoCAD, see fit.ts). */
+  readonly rawTangents?: boolean;
 }
 
 export interface SplineBuildResult {
@@ -98,6 +100,7 @@ export function buildSplineCurve(data: DxfSplineData): SplineBuildResult {
       startTangent: isZero(data.startTangent) ? undefined : data.startTangent,
       endTangent: isZero(data.endTangent) ? undefined : data.endTangent,
       parameterization: knotParameterizationFromFlags(data.flags ?? 0),
+      rawTangents: data.rawTangents ?? false,
     });
     if (!curve) return { curve: undefined, source: "none", issues: [...issues, "degenerate fit points"] };
     return { curve, source: "fit", issues };

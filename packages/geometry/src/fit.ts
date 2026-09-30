@@ -29,6 +29,12 @@ export interface FitPointOptions {
   /** End tangent direction (any length > 0; normalized internally). */
   readonly endTangent?: Vec3 | undefined;
   readonly parameterization?: KnotParameterization;
+  /**
+   * Use the tangent vectors as given instead of normalizing them: AutoCAD scales the derivative
+   * rows by the stored 12/13 vector length (VERIFIED-BY-ACAD splines/fit-tangents-0003: tangent
+   * (5,5) gives P1 − P0 = (U[p+1]/p)·(5,5)·L). Default false (ezdxf).
+   */
+  readonly rawTangents?: boolean;
 }
 
 /** SPLINE flag 70 bits 32/64/128 → parameterization (note 03 §3.8.2); chord by default. */
@@ -80,6 +86,12 @@ function removeConsecutiveDuplicates(points: readonly Vec3[]): Vec3[] {
   return out;
 }
 
+function finiteOrUndefined(v: Vec3 | undefined): Vec3 | undefined {
+  if (!v) return undefined;
+  const l = Math.hypot(v.x, v.y, v.z);
+  return l > 0 && Number.isFinite(l) ? v : undefined;
+}
+
 function unitOrUndefined(v: Vec3 | undefined): Vec3 | undefined {
   if (!v) return undefined;
   const l = Math.hypot(v.x, v.y, v.z);
@@ -116,8 +128,12 @@ export function interpolateFitPoints(
     const b = pts[k]!;
     chordLength += Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z);
   }
-  const ts = unitOrUndefined(options.startTangent);
-  const te = unitOrUndefined(options.endTangent);
+  const ts = options.rawTangents
+    ? finiteOrUndefined(options.startTangent)
+    : unitOrUndefined(options.startTangent);
+  const te = options.rawTangents
+    ? finiteOrUndefined(options.endTangent)
+    : unitOrUndefined(options.endTangent);
 
   const A = new BandedMatrix(count, 3, 3);
   const B = new Float64Array(count * 3);

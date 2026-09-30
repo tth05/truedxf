@@ -31,12 +31,13 @@ export function scanSections(store: TagStore, diag: Diagnostics): SectionInfo[] 
       }
       let name = "";
       let start = i + 1;
-      if (i + 1 < n && store.codes[i + 1] === 2) {
-        name = store
-          .str(i + 1)
-          .trim()
-          .toUpperCase();
-        start = i + 2;
+      // 999 comments may sit between SECTION and its name (AutoCAD loads such files,
+      // fileformat/comment-999-sections-*)
+      let k = i + 1;
+      while (k < n && store.codes[k] === 999) k++;
+      if (k < n && store.codes[k] === 2) {
+        name = store.str(k).trim().toUpperCase();
+        start = k + 1;
       } else {
         diag.error("section-without-name", "SECTION without (2, name)", { tag: i });
       }

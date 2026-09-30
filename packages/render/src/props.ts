@@ -192,3 +192,16 @@ function toResolved(p: ResolvedProperties): Resolved {
     props: p,
   };
 }
+
+/**
+ * AutoCAD 2027 skips entities whose code-0 type is not written exactly (upper case, no padding)
+ * in R13+ files, while R12 files accept lower-case types. VERIFIED-BY-ACAD
+ * (fileformat/lowercase-entities-r2018, trailing-space-types-r2018 plot nothing;
+ * lowercase-entities-r12 plots normally; Q-0004, Q-0006). Intermediate versions UNVERIFIED.
+ */
+export function droppedOnLoad(doc: DxfDocument, e: EntityBase): boolean {
+  if (doc.acadver <= "AC1009") return false;
+  const rec = e.record;
+  const raw = rec.store.str(rec.start);
+  return raw !== rec.type;
+}

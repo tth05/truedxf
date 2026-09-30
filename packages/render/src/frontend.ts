@@ -39,7 +39,7 @@ import {
   type View,
   viewFromBounds,
 } from "./plot.ts";
-import { type Inherited, PropertyResolver, type Resolved, TOP_LEVEL } from "./props.ts";
+import { droppedOnLoad, type Inherited, PropertyResolver, type Resolved, TOP_LEVEL } from "./props.ts";
 import { bandOffset, linePixels, lineweightPixels, PixelGrid } from "./raster.ts";
 import { coverage, plotsTransparency } from "./transparency.ts";
 
@@ -254,6 +254,7 @@ export class Frontend {
   }
 
   drawEntity(e: Entity, st: DrawState): void {
+    if (droppedOnLoad(this.doc, e)) return;
     for (const f of this.entityFilters) if (!f(e, st)) return;
     if (e.type === "INSERT") {
       this.drawInsert(e, st);

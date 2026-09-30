@@ -171,6 +171,53 @@ describe("MTEXT layout", () => {
   });
 });
 
+// Rules measured from AutoCAD 2027 plots (note 04 §11), checked with simplex.shx.
+describe.skipIf(!hasSimplex)("MTEXT rules vs AutoCAD plots (simplex.shx)", () => {
+  const glyphYs = (l: ReturnType<typeof layoutMText>) => l.glyphs.map((g) => g.matrix.f);
+  it("places a fraction: lower part on the baseline, upper at 4/3 h, bar at 7/6 h", async () => {
+    const fonts = await testFonts([style("S", "simplex.shx")]);
+    const l = layoutMText(mtext({ text: "\\S1/2;", height: 10, attachment: 7 }), fonts);
+    const ys = glyphYs(l);
+    expect(ys[1]! - ys[0]!).toBeCloseTo(-40 / 3, 9); // "1" above "2"
+    expect(ys[1]).toBeCloseTo(0, 9);
+    const bar = l.lines.find((d) => d.kind === "stack-bar")!;
+    expect(bar.y0).toBeCloseTo(70 / 6, 9);
+    // simplex "2" ink is 14 units wide → bar width 14/21·h
+    expect(bar.x1 - bar.x0).toBeCloseTo((14 / 21) * 10, 9);
+  });
+  it("raises a stack without divider by h/3 and treats ^6 as a caret code", async () => {
+    const fonts = await testFonts([style("S", "simplex.shx")]);
+    const l = layoutMText(mtext({ text: "\\S5^6;", height: 10, attachment: 7 }), fonts);
+    expect(l.glyphs).toHaveLength(2); // "5" and "?"
+    for (const y of glyphYs(l)) expect(y).toBeCloseTo(10 / 3, 9);
+  });
+  it("clamps tracking to 0.75", async () => {
+    const fonts = await testFonts([style("S", "simplex.shx")]);
+    const a = layoutMText(mtext({ text: "{\\T0.5;AB}", height: 21 }), fonts);
+    // simplex "A" advance 22 units → 22 · 0.75 at h = 21
+    expect(a.glyphs[1]!.matrix.e - a.glyphs[0]!.matrix.e).toBeCloseTo(22 * 0.75, 9);
+  });
+  it("uses the mixed-height line gap (5/3 f − 1)(H_prev + B_next)/2 + ascent", async () => {
+    const fonts = await testFonts([style("S", "simplex.shx")]);
+    const l = layoutMText(mtext({ text: "Ab{\\H2x;Ab}\\PAb", height: 5 }), fonts);
+    const ys = glyphYs(l);
+    // line 1 has H = 10, line 2 H = 5: pitch 10 (VERIFIED-BY-ACAD mtext/height-style-0)
+    expect(ys[0]! - ys[4]!).toBeCloseTo(10, 9);
+  });
+  it("uses drawing units for \\pb and \\pa", async () => {
+    const fonts = await testFonts([style("S", "simplex.shx")]);
+    const ref = glyphYs(layoutMText(mtext({ text: "A\\PB", height: 8 }), fonts));
+    const sp = glyphYs(layoutMText(mtext({ text: "\\pb1,a2;A\\PB", height: 8 }), fonts));
+    expect(sp[0]! - ref[0]!).toBeCloseTo(-1, 9);
+    expect(sp[1]! - ref[1]!).toBeCloseTo(-4, 9);
+  });
+  it("ignores \\c values of 2^24 and more", async () => {
+    const fonts = await testFonts([style("S", "simplex.shx")]);
+    const l = layoutMText(mtext({ text: "\\c16777216;A", height: 8 }), fonts);
+    expect(l.glyphs[0]!.color).toBeUndefined();
+  });
+});
+
 describe.skipIf(!hasLato)("TTF union box (Lato, VERIFIED-BY-ACAD via DXFOUT)", () => {
   it("Middle-center of 'gjpqy' at h=10", async () => {
     const fonts = await testFonts([style("S", "LatoWeb-Regular.ttf")]);

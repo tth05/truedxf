@@ -82,6 +82,8 @@ Sans), `style_table` (`"monochrome.ctb"` | `"acad.ctb"`, default from the suite)
 | `c.header(pdmode=3, ltscale=2)` | set header vars (`$` + upper-cased name) |
 | `c.add_file("img-a.png", data)` | extra file written next to the case; returns its absolute canonical path (`samples/generated/<suite>/…`) |
 | `c.notes.append("…")` | free-text notes copied into the meta JSON (`notes`) |
+| `c.byte_filters.append(fn)` | `bytes -> bytes` post-processing of the serialised DXF (deliberately malformed files for `fileformat` questions) |
+| `c.allow_audit_errors = True` | ezdxf audit errors are reported but don't fail the run (only for cases that are invalid on purpose) |
 
 Canvases: `2000×1500` (default), `1000×1000`, `800×600` (`plotwin.CANVASES`; the harness README
 is authoritative). Default document state (`core.new_doc`): no ezdxf `setup` resources, STANDARD

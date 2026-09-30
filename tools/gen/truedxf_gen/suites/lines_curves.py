@@ -38,6 +38,7 @@ def build(s: SuiteBuilder) -> None:
             f"line-short-{i:04d}",
             f"LINEs of length {length} units (10 px/unit), several directions",
             tags=["LINE", "zero-length"],
+            questions=["Q-0132"] if length == 0 else [],
             params={"length": length},
         )
         for k, a in enumerate(range(0, 180, 30)):
@@ -70,6 +71,7 @@ def build(s: SuiteBuilder) -> None:
             f"circle-radius-{i:04d}",
             f"CIRCLE r={rad} at {pxu} px/unit",
             tags=["CIRCLE", "tessellation"],
+            questions=["Q-0135"],
             params={"radius": rad, "px_per_unit": pxu},
         )
         c.msp.add_circle((0, 0), rad)
@@ -87,6 +89,7 @@ def build(s: SuiteBuilder) -> None:
             f"circle-degenerate-{i:04d}",
             f"CIRCLE with radius {rad} next to a reference cross",
             tags=["CIRCLE", "degenerate"],
+            questions=["Q-0130"],
             params={"radius": rad},
         )
         c.msp.add_line((90, 75), (110, 75))
@@ -104,6 +107,7 @@ def build(s: SuiteBuilder) -> None:
             f"arc-angles-{i:04d}",
             f"ARC r=50 start {a0} end {a1}",
             tags=["ARC"],
+            questions=["Q-0131"],
             params={"start": a0, "end": a1},
         )
         c.msp.add_arc((100, 75), 50, a0, a1)
@@ -117,6 +121,7 @@ def build(s: SuiteBuilder) -> None:
             f"arc-radius-{i:04d}",
             f"ARC r={rad} sweep {sweep} deg",
             tags=["ARC", "tessellation"],
+            questions=["Q-0135"],
             params={"radius": rad, "sweep": sweep, "px_per_unit": pxu},
         )
         # place the arc so its midpoint is at the window centre
@@ -186,4 +191,90 @@ def build(s: SuiteBuilder) -> None:
                 c.msp.add_arc((x, y), rng.uniform(1, 40), rng.uniform(0, 360), rng.uniform(0, 360))
             else:
                 c.msp.add_circle((x, y), rng.uniform(0.5, 40))
+        c.window((0, 0), (200, 150))
+
+    _question_cases(s)
+
+
+def _question_cases(s: SuiteBuilder) -> None:
+    """Cases driven by docs/questions.md (degenerates, angles, thickness)."""
+    # Q-0129: $ANGBASE / $ANGDIR must not change stored angles
+    for i, (angbase, angdir) in enumerate([(0.0, 0), (90.0, 0), (0.0, 1), (45.0, 1)], 1):
+        c = s.case(
+            f"angbase-{i:04d}",
+            f"ARC 0-90, TEXT rot 30, INSERT rot 45 with $ANGBASE={angbase} $ANGDIR={angdir}",
+            tags=["ARC", "TEXT", "INSERT", "ANGBASE", "ANGDIR"],
+            questions=["Q-0129"],
+            params={"angbase": angbase, "angdir": angdir},
+            header={"$ANGBASE": angbase, "$ANGDIR": angdir},
+        )
+        c.notes.append("$ANGBASE unit (degrees vs radians in DXF) is itself uncertain; value written as given")
+        c.msp.add_arc((50, 75), 30, 0, 90)
+        c.msp.add_text("Rot30", height=8, rotation=30, dxfattribs={"insert": (90, 40)})
+        blk = c.doc.blocks.new("ARROW")
+        blk.add_lwpolyline([(0, 0), (30, 0), (25, 4), (30, 0), (25, -4)])
+        c.msp.add_blockref("ARROW", (150, 60), dxfattribs={"rotation": 45})
+        c.window((0, 0), (200, 150))
+
+    # Q-0130: degenerate CIRCLE/ARC (r=0, r<0, start == end), heavy lineweight to make dots visible
+    for i, (kind, r, a0, a1) in enumerate(
+        [("circle", 0.0, 0, 0), ("circle", -5.0, 0, 0), ("arc", 0.0, 0, 90), ("arc", -5.0, 0, 90), ("arc", 10.0, 45, 45)], 1
+    ):
+        c = s.case(
+            f"degenerate-lw-{i:04d}",
+            f"{kind.upper()} r={r} {a0}..{a1} with lineweight 0.50 mm beside a reference cross",
+            tags=[kind.upper(), "degenerate", "lineweight"],
+            questions=["Q-0130"],
+            params={"kind": kind, "radius": r, "start": a0, "end": a1},
+        )
+        c.msp.add_line((60, 75), (80, 75))
+        c.msp.add_line((70, 65), (70, 85))
+        if kind == "circle":
+            c.msp.add_circle((120, 75), r, dxfattribs={"lineweight": 50})
+        else:
+            c.msp.add_arc((120, 75), r, a0, a1, dxfattribs={"lineweight": 50})
+        c.window((0, 0), (200, 150))
+
+    # Q-0131: ARC angle normalisation
+    for i, (a0, a1) in enumerate([(0, 360), (-180, 180), (350, 10), (30, 450), (0, 720), (45, 45), (720, 810)], 1):
+        c = s.case(
+            f"arc-normalise-{i:04d}",
+            f"ARC r=50 start {a0} end {a1} (normalisation)",
+            tags=["ARC", "angles"],
+            questions=["Q-0131"],
+            params={"start": a0, "end": a1},
+        )
+        c.msp.add_arc((100, 75), 50, a0, a1)
+        c.msp.add_line((100, 75), (160, 75))
+        c.window((0, 0), (200, 150))
+
+    # Q-0132: zero-length LINE with lineweights and a dashed linetype
+    for i, lw in enumerate([0, 50, 200, 211], 1):
+        for dashed in (False, True):
+            c = s.case(
+                f"zero-line-lw{lw:03d}-{'dashed' if dashed else 'cont'}",
+                f"Zero-length LINEs lineweight {lw / 100:.2f} mm {'DASHED' if dashed else 'Continuous'}",
+                tags=["LINE", "zero-length", "lineweight"] + (["linetype"] if dashed else []),
+                questions=["Q-0132"],
+                params={"lineweight": lw, "dashed": dashed},
+            )
+            a = {"lineweight": lw}
+            if dashed:
+                a["linetype"] = c.linetype("DASHED")
+            for k in range(5):
+                p = (40 + k * 30, 75)
+                c.msp.add_line(p, p, dxfattribs=a)
+            c.window((0, 0), (200, 150))
+
+    # Q-0134: LINE with thickness seen edge-on in plan view
+    for i, t in enumerate([10.0, -10.0], 1):
+        c = s.case(
+            f"line-thickness-{i:04d}",
+            f"LINE (100,40)-(100,110) thickness {t} extrusion (1,0,0) in plan view",
+            tags=["LINE", "thickness"],
+            questions=["Q-0134"],
+            params={"thickness": t},
+        )
+        c.msp.add_line((100, 40), (100, 110), dxfattribs={"thickness": t, "extrusion": (1, 0, 0)})
+        c.msp.add_line((60, 20), (140, 20))
         c.window((0, 0), (200, 150))

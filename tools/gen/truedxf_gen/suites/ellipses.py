@@ -13,7 +13,7 @@ TAU = math.tau
 def build(s: SuiteBuilder) -> None:
     # ratio sweep (full ellipse, major axis along x)
     for i, ratio in enumerate([1.0, 0.999, 0.75, 0.5, 0.25, 0.1, 0.02, 1e-6], 1):
-        c = s.case(f"ratio-{i:04d}", f"Full ELLIPSE a=80 ratio {ratio}", tags=["ELLIPSE"], params={"ratio": ratio})
+        c = s.case(f"ratio-{i:04d}", f"Full ELLIPSE a=80 ratio {ratio}", tags=["ELLIPSE"], questions=["Q-0164"] if ratio == 1.0 else ["Q-0165"] if ratio < 1e-5 else [], params={"ratio": ratio})
         c.msp.add_ellipse((100, 75), (80, 0), ratio)
         c.window((0, 0), (200, 150))
     # rotation of the major axis
@@ -33,6 +33,7 @@ def build(s: SuiteBuilder) -> None:
             f"param-{i:04d}",
             f"Elliptical arc ratio 0.5 params {p0:.4f}..{p1:.4f}",
             tags=["ELLIPSE", "parameters"],
+            questions=["Q-0165"] if p0 == p1 else [],
             params={"start_param": p0, "end_param": p1},
         )
         c.msp.add_ellipse((100, 75), (70, 0), 0.5, p0, p1)
@@ -46,13 +47,31 @@ def build(s: SuiteBuilder) -> None:
         c.msp.add_line((100, 75), (100 + 90 * math.cos(math.radians(a)), 75 + 90 * math.sin(math.radians(a))))
     c.window((0, 0), (200, 150))
     # minor axis longer than major (ratio > 1 is invalid) - open check
-    c = s.case("ratio-gt1-0001", "ELLIPSE with ratio 1.5 (invalid per spec: ratio <= 1)", tags=["ELLIPSE", "invalid"], params={"ratio": 1.5})
+    for i, bad in enumerate([1.5, 1.0000001, -0.5, 1e-10], 1):
+        c = s.case(f"ratio-invalid-{i:04d}", f"ELLIPSE a=40 with ratio {bad} (out of the valid range 1e-6..1)", tags=["ELLIPSE", "invalid"],
+                   questions=["Q-0164"] if bad >= 1 else ["Q-0165"], params={"ratio": bad})
+        c.allow_audit_errors = True
+        # ezdxf clamps the ratio on export: write a marker value and patch the bytes
+        c.msp.add_ellipse((100, 75), (40, 0), 0.123456, 0, math.pi / 2 if bad < 0 else math.tau)
+        c.byte_filters.append(lambda d, bad=bad: d.replace(b"\n 40\n0.123456\n", f"\n 40\n{bad!r}\n".encode(), 1))
+        c.msp.add_ellipse((100, 75), (40, 0), 0.5, 0, math.pi / 2, dxfattribs={"color": 1}) if bad < 0 else None
+        c.window((0, 0), (200, 150))
+    # parameter span slightly above 2*pi: full ellipse or tiny arc?
+    for i, (p0, p1) in enumerate([(0.0, 6.2831855), (0.1, 0.1 + math.tau + 1e-7), (0.0, math.tau - 1e-7)], 1):
+        c = s.case(f"param-2pi-{i:04d}", f"ELLIPSE params {p0}..{p1!r}", tags=["ELLIPSE", "parameters"], questions=["Q-0166"], params={"start_param": p0, "end_param": p1})
+        e = c.msp.add_ellipse((100, 75), (70, 0), 0.5)
+        e.dxf.start_param = p0
+        e.dxf.end_param = p1
+        c.window((0, 0), (200, 150))
+    # extrusion not perpendicular to the major axis
+    c = s.case("extrusion-not-perpendicular", "ELLIPSE major (40,0,0) with extrusion (0.3,0,1) (not perpendicular)", tags=["ELLIPSE", "OCS", "invalid"], questions=["Q-0167"])
+    c.allow_audit_errors = True
     e = c.msp.add_ellipse((100, 75), (40, 0), 0.5)
-    e.dxf.ratio = 1.5
+    e.dxf.extrusion = (0.3, 0, 1)
     c.window((0, 0), (200, 150))
     # size / tessellation sweep
     for i, (a, pxu) in enumerate([(0.5, 10), (5, 10), (80, 10), (800, 1), (8000, 0.1), (80, 40)], 1):
-        c = s.case(f"size-{i:04d}", f"ELLIPSE a={a} ratio 0.6 rotated 20 at {pxu} px/unit", tags=["ELLIPSE", "tessellation"], params={"major": a, "px_per_unit": pxu})
+        c = s.case(f"size-{i:04d}", f"ELLIPSE a={a} ratio 0.6 rotated 20 at {pxu} px/unit", tags=["ELLIPSE", "tessellation"], questions=["Q-0181"], params={"major": a, "px_per_unit": pxu})
         r = math.radians(20)
         c.msp.add_ellipse((0, 0), (a * math.cos(r), a * math.sin(r)), 0.6)
         c.window_center((0, 0), pxu)

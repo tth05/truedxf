@@ -235,6 +235,13 @@ class Case:
         self.extra_files: dict[str, bytes] = {}
         self._plot_set = False
         self.notes: list[str] = []
+        # bytes -> bytes filters applied after serialisation (deliberately malformed files for
+        # `fileformat` questions); such cases usually also set allow_audit_errors
+        self.byte_filters: list[Callable[[bytes], bytes]] = []
+        self.allow_audit_errors = False
+        # False: store ezdxf's bounding box as $EXTMIN/$EXTMAX; True: leave the header extents
+        # as set by the suite (e.g. ezdxf's "empty" +1e20/-1e20 so AutoCAD must recompute)
+        self.keep_header_extents = False
 
     # --- resources -------------------------------------------------------------------------
     def layer(self, name: str, **kw: Any) -> str:
@@ -375,6 +382,8 @@ class Case:
         return m
 
     def _set_extents(self) -> None:
+        if self.keep_header_extents:
+            return
         # ezdxf does not maintain $EXTMIN/$EXTMAX; store real values so an "extents" plot does
         # not depend on AutoCAD recomputing them on open.
         try:
@@ -389,7 +398,10 @@ class Case:
         self._set_extents()
         stream = io.StringIO()
         self.doc.write(stream)
-        return self.doc.encode(stream.getvalue())
+        data = self.doc.encode(stream.getvalue())
+        for f in self.byte_filters:
+            data = f(data)
+        return data
 
     def validate_meta(self) -> None:
         if not self._plot_set:

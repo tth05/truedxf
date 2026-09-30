@@ -81,8 +81,14 @@ def generate(
             for fname, fdata in c.extra_files.items():
                 (sdir / fname).write_bytes(fdata)
             if audit:
-                errors, fixes = _audit(data, c.doc.output_encoding)
-                if errors:
+                try:
+                    errors, fixes = _audit(data, c.doc.output_encoding)
+                except Exception as e:  # unreadable for ezdxf (malformed on purpose?)
+                    errors, fixes = [f"read failed: {e}"], []
+                if errors and c.allow_audit_errors:
+                    if not quiet:
+                        print(f"audit errors (allowed) {c.id}: {errors[:2]}", file=sys.stderr)
+                elif errors:
                     failures += 1
                     print(f"AUDIT ERROR {c.id}: {errors}", file=sys.stderr)
                 elif fixes and not quiet:

@@ -1,0 +1,13 @@
+;; truedxf.lin - complex linetypes using truedxf-lt.shx (MIT, truedxf project)
+*TDX_BOXES,Boxes ---- [] ---- [] ----
+A,.5,-.2,[TDX_BOX,truedxf-lt.shx,x=-.1,y=-.1,s=.2],-.2
+*TDX_CIRCLES,Circles ---- o ---- o ----
+A,.5,-.2,[TDX_CIRC,truedxf-lt.shx,x=-.1,s=.1],-.2
+*TDX_ZIGZAG,Zig zag /\/\/\/\
+A,.0001,-.2,[TDX_ZIG,truedxf-lt.shx,x=-.2,s=.2],-.4,[TDX_ZIG,truedxf-lt.shx,r=180,x=.2,s=.2],-.2
+*TDX_TRACKS,Tracks -|-|-|-|-|-
+A,.15,[TDX_TRACK,truedxf-lt.shx,s=.25],.15
+*TDX_WAVES,Waves ~~~~
+A,.0001,[TDX_WAVE,truedxf-lt.shx,s=.1],-.4
+*TDX_ARROWS,Arrows ---->---->
+A,.5,[TDX_ARROW,truedxf-lt.shx,s=.1],-.1

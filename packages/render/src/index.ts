@@ -2,6 +2,7 @@ export * from "./aci.ts";
 
 import "./draw/acis.ts";
 import "./draw/basic.ts";
+import "./draw/dimension.ts";
 import "./draw/hatch.ts";
 import "./draw/image.ts";
 import "./draw/mesh.ts";

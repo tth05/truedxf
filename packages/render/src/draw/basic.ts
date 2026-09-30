@@ -492,8 +492,8 @@ registerDrawer("INSERT", (fe, e, st) => {
   }
 });
 
-/** DIMENSION and ACAD_TABLE: draw the stored anonymous geometry block as is (notes 05 / 07). */
-registerDrawer(["DIMENSION", "ARC_DIMENSION", "LARGE_RADIAL_DIMENSION", "ACAD_TABLE"], (fe, e, st) => {
+/** ACAD_TABLE: draw the stored anonymous geometry block as is (note 07); DIMENSION: dimension.ts. */
+registerDrawer("ACAD_TABLE", (fe, e, st) => {
   const name = (e as Entity & { blockName?: string }).blockName;
   const block = name ? fe.doc.getBlock(name) : undefined;
   if (!block) {

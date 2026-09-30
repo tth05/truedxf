@@ -9,10 +9,8 @@ import {
   buildSplineCurve,
   bulgePolylineToSubpath,
   degToRad,
-  FillRule,
   type HatchLoop,
   hatchPatternLines,
-  hatchSolidTriangles,
   lineSegment,
   Matrix44,
   ocsToWcsMatrix,
@@ -127,10 +125,7 @@ registerDrawer(["HATCH", "MPOLYGON"], (fe, e, st) => {
     return;
   }
   if (h.solid) {
-    fe.fillTriangles(
-      hatchSolidTriangles(loops, style, { tolerance: fe.tolerance, fillRule: FillRule.EvenOdd }),
-      color,
-    );
+    fe.fillHatch(loops, style, color);
     return;
   }
   const lines = h.patternLines.map((l) =>
@@ -141,10 +136,7 @@ registerDrawer(["HATCH", "MPOLYGON"], (fe, e, st) => {
   if (res.tooDense) {
     // UNVERIFIED (note 06 §1.6: HPMAXLINES): too dense patterns are filled solid
     fe.note("hatch-too-dense");
-    fe.fillTriangles(
-      hatchSolidTriangles(loops, style, { tolerance: fe.tolerance, fillRule: FillRule.EvenOdd }),
-      color,
-    );
+    fe.fillHatch(loops, style, color);
     return;
   }
   const seg = res.segments;

@@ -1,8 +1,11 @@
 /**
  * PDMODE point symbols (note 03 §3.1): low 3 bits select the figure (0 dot, 1 nothing, 2 +,
- * 3 ×, 4 short vertical tick), +32 circle, +64 square. Size = PDSIZE in target units.
- * UNVERIFIED (note 03): arm lengths of + and × (ezdxf and dxf-viewer disagree) and whether mode
- * 0 is combined with the circle/square frames as a dot.
+ * 3 ×, 4 short vertical tick), +32 circle, +64 square.
+ *
+ * Geometry in units of the point size S (see `pointSize` in basic.ts), VERIFIED-BY-ACAD
+ * (points/pdmode-*, 2026-09-30): `+` arms ±S, `×` arms of length S along the diagonals (ends at
+ * ±S/√2), tick from the centre up to S/2, circle radius S/2, square half-side S/2. The dot of
+ * mode 0 is drawn together with the frames.
  */
 import type { Path2, PathSegment, Subpath } from "@truedxf/geometry";
 
@@ -20,6 +23,7 @@ function line(x0: number, y0: number, x1: number, y1: number): Subpath {
 export function pointSymbol(mode: number, size: number): PointSymbol {
   const fig = mode & 7;
   const h = size / 2;
+  const d = size * Math.SQRT1_2;
   const subs: Subpath[] = [];
   let dot = false;
   switch (fig) {
@@ -29,10 +33,10 @@ export function pointSymbol(mode: number, size: number): PointSymbol {
     case 1:
       break;
     case 2:
-      subs.push(line(-h, 0, h, 0), line(0, -h, 0, h));
+      subs.push(line(-size, 0, size, 0), line(0, -size, 0, size));
       break;
     case 3:
-      subs.push(line(-h, -h, h, h), line(-h, h, h, -h));
+      subs.push(line(-d, -d, d, d), line(-d, d, d, -d));
       break;
     case 4:
       subs.push(line(0, 0, 0, h));
@@ -55,6 +59,5 @@ export function pointSymbol(mode: number, size: number): PointSymbol {
       closed: true,
     });
   }
-  // mode 0 with a frame draws the dot only when no frame? AutoCAD draws the dot plus frame
-  return { dot: dot && (mode & 96) === 0 ? true : dot, paths: { subpaths: subs } };
+  return { dot, paths: { subpaths: subs } };
 }

@@ -1,20 +1,30 @@
 /**
  * Single-line text layout: TEXT, ATTRIB, ATTDEF (research/notes/04-text-fonts.md §1).
  *
- * Measured AutoCAD 2027 rules (note 04 §1.4, VERIFIED-BY-ACAD for TTF):
+ * Measured AutoCAD 2027 rules (note 04 §1.4; VERIFIED-BY-ACAD = AutoCAD PLOT / DXFOUT of the
+ * suite `text`, 2026-09-30, mostly with simplex.shx because the fixtures' Liberation Sans was
+ * substituted on the reference machine):
  * - h = cap height; glyphs advance by their pen advance, no kerning;
  * - vertical anchors: Top = +h, Middle = +h/2, Bottom = −descent·h/cap (font-wide), Baseline = 0,
  *   72 = 4 "Middle" = centre of the string's ink box;
  * - horizontal box for Center/Right/Middle/Fit/Aligned: TTF = union of the advance box
  *   [0, Σadvance] and the ink box; SHX = the ink box [inkLeft, inkRight], but the advance box
- *   [0, Σadvance] when the string ends in a space (VERIFIED-BY-ACAD 2026-09-30 with simplex.shx,
- *   suite text: hbox-*, spaces-*, 195 alignment cases);
- * - 72/73 ≠ 0 → the anchor is 11, everything else is recomputed (10 is a cache).
+ *   [0, Σadvance] when the string ends in a space (VERIFIED-BY-ACAD: hbox-*, spaces-*);
+ * - 72/73 ≠ 0 → the anchor is 11 (missing 11 = the origin, VERIFIED-BY-ACAD missing11-*); an
+ *   invalid 72 draws LEFT at 10, an invalid 73 counts as baseline at 11 (combo-invalid-*);
+ * - height ≤ 0 (and ALIGNED with coincident points) draws with $TEXTSIZE (height0-*,
+ *   aligned-coincident); a TEXT without group 71 uses the STYLE's generation flags (flags-style-*);
+ * - FIT/ALIGNED: BACKWARD mirrors about the baseline (like upside-down), both flags mirror
+ *   nothing (fitflags-*, ezdxf#353);
+ * - SHX control characters execute the font's shape if it has one (LF = shape 10 moves the pen
+ *   down without returning), otherwise "?" (caret-controls);
+ * - %%u/%%o/%%k lines at −0.2 h / 1.2 h / 0.5 h, spanning the characters' advances shifted by
+ *   −0.15 h (special-* with simplex.shx; the shift's origin is unknown);
+ * - $QTEXTMODE: a rectangle [box] × [−descent, h] instead of the glyphs (qtextmode-1).
  *
- * Transform order (UNVERIFIED parts marked): glyph → height/width factor → oblique shear about
- * the baseline (x' = x + y·tan θ, applied *after* the width factor — UNVERIFIED, note 04 §1.5
- * item 2) → shift by the alignment offset → backward/upside-down mirror about the anchor →
- * rotation → anchor → OCS.
+ * Transform order: glyph → height/width factor → oblique shear about the baseline
+ * (x' = x + y·tan θ, applied *after* the width factor — UNVERIFIED, note 04 §1.5 item 2) → shift by
+ * the alignment offset → backward/upside-down mirror about the anchor → rotation → anchor → OCS.
  */
 import type { StyleFont } from "@truedxf/fonts";
 import { Affine2, Matrix44, ocsToWcsMatrix, type Vec3 } from "@truedxf/geometry";
@@ -37,7 +47,8 @@ export interface TextInput {
   /** Degrees. */
   readonly oblique: number;
   readonly style: string;
-  readonly generationFlags: number;
+  /** Group 71; `undefined` = absent (then the STYLE's flags apply). */
+  readonly generationFlags: number | undefined;
   readonly halign: number;
   readonly valign: number;
   readonly extrusion: Vec3;
@@ -49,21 +60,25 @@ export interface TextLayoutOptions {
    * recomputing from 11 (note 04 §1.3 "use stored 10" switch).
    */
   useStoredInsert?: boolean;
-  /**
-   * Decoration line offsets in text heights (UNKNOWN in AutoCAD, note 04 §8.6): underline below
-   * the baseline, overline above the baseline, strike-through above the baseline.
-   */
-  underlineOffset?: number;
-  overlineOffset?: number;
-  strikeOffset?: number;
+  /** $TEXTSIZE: the height used for height ≤ 0 (AutoCAD default 2.5). */
+  defaultHeight?: number;
+  /** $QTEXTMODE ≠ 0: draw boxes instead of glyphs. */
+  quickText?: boolean;
+  /** Decoration offsets in text heights (default {@link TEXT_DECORATION}). */
+  decoration?: Partial<typeof TEXT_DECORATION>;
 }
 
-/** Default decoration offsets in text heights — UNVERIFIED guesses (note 04 §1.6 / §8.6). */
-export const TEXT_DECORATION = { underline: -0.2, overline: 1.2, strike: 0.5 } as const;
+/**
+ * Decoration geometry in text heights: y of underline/overline/strike-through above the baseline
+ * and the x shift of the lines relative to the characters (VERIFIED-BY-ACAD with simplex.shx,
+ * TTF not measured yet).
+ */
+export const TEXT_DECORATION = { underline: -0.2, overline: 1.2, strike: 0.5, shift: -0.15 } as const;
 
 interface Placed {
   readonly m: MeasuredGlyph;
   readonly pen: number;
+  readonly penY: number;
   readonly ch: TextChar;
 }
 
@@ -78,18 +93,31 @@ export interface LineMetrics {
   readonly x1: number;
 }
 
+const QUESTION = 0x3f;
+
+/** The glyph code of a TEXT character: control characters (and DEL) per note 04 §1.6. */
+function textCode(font: StyleFont, ch: TextChar, encoding: string): number {
+  if (!ch.numeric && (ch.cp < 0x20 || ch.cp === 0x7f)) {
+    // SHX fonts execute their own control shapes (LF = shape 10); everything else is "?"
+    if (font.primary.kind === "shx" && font.primary.hasGlyph(ch.cp)) return ch.cp;
+    return QUESTION;
+  }
+  return glyphCode(font, ch, encoding);
+}
+
 /** Lays out the characters of one line at h = 1 without width factor (pen positions + boxes). */
 export function measureLine(chars: readonly TextChar[], font: StyleFont, encoding: string): LineMetrics {
   const glyphs: Placed[] = [];
   const ink = new InkBox();
   let pen = 0;
+  let penY = 0;
   for (const ch of chars) {
-    // control characters render as "?" in TEXT (note 04 §1.6)
-    const c = ch.cp < 0x20 && !ch.numeric ? { ...ch, cp: 0x3f } : ch;
-    const m = measureGlyph(font, glyphCode(font, c, encoding));
-    glyphs.push({ m, pen, ch });
-    if (m.ink) ink.add(m.ink, pen, 0);
+    const m = measureGlyph(font, textCode(font, ch, encoding));
+    glyphs.push({ m, pen, penY, ch });
+    if (m.ink) ink.add(m.ink, pen, penY);
     pen += m.advance;
+    const r = m.resolved;
+    if (r?.glyph.kind === "strokes") penY += r.glyph.advanceY * r.scale;
   }
   let x0: number;
   let x1: number;
@@ -100,11 +128,9 @@ export function measureLine(chars: readonly TextChar[], font: StyleFont, encodin
     x0 = Math.min(0, ink.xMin);
     x1 = Math.max(pen, ink.xMax);
   } else if (!glyphs[glyphs.length - 1]?.m.ink) {
-    // SHX with trailing spaces: the advance box (VERIFIED-BY-ACAD, text/spaces-* via simplex.shx)
     x0 = 0;
     x1 = pen;
   } else {
-    // SHX: the ink box, a leading space is not counted (VERIFIED-BY-ACAD, text/hbox-*, spaces-*)
     x0 = ink.xMin;
     x1 = ink.xMax;
   }
@@ -129,6 +155,8 @@ export interface TextFrame {
   readonly rotation: number;
   /** OCS z of the text plane. */
   readonly elevation: number;
+  /** Font descent in text heights (for quick-text boxes). */
+  readonly descent: number;
 }
 
 /**
@@ -147,55 +175,55 @@ export function textFrame(
     notes.push(style.suppressed ? "text-suppressed-missing-bigfont" : "text-no-font");
     return undefined;
   }
-  let h = e.height;
-  if (!(h > 0)) {
-    // ezdxf skips height-0 text; AutoCAD behaviour UNKNOWN (note 04 §1.5)
-    notes.push("text-height-0");
-    return undefined;
-  }
+  const defaultHeight = options.defaultHeight ?? 2.5;
+  let h = e.height > 0 ? e.height : defaultHeight;
+  if (!(h > 0)) return undefined;
   if (style.spec?.vertical) notes.push("text-vertical-unsupported");
   const chars = decodeTextString(e.text);
   const line = measureLine(chars, font, fonts.encoding);
   let w = e.widthFactor || 1;
   const tanOb = Math.tan((e.oblique || 0) * DEG);
   let rot = (e.rotation || 0) * DEG;
-  let sx = e.generationFlags & 2 ? -1 : 1;
-  let sy = e.generationFlags & 4 ? -1 : 1;
-  // unknown 72 values fall back to LEFT (ezdxf; AutoCAD keeps 10, text/combo-invalid-*)
-  const halign = e.halign >= 0 && e.halign <= 5 ? e.halign : 0;
-  // 72 > 2 ignores 73 (ezdxf get_align_enum); unknown combinations fall back to LEFT
+  const flags = e.generationFlags ?? style.spec?.generationFlags ?? 0;
+  let sx = flags & 2 ? -1 : 1;
+  let sy = flags & 4 ? -1 : 1;
+  const validH = e.halign >= 0 && e.halign <= 5;
+  const halign = validH ? e.halign : 0;
+  // 72 > 2 ignores 73 (ezdxf get_align_enum); an invalid 73 counts as baseline
   const valign = halign > 2 || e.valign < 0 || e.valign > 3 ? 0 : e.valign;
+  // group 11 defaults to the origin (VERIFIED-BY-ACAD text/missing11-*)
+  const p11: Vec3 = e.alignPoint ?? { x: 0, y: 0, z: e.insert.z };
   let anchor: Vec3 = e.insert;
   let ax = 0;
   let ay = 0;
   const boxW = line.x1 - line.x0;
-  if (options.useStoredInsert) {
-    // stored 10 is the (mirrored) left end of the baseline
+  if (options.useStoredInsert || !validH) {
+    // stored 10 is the (mirrored) left end of the baseline; invalid 72 → LEFT at 10
   } else if (halign === 3 || halign === 5) {
     const p1 = e.insert;
-    const p2 = e.alignPoint ?? e.insert;
-    const dx = p2.x - p1.x;
-    const dy = p2.y - p1.y;
+    const dx = p11.x - p1.x;
+    const dy = p11.y - p1.y;
     const d = Math.hypot(dx, dy);
     if (d > 1e-12 && boxW > 1e-12) {
       rot = Math.atan2(dy, dx);
       if (halign === 3) h = d / (boxW * w);
       else w = d / (boxW * h);
-      // FIT/ALIGNED mirror quirks (ezdxf#353, VERIFIED AutoCAD): upside-down mirrors about the
-      // baseline; backward does *not* mirror about the start point — we keep the text between the
-      // two points (mirror about the box centre, UNVERIFIED); with both flags AutoCAD mirrors nothing.
+      ax = line.x0;
+      // FIT/ALIGNED: backward mirrors about the baseline, both flags mirror nothing (VERIFIED)
       if (sx < 0 && sy < 0) {
         sx = 1;
         sy = 1;
+      } else if (sx < 0) {
+        sx = 1;
+        sy = -1;
       }
-      if (sx < 0) {
-        anchor = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2, z: p1.z };
-        ax = (line.x0 + line.x1) / 2;
-      } else ax = line.x0;
+    } else if (halign === 3) {
+      // ALIGNED with coincident points: AutoCAD computes h = 0 → $TEXTSIZE (VERIFIED)
+      h = defaultHeight;
     }
-    // coincident points: LEFT at 10 with the stored height/width (note 04 §1.3, ASSUMPTION)
-  } else if (halign !== 0 || valign !== 0) {
-    anchor = e.alignPoint ?? e.insert;
+    // FIT with coincident points: LEFT at 10 with the stored height (VERIFIED)
+  } else if (halign !== 0 || e.valign !== 0) {
+    anchor = p11;
     if (halign === 4) {
       ax = (line.x0 + line.x1) / 2;
       ay = line.ink.empty ? 0.5 : (line.ink.yMin + line.ink.yMax) / 2;
@@ -218,7 +246,15 @@ export function textFrame(
     anchor.x + cr * sx * (-h * w * ax) - sr * sy * (-h * ay),
     anchor.y + sr * sx * (-h * w * ax) + cr * sy * (-h * ay),
   );
-  return { frame, line, height: h, widthFactor: w, rotation: rot, elevation: anchor.z };
+  return {
+    frame,
+    line,
+    height: h,
+    widthFactor: w,
+    rotation: rot,
+    elevation: anchor.z,
+    descent: font.descentRatio,
+  };
 }
 
 /** Lays out a TEXT/ATTRIB/ATTDEF entity. */
@@ -228,6 +264,16 @@ export function layoutText(e: TextInput, fonts: TextFontSource, options: TextLay
   const tf = textFrame(e, fonts, options, notes);
   if (!tf) return emptyLayout(ocs, notes);
   const { frame, line } = tf;
+  const plane = tf.elevation !== 0 ? ocs.multiply(Matrix44.translation(0, 0, tf.elevation)) : ocs;
+  if (options.quickText) {
+    return {
+      plane,
+      backgrounds: [],
+      glyphs: [],
+      lines: quickBox(frame, line.x0, line.x1, -tf.descent, 1),
+      notes,
+    };
+  }
   const glyphs: GlyphPlacement[] = [];
   for (const g of line.glyphs) {
     const r = g.m.resolved;
@@ -236,37 +282,57 @@ export function layoutText(e: TextInput, fonts: TextFontSource, options: TextLay
     glyphs.push({
       glyph: r.glyph,
       font: r.font,
-      matrix: frame.multiply(new Affine2(s, 0, 0, s, g.pen, 0)),
+      matrix: frame.multiply(new Affine2(s, 0, 0, s, g.pen, g.penY)),
       color: undefined,
     });
   }
-  const lines = decorations(line, frame, options);
-  const plane = tf.elevation !== 0 ? ocs.multiply(Matrix44.translation(0, 0, tf.elevation)) : ocs;
+  const lines = decorations(line, frame, { ...TEXT_DECORATION, ...options.decoration });
   return { plane, backgrounds: [], glyphs, lines, notes };
 }
 
-function decorations(line: LineMetrics, frame: Affine2, o: TextLayoutOptions): DecorationLine[] {
+/** A quick-text rectangle ($QTEXTMODE) in frame units, as four decoration lines. */
+export function quickBox(frame: Affine2, x0: number, x1: number, y0: number, y1: number): DecorationLine[] {
+  const q = [
+    frame.apply({ x: x0, y: y0 }),
+    frame.apply({ x: x1, y: y0 }),
+    frame.apply({ x: x1, y: y1 }),
+    frame.apply({ x: x0, y: y1 }),
+  ];
+  const out: DecorationLine[] = [];
+  for (let k = 0; k < 4; k++) {
+    const a = q[k]!;
+    const b = q[(k + 1) % 4]!;
+    out.push({ kind: "frame", x0: a.x, y0: a.y, x1: b.x, y1: b.y, color: undefined });
+  }
+  return out;
+}
+
+function decorations(line: LineMetrics, frame: Affine2, d: typeof TEXT_DECORATION): DecorationLine[] {
   const out: DecorationLine[] = [];
   const kinds = [
-    ["underline", o.underlineOffset ?? TEXT_DECORATION.underline],
-    ["overline", o.overlineOffset ?? TEXT_DECORATION.overline],
-    ["strike", o.strikeOffset ?? TEXT_DECORATION.strike],
+    ["underline", d.underline],
+    ["overline", d.overline],
+    ["strike", d.strike],
   ] as const;
   for (const [kind, y] of kinds) {
     let start = -1;
     let end = 0;
+    let yy = 0;
     const flush = () => {
       if (start >= 0 && end > start) {
-        const a = frame.apply({ x: start, y });
-        const b = frame.apply({ x: end, y });
+        const a = frame.apply({ x: start + d.shift, y: yy + y });
+        const b = frame.apply({ x: end + d.shift, y: yy + y });
         out.push({ kind, x0: a.x, y0: a.y, x1: b.x, y1: b.y, color: undefined });
       }
       start = -1;
     };
     for (const g of line.glyphs) {
-      const on = g.ch[kind];
-      if (on) {
-        if (start < 0) start = g.pen;
+      if (g.penY !== yy) flush();
+      if (g.ch[kind]) {
+        if (start < 0) {
+          start = g.pen;
+          yy = g.penY;
+        }
         end = g.pen + g.m.advance;
       } else flush();
     }

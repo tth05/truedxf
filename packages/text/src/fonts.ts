@@ -5,7 +5,15 @@
  *
  * Resolution rules are @truedxf/fonts' `FontManager.resolveStyle` (AutoCAD 2027, note 04 §4.1).
  */
-import { type FontManager, type FontSubstitution, ShxFont, type StyleFont } from "@truedxf/fonts";
+import {
+  type Font,
+  type FontManager,
+  type FontSubstitution,
+  type ResolvedGlyph,
+  ShxFont,
+  type StyleFont,
+  TtfFont,
+} from "@truedxf/fonts";
 import type { SpecialSymbol } from "./specials.ts";
 
 /** The STYLE table fields the layout needs (structurally compatible with @truedxf/model's TextStyleEntry). */
@@ -53,6 +61,13 @@ export interface TextFontSource {
   inlineFont(spec: InlineFontSpec): StyleFont | undefined;
   /** WHATWG label of the drawing code page ($DWGCODEPAGE), for non-Unicode SHX fonts. */
   readonly encoding: string;
+  /**
+   * MTEXT: a glyph for a character missing from an SHX font, from a TrueType fallback scaled by
+   * its own cap height (VERIFIED-BY-ACAD text/escape-spellings; which font AutoCAD uses is UNKNOWN).
+   */
+  fallbackGlyph?(cp: number): ResolvedGlyph | undefined;
+  /** MTEXT: the missing-glyph box drawn for control characters (text/caret-codes-mtext). */
+  notdefGlyph?(font: StyleFont): ResolvedGlyph | undefined;
 }
 
 export function inlineFontKey(spec: InlineFontSpec): string {
@@ -73,15 +88,51 @@ export class TextFonts implements TextFontSource {
   private readonly styles = new Map<string, ResolvedTextStyle>();
   private readonly inline = new Map<string, StyleFont | undefined>();
   private fontAltStyle: ResolvedTextStyle | undefined;
+  private readonly fallbackNames: readonly string[];
+  private fallbacks: Font[] | undefined;
 
-  constructor(manager: FontManager, styles: Iterable<TextStyleSpec>, encoding = "windows-1252") {
+  /**
+   * @param glyphFallbacks TrueType files for glyphs missing from SHX fonts in MTEXT, in order
+   *   (default: arial.ttf, seguisym.ttf, simsun.ttc — SimSun reproduced AutoCAD's CJK fallback
+   *   glyph exactly, Arial's .notdef its control-character box).
+   */
+  constructor(
+    manager: FontManager,
+    styles: Iterable<TextStyleSpec>,
+    encoding = "windows-1252",
+    glyphFallbacks: readonly string[] = ["arial.ttf", "seguisym.ttf", "simsun.ttc"],
+  ) {
     this.manager = manager;
     this.encoding = encoding;
+    this.fallbackNames = glyphFallbacks;
     for (const s of styles) this.specs.set(s.name.toUpperCase(), s);
+  }
+
+  fallbackGlyph(cp: number): ResolvedGlyph | undefined {
+    for (const f of this.fallbacks ?? []) {
+      const g = f.glyph(cp);
+      if (g) return { glyph: g, font: f, scale: 1 / f.capHeight, fallback: true };
+    }
+    return undefined;
+  }
+
+  notdefGlyph(font: StyleFont): ResolvedGlyph | undefined {
+    const f =
+      font.primary instanceof TtfFont ? font.primary : this.fallbacks?.find((x) => x instanceof TtfFont);
+    if (!(f instanceof TtfFont)) return undefined;
+    return { glyph: f.glyphByIndex(0), font: f, scale: 1 / f.capHeight, fallback: true };
   }
 
   /** Resolves every STYLE entry and the given inline fonts. */
   async prepare(inlineSpecs: Iterable<InlineFontSpec> = []): Promise<void> {
+    if (!this.fallbacks) {
+      const out: Font[] = [];
+      for (const n of this.fallbackNames) {
+        const f = await this.manager.loadFile(n);
+        if (f) out.push(f);
+      }
+      this.fallbacks = out;
+    }
     for (const [key, spec] of this.specs) {
       if (this.styles.has(key)) continue;
       const r = await this.manager.resolveStyle({

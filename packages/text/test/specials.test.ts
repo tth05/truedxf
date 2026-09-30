@@ -22,8 +22,9 @@ describe("TEXT special codes (note 04 §1.6)", () => {
     expect(decodeTextString("%%065")[0]).toMatchObject({ cp: 65, numeric: true });
     expect(cps("%%1234")).toBe("{4");
   });
-  it("keeps unknown %% codes literally", () => {
-    expect(cps("%%x")).toBe("%%x");
+  it("drops %% before unknown codes", () => {
+    expect(cps("a%%xb")).toBe("axb");
+    expect(cps("ab%% cd%%%%")).toBe("ab cd%%");
     expect(cps("50%")).toBe("50%");
   });
   it("decodes \\U+XXXX (exactly 4 hex digits) and \\M+nXXXX", () => {

@@ -20,7 +20,7 @@
 import type { Bounds, StyleFont } from "@truedxf/fonts";
 import { Affine2, Matrix44, ocsToWcsMatrix, type Vec3, wcsToOcsMatrix } from "@truedxf/geometry";
 import { glyphCode, type TextFontSource } from "./fonts.ts";
-import { InkBox, type MeasuredGlyph, measureGlyph } from "./glyphs.ts";
+import { InkBox, type MeasuredGlyph, measureGlyph, measureResolved } from "./glyphs.ts";
 import {
   defaultContext,
   type MTextChar,
@@ -29,6 +29,7 @@ import {
   type ParagraphAlign,
   parseMText,
 } from "./mtext-parser.ts";
+import { quickBox } from "./text-layout.ts";
 import type {
   BackgroundFill,
   ColorOverride,
@@ -84,6 +85,10 @@ export interface MTextInput {
 export interface MTextLayoutOptions {
   /** Wrap width override (pre-R2018 linked columns: the master's column width, note 04 §3.7). */
   wrapWidth?: number;
+  /** $TEXTSIZE: the char height used when 40 ≤ 0 (as for TEXT — ASSUMPTION for MTEXT). */
+  defaultHeight?: number;
+  /** $QTEXTMODE ≠ 0: one rectangle per line (cap top to baseline, VERIFIED-BY-ACAD text/qtextmode-1). */
+  quickText?: boolean;
   /** Decoration offsets in char heights (UNKNOWN in AutoCAD, note 04 §8.6). */
   underlineOffset?: number;
   overlineOffset?: number;
@@ -211,11 +216,8 @@ export function layoutMText(
     }
     rot = Math.atan2(d.y, d.x);
   }
-  const h0 = e.height;
-  if (!(h0 > 0)) {
-    notes.push("mtext-height-0");
-    return emptyLayout(ocs, notes);
-  }
+  const h0 = e.height > 0 ? e.height : (options.defaultHeight ?? 2.5);
+  if (!(h0 > 0)) return emptyLayout(ocs, notes);
   if (e.flowDirection === 3) notes.push("mtext-vertical-flow-unsupported");
   const spec = style.spec;
   const ctx0 = defaultContext(h0, spec?.widthFactor || 1, spec?.oblique ?? 0);
@@ -312,7 +314,9 @@ export function layoutMText(
   const decor: DecorationLine[] = [];
   for (const ln of lines) {
     const base = place.multiply(Affine2.translation(ln.x + ln.column * colStep, ln.baseline));
-    engine.emitLine(ln, base, glyphs, decor);
+    if (options.quickText) {
+      if (ln.hasInk) decor.push(...quickBox(base, ln.ext0, ln.ext1, 0, ln.capMax));
+    } else engine.emitLine(ln, base, glyphs, decor);
   }
 
   // ---- background fill and frame (note 04 §3.1; geometry UNVERIFIED)
@@ -370,8 +374,8 @@ export function mtextExtents(
 ): MTextExtents {
   const style = fonts.style(e.style);
   const baseFont = style.font;
-  if (!baseFont || !(e.height > 0)) return { width: 0, height: 0, lines: 0 };
-  const h0 = e.height;
+  const h0 = e.height > 0 ? e.height : (options.defaultHeight ?? 2.5);
+  if (!baseFont || !(h0 > 0)) return { width: 0, height: 0, lines: 0 };
   const spec = style.spec;
   const tokens = parseMText(e.text, defaultContext(h0, spec?.widthFactor || 1, spec?.oblique ?? 0));
   const cols = e.columns && e.columns.type > 0 ? e.columns : undefined;
@@ -494,7 +498,20 @@ class Engine {
 
   private glyph(ctx: MTextContext, ch: MTextChar): GlyphItem {
     const font = this.fontOf(ctx);
-    const m = measureGlyph(font, glyphCode(font, ch, this.fonts.encoding));
+    let m: MeasuredGlyph;
+    if (ch.control) {
+      // control characters: the missing-glyph box of a TrueType font (text/caret-codes-mtext)
+      const nd = this.fonts.notdefGlyph?.(font);
+      m = nd ? measureResolved(0x25af, nd) : measureGlyph(font, 0x3f);
+    } else {
+      m = measureGlyph(font, glyphCode(font, ch, this.fonts.encoding));
+      // characters missing from an SHX font come from a TrueType fallback at that font's own
+      // cap-height scale — unlike TEXT, which draws "?" (VERIFIED-BY-ACAD text/escape-spellings)
+      if (font.primary.kind === "shx" && (!m.resolved || m.resolved.fallback) && ch.cp !== 0x3f) {
+        const fb = this.fonts.fallbackGlyph?.(ch.cp);
+        if (fb) m = measureResolved(ch.cp, fb);
+      }
+    }
     const h = ctx.height;
     const w = ctx.widthFactor || 1;
     const ink = m.ink

@@ -278,34 +278,61 @@ function attribVisible(fe: Frontend, a: AttribEntity): boolean {
   return (a.attribFlags & 1) === 0;
 }
 
-function attributeLayout(fonts: TextFonts, a: AttribEntity, text: string): TextLayout {
+/** Header-driven layout options ($TEXTSIZE for height 0, $QTEXTMODE boxes). */
+function layoutOptions(fe: Frontend): { defaultHeight: number; quickText: boolean } {
+  let o = fe.caches.get("text:options") as { defaultHeight: number; quickText: boolean } | undefined;
+  if (!o) {
+    o = {
+      defaultHeight: fe.doc.header.num("$TEXTSIZE", 2.5),
+      quickText: fe.doc.header.num("$QTEXTMODE", 0) !== 0,
+    };
+    fe.caches.set("text:options", o);
+  }
+  return o;
+}
+
+/** Single-line text input: a missing group 71 means "use the STYLE's flags" (VERIFIED-BY-ACAD). */
+function singleLine<T extends TextEntity | AttribEntity>(e: T, text: string = e.text) {
+  const has71 = e.record.find(71, "AcDbText") >= 0;
+  return { ...e, text, generationFlags: has71 ? e.generationFlags : undefined };
+}
+
+function attributeLayout(fe: Frontend, fonts: TextFonts, a: AttribEntity, text: string): TextLayout {
+  const opts = layoutOptions(fe);
   if (a.isMultiline) {
     // R2018 multi-line attribute: the embedded MTEXT wins over group 1 (note 04 §2.3)
     const mt = parseEmbeddedMText(a.record);
-    if (mt) return layoutMText(text === a.tag && a.type === "ATTDEF" ? { ...mt, text } : mt, fonts);
+    if (mt) return layoutMText(text === a.tag && a.type === "ATTDEF" ? { ...mt, text } : mt, fonts, opts);
   }
-  return layoutText({ ...a, text }, fonts);
+  return layoutText(singleLine(a, text), fonts, opts);
 }
 
 registerDrawer(["TEXT", "MTEXT", "ATTDEF"], (fe, e, st) => {
   const fonts = fontsOf(fe);
   if (!fonts) return;
   if (e.type === "TEXT") {
-    drawLayout(fe, layoutText(e as TextEntity, fonts), e, st.m, st.inh);
+    drawLayout(fe, layoutText(singleLine(e as TextEntity), fonts, layoutOptions(fe)), e, st.m, st.inh);
   } else if (e.type === "MTEXT") {
     const mt = e as MTextEntity;
     const wrapWidth = linkedColumnWidths(fe).get(mt.handle.toUpperCase());
-    drawLayout(fe, layoutMText(mt, fonts, wrapWidth !== undefined ? { wrapWidth } : {}), e, st.m, st.inh);
+    const opts = layoutOptions(fe);
+    drawLayout(
+      fe,
+      layoutMText(mt, fonts, wrapWidth !== undefined ? { ...opts, wrapWidth } : opts),
+      e,
+      st.m,
+      st.inh,
+    );
   } else {
     const a = e as AttribEntity;
     if (st.stack.length > 1) {
       // inside a block: only constant ATTDEFs draw (their value) — note 07 §4.1; flag 1 and
       // $ATTMODE are honoured for them too (ASSUMPTION)
       if ((a.attribFlags & 2) === 0 || !attribVisible(fe, a)) return;
-      drawLayout(fe, attributeLayout(fonts, a, a.text), e, st.m, st.inh);
+      drawLayout(fe, attributeLayout(fe, fonts, a, a.text), e, st.m, st.inh);
     } else {
       // a loose ATTDEF shows its tag (note 04 §2.2)
-      drawLayout(fe, attributeLayout(fonts, a, a.tag), e, st.m, st.inh);
+      drawLayout(fe, attributeLayout(fe, fonts, a, a.tag), e, st.m, st.inh);
     }
   }
 });
@@ -320,7 +347,7 @@ setAttribDrawer((fe, insert, st) => {
     if (!attribVisible(fe, a) || !fe.props.isPlotted(a, inh)) continue;
     b.beginEntity(a.handle || `#${a.id}`);
     try {
-      drawLayout(fe, attributeLayout(fonts, a, a.text), a, st.m, inh);
+      drawLayout(fe, attributeLayout(fe, fonts, a, a.text), a, st.m, inh);
     } catch (err) {
       fe.note(`error:ATTRIB:${err instanceof Error ? err.message : String(err)}`);
     }

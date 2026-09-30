@@ -13,7 +13,7 @@
  *   next `;` (or the end);
  * - `%%c %%d %%p %%%` are decoded in MTEXT too; `%%nnn`/`%%u` in MTEXT are UNKNOWN and stay literal.
  */
-import { decodeEscapeAt, type SpecialSymbol } from "./specials.ts";
+import { caretCode, decodeEscapeAt, type SpecialSymbol } from "./specials.ts";
 import type { ColorOverride } from "./types.ts";
 
 export type ParagraphAlign = "default" | "left" | "right" | "center" | "justified" | "distributed";
@@ -80,6 +80,8 @@ export interface MTextContext {
 export interface MTextChar {
   readonly cp: number;
   readonly symbol?: SpecialSymbol | undefined;
+  /** A non-printable control character: AutoCAD draws a missing-glyph box (text/caret-codes-mtext). */
+  readonly control?: boolean;
 }
 
 export type MTextToken =
@@ -167,7 +169,7 @@ class Parser {
         this.i += 2;
         if (n === 32) this.emitChar(0x5e);
         else {
-          const code = (n - 64 + 126) % 126;
+          const code = caretCode(n);
           if (code === 0) {
             this.i = s.length;
             break;
@@ -222,7 +224,7 @@ class Parser {
     else if (code === 10) this.out.push({ t: "paragraph", ctx: this.ctx });
     else if (code === 13) {
       // ^M / CR: ignored (ezdxf docs)
-    } else this.emitChar(0x25af);
+    } else this.out.push({ t: "char", ch: { cp: 0x25af, control: true }, ctx: this.ctx });
   }
 
   private command(): void {

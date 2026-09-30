@@ -4,7 +4,8 @@
  * - Caret codes (`^J`, `^ `, `^@` terminates) are DXF-level escapes, decoded first (note 01 §1.5).
  * - `\U+XXXX` (exactly 4 hex digits) and `\M+nXXXX` escapes (note 04 §5).
  * - `%%c %%d %%p %%%`, `%%u %%o %%k` toggles, `%%nnn` (1–3 decimal digits, greedy — AutoCAD's exact
- *   rule for fewer than 3 digits is UNKNOWN, note 04 §8.13), unknown `%%x` kept literally (UNKNOWN).
+ *   rule for fewer than 3 digits is UNKNOWN, note 04 §8.13); an unknown `%%x` renders `x`
+ *   (VERIFIED-BY-ACAD text/unknown-pct: "a%%xb" → "axb", "ab%% cd" → "ab cd").
  * - MTEXT codes (`\P`, `\L`, …) are **not** interpreted in TEXT (ezdxf#258).
  */
 import { getDecoder } from "@truedxf/core";
@@ -43,14 +44,13 @@ function isHex(c: string | undefined): boolean {
 export function decodeEscapeAt(s: string, i: number): [string, number] | undefined {
   if (s[i] !== "\\") return undefined;
   const k = s[i + 1];
-  // Only upper-case `\U+` / `\M+`; the hex digits may be any case (ezdxf#1380). Lower-case `\u+`
-  // is UNKNOWN in AutoCAD (suite text/escape-spellings) and stays literal here.
-  if (k === "U" && s[i + 2] === "+") {
+  // `\U+` and `\u+` both decode (VERIFIED-BY-ACAD text/escape-spellings); hex digits in any case
+  if ((k === "U" || k === "u") && s[i + 2] === "+") {
     const hex = s.slice(i + 3, i + 7);
     if (hex.length === 4 && [...hex].every(isHex)) return [String.fromCharCode(Number.parseInt(hex, 16)), 7];
     return undefined;
   }
-  if (k === "M" && s[i + 2] === "+") {
+  if ((k === "M" || k === "m") && s[i + 2] === "+") {
     const page = s[i + 3];
     const hex = s.slice(i + 4, i + 8);
     if (page === undefined || hex.length !== 4 || ![...hex].every(isHex)) return undefined;
@@ -76,7 +76,7 @@ export function decodeCarets(s: string): string {
     if (ch === "^" && i + 1 < s.length) {
       const next = s.charCodeAt(i + 1);
       i++;
-      const c = next === 32 ? "^" : String.fromCharCode((next - 64 + 126) % 126);
+      const c = next === 32 ? "^" : String.fromCharCode(caretCode(next));
       if (c === "\0") break;
       out += c;
     } else {
@@ -85,6 +85,11 @@ export function decodeCarets(s: string): string {
     }
   }
   return out;
+}
+
+/** Code of `^X`: ezdxf rule chr((ord(X) − 64) mod 126); `^?` is DEL (VERIFIED-BY-ACAD text/caret-lowercase). */
+export function caretCode(next: number): number {
+  return next === 0x3f ? 0x7f : (next - 64 + 126) % 126;
 }
 
 /** Decodes a TEXT/ATTRIB string into characters with decoration flags. */
@@ -133,7 +138,9 @@ export function decodeTextString(raw: string): TextChar[] {
         i = j;
         continue;
       }
-      // unknown %% code: kept literally (ezdxf; AutoCAD UNKNOWN, note 04 §1.6)
+      // unknown %% code: AutoCAD drops the %% and keeps the character (VERIFIED-BY-ACAD text/unknown-pct)
+      i += 2;
+      continue;
     }
     const cp = s.codePointAt(i)!;
     push(cp);

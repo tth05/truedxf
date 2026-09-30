@@ -12,7 +12,10 @@ export interface MeasuredGlyph {
 }
 
 export function measureGlyph(font: StyleFont, code: number, vertical = false): MeasuredGlyph {
-  const r = font.glyph(code, vertical ? { vertical } : {});
+  return measureResolved(code, font.glyph(code, vertical ? { vertical } : {}));
+}
+
+export function measureResolved(code: number, r: ResolvedGlyph | undefined): MeasuredGlyph {
   if (!r) return { code, resolved: undefined, advance: 0, ink: undefined };
   const s = r.scale;
   const b = r.glyph.bounds;

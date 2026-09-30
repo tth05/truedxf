@@ -1043,6 +1043,10 @@ netDxf:Transparency.cs)
 - DEFAULT (−3) → `LWDEFAULT` system variable, **stored in the registry, not in the DXF**
   (spec has no $LWDEFAULT; ezdxf: "todo: is this value stored anywhere?" and returns 0.25,
   properties.py `default_lineweight`). AutoCAD default = 0.25 mm. Harness: keep LWDEFAULT = 25.
+  **VERIFIED-BY-ACAD** (2026-09-30, `lineweights/default-lwdefault-025`, `-100`, Q-0206): DEFAULT and BYLAYER on a
+  DEFAULT layer plot at the session's LWDEFAULT (set by the harness from `meta.plot.sysvars.LWDEFAULT`; truedxf:
+  `PlotRequest.sysvars.LWDEFAULT`). ByLayer / ByBlock / explicit lineweights resolve as in §7.1
+  (`lineweights/bylayer`, `byblock-*`, `insert-scale`: INSERT scale never scales lineweights).
 - `$CELWEIGHT` = lineweight of new objects (spec:L760), not used for rendering.
 - `$LWDISPLAY` (0/1) only controls screen display (spec:L1267). **Plots honour lineweights if the
   page setup flag 128 "PrintLineweights" (plot object lineweights) is set, independent of
@@ -1293,6 +1297,10 @@ Notes:
   block including non-layer-0 content, while turning it *off* hides only layer-0 content. Test R2.
 - Layer 0 itself frozen/off: effect on layer-0 content of blocks inserted on other layers? UNKNOWN
   (ezdxf rule would say: layer 0 state is ignored). Test R3.
+- **VERIFIED-BY-ACAD** (2026-09-30): freeze vs off as assumed; layer 0's own state is ignored for content of
+  blocks inserted on other layers; a **no-plot INSERT layer suppresses the whole block content** (note 07 §3.2,
+  `blocks/vis-*`). Top-level BYBLOCK colour plots as ACI 7 and BYBLOCK linetype as Continuous
+  (`colors/byblock-toplevel`, `byblock-toplevel-linetype-byblock`, Q-0198).
 - VIEWPORT frozen layers: VIEWPORT 341 handles (frozen-in-viewport); ezdxf `_setup_vp_layers`
   marks them invisible for that viewport's content. Layer 70 bit 2 "frozen in new viewports" only
   affects new viewports.

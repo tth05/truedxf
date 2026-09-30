@@ -225,6 +225,20 @@ which gives WCS z = −elev for N = −Z. ACadSharp#1228 flags this as unverifie
 - Priority for truedxf: implement the projection correctly for lines, arcs and polylines with thickness (cheap:
   project the base curve, the top curve and the connectors). Treat the rest as a later refinement.
 
+**VERIFIED-BY-ACAD** (AutoCAD 2027 PLOT, 2026-09-30; `ocs/thickness-skew`, `ocs/thickness-tilt-y45`,
+`lines-curves/line-thickness-*`, `solids/solid-thickness-tilted`, `points/point-thickness-0001`, Q-0134, Q-0162,
+Q-0185):
+- LINE with thickness plots as the quad base + top (`+t·N̂`) + two connecting edges, also for WCS LINEs with
+  210 = (1,0,0) in plan view (a 4-edge band outline of width |t|).
+- CIRCLE/ARC with thickness: base and top curves plus a **generator line at every tessellation vertex** of the curve
+  (40 generators for a 150 px circle in `thickness-skew`, 44 in `thickness-tilt-y45`: the count follows AutoCAD's
+  view-dependent tessellation, see note 08 §10.3); arcs also get the end edges.
+- SOLID/TRACE with thickness: a wireframe prism (bottom, top, four vertical edges), **never filled**.
+- POINT with thickness: a 1-px line from P to P + t·N̂; the PDMODE symbol stays at the base point.
+- ARC and CIRCLE (and HATCH) with 210 = (0,0,0) stay in the file (DXFOUT keeps 210 = 0,0,0) but are **not drawn**;
+  LWPOLYLINE drops the zero vector on load (drawn as +Z), SPLINE and INSERT are drawn as +Z
+  (`ocs/zero-extrusion-*`, Q-0124).
+
 ---
 
 ## 3. Entities
@@ -298,6 +312,23 @@ PDSIZE (LibreCAD dxf_format.h:691-702; ezdxf config.py:190-199):
 - Defpoints: POINTs (and anything else) on layer `DEFPOINTS` are **never plotted** (well-known AutoCAD rule; ezdxf
   hides them by default, frontend.py:492-497). Cross-reference the layers/plot note.
 - Extents: ezdxf uses only the location (disassemble.py:214-231). **UNKNOWN**: whether AutoCAD includes the symbol.
+
+**VERIFIED-BY-ACAD** (AutoCAD 2027 PLOT, 2026-09-30; `points/*`, Q-0159…Q-0163, Q-0112, Q-0212). With the point size S
+(below):
+- `+` (2): arms ±S (total length 2S). `×` (3): two lines of length S from the centre along the diagonals (ends at
+  ±S/√2). Tick (4): from the centre up to S/2. Circle (+32): radius S/2. Square (+64): half-side S/2. Mode 0 draws
+  its dot together with the frames (32, 64, 96); mode 1 draws only the frames.
+- S = PDSIZE for PDSIZE > 0. For PDSIZE = 0 S = 5 %, for PDSIZE < 0 S = |PDSIZE| % of **half the plotted view
+  height** (plot window / extents height, not the *Active VPORT height: `pdsize-vport-0001…3` with VPORT heights
+  50/150/600 plot identically; `pdsize-relative-0005` with a 300-unit window doubles S).
+- The symbol lies in the plane of 210 (arbitrary axis algorithm) at the WCS location and is rotated by **−angle**
+  (clockwise; `point-angle-0002/4`), i.e. ezdxf's sign.
+- Inside blocks the symbol is transformed with the INSERT (non-uniform scale distorts circles into ellipses,
+  `point-in-block-0001`). Relative sizes are measured in block units: S_block = S · |M⁻¹·(0,1)| with M the
+  block → plot transform (`point-in-block-0002`, sx = 3, sy = 1, rot 30°).
+- POINT dots and all symbol strokes are 1 px wide whatever the lineweight (`symbol-lineweight-*`,
+  `dot-lineweight-*`).
+- Extents include the symbol ($EXTMIN = −14.14 for PDMODE 35, PDSIZE 20 in `point-extents-0001`: the × arm ends).
 
 ### 3.2 LINE
 
@@ -803,6 +834,17 @@ spec:6239-6290, 7068-7118; ezdxf entities/solid.py:32-65, 134-163:
   **Needs a test**: that's measurable pixel by pixel.
 - TRACE is identical to SOLID (the legacy TRACE command produced it). ezdxf `Trace(Solid)`.
 
+**VERIFIED-BY-ACAD** (AutoCAD 2027 PLOT, 2026-09-30; Q-0183, Q-0184, Q-0185):
+- The fill is the polygon v0, v1, v3, v2 (the drawing order) filled as is: a crossed order gives a **bow tie** (two
+  triangles meeting at the crossing, `solids/solid-polygon-order-fill1`), a concave one keeps its notch
+  (`solid-concave-fill1`). The ASSUMPTION of the union of (v0,v1,v2) and (v1,v3,v2) is wrong.
+- Only a SOLID/TRACE whose plane faces the view (normal ∥ view direction) is filled. Any tilt, even 210 =
+  (0.01, 0.01, 1) (below the 1/64 arbitrary-axis threshold), plots the **outline** only (`ocs/solid-small`,
+  `solid-threshold`, `solid-tilt-*`, `solid-edge-on`). With thickness: wireframe prism (§2.6).
+- `$FILLMODE = 0`: SOLID, TRACE and wide polylines plot as outlines, a solid HATCH plots **nothing**
+  (`solids/fillmode-mixed-0`).
+- 3DFACE: invisible edges (70) are hidden and **shown with `$SPLFRAME = 1`** (`solids/3dface-nonplanar`, Q-0189).
+
 ### 3.13 HELIX
 
 spec:4625-4672; ezdxf entities/helix.py:28-75:
@@ -924,6 +966,25 @@ spec:6199-6238; ezdxf entities/shape.py: 39 thickness, 10 insertion point (WCS v
 - Mixed widths: a polyline where some segments have width 0 and others don't. The zero-width segments are hairlines
   (or lineweight), the others bands. **ASSUMPTION**: AutoCAD draws zero-width segments as normal lines.
 - Thickness + width: a 3D slab. Out of scope for plan views.
+
+**VERIFIED-BY-ACAD** (AutoCAD 2027 PLOT, 2026-09-30; `polylines/*`, Q-0147, Q-0150, Q-0151, Q-0152, Q-0153, Q-0154):
+- Joints between straight band segments are mitered only when the widths meet (end width of one segment = start
+  width of the next) and the joint is not too sharp; otherwise both bands simply end with their perpendicular cut
+  at the vertex. `width-arrow` (3 → 15 step): no miter, the arrow head starts square at the vertex;
+  `miter-angle-0002` (30° joint): mitered (tip 1/sin 15° half-widths out); `miter-angle-0003` (5°) and
+  `width-hairpin` (7.2°): not mitered; 1° (`miter-angle-0004`): not mitered. The limit lies between 7.2° and 30°
+  (truedxf: miter while the miter length ≤ 10 half-widths ≈ 11.5°, UNVERIFIED in between).
+- Arc segments: widths are **clamped to the arc diameter 2r** before tapering linearly along the angle, so the inner
+  radius never goes negative: r = 2, w = 6 plots a half disk of radius 4 (`ring-semicircle-w6`); a 0 → 8 taper on
+  r = 2 plots like 0 → 4 (`ring-semicircle-taper`). Tapered arcs have radial end cuts (`taper-arc-*`).
+- Negative widths: per-vertex 40/41 = −4 plot as width 4 (absolute value, `width-negative-width`); a negative
+  constant width 43 = −1 plots as width 0 (hairline, `width-const-negative`).
+- Line–arc joints are not mitered (`joins-line-arc`, `width-mixed-bulge` match without miters).
+- `$FILLMODE = 0`: outlines of the band pieces; tapered arcs show a radial rung at every tessellation step
+  (`polylines/fillmode-0`; truedxf draws only the outer outline, open).
+- Polyface meshes: each face plots with its **face record's own properties** (62 of the face VERTEX, not of the
+  POLYLINE or of the position vertices, `polyface-face-colors`, Q-0145); negative indices hide edges unless
+  `$SPLFRAME = 1` (`polyface-invisible-splframe`, Q-0189); index 0 = unused corner.
 
 ### 4.2 ezdxf implementation summary (reference)
 
@@ -1047,6 +1108,14 @@ For arcs and ellipses after an arbitrary affine map M: with `U' = M·U, V' = M·
   - Points: the symbol size?
   - Hatch pattern lines vs the boundary?
   Each of these is a test in the backlog.
+
+**VERIFIED-BY-ACAD** via DXFOUT $EXTMIN/$EXTMAX of the Extents probes (AutoCAD 2027, 2026-09-30; `extents/probe-*`,
+Q-0107…Q-0118): extents **include** entities on off, no-plot and Defpoints layers (incl. DIMENSIONs on Defpoints),
+the thickness top of extruded LINEs, the full band of wide polylines, the PDMODE symbol, the SPLINE curve (not its
+control hull) and a pattern HATCH's boundary (not its pattern lines); they **exclude** invisible (60 = 1) entities,
+frozen layers, 3DFACE vertices touched only by invisible edges and lineweight widths. The plotted Extents area is
+slightly larger than $EXTMIN/$EXTMAX (e.g. 20 × 10 extents → "Effective plotting area: 2000.00 wide by 1004.45 high"
+at 99 px/unit instead of 100); that padding rule is open (note 08 §10).
 
 ---
 

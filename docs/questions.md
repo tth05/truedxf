@@ -164,23 +164,34 @@ set the status here to `answered` (or `wontfix`) and add the answer in one line 
 |---|---|---|---|---|---|
 | Q-0105 | extents | [T] Does PLOT 'Extents' recompute from geometry when $EXTMIN/$EXTMAX are bogus (±1e20, inverted, stale), and are RAY/XLINE excluded? | 11b §4, Test ideas (11b:17) | `extents/header-extents-*` | open |
 | Q-0106 | extents | [U] Does save/DXFOUT recompute $EXTMIN/$EXTMAX and LAYOUT 14/15, or keep stale values (e.g. after erase) until REGEN/ZOOM Extents? | 03 §6.2; 08 §6.7 (08:T-PL-9) | `fileformat/stale-extents-too-large`, `fileformat/stale-extents-too-small`, `fileformat/stale-extents-inverted` | open |
-| Q-0107 | extents | [A] Does an invisible entity (60=1) contribute to the extents used by PLOT 'Extents' (and to $EXTMIN/$EXTMAX)? | 03 §1, §6.2, Test ideas 35 (03:T35) | `extents/probe-invisible-entity`, `layouts/extents-invisible` | open |
-| Q-0108 | extents | [A] Do extents count invisible edges of 3D polylines, polyface meshes and 3DFACEs? | 03 §6.1 | `extents/probe-invisible-3dface-edges`, `layouts/extents-3dface-invisible-edges`, `layouts/extents-polyface-invisible-edges` | open |
-| Q-0109 | extents | [U] Do PLOT 'Extents' (and $EXTMIN/$EXTMAX) include entities on off layers and on frozen layers? | 03 §6.2, Test ideas 35; 08 §5.1, §8 item 17 (03:T35, 08:T-PL-9) | `extents/probe-layer-off`, `extents/probe-layer-frozen`, `layouts/extents-layer-off`, `layouts/extents-layer-frozen` (+1 more) | open |
-| Q-0110 | extents | [U] Do PLOT 'Extents', ZOOM E and $EXTMIN/$EXTMAX include entities on DEFPOINTS, incl. the defpoint POINTs inside dimension *D blocks? | 03 §6.2, Test ideas 35; 11a §10 (03:T35) | `extents/probe-layer-defpoints`, `extents/probe-dimension-defpoint`, `layouts/extents-defpoints`, `layouts/extents-dimension-defpoint` | open |
-| Q-0111 | extents | [U] Does an Extents plot include entities on non-plottable (LAYER 290=0) layers? | 08 §5.1, §8 item 17 (08:T-PL-9) | `extents/probe-layer-noplot` | open |
-| Q-0112 | extents | [U] Do PLOT 'Extents' include the PDMODE symbol size of POINTs, or only the point location? | 03 §3.1, §6.1, §6.2, Test ideas 35 (03:T35) | `points/point-extents-*` | open |
-| Q-0113 | extents | [T] Do plot 'Extents' include the thickness-extruded top of LINE/POINT/SOLID with thickness? | 03 §6.1 | `extents/probe-thickness`, `layouts/extents-thickness` | open |
-| Q-0114 | extents | [U] Do plot 'Extents' include half the lineweight of heavy entities? | 03 §6.2, Test ideas 35 (03:T35) | `extents/probe-lineweight`, `layouts/extents-lineweight` | open |
-| Q-0115 | extents | [U] Do plot 'Extents' of a wide polyline use the band outline (width) or only the centerline vertices? | 03 §6.1, Test ideas 35 (03:T35) | `extents/probe-wide-polyline`, `layouts/extents-wide-pline` | open |
+| Q-0107 | extents | [A] Does an invisible entity (60=1) contribute to the extents used by PLOT 'Extents' (and to $EXTMIN/$EXTMAX)? | 03 §1, §6.2, Test ideas 35 (03:T35) | `extents/probe-invisible-entity`, `layouts/extents-invisible` | answered |
+| Q-0108 | extents | [A] Do extents count invisible edges of 3D polylines, polyface meshes and 3DFACEs? | 03 §6.1 | `extents/probe-invisible-3dface-edges`, `layouts/extents-3dface-invisible-edges`, `layouts/extents-polyface-invisible-edges` | answered |
+| Q-0109 | extents | [U] Do PLOT 'Extents' (and $EXTMIN/$EXTMAX) include entities on off layers and on frozen layers? | 03 §6.2, Test ideas 35; 08 §5.1, §8 item 17 (03:T35, 08:T-PL-9) | `extents/probe-layer-off`, `extents/probe-layer-frozen`, `layouts/extents-layer-off`, `layouts/extents-layer-frozen` (+1 more) | answered |
+| Q-0110 | extents | [U] Do PLOT 'Extents', ZOOM E and $EXTMIN/$EXTMAX include entities on DEFPOINTS, incl. the defpoint POINTs inside dimension *D blocks? | 03 §6.2, Test ideas 35; 11a §10 (03:T35) | `extents/probe-layer-defpoints`, `extents/probe-dimension-defpoint`, `layouts/extents-defpoints`, `layouts/extents-dimension-defpoint` | answered |
+| Q-0111 | extents | [U] Does an Extents plot include entities on non-plottable (LAYER 290=0) layers? | 08 §5.1, §8 item 17 (08:T-PL-9) | `extents/probe-layer-noplot` | answered |
+| Q-0112 | extents | [U] Do PLOT 'Extents' include the PDMODE symbol size of POINTs, or only the point location? | 03 §3.1, §6.1, §6.2, Test ideas 35 (03:T35) | `points/point-extents-*` | answered |
+| Q-0113 | extents | [T] Do plot 'Extents' include the thickness-extruded top of LINE/POINT/SOLID with thickness? | 03 §6.1 | `extents/probe-thickness`, `layouts/extents-thickness` | answered |
+| Q-0114 | extents | [U] Do plot 'Extents' include half the lineweight of heavy entities? | 03 §6.2, Test ideas 35 (03:T35) | `extents/probe-lineweight`, `layouts/extents-lineweight` | answered |
+| Q-0115 | extents | [U] Do plot 'Extents' of a wide polyline use the band outline (width) or only the centerline vertices? | 03 §6.1, Test ideas 35 (03:T35) | `extents/probe-wide-polyline`, `layouts/extents-wide-pline` | answered |
 | Q-0116 | extents | [U] Do plot 'Extents' of TEXT use the actual glyph box or the full text cell (cap height/descender box)? | 03 §6.1, §6.2, Test ideas 35 (03:T35) | `extents/probe-text-xxx`, `extents/probe-text-hgy`, `layouts/extents-text-xxx`, `layouts/extents-text-hgy` | open |
-| Q-0117 | extents | [U] Do plot 'Extents' of a SPLINE use the curve or its control-point hull? | 03 §6.1, §6.2, Test ideas 35 (03:T35) | `extents/probe-spline-control-hull`, `layouts/extents-spline-control` | open |
-| Q-0118 | extents | [U] Do plot 'Extents' of a pattern HATCH use the boundary only, or the pattern line geometry? | 03 §6.2, Test ideas 35 (03:T35) | `extents/probe-hatch-pattern`, `layouts/extents-hatch-pattern` | open |
+| Q-0117 | extents | [U] Do plot 'Extents' of a SPLINE use the curve or its control-point hull? | 03 §6.1, §6.2, Test ideas 35 (03:T35) | `extents/probe-spline-control-hull`, `layouts/extents-spline-control` | answered |
+| Q-0118 | extents | [U] Do plot 'Extents' of a pattern HATCH use the boundary only, or the pattern line geometry? | 03 §6.2, Test ideas 35 (03:T35) | `extents/probe-hatch-pattern`, `layouts/extents-hatch-pattern` | answered |
 | Q-0119 | extents | [A] Do extents for a smoothed MESH use the level-0 control cage vertices or the subdivided surface? | 03 §6.1 | `misc/mesh-box-level0-extents`, `misc/mesh-box-level2-extents` | open |
 | Q-0120 | extents | [U] Do layout extents (Extents plot / LAYOUT 14/15) include viewport frames and the overall viewport? | 08 §8 item 17 (08:T-PL-9) | `misc/layout-extents-viewports` | open |
 | Q-0121 | extents | [T] What does PLOT 'Limits'/'Layout' do with bogus (0,0)-(12,9) paper limits that do not contain the viewports? | 11b §4, Test ideas (11b:19) | `layouts/bogus-limits-layout`, `layouts/bogus-limits-window` | answered |
 
 - Q-0121: Plot area Layout ignores LAYOUT limits: the canvas at 1 px per paper unit from paper (0,0); Window plots are unaffected (`layouts/bogus-limits-*`, note 08 §10.12).
+- Q-0107: No: invisible (60=1) entities are excluded from $EXTMIN/$EXTMAX and the Extents plot (`extents/probe-invisible-entity`, note 03 §6.2).
+- Q-0108: No: a 3DFACE vertex touched only by invisible edges does not count (`extents/probe-invisible-3dface-edges`).
+- Q-0109: Off layers count, frozen layers do not (`extents/probe-layer-off`, `probe-layer-frozen`).
+- Q-0110: Yes: Defpoints entities (incl. a DIMENSION on Defpoints) are in the extents although they never plot (`extents/probe-layer-defpoints`, `probe-dimension-defpoint`).
+- Q-0111: Yes: no-plot layers count (`extents/probe-layer-noplot`).
+- Q-0112: Yes: the PDMODE symbol extent counts (`points/point-extents-0001`: $EXTMIN = -14.14 = × arm ends).
+- Q-0113: Yes: the thickness top of an extruded LINE counts (`extents/probe-thickness`: $EXTMAX x = 60).
+- Q-0114: No: lineweights do not enlarge the extents (`extents/probe-lineweight`).
+- Q-0115: The full band counts (`extents/probe-wide-polyline`: y 20..40 for width 20 at y = 30).
+- Q-0117: The curve, not the control hull (`extents/probe-spline-control-hull`).
+- Q-0118: The boundary only, not the pattern lines (`extents/probe-hatch-pattern`).
 
 <a id="ocs"></a>
 ## OCS / extrusion / thickness (`ocs`)
@@ -189,11 +200,13 @@ set the status here to `answered` (or `wontfix`) and add the answer in one line 
 |---|---|---|---|---|---|
 | Q-0122 | ocs | [A] Does AutoCAD normalize a non-unit extrusion vector (e.g. 210=(0,0,5) or (0,0,-3)) before applying the arbitrary axis algorithm? | 03 §2.2 | `ocs/circle-unnormalised`, `ocs/lwpolyline-unnormalised`, `ocs/solid-unnormalised`, `ocs/text-unnormalised` (+8 more) | open |
 | Q-0123 | ocs | [U] With extrusion (0,0,-1), does elevation 38 = 5 on an LWPOLYLINE place it at WCS z = -5 (AAA-mapped) or z = +5? | 03 §2.3, Test ideas 3 (03:T3) | plan: ocs (png) — LWPOLYLINE 38=5, 210=(0,0,-1) plus reference at z=+5/-5, in a paper-space viewport with a 3D (side) view | open |
-| Q-0124 | ocs | [T] How does AutoCAD treat extrusion 210=(0,0,0) on ARC, CIRCLE, SPLINE, LWPOLYLINE, HATCH and INSERT: as +Z (like TEXT), refuse the file, or drop the entity? | 11a §6; 11b §6, Test ideas (11a:26, 11b:1) | `ocs/zero-extrusion-arc`, `ocs/zero-extrusion-circle`, `ocs/zero-extrusion-spline`, `ocs/zero-extrusion-lwpolyline` (+2 more) | open |
+| Q-0124 | ocs | [T] How does AutoCAD treat extrusion 210=(0,0,0) on ARC, CIRCLE, SPLINE, LWPOLYLINE, HATCH and INSERT: as +Z (like TEXT), refuse the file, or drop the entity? | 11a §6; 11b §6, Test ideas (11a:26, 11b:1) | `ocs/zero-extrusion-arc`, `ocs/zero-extrusion-circle`, `ocs/zero-extrusion-spline`, `ocs/zero-extrusion-lwpolyline` (+2 more) | answered |
 | Q-0125 | ocs | [T] For 210=(0,0,-1) and arbitrary normals, are TEXT, MTEXT, INSERT, SOLID, 2D POLYLINE and HATCH placed via OCS as the spec says? | 11b §6, Test ideas (11b:1) | `ocs/circle-z`, `ocs/solid-z`, `ocs/text-z`, `ocs/circle-negz` (+43 more) | open |
 | Q-0126 | ocs | [A] TEXT/MTEXT with extrusion (0,0,-1): how is the text mirrored in PLOT (TEXT x-flip via OCS, MTEXT y-scale sign)? | 04 §1.5 step 7 (04:T6) | `ocs/text-negz`, `ocs/mtext-negz` | open |
 | Q-0127 | ocs | [T] Does an INSERT with extrusion (0,0,-1) and (0.3,0.4,0.866) plot per OCS*T(ins)*Rz(rot)*S*T(-base) in top view? | 07 §2.2 (07:1) | `blocks/mirror-rot30`, `blocks/extrusion-negz`, `blocks/extrusion-skew`, `blocks/extrusion-nested` (+4 more) | open |
 | Q-0128 | ocs | [T] How are TEXT/ATTRIB/HATCH rendered inside INSERTs mirrored (sx=-1) at 1, 2 and 3 nesting levels with rotation 90°? | 11a §6, Test ideas (11a:27) | `ocs/mirror-nesting-1`, `ocs/mirror-nesting-2`, `ocs/mirror-nesting-3` | open |
+
+- Q-0124: ARC, CIRCLE (and HATCH) with 210=(0,0,0) are kept but not drawn; LWPOLYLINE drops it on load, SPLINE and INSERT draw as +Z (`ocs/zero-extrusion-*`, note 03 §2.6).
 
 <a id="lines-curves"></a>
 ## LINE / ARC / CIRCLE / XLINE / RAY (`lines-curves`)
@@ -205,9 +218,11 @@ set the status here to `answered` (or `wontfix`) and add the answer in one line 
 | Q-0131 | lines-curves | [U] How does PLOT normalise ARC angles: 0/360 and -180/180 as full circle, 350/10 as a 20 deg wrap, 51 > 360 (30/450, 0/720) modulo 360 or longer sweep? | 03 §3.5, §3.7, Test ideas 11; 11b §9 (03:T11) | `lines-curves/arc-angles-*`, `lines-curves/arc-normalise-*` | open |
 | Q-0132 | lines-curves | [U] Does PLOT draw a zero-length LINE as a dot (round/square cap sized by lineweight) or skip it, incl. at lw 0 and with a dashed linetype? | 03 §3.2; 11a Test ideas (11a:33) | `lines-curves/line-short-*`, `lines-curves/zero-line-lw000-cont`, `lines-curves/zero-line-lw000-dashed`, `lines-curves/zero-line-lw050-cont` (+5 more) | open |
 | Q-0133 | lines-curves | [U] Does a CIRCLE/ARC with thickness in 2D wireframe plot only top+bottom curves (+ end connectors), or also silhouette/isolines? | 03 §2.6, Test ideas 6 (03:T6) | plan: lines-curves (png) — CIRCLE r=10 and ARC 0-90 with thickness 10, in a VPOINT 1,-1,1 paper-space viewport | open |
-| Q-0134 | lines-curves | [U] Does a LINE with thickness 10 and extrusion (1,0,0), plotted in plan view, appear as a 4-edge band outline of width \|t\|? | 03 §2.6, Test ideas 5 (03:T5) | `lines-curves/line-thickness-*` | open |
+| Q-0134 | lines-curves | [U] Does a LINE with thickness 10 and extrusion (1,0,0), plotted in plan view, appear as a 4-edge band outline of width \|t\|? | 03 §2.6, Test ideas 5 (03:T5) | `lines-curves/line-thickness-*` | answered |
 | Q-0135 | lines-curves | [U] What chord tolerance/segment count does PLOT use for CIRCLE/ARC: independent of VIEWRES/VPORT 72, scaled by PC3 vector resolution, facets at r~5000 px? | 08 §3.1 (72), §5.6; 10 §16.5 A.2 (PDF vector resolution), §16.5 B (tessellation UNKNOWN), §17 UNKNOWN 6; 11c §10 (octagon circles ASSUMPTION), §15 item 15; 03 §5.1, §5.3, Test ideas 36; 11b §4, §17 (10:arc_tess.dxf, 03:T36) | `lines-curves/circle-radius-*`, `lines-curves/arc-radius-*` | open |
 | Q-0136 | lines-curves | [T] Does PLOT render a very flat bulge (2 deg included angle, large radius) as a true arc rather than a straight chord? | 03 §3.9.1, Test ideas 37 (03:T37) | `polylines/flat-bulge` | open |
+
+- Q-0134: Yes: base, top and two connecting edges (`lines-curves/line-thickness-*`, note 03 §2.6).
 
 <a id="polylines"></a>
 ## Polylines (`polylines`)
@@ -222,31 +237,45 @@ set the status here to `answered` (or `wontfix`) and add the answer in one line 
 | Q-0142 | polylines | [A] Does PLOT of a smoothed polygon-mesh POLYLINE use its own 73/74 densities, ignoring $SURFU/$SURFV? | 01 §7.2 | `polylines/polymesh-smooth-surfu6`, `polylines/polymesh-smooth-surfu20` | open |
 | Q-0143 | polylines | [U] For a PEDIT-smoothed polygon mesh (75=5/6/8), what vertex flags/order are stored, and is the 73x74 fitted grid what PLOT draws? | 03 §3.10.5, Test ideas 30 (03:T30) | plan: polylines (dxfout) — 4x3 mesh smoothed with PEDIT Smooth (SURFTYPE 6), SPLFRAME 0/1; DXFOUT the vertex list | open |
 | Q-0144 | polylines | [T] Does a polygon mesh (flag 16) closed in M (1) and N (32) plot its closing grid lines? | 03 §3.10.5, Test ideas 30 (03:T30) | `polylines/polymesh-*` | open |
-| Q-0145 | polylines | [A] Do polyface face records carrying their own layer/color (62) plot per face in that color? | 03 §3.10.3 | `polylines/polyface-face-colors` | open |
+| Q-0145 | polylines | [A] Do polyface face records carrying their own layer/color (62) plot per face in that color? | 03 §3.10.3 | `polylines/polyface-face-colors` | answered |
 | Q-0146 | polylines | [C] With per-vertex 40/41 set, does LWPOLYLINE 43 != 0 override them for all segments (spec: 43 unused), and with 43=0 are per-vertex widths used as-is? | 03 §0 item 6, §3.9, §4.1, Test ideas 21 (03:T21) | `polylines/width-vertex-plus-const-*` | open |
-| Q-0147 | polylines | [A] How does AutoCAD plot a negative constant width (43=-1): as width 0, abs width, or refuse? | 11b §8, Test ideas (11b:12) | `polylines/width-negative-width`, `polylines/width-const-negative` | open |
+| Q-0147 | polylines | [A] How does AutoCAD plot a negative constant width (43=-1): as width 0, abs width, or refuse? | 11b §8, Test ideas (11b:12) | `polylines/width-negative-width`, `polylines/width-const-negative` | answered |
 | Q-0148 | polylines | [A] In a polyline mixing zero-width and wide segments, do zero-width segments plot as normal lines with lineweight? | 03 §4.1 | `lineweights/widepline-lw`, `polylines/width-mixed-zero-lw` | open |
 | Q-0149 | polylines | [U] Does AutoCAD open and plot a single-vertex LWPOLYLINE (90=1, open/closed) or a 2D POLYLINE with one VERTEX, and as what: nothing, a dot, or a width-sized blob? | 03 §3.9; 11b §8, Test ideas; 11c §9 (one-vertex polyline hung TrueView, netDxf#369 REPORTED) (11b:12) | `polylines/degenerate-single-vertex`, `polylines/single-vertex-*`, `polylines/single-vertex-polyline2d` | open |
-| Q-0150 | polylines | [U] Does AutoCAD apply a miter limit for sharp joints in wide polylines (spike at 5 deg / 1 deg zig-zags) or always miter? | 03 §4.1, Test ideas 22 (03:T22) | `polylines/miter-angle-*` | open |
-| Q-0151 | polylines | [T] How does AutoCAD PLOT join wide LWPOLYLINE segments at duplicate vertices, collinear reversals and tapered 0->5 widths? | 11a §7 (11a:29) | `polylines/width-hairpin`, `polylines/width-zero-len-seg`, `polylines/joins-duplicate`, `polylines/joins-reversal` (+1 more) | open |
-| Q-0152 | polylines | [U] Does AutoCAD miter the joint between a straight and a non-tangent arc segment of a wide polyline, or leave a notch/overlap? | 03 §4.1, Test ideas 23 (03:T23) | `polylines/width-mixed-bulge`, `polylines/joins-line-arc` | open |
-| Q-0153 | polylines | [T] Is a tapered wide arc segment's width interpolated linearly along the arc with radial end cuts? | 03 §4.1, Test ideas 24 (03:T24) | `polylines/width-taper-arc`, `polylines/taper-arc-*` | open |
-| Q-0154 | polylines | [U] How does PLOT draw closed wide polylines (ring outer+inner?) and wide arc segments with w/2 >= r (inner radius 0/negative): solid disk or folded shape? | 03 §4.1, Test ideas 25; 11a §7; 11b §8, Test ideas (03:T25, 11a:29, 11b:12) | `polylines/width-closed-width`, `polylines/width-closed-taper`, `polylines/ring-semicircle-w6`, `polylines/ring-semicircle-taper` (+2 more) | open |
+| Q-0150 | polylines | [U] Does AutoCAD apply a miter limit for sharp joints in wide polylines (spike at 5 deg / 1 deg zig-zags) or always miter? | 03 §4.1, Test ideas 22 (03:T22) | `polylines/miter-angle-*` | answered |
+| Q-0151 | polylines | [T] How does AutoCAD PLOT join wide LWPOLYLINE segments at duplicate vertices, collinear reversals and tapered 0->5 widths? | 11a §7 (11a:29) | `polylines/width-hairpin`, `polylines/width-zero-len-seg`, `polylines/joins-duplicate`, `polylines/joins-reversal` (+1 more) | answered |
+| Q-0152 | polylines | [U] Does AutoCAD miter the joint between a straight and a non-tangent arc segment of a wide polyline, or leave a notch/overlap? | 03 §4.1, Test ideas 23 (03:T23) | `polylines/width-mixed-bulge`, `polylines/joins-line-arc` | answered |
+| Q-0153 | polylines | [T] Is a tapered wide arc segment's width interpolated linearly along the arc with radial end cuts? | 03 §4.1, Test ideas 24 (03:T24) | `polylines/width-taper-arc`, `polylines/taper-arc-*` | answered |
+| Q-0154 | polylines | [U] How does PLOT draw closed wide polylines (ring outer+inner?) and wide arc segments with w/2 >= r (inner radius 0/negative): solid disk or folded shape? | 03 §4.1, Test ideas 25; 11a §7; 11b §8, Test ideas (03:T25, 11a:29, 11b:12) | `polylines/width-closed-width`, `polylines/width-closed-taper`, `polylines/ring-semicircle-w6`, `polylines/ring-semicircle-taper` (+2 more) | answered |
 | Q-0155 | polylines | [U] With FILLMODE 0, is a wide polyline drawn as each segment quad outline (with cross-lines at vertices) or only the overall outline? | 03 §4.1, Test ideas 26 (03:T26) | `polylines/fillmode-0`, `polylines/fillmode-1` | open |
 | Q-0156 | polylines | [U] How does a wide LWPOLYLINE with thickness plot in a 3D view: slab outline only, filled faces, vertical edges per vertex? | 03 §2.6, §4.1, Test ideas 6 (03:T6) | plan: polylines (png) — LWPOLYLINE 3 vertices, 43=2, thickness 5, in a VPOINT 1,-1,1 viewport; also thickness only without width | open |
 | Q-0157 | polylines | [A] Under non-uniform INSERT scale, do LWPOLYLINE bulges become elliptical segments and widths stretch anisotropically? | 07 §2.4 (07:2) | `blocks/nonuniform-*`, `blocks/nonuniform-bulge-width-*` | open |
 | Q-0158 | polylines | [A] Does AutoCAD convert a plain 2D POLYLINE to LWPOLYLINE on open (DXFOUT), but keep curve-fit/spline-fit/XDATA ones as POLYLINE? | 11a §7 | `fileformat/r2000-polyline-conversion` | open |
+
+- Q-0145: Yes: each face plots with its face record's colour (`polylines/polyface-face-colors`, note 03 §4.1).
+- Q-0147: Negative 43 plots as width 0; negative per-vertex 40/41 plot with their absolute value (`polylines/width-const-negative`, `width-negative-width`).
+- Q-0150: Yes: 30° joints are mitered, 7.2°/5°/1° are not (butt ends at the vertex); limit between 7.2° and 30° (`polylines/miter-angle-*`, `width-hairpin`, note 03 §4.1).
+- Q-0151: Hairpins/sharp reversals are not mitered; width steps (end ≠ next start width) are never mitered; duplicate vertices are skipped (`polylines/width-hairpin`, `width-arrow`, `joins-duplicate`).
+- Q-0152: No miter between straight and arc segments (`polylines/joins-line-arc`, `width-mixed-bulge`).
+- Q-0153: Yes, linear in the angle with radial end cuts, after clamping both widths to the arc diameter (`polylines/taper-arc-*`, `ring-semicircle-taper`).
+- Q-0154: Arc widths are clamped to 2r: w/2 ≥ r gives a solid sector out to radius 2r, no fold (`polylines/ring-semicircle-*`); closed wide polylines miter the closing joint (`width-closed-width`).
 
 <a id="points"></a>
 ## POINT (`points`)
 
 | ID | topic | question | source | test | status |
 |---|---|---|---|---|---|
-| Q-0159 | points | [C] What exact PLOT geometry do PDMODE 0-4, +32, +64 use: circle diameter / square side = PDSIZE, and '+'/'x'/tick arm lengths relative to that frame? | 01 §7.2; 03 §3.1, Test ideas 7 (01:T24, 03:T7) | `points/pdmode-000-abs2`, `points/pdmode-001-abs2`, `points/pdmode-002-abs2`, `points/pdmode-003-abs2` (+56 more) | open |
-| Q-0160 | points | [U] For PDSIZE 0 (5%) and PDSIZE < 0 (percent), which reference height does PLOT use (viewport view height, plot area, display window), incl. from accoreconsole? | 01 §7.2; 03 §3.1, Test ideas 8; 08 §5.6, §8 item 16; 11a §3 (01:T24, 03:T8) | `points/pdmode-000-zero`, `points/pdmode-001-zero`, `points/pdmode-002-zero`, `points/pdmode-003-zero` (+58 more) | open |
-| Q-0161 | points | [U] Does POINT group 50 rotate the PDMODE symbol by +angle (CCW, following UCS x) or -angle as ezdxf does? | 03 §3.1, Test ideas 9 (03:T9) | `points/point-angle-*` | open |
-| Q-0162 | points | [A] Does a POINT with thickness plot as a line from P to P+t*N with the PDMODE symbol only at the base point? | 03 §2.6 | `points/point-thickness-*` | open |
-| Q-0163 | points | [U] Are PDMODE point glyphs inside a non-uniformly scaled/rotated block distorted, or drawn at undistorted PDSIZE? | 07 §2.4 | `blocks/points-pdmode-*`, `points/point-in-block-*` | open |
+| Q-0159 | points | [C] What exact PLOT geometry do PDMODE 0-4, +32, +64 use: circle diameter / square side = PDSIZE, and '+'/'x'/tick arm lengths relative to that frame? | 01 §7.2; 03 §3.1, Test ideas 7 (01:T24, 03:T7) | `points/pdmode-000-abs2`, `points/pdmode-001-abs2`, `points/pdmode-002-abs2`, `points/pdmode-003-abs2` (+56 more) | answered |
+| Q-0160 | points | [U] For PDSIZE 0 (5%) and PDSIZE < 0 (percent), which reference height does PLOT use (viewport view height, plot area, display window), incl. from accoreconsole? | 01 §7.2; 03 §3.1, Test ideas 8; 08 §5.6, §8 item 16; 11a §3 (01:T24, 03:T8) | `points/pdmode-000-zero`, `points/pdmode-001-zero`, `points/pdmode-002-zero`, `points/pdmode-003-zero` (+58 more) | answered |
+| Q-0161 | points | [U] Does POINT group 50 rotate the PDMODE symbol by +angle (CCW, following UCS x) or -angle as ezdxf does? | 03 §3.1, Test ideas 9 (03:T9) | `points/point-angle-*` | answered |
+| Q-0162 | points | [A] Does a POINT with thickness plot as a line from P to P+t*N with the PDMODE symbol only at the base point? | 03 §2.6 | `points/point-thickness-*` | answered |
+| Q-0163 | points | [U] Are PDMODE point glyphs inside a non-uniformly scaled/rotated block distorted, or drawn at undistorted PDSIZE? | 07 §2.4 | `blocks/points-pdmode-*`, `points/point-in-block-*` | answered |
+
+- Q-0159: + arms ±S, × arms of length S on the diagonals, tick S/2, circle radius S/2, square half-side S/2, S = PDSIZE (`points/pdmode-*`, note 03 §3.1).
+- Q-0160: Half the plot area height: S = 5 % (0) or |PDSIZE| % of view height / 2; the *Active VPORT height is ignored (`points/pdsize-*`).
+- Q-0161: −angle (clockwise), like ezdxf (`points/point-angle-*`).
+- Q-0162: Yes: a 1-px line P → P + t·N̂, symbol at the base (`points/point-thickness-0001`).
+- Q-0163: Distorted: the symbol is transformed with the block; relative sizes are in block units (`points/point-in-block-*`, `blocks/points-pdmode-*`).
 
 <a id="ellipses"></a>
 ## ELLIPSE (`ellipses`)
@@ -284,22 +313,28 @@ set the status here to `answered` (or `wontfix`) and add the answer in one line 
 
 | ID | topic | question | source | test | status |
 |---|---|---|---|---|---|
-| Q-0183 | solids | [A] Does PLOT honour the file's $FILLMODE=0 by drawing SOLID, TRACE, wide polylines and solid-fill HATCH as outlines only? | 01 §7.2; 03 §3.12, §4.1, Test ideas 26 (01:T23, 03:T26) | `polylines/fillmode-0`, `polylines/fillmode-1`, `solids/solid-zorder-fill0`, `solids/solid-polygon-order-fill0` (+6 more) | open |
-| Q-0184 | solids | [U] How does PLOT fill a self-intersecting (bow-tie) SOLID stored 0-1-2-3: union of both triangles or even-odd? | 03 §3.12, Test ideas 31 (03:T31) | `solids/solid-polygon-order-fill1`, `solids/solid-polygon-order-fill0` | open |
-| Q-0185 | solids | [U] Is the top face of a SOLID/TRACE with thickness filled in a 2D wireframe plot of a 3D view, or only the prism edges drawn? | 03 §2.6, Test ideas 6 (03:T6) | `solids/solid-thickness-tilted` | open |
+| Q-0183 | solids | [A] Does PLOT honour the file's $FILLMODE=0 by drawing SOLID, TRACE, wide polylines and solid-fill HATCH as outlines only? | 01 §7.2; 03 §3.12, §4.1, Test ideas 26 (01:T23, 03:T26) | `polylines/fillmode-0`, `polylines/fillmode-1`, `solids/solid-zorder-fill0`, `solids/solid-polygon-order-fill0` (+6 more) | answered |
+| Q-0184 | solids | [U] How does PLOT fill a self-intersecting (bow-tie) SOLID stored 0-1-2-3: union of both triangles or even-odd? | 03 §3.12, Test ideas 31 (03:T31) | `solids/solid-polygon-order-fill1`, `solids/solid-polygon-order-fill0` | answered |
+| Q-0185 | solids | [U] Is the top face of a SOLID/TRACE with thickness filled in a 2D wireframe plot of a 3D view, or only the prism edges drawn? | 03 §2.6, Test ideas 6 (03:T6) | `solids/solid-thickness-tilted` | answered |
 | Q-0186 | solids | [U] What does a 2D-wireframe plan-view PLOT draw for REGION and 3DSOLID (ACIS edges only, fill, nothing; proxy needed?) for SAT (R2010) and SAB (R2013) DXF? | 03 §3.15, Test ideas 38; 11a §7; 11b §15 (03:T38) | `misc/solid-box-plan-r2000`, `misc/solid-box-plan-r2010`, `misc/solid-box-plan-r2013`, `misc/solid-box-plan-r2018` (+6 more) | open |
 | Q-0187 | solids | [U] Where does AutoCAD place ISOLINES on curved 3DSOLID faces and SURFACE U/V isolines in 2D wireframe PLOT? | 03 §3.15 | plan: misc (png) — 3DSOLID cylinder, sphere, cone with ISOLINES 4 and 8; SURFACE with 71/72 = 3/5 | open |
 | Q-0188 | solids | [A] Does AutoCAD reject an R2004 3DSOLID that carries the AcDb3dSolid subclass marker? | 11a §7 | `fileformat/r2004-3dsolid-with-marker`, `fileformat/r2004-3dsolid-without-marker`, `fileformat/r2018-3dsolid-no-subclass` | open |
+
+- Q-0183: Yes: SOLID/TRACE/wide polylines as outlines, and a solid HATCH is not drawn at all (`solids/fillmode-mixed-0`, `polylines/fillmode-0`).
+- Q-0184: The v0,v1,v3,v2 polygon is filled as a bow tie (two triangles meeting at the crossing) (`solids/solid-polygon-order-fill1`).
+- Q-0185: Only the prism edges; no fill (`solids/solid-thickness-tilted`). Tilted SOLIDs without thickness plot as outlines too (`ocs/solid-*`).
 
 <a id="meshes-3d"></a>
 ## Meshes, 3D and ACIS (`meshes-3d`)
 
 | ID | topic | question | source | test | status |
 |---|---|---|---|---|---|
-| Q-0189 | meshes-3d | [A] Are invisible 3DFACE edges (70 bits 1/2/4/8) and negative-index polyface edges hidden in PLOT and drawn with $SPLFRAME=1; is polyface index 0 an unused 4th vertex? | 01 §7.2, §10 item 8; 03 §3.10.3, Test ideas 29, §3.11, Test ideas 33; 11a §7; 11b §8 (01:T26, 03:T29, 03:T33) | `polylines/polyface-*`, `polylines/polyface-invisible-splframe`, `solids/3dface-invisible-00`, `solids/3dface-invisible-01` (+15 more) | open |
+| Q-0189 | meshes-3d | [A] Are invisible 3DFACE edges (70 bits 1/2/4/8) and negative-index polyface edges hidden in PLOT and drawn with $SPLFRAME=1; is polyface index 0 an unused 4th vertex? | 01 §7.2, §10 item 8; 03 §3.10.3, Test ideas 29, §3.11, Test ideas 33; 11a §7; 11b §8 (01:T26, 03:T29, 03:T33) | `polylines/polyface-*`, `polylines/polyface-invisible-splframe`, `solids/3dface-invisible-00`, `solids/3dface-invisible-01` (+15 more) | answered |
 | Q-0190 | meshes-3d | [A] Is MESH (AcDbSubDMesh) smoothing Catmull-Clark, i.e. does the plotted level-1/2 surface match CC subdivision of the cage? | 03 §3.14, Test ideas 39 (03:T39) | `misc/mesh-box-level0-plan`, `misc/mesh-box-level0-iso`, `misc/mesh-box-level1-plan`, `misc/mesh-box-level1-iso` (+5 more) | open |
 | Q-0191 | meshes-3d | [U] For a smoothed MESH (level > 0) in 2D wireframe PLOT, are all subdivided facet edges drawn or only smooth isolines? | 03 §3.14, Test ideas 39 (03:T39) | `misc/mesh-box-level0-plan`, `misc/mesh-box-level0-iso`, `misc/mesh-box-level1-plan`, `misc/mesh-box-level1-iso` (+4 more) | open |
 | Q-0192 | meshes-3d | [U] In MESH creases, does -1 mean 'always sharp', and does a crease >= subdivision level prevent smoothing that edge? | 03 §3.14, Test ideas 39 (03:T39) | `misc/mesh-crease-m1`, `misc/mesh-crease-0`, `misc/mesh-crease-1`, `misc/mesh-crease-2` (+2 more) | open |
+
+- Q-0189: Invisible 3DFACE edges and negative polyface indices are hidden, shown with $SPLFRAME=1; polyface index 0 = unused corner (`solids/3dface-nonplanar`, `polylines/polyface-invisible-splframe`).
 
 <a id="colors"></a>
 ## Colours (`colors`)
@@ -311,11 +346,13 @@ set the status here to `answered` (or `wontfix`) and add the answer in one line 
 | Q-0195 | colors | [A] Does ACI 7 (direct, BYLAYER on a colour-7 layer, BYBLOCK in a colour-7 block; lines and solid hatch) plot black on white paper with none/acad/monochrome CTB? | 06 §0 item 8, §3.4; 11b §5, Test ideas (06:C2, 11b:3) | `colors/aci7-direct`, `colors/aci7-bylayer`, `colors/aci7-byblock`, `colors/aci7-variants-mono` (+1 more) | open |
 | Q-0196 | colors | [U] Do ACI 255 and true colour 255,255,255 plot white (invisible on white paper) under no CTB / acad.ctb, while ACI 7 plots black? | 06 §3.4, §9 item 5; 08 §5.5, §8 item 15 (06:C2, 08:T-PL-5) | `colors/greys-white-paper`, `colors/white-black-swatches`, `colors/layer-truecolor-white` | open |
 | Q-0197 | colors | [C] Do ACI 250-255 (and dark shades like 110) plot differently in paperspace than in modelspace? | 11a §15, Open conflicts (11a:40) | `colors/palette-modelspace`, `colors/palette-paperspace` | open |
-| Q-0198 | colors | [U] Does a top-level (model space) entity with colour BYBLOCK (62=0) plot as ACI 7 black, and is it invisible when its linetype is also BYBLOCK? | 11a §13; 11b §5, Test ideas (11a:37, 11b:3) | `colors/byblock-toplevel`, `colors/byblock-toplevel-linetype-byblock` | open |
+| Q-0198 | colors | [U] Does a top-level (model space) entity with colour BYBLOCK (62=0) plot as ACI 7 black, and is it invisible when its linetype is also BYBLOCK? | 11a §13; 11b §5, Test ideas (11a:37, 11b:3) | `colors/byblock-toplevel`, `colors/byblock-toplevel-linetype-byblock` | answered |
 | Q-0199 | colors | [A] How does AutoCAD treat a negative ACI 62 on an entity (not a LAYER), e.g. -1/-5: draw abs(colour), hide it, or reject/repair on load/DXFOUT? | 03 §1; 06 §3.1 | `colors/negative-entity-color` | open |
 | Q-0200 | colors | [T] Does 420 true color override a contradicting 62 ACI in the plot? | 06 §3.2 (06:C3) | `colors/truecolor-over-aci`, `colors/layer-truecolor` | open |
 | Q-0201 | colors | [T] Does AutoCAD use the ACI when 62=n is followed by 420=0, and plot a lone 420=0 as black? | 11b §5, Test ideas (11b:3) | `colors/truecolor-zero` | open |
 | Q-0202 | colors | [A] Is 430 color-book name written as BOOK$COLOR and always accompanied by 420 in AutoCAD DXF output? | 06 §3.2 (06:C3) | `colors/colorbook-with-rgb`, `colors/colorbook-name-only` | open |
+
+- Q-0198: ACI 7 (black on white) and Continuous; not invisible (`colors/byblock-toplevel*`).
 
 <a id="lineweights"></a>
 ## Lineweights (`lineweights`)
@@ -325,14 +362,17 @@ set the status here to `answered` (or `wontfix`) and add the answer in one line 
 | Q-0203 | lineweights | [A] Does PLOT ignore $LWDISPLAY and apply lineweights purely from the 'plot object lineweights' page-setup flag (70 bit 128)? | 01 §7.2; 06 §5.1; 10 §16.3 @truedxf/plot (LWDISPLAY semantics); 11b §12, Test ideas; 11c §15 item 14 (LWDISPLAY screen only, ASSUMPTION) (11b:11) | `lineweights/lwdisplay-0`, `lineweights/lwdisplay-1`, `lineweights/plot-lineweights-off` | open |
 | Q-0204 | lineweights | [U] How does raster PLOT round each of the 24 standard lineweights to device px (mm*DPI/25.4: round, ceil, floor+1, max(1,round)) at 72-600 dpi? | 06 §5.2, §9 item 7; 08 §5.4, §8 item 4; 10 §16.5 A.2, §16.5 C (lineweight to pixels), §17 UNKNOWN 1 (06:W1, 08:T-PL-3, 10:lw_ladder.dxf) | `lineweights/lw-000`, `lineweights/lw-005`, `lineweights/lw-009`, `lineweights/lw-013` (+23 more) | open |
 | Q-0205 | lineweights | [A] Does lineweight 0 (hairline) and 0.05-0.20 mm plot exactly 1 device px wide at every slope on PNG, and what minimum width in PDF? | 06 §0 item 10, §5.2, §9 item 7; 08 §5.4, §7 item 5, §8 item 4; 10 §16.5 A.2 (hairline width), §16.5 C (strokes), §17 UNKNOWN 2 (06:W1, 08:T-PL-3, 10:hairline.dxf) | `lineweights/lw-000`, `lineweights/lw-005`, `lineweights/lw-009`, `lineweights/lw-013` (+8 more) | open |
-| Q-0206 | lineweights | [A] Does lineweight Default (-3) plot at LWDEFAULT, and how do ByLayer/ByBlock lw, 'plot lineweights' off and 'scale lineweights' on change plotted widths? | 08 §1.5 (LWDEFAULT), §5.4, §7 item 8; 11a §15 (08:T-PL-3, 11a:41) | `lineweights/bylayer`, `lineweights/default-lwdefault-025`, `lineweights/default-lwdefault-100`, `lineweights/byblock-toplevel` (+4 more) | open |
+| Q-0206 | lineweights | [A] Does lineweight Default (-3) plot at LWDEFAULT, and how do ByLayer/ByBlock lw, 'plot lineweights' off and 'scale lineweights' on change plotted widths? | 08 §1.5 (LWDEFAULT), §5.4, §7 item 8; 11a §15 (08:T-PL-3, 11a:41) | `lineweights/bylayer`, `lineweights/default-lwdefault-025`, `lineweights/default-lwdefault-100`, `lineweights/byblock-toplevel` (+4 more) | answered |
 | Q-0207 | lineweights | [U] How does AutoCAD handle non-standard 370 values (17, 22, 23, 212, 300) on entities/layers: repair on load/AUDIT, and which width do they plot? | 06 §5.1; 11c §10 (valid lineweight values, REPORTED by mozman), §17 lineweights.dxf sample (06:W4) | `lineweights/invalid-entity-values`, `lineweights/invalid-layer-17` | open |
 | Q-0208 | lineweights | [U] With object end/join style (no CTB, acad.ctb, monochrome.ctb), which caps/joins does PLOT draw for thick lines, and do $ENDCAPS/$JOINSTYLE 0..3 change them? | 01 §7.2; 06 §5.2, §9 item 7; 08 §5.4, §8 item 4, §1.5; 10 §16.5 A.2 (cap and join shapes), §16.5 C (caps and joins), §17 UNKNOWN 3; 11a §12, Open conflicts (06:W2, 08:T-PL-4, 10:caps_joins.dxf, 11a:25) | `lineweights/caps-e0-j0`, `lineweights/caps-e1-j0`, `lineweights/caps-e2-j0`, `lineweights/caps-e3-j0` (+7 more) | open |
 | Q-0209 | lineweights | [A] Does a filled SOLID also get a lineweight-wide outline stroke in PLOT, so it grows by lw/2 on each side? | 03 §3.12, Test ideas 32 (03:T32) | `lineweights/solid-lw` | open |
 | Q-0210 | lineweights | [U] Is the band outline of a wide polyline additionally stroked with the entity lineweight in PLOT? | 03 §4.1, Test ideas 27 (03:T27) | `lineweights/widepline-lw` | open |
 | Q-0211 | lineweights | [A] Is each linetype dash a separately capped stroke (0.5 mm dash at 0.5 mm lw looks 1.0 mm long)? | 06 §5.2, §9 item 7 (06:W3) | `lineweights/dashed-lw-050`, `lineweights/dashed-lw-211` | open |
-| Q-0212 | lineweights | [U] Are POINTs plotted with their lineweight: PDMODE 0 as a round lw-sized dot (what size at lw 0?) and PDMODE shapes stroked at lw? | 06 §5.2; 03 §3.1, Test ideas 10 (03:T10) | `points/dot-lineweight-*`, `points/symbol-lineweight-*` | open |
+| Q-0212 | lineweights | [U] Are POINTs plotted with their lineweight: PDMODE 0 as a round lw-sized dot (what size at lw 0?) and PDMODE shapes stroked at lw? | 06 §5.2; 03 §3.1, Test ideas 10 (03:T10) | `points/dot-lineweight-*`, `points/symbol-lineweight-*` | answered |
 | Q-0213 | lineweights | [A] Is plotted lineweight of block content independent of INSERT scale (0.5 mm line inside INSERTs scaled 1, 5, (5,1), 1000)? | 07 §2.4; 11b §7, Test ideas (11b:11) | `blocks/lineweight-insert-scale`, `lineweights/insert-scale` | open |
+
+- Q-0206: Yes: DEFAULT (and BYLAYER on a DEFAULT layer) plot at the session LWDEFAULT (`lineweights/default-lwdefault-*`); INSERT scale never scales lineweights.
+- Q-0212: No: POINT dots and PDMODE symbols are always 1 px (`points/dot-lineweight-*`, `symbol-lineweight-*`).
 
 <a id="transparency"></a>
 ## Transparency (`transparency`)
@@ -383,7 +423,7 @@ set the status here to `answered` (or `wontfix`) and add the answer in one line 
 | Q-0243 | plotting | [A] Does Landscape on a 1600x1280 (and 2000x1500) raster size produce a PNG as wide as the long side? | 08 §5.2 (08:T-PL-7) | plan: calibration (png) — Same window plotted Landscape/Portrait on 2000x1500 and 1500x2000 custom sizes; check PNG dims | open |
 | Q-0244 | plotting | [U] In which direction does PLOT rotate content for Portrait on a landscape pixel size, and for upside-down? | 08 §5.2, §2.1 (73) (08:T-PL-7) | plan: calibration (png) — Asymmetric marker (arrow + 'N') plotted Portrait/Landscape x upside-down Y/N | open |
 | Q-0245 | plotting | [T] Is PLOT output at coordinates 3e6-4e7 (model space and block at 0,0) pixel-identical to the same drawing at the origin? | 11b §16, Test ideas (11b:18) | plan: calibration (png) — 0.2 TEXT, 1 mm circle, dashed line, patterned hatch at (3026284,4643826), 4.06e7, -2.9e7 | open |
-| Q-0246 | plotting | [A] Does PLOT hide 60=1 entities at top level and inside *U blocks, and does an invisible INSERT (60=1) hide all its children incl. ATTRIBs? | 11b §5, Test ideas; 11a §13 (11b:4, 11a:36) | `blocks/vis-invisible-flag`, `misc/invisible-top-level`, `misc/invisible-in-anonymous-block`, `misc/invisible-insert-with-attribs` | open |
+| Q-0246 | plotting | [A] Does PLOT hide 60=1 entities at top level and inside *U blocks, and does an invisible INSERT (60=1) hide all its children incl. ATTRIBs? | 11b §5, Test ideas; 11a §13 (11b:4, 11a:36) | `blocks/vis-invisible-flag`, `misc/invisible-top-level`, `misc/invisible-in-anonymous-block`, `misc/invisible-insert-with-attribs` | answered |
 | Q-0247 | plotting | [A] Are LIGHT and CAMERA glyphs excluded from PLOT output? | 07 §14 | `misc/light-point-glyph-0`, `misc/light-point-glyph-1`, `misc/light-spot` | open |
 | Q-0248 | plotting | [U] Does a SECTION (SECTIONOBJECT) entity's section line/indicator plot? | 07 §14, §17 | plan: misc (png) — SECTIONOBJECT with 2-vertex section line | open |
 | Q-0249 | plotting | [U] Is a GEODATA geomarker displayed or plotted? | 07 §14 | `misc/geodata-short`, `misc/geodata-long-cs` | open |
@@ -412,6 +452,8 @@ set the status here to `answered` (or `wontfix`) and add the answer in one line 
 | Q-0272 | plotting | [U] Can APS Design Automation for AutoCAD use custom PC3/PMP files shipped in an AppBundle? | 08 §6.8 | plan: calibration (log) — AppBundle with truedxf PNG.pc3/.pmp; WorkItem running -PLOT with custom size | open |
 | Q-0273 | plotting | [A] Is DWG TrueView scriptable (script/console) for plotting DXF? | 08 §6.8 | plan: none (none) | open |
 
+- Q-0246: Yes: an invisible INSERT hides all its content (`blocks/vis-invisible-flag`).
+
 <a id="property-resolution"></a>
 ## Property resolution (`property-resolution`)
 
@@ -421,16 +463,21 @@ set the status here to `answered` (or `wontfix`) and add the answer in one line 
 | Q-0275 | property-resolution | [U] Does AutoCAD create a layer referenced by entities but missing from LAYER table on load, and with what colour/linetype/lw/plot flag (7, Continuous, default, on)? | 02 §0 item 10, §4.2 rule 3; 11c §3 (AutoCAD creates missing layers on the fly, REPORTED), §18 #28; 01 §3.1, §8.1 (02:T8, 10-11c:11c#28, 01:T1) | `fileformat/undefined-layer-r12`, `fileformat/undefined-layer-r2018` | open |
 | Q-0276 | property-resolution | [U] How does AutoCAD case-fold non-ASCII table names (Ä vs ä, Turkish i) and \U+XXXX-escaped names when matching layers? | 02 §4.2 rule 1, §6 (02:T9) | `fileformat/nonascii-casefold-r2004`, `fileformat/nonascii-casefold-r2018` | open |
 | Q-0277 | property-resolution | [A] When a name and handle disagree (MLINE 2 vs 340, VIEWPORT 341 vs XDATA 1003 frozen layers), which does AutoCAD use? | 02 §0 item 10, §4.2 rule 8 | `mline/style-name-handle-mismatch` | open |
-| Q-0278 | property-resolution | [T] Does the nested (2-level) layer-0/BYBLOCK/BYLAYER matrix for colour, linetype, lw, transparency resolve like ezdxf (top-level BYBLOCK -> 7/CONT/LWDEFAULT)? | 06 §0 item 8, §7.1; 07 §3.1; 11b §5, Test ideas; 11c §10 (ByBlock takes INSERT colour), §15 item 9, §18 #21 (06:R1, 07:7, 10-11c:11c#21, 11b:3) | `blocks/inherit-matrix-*`, `blocks/inherit-3level-*`, `blocks/inherit-toplevel-byblock`, `colors/byblock-toplevel` (+5 more) | open |
+| Q-0278 | property-resolution | [T] Does the nested (2-level) layer-0/BYBLOCK/BYLAYER matrix for colour, linetype, lw, transparency resolve like ezdxf (top-level BYBLOCK -> 7/CONT/LWDEFAULT)? | 06 §0 item 8, §7.1; 07 §3.1; 11b §5, Test ideas; 11c §10 (ByBlock takes INSERT colour), §15 item 9, §18 #21 (06:R1, 07:7, 10-11c:11c#21, 11b:3) | `blocks/inherit-matrix-*`, `blocks/inherit-3level-*`, `blocks/inherit-toplevel-byblock`, `colors/byblock-toplevel` (+5 more) | answered |
 | Q-0279 | property-resolution | [A] Do ATTRIBs resolve like block content: layer-0 ATTRIB takes INSERT's layer, BYBLOCK colour from INSERT, BYLAYER from the ATTRIB's own layer? | 07 §3.1; 11b §5 (07:7, 07:10, 11b:15) | `attribs/props-byblock-bylayer`, `attribs/props-insert-bylayer` | open |
-| Q-0280 | property-resolution | [C] Does freezing an INSERT's layer hide all block content (incl. other visible layers), while off or no-plot (290=0) hides only layer-0 content, also nested? | 06 §7.2, §9 item 11; 11a §13; 11b §5, Test ideas; 02 §0 item 7, §2.1.1, §6; 02 §2.1.1 (06:R2, 11a:37, 11b:3, 02:T2) | `blocks/vis-insert-layer-on`, `blocks/vis-insert-layer-off`, `blocks/vis-insert-layer-frozen`, `blocks/vis-insert-layer-noplot` | open |
-| Q-0281 | property-resolution | [U] Does layer 0 being off/frozen hide layer-0 content of blocks inserted on other layers? | 06 §7.2, §9 item 11 (06:R3) | `blocks/vis-layer0-off`, `blocks/vis-layer0-frozen`, `blocks/vis-layer0-noplot` | open |
-| Q-0282 | property-resolution | [A] Does AutoCAD PLOT skip entities on a layer with plot flag 290=0, including inside blocks and viewport borders? | 11a §4, §14 (11a:37) | `blocks/vis-insert-layer-noplot`, `blocks/vis-layer0-noplot`, `colors/layer-noplot` | open |
-| Q-0283 | property-resolution | [U] Does PLOT omit entities on layer DEFPOINTS (any case) even when its 290 plot flag is 1 or absent? | 02 §0 item 6, §2.1.1, §6; 06 §7.2; 05 §4.1, §14 (02:T1) | `colors/defpoints-no290`, `colors/defpoints-plot1`, `colors/defpoints-plot0`, `colors/defpoints-lowercase` | open |
+| Q-0280 | property-resolution | [C] Does freezing an INSERT's layer hide all block content (incl. other visible layers), while off or no-plot (290=0) hides only layer-0 content, also nested? | 06 §7.2, §9 item 11; 11a §13; 11b §5, Test ideas; 02 §0 item 7, §2.1.1, §6; 02 §2.1.1 (06:R2, 11a:37, 11b:3, 02:T2) | `blocks/vis-insert-layer-on`, `blocks/vis-insert-layer-off`, `blocks/vis-insert-layer-frozen`, `blocks/vis-insert-layer-noplot` | answered |
+| Q-0281 | property-resolution | [U] Does layer 0 being off/frozen hide layer-0 content of blocks inserted on other layers? | 06 §7.2, §9 item 11 (06:R3) | `blocks/vis-layer0-off`, `blocks/vis-layer0-frozen`, `blocks/vis-layer0-noplot` | answered |
+| Q-0282 | property-resolution | [A] Does AutoCAD PLOT skip entities on a layer with plot flag 290=0, including inside blocks and viewport borders? | 11a §4, §14 (11a:37) | `blocks/vis-insert-layer-noplot`, `blocks/vis-layer0-noplot`, `colors/layer-noplot` | answered |
+| Q-0283 | property-resolution | [U] Does PLOT omit entities on layer DEFPOINTS (any case) even when its 290 plot flag is 1 or absent? | 02 §0 item 6, §2.1.1, §6; 06 §7.2; 05 §4.1, §14 (02:T1) | `colors/defpoints-no290`, `colors/defpoints-plot1`, `colors/defpoints-plot0`, `colors/defpoints-lowercase` | answered |
 | Q-0284 | property-resolution | [A] Does a locked layer (70 bit 4) plot normally, unaffected by LAYLOCKFADECTL fading? | 02 §2.1.1 (02:T1) | `colors/layer-locked`, `misc/locked-layer`, `misc/locked-layer-hatch` | open |
 | Q-0285 | property-resolution | [A] Does LAYER 70 bit 2 (frozen in new viewports) hide anything in model-space PLOT or existing viewports? | 11b §5 | `layouts/newvpfrozen-model`, `layouts/newvpfrozen-layout` | answered |
 
 - Q-0285: No: LAYER 70 bit 2 has no effect on model plots or existing viewports (`layouts/newvpfrozen-*`).
+- Q-0280: Frozen hides all content, off only layer-0 content, but no-plot (290=0) suppresses all content (`blocks/vis-insert-layer-*`, note 07 §3.2).
+- Q-0281: No: layer 0's own state does not matter for layer-0 content of blocks inserted on other layers (`blocks/vis-layer0-*`).
+- Q-0282: Yes, and a no-plot INSERT layer suppresses the whole block content (`blocks/vis-insert-layer-noplot`, `vis-layer0-noplot`, `colors/layer-noplot`).
+- Q-0278: Yes: the 2- and 3-level layer-0/BYBLOCK/BYLAYER matrices for colour, linetype and lineweight resolve like ezdxf (top-level BYBLOCK → ACI 7 / Continuous / LWDEFAULT) (`blocks/inherit-*`).
+- Q-0283: Yes: POINTs and LINEs on DEFPOINTS never plot (`points/point-defpoints-0001`, `extents/probe-layer-defpoints`); the colors/defpoints-* variants were rejected as invalid fixtures.
 
 <a id="draw-order"></a>
 ## Draw order (`draw-order`)
@@ -851,7 +898,7 @@ Answers (VERIFIED-BY-ACAD, AutoCAD 2027, 2026-09-30):
 | Q-0610 | blocks | [U] For a cyclic block definition (A->B->A), does AutoCAD refuse the DXF, or does RECOVER load and plot the non-cyclic parts? | 07 §1.7 (07:22) | plan: blocks (log) — block A contains INSERT B, B contains INSERT A plus lines; INSERT A in model space | open |
 | Q-0611 | blocks | [U] Who creates *E### anonymous blocks, and does AutoCAD render an INSERT of a *E### block exactly like a *U### block? | 07 §1.6 | `blocks/anonymous-e` | open |
 | Q-0612 | blocks | [A] Does PLOT rescale an INSERT when BLOCK_RECORD 70 units differ from $INSUNITS, or use only 41/42/43 (does -INSERT bake the ratio into the scale)? | 01 §7.2; 02 §2.9; 07 §1.5 (02:T15, 07:23) | `blocks/units-*` | open |
-| Q-0613 | blocks | [U] How does AutoCAD handle an INSERT with 41/42/43 = 0: reject, repair to 1 on AUDIT, draw collapsed geometry, or (43=0) plot normally in plan view? | 07 §2.1; 11b §6, Test ideas (11b:2) | `blocks/zero-scale-x`, `blocks/zero-scale-y`, `blocks/zero-scale-z` | open |
+| Q-0613 | blocks | [U] How does AutoCAD handle an INSERT with 41/42/43 = 0: reject, repair to 1 on AUDIT, draw collapsed geometry, or (43=0) plot normally in plan view? | 07 §2.1; 11b §6, Test ideas (11b:2) | `blocks/zero-scale-x`, `blocks/zero-scale-y`, `blocks/zero-scale-z` | answered |
 | Q-0614 | blocks | [A] Does a CIRCLE/ARC in a block inserted with sx=3, sy=1 plot as an exact ellipse / elliptical arc? | 07 §2.4 (07:2) | `blocks/nonuniform-*`, `blocks/nonuniform-circle-arc`, `blocks/nonuniform-circle-rot`, `blocks/nested-shear-circle` | open |
 | Q-0615 | blocks | [A] Does a rotated child INSERT inside a non-uniformly scaled parent plot as the composed sheared matrix? | 07 §2.2, §2.4 (07:1) | `blocks/nonuniform-text-nested-rot`, `blocks/nested-3level-*`, `blocks/nested-shear`, `blocks/nested-shear-circle` | open |
 | Q-0616 | blocks | [U] In an INSERT with 41=-1, are TEXT, MTEXT and constant ATTDEFs drawn mirrored and ATTRIBs from stored geometry, regardless of $MIRRTEXT 0/1? | 04 §1.7; 11b §4, Test ideas; 01 §7.2 (04:T6, 11b:2) | `attribs/mirror-const-attdef`, `blocks/mirrtext-0-sx`, `blocks/mirrtext-1-sx`, `blocks/mirrtext-0-sy` (+5 more) | open |
@@ -864,6 +911,7 @@ Answers (VERIFIED-BY-ACAD, AutoCAD 2027, 2026-09-30):
 | Q-0623 | blocks | [U] When a dynamic block definition is edited but its *U### representations are stale, does AutoCAD regenerate them on open or show stored *U content? | 07 §5.3, §17 (07:11) | `misc/dynblock-visibility-as-is`, `misc/dynblock-visibility-definition-edited` | open |
 
 - Q-0620: Yes: a VP-frozen INSERT layer hides the whole reference in that viewport, incl. nested non-0 content; freezing a child layer hides only that child (`layouts/insert-vpfreeze-l1/-l2`).
+- Q-0613: The file loads and a zero scale factor plots as 1 (`blocks/zero-scale-*`, note 07 §2.1).
 
 <a id="xrefs"></a>
 ## Xrefs (`xrefs`)

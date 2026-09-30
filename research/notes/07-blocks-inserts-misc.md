@@ -197,6 +197,8 @@ copying) — never key caches on anonymous names across files.
 - Zero scale: validators force 1 (ezdxf, LibreCAD `usableScale`, librecad-pr#2756 — "Every consumer
   surveyed draws its line at exactly zero"; ACadSharp throws on 0). **UNKNOWN** what AutoCAD does
   with a 0 scale in a DXF (probably rejects or repairs on AUDIT).
+  **VERIFIED-BY-ACAD** (AutoCAD 2027 PLOT, 2026-09-30; `blocks/zero-scale-x`, `-y`, `-z`, Q-0613): the file
+  loads and a zero 41/42/43 plots as scale **1** (the block content at full size, rotated as given).
 
 ### 2.2 Exact transform
 
@@ -252,6 +254,9 @@ i.e. `M = OCS · T(insert_ocs) · Rz(rot) · S(sx,sy,sz) · T(−base)`.
   (insert.py:673-675, frontend draws each virtual insert with its attribs); mlightcad draws them
   only on cell (0,0). **CONFLICT / UNKNOWN** — needs AutoCAD test.
 - XCLIP on a MINSERT: **UNKNOWN** (AutoCAD's XCLIP refuses MINSERT? — test).
+- **VERIFIED-BY-ACAD** (AutoCAD 2027 PLOT, 2026-09-30; `blocks/minsert-*`): the cell offsets are rotated with
+  the INSERT but not scaled (ezdxf/LibreCAD rule); all six MINSERT cases match at F1(r=1) ≥ 0.999 (residual pixels
+  are circle tessellation).
 
 ### 2.4 Non-uniform scaling — what AutoCAD shows
 
@@ -352,6 +357,21 @@ Notes:
   3. Each child: hidden if its resolved layer is OFF or FROZEN, or its 60 flag is set.
   4. Layer PLOT flag (290=0) excludes from PLOT output with the same resolution (ezdxf
      `properties.py:522-524` does `is_visible &= layer.dxf.plot` when plotting).
+- **VERIFIED-BY-ACAD** (AutoCAD 2027 PLOT, 2026-09-30; `blocks/vis-*`, Q-0280, Q-0281, Q-0282, Q-0246):
+  - rules 1–3 hold: a frozen INSERT layer hides the whole reference (`vis-insert-layer-frozen`), an off one only
+    the layer-0 (inheriting) content (`vis-insert-layer-off`), an invisible INSERT hides everything
+    (`vis-invisible-flag`).
+  - rule 4 is **wrong**: a **no-plot** (290 = 0) INSERT layer suppresses the **whole block content**, also children
+    on other, plottable layers (`vis-insert-layer-noplot` plots only the reference cross). Layer 0 being
+    no-plot suppresses everything of a block inserted on layer 0 (`vis-layer0-noplot`, right) but nothing of the
+    same block inserted on another layer (left).
+  - Layer 0's own off/frozen state does not affect layer-0 content of blocks inserted on other layers (it takes
+    the INSERT's layer; `vis-layer0-off`, `vis-layer0-frozen`).
+  - truedxf: model `resolve.ts` `contentPlottable` (Defpoints INSERT layers are assumed to behave like no-plot,
+    UNVERIFIED).
+- Unresolved xrefs (`blocks/xref-missing-attach`, `-overlay`, Q-0626): PLOT draws a placeholder TEXT
+  "Xref <path>" (e.g. `Xref C:\nope\x.dwg`) at the insertion point, rotated with the INSERT; its style/height are
+  still to be measured (truedxf draws nothing yet).
 - Draw order: an INSERT is one unit in the layout draw order; contents of two INSERTs never
   interleave (ezdxf "Notes on Rendering"). Inside the block the block's own order applies
   (entity order, or the block record's `ACAD_SORTENTS` table in its extension dictionary; ezdxf

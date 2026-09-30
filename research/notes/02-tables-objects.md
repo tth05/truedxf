@@ -908,6 +908,10 @@ scope for v1).
 
 ### 3.12 SORTENTSTABLE (draw order, **important**)
 
+VERIFIED-BY-ACAD 2026-09-30 (draworder suite, note 06 §8.2): numeric sort-handle order with
+file-order ties, unlisted entities by own handle, sort handle 0 = key 0 (first), applied to PLOT
+only when $SORTENTS has bit 32; block tables are honoured.
+
 Spec 9855, ezdxf `entities/dxfobj.py:168–290`, `reorder.py`, sample:
 
 ```

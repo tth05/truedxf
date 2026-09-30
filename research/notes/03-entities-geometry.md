@@ -872,7 +872,18 @@ spec:5058-5118; ezdxf docs/source/dxfinternals/entities/mesh.rst:
 - 2D wireframe: presumably draws the edges of the subdivided faces. Plot of a MESH in plan: the edges.
   **UNKNOWN**: whether facet edges or only the "smooth" isolines are drawn.
 
+VERIFIED-BY-ACAD (misc suite, 2026-09-30): the 2D-wireframe plot of a MESH shows the **level-0
+cage edges only**; at subdivision level L > 0 those edges follow the Catmull-Clark surface after L
+steps (our CC matches `mesh-box-level1-plan` exactly, levels 2/3 within a few pixels); the finer
+facet edges are not drawn. Crease -1 keeps an edge sharp; semi-sharp creases are close but not
+pixel-exact yet (`mesh-crease-*`).
+
 ### 3.15 REGION, 3DSOLID, BODY, SURFACE family (ACIS)
+
+VERIFIED-BY-ACAD (misc suite, 2026-09-30): 2D-wireframe PLOT draws every ACIS edge (a box: all 12
+edges, hidden ones included; no isolines for planar faces), for SAT (R2000-R2010) and SAB (R2013+,
+ACDSDATA `ASM_Data`) alike (`solid-box-*`, `region-square-*`, `body-box-plan`); truedxf parses both
+(render/src/draw/acis.ts).
 
 Group codes (spec:3229-3250, 6112-6135, 6412ff; ezdxf entities/acis.py):
 - `100 AcDbModelerGeometry`, 70 modeler format version (1), then **1** for SAT text lines (< 255 chars) and **3** for

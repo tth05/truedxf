@@ -316,13 +316,14 @@ set the status here to `answered` (or `wontfix`) and add the answer in one line 
 | Q-0183 | solids | [A] Does PLOT honour the file's $FILLMODE=0 by drawing SOLID, TRACE, wide polylines and solid-fill HATCH as outlines only? | 01 §7.2; 03 §3.12, §4.1, Test ideas 26 (01:T23, 03:T26) | `polylines/fillmode-0`, `polylines/fillmode-1`, `solids/solid-zorder-fill0`, `solids/solid-polygon-order-fill0` (+6 more) | answered |
 | Q-0184 | solids | [U] How does PLOT fill a self-intersecting (bow-tie) SOLID stored 0-1-2-3: union of both triangles or even-odd? | 03 §3.12, Test ideas 31 (03:T31) | `solids/solid-polygon-order-fill1`, `solids/solid-polygon-order-fill0` | answered |
 | Q-0185 | solids | [U] Is the top face of a SOLID/TRACE with thickness filled in a 2D wireframe plot of a 3D view, or only the prism edges drawn? | 03 §2.6, Test ideas 6 (03:T6) | `solids/solid-thickness-tilted` | answered |
-| Q-0186 | solids | [U] What does a 2D-wireframe plan-view PLOT draw for REGION and 3DSOLID (ACIS edges only, fill, nothing; proxy needed?) for SAT (R2010) and SAB (R2013) DXF? | 03 §3.15, Test ideas 38; 11a §7; 11b §15 (03:T38) | `misc/solid-box-plan-r2000`, `misc/solid-box-plan-r2010`, `misc/solid-box-plan-r2013`, `misc/solid-box-plan-r2018` (+6 more) | open |
+| Q-0186 | solids | [U] What does a 2D-wireframe plan-view PLOT draw for REGION and 3DSOLID (ACIS edges only, fill, nothing; proxy needed?) for SAT (R2010) and SAB (R2013) DXF? | 03 §3.15, Test ideas 38; 11a §7; 11b §15 (03:T38) | `misc/solid-box-plan-r2000`, `misc/solid-box-plan-r2010`, `misc/solid-box-plan-r2013`, `misc/solid-box-plan-r2018` (+6 more) | answered |
 | Q-0187 | solids | [U] Where does AutoCAD place ISOLINES on curved 3DSOLID faces and SURFACE U/V isolines in 2D wireframe PLOT? | 03 §3.15 | plan: misc (png) — 3DSOLID cylinder, sphere, cone with ISOLINES 4 and 8; SURFACE with 71/72 = 3/5 | open |
 | Q-0188 | solids | [A] Does AutoCAD reject an R2004 3DSOLID that carries the AcDb3dSolid subclass marker? | 11a §7 | `fileformat/r2004-3dsolid-with-marker`, `fileformat/r2004-3dsolid-without-marker`, `fileformat/r2018-3dsolid-no-subclass` | open |
 
 - Q-0183: Yes: SOLID/TRACE/wide polylines as outlines, and a solid HATCH is not drawn at all (`solids/fillmode-mixed-0`, `polylines/fillmode-0`).
 - Q-0184: The v0,v1,v3,v2 polygon is filled as a bow tie (two triangles meeting at the crossing) (`solids/solid-polygon-order-fill1`).
 - Q-0185: Only the prism edges; no fill (`solids/solid-thickness-tilted`). Tilted SOLIDs without thickness plot as outlines too (`ocs/solid-*`).
+- Q-0186: All ACIS edges (a box: 12 edges incl. hidden), no fill, for SAT and SAB alike (`misc/solid-box-*`, `region-square-*`, `body-box-plan`).
 
 <a id="meshes-3d"></a>
 ## Meshes, 3D and ACIS (`meshes-3d`)
@@ -330,11 +331,13 @@ set the status here to `answered` (or `wontfix`) and add the answer in one line 
 | ID | topic | question | source | test | status |
 |---|---|---|---|---|---|
 | Q-0189 | meshes-3d | [A] Are invisible 3DFACE edges (70 bits 1/2/4/8) and negative-index polyface edges hidden in PLOT and drawn with $SPLFRAME=1; is polyface index 0 an unused 4th vertex? | 01 §7.2, §10 item 8; 03 §3.10.3, Test ideas 29, §3.11, Test ideas 33; 11a §7; 11b §8 (01:T26, 03:T29, 03:T33) | `polylines/polyface-*`, `polylines/polyface-invisible-splframe`, `solids/3dface-invisible-00`, `solids/3dface-invisible-01` (+15 more) | answered |
-| Q-0190 | meshes-3d | [A] Is MESH (AcDbSubDMesh) smoothing Catmull-Clark, i.e. does the plotted level-1/2 surface match CC subdivision of the cage? | 03 §3.14, Test ideas 39 (03:T39) | `misc/mesh-box-level0-plan`, `misc/mesh-box-level0-iso`, `misc/mesh-box-level1-plan`, `misc/mesh-box-level1-iso` (+5 more) | open |
-| Q-0191 | meshes-3d | [U] For a smoothed MESH (level > 0) in 2D wireframe PLOT, are all subdivided facet edges drawn or only smooth isolines? | 03 §3.14, Test ideas 39 (03:T39) | `misc/mesh-box-level0-plan`, `misc/mesh-box-level0-iso`, `misc/mesh-box-level1-plan`, `misc/mesh-box-level1-iso` (+4 more) | open |
+| Q-0190 | meshes-3d | [A] Is MESH (AcDbSubDMesh) smoothing Catmull-Clark, i.e. does the plotted level-1/2 surface match CC subdivision of the cage? | 03 §3.14, Test ideas 39 (03:T39) | `misc/mesh-box-level0-plan`, `misc/mesh-box-level0-iso`, `misc/mesh-box-level1-plan`, `misc/mesh-box-level1-iso` (+5 more) | answered |
+| Q-0191 | meshes-3d | [U] For a smoothed MESH (level > 0) in 2D wireframe PLOT, are all subdivided facet edges drawn or only smooth isolines? | 03 §3.14, Test ideas 39 (03:T39) | `misc/mesh-box-level0-plan`, `misc/mesh-box-level0-iso`, `misc/mesh-box-level1-plan`, `misc/mesh-box-level1-iso` (+4 more) | answered |
 | Q-0192 | meshes-3d | [U] In MESH creases, does -1 mean 'always sharp', and does a crease >= subdivision level prevent smoothing that edge? | 03 §3.14, Test ideas 39 (03:T39) | `misc/mesh-crease-m1`, `misc/mesh-crease-0`, `misc/mesh-crease-1`, `misc/mesh-crease-2` (+2 more) | open |
 
 - Q-0189: Invisible 3DFACE edges and negative polyface indices are hidden, shown with $SPLFRAME=1; polyface index 0 = unused corner (`solids/3dface-nonplanar`, `polylines/polyface-invisible-splframe`).
+- Q-0190: Yes: Catmull-Clark of the cage (`misc/mesh-box-level1-plan` pixel-exact, levels 2/3 within a few px).
+- Q-0191: Only the level-0 cage edges, following the smoothed surface; no facet edges (`misc/mesh-box-*`).
 
 <a id="colors"></a>
 ## Colours (`colors`)
@@ -379,13 +382,20 @@ set the status here to `answered` (or `wontfix`) and add the answer in one line 
 
 | ID | topic | question | source | test | status |
 |---|---|---|---|---|---|
-| Q-0214 | transparency | [U] Does AutoCAD honour entity transparency (440) in an AC1018 file? | 01 §4.2, §10 item 12 | `transparency/ac1018` | open |
+| Q-0214 | transparency | [U] Does AutoCAD honour entity transparency (440) in an AC1018 file? | 01 §4.2, §10 item 12 | `transparency/ac1018` | answered |
 | Q-0215 | transparency | [A] Is transparency percent t stored as alpha = trunc((1-t/100)*255) for all t (0..90), in layer XDATA and entity 440? | 02 §2.1.2 | plan: transparency (dxfout) — LISP set layer/entity transparency to 0,1,10,25,33,50,70,90; DXFOUT and read 1071/440 | open |
-| Q-0216 | transparency | [A] Is transparency plotted only when page-setup 'plot transparency' is on, and does PLOTTRANSPARENCYOVERRIDE 0/1/2 (never/page setup/always; default 1) override it? | 02 §2.1.2; 06 §4.2 (02:T1) | `transparency/entity-050-plot-off`, `transparency/layer-070` | open |
-| Q-0217 | transparency | [A] Does transparency resolve as 440=0 or absent -> BYLAYER (layer AcCmTransparency XDATA) and 440=0x01000000 -> BYBLOCK from the INSERT's transparency? | 06 §4.1, §7.1 (06:T1) | `transparency/entity-000`, `transparency/entity-025`, `transparency/entity-050`, `transparency/entity-075` (+10 more) | open |
-| Q-0218 | transparency | [U] How are transparent objects composited in raster PLOT: plain alpha over earlier content/paper (exact RGB of 50% red over blue) for 0/25/50/90%? | 06 §4.2, §9 item 8; 08 §5.5; 11a §15 (06:T1, 08:T-PL-6, 11a:40) | `transparency/entity-000`, `transparency/entity-025`, `transparency/entity-050`, `transparency/entity-075` (+7 more) | open |
-| Q-0219 | transparency | [U] Does hatch transparency (440) also apply to the HATCHBACKGROUNDCOLOR fill when transparency is plotted? | 06 §1.10 | `transparency/hatch-background` | open |
-| Q-0220 | transparency | [U] Does plotting transparent objects rasterize them separately (e.g. raster region in PDF / different AA in PNG)? | 06 §4.2 (06:T1) | `transparency/entity-000`, `transparency/entity-025`, `transparency/entity-050`, `transparency/entity-075` (+1 more) | open |
+| Q-0216 | transparency | [A] Is transparency plotted only when page-setup 'plot transparency' is on, and does PLOTTRANSPARENCYOVERRIDE 0/1/2 (never/page setup/always; default 1) override it? | 02 §2.1.2; 06 §4.2 (02:T1) | `transparency/entity-050-plot-off`, `transparency/layer-070` | answered |
+| Q-0217 | transparency | [A] Does transparency resolve as 440=0 or absent -> BYLAYER (layer AcCmTransparency XDATA) and 440=0x01000000 -> BYBLOCK from the INSERT's transparency? | 06 §4.1, §7.1 (06:T1) | `transparency/entity-000`, `transparency/entity-025`, `transparency/entity-050`, `transparency/entity-075` (+10 more) | answered |
+| Q-0218 | transparency | [U] How are transparent objects composited in raster PLOT: plain alpha over earlier content/paper (exact RGB of 50% red over blue) for 0/25/50/90%? | 06 §4.2, §9 item 8; 08 §5.5; 11a §15 (06:T1, 08:T-PL-6, 11a:40) | `transparency/entity-000`, `transparency/entity-025`, `transparency/entity-050`, `transparency/entity-075` (+7 more) | answered |
+| Q-0219 | transparency | [U] Does hatch transparency (440) also apply to the HATCHBACKGROUNDCOLOR fill when transparency is plotted? | 06 §1.10 | `transparency/hatch-background` | answered |
+| Q-0220 | transparency | [U] Does plotting transparent objects rasterize them separately (e.g. raster region in PDF / different AA in PNG)? | 06 §4.2 (06:T1) | `transparency/entity-000`, `transparency/entity-025`, `transparency/entity-050`, `transparency/entity-075` (+1 more) | answered |
+
+- Q-0214: Yes: an AC1018 file plots 440 transparency like AC1032 (`transparency/ac1018`).
+- Q-0216: PLOTTRANSPARENCYOVERRIDE 0 = never (even with LAYOUT XDATA PLOTTRANSPARENCY=1), 1 = page setup XDATA, 2 = always (`transparency/entity-050-plot-off`, `layouts/pagesetup-plottransparency`, note 06 §4.3).
+- Q-0217: Yes: 440 absent or 0 -> layer AcCmTransparency, 0x01000000 -> the INSERT's, top-level BYBLOCK opaque (`transparency/bylayer-*`, `byblock-*`, `layer-070`).
+- Q-0218: Sequential 8-bit blend `out = (src*a + dst*(256-a)) >> 8` per primitive, a = 440 & 0xFF; strokes blend per segment (`transparency/entity-0*`, `overlap-same-color`, `wide-lines`, note 06 §4.3).
+- Q-0219: Yes: the background colour fill of a pattern hatch is blended with the hatch transparency (`transparency/hatch-background`).
+- Q-0220: PNG: no separate rasterization visible; exact per-pixel blending without AA or dithering (PDF not examined) (`transparency/*`).
 
 <a id="plotstyles"></a>
 ## Plot styles (CTB/STB) (`plotstyles`)
@@ -424,7 +434,7 @@ set the status here to `answered` (or `wontfix`) and add the answer in one line 
 | Q-0244 | plotting | [U] In which direction does PLOT rotate content for Portrait on a landscape pixel size, and for upside-down? | 08 §5.2, §2.1 (73) (08:T-PL-7) | plan: calibration (png) — Asymmetric marker (arrow + 'N') plotted Portrait/Landscape x upside-down Y/N | open |
 | Q-0245 | plotting | [T] Is PLOT output at coordinates 3e6-4e7 (model space and block at 0,0) pixel-identical to the same drawing at the origin? | 11b §16, Test ideas (11b:18) | plan: calibration (png) — 0.2 TEXT, 1 mm circle, dashed line, patterned hatch at (3026284,4643826), 4.06e7, -2.9e7 | open |
 | Q-0246 | plotting | [A] Does PLOT hide 60=1 entities at top level and inside *U blocks, and does an invisible INSERT (60=1) hide all its children incl. ATTRIBs? | 11b §5, Test ideas; 11a §13 (11b:4, 11a:36) | `blocks/vis-invisible-flag`, `misc/invisible-top-level`, `misc/invisible-in-anonymous-block`, `misc/invisible-insert-with-attribs` | answered |
-| Q-0247 | plotting | [A] Are LIGHT and CAMERA glyphs excluded from PLOT output? | 07 §14 | `misc/light-point-glyph-0`, `misc/light-point-glyph-1`, `misc/light-spot` | open |
+| Q-0247 | plotting | [A] Are LIGHT and CAMERA glyphs excluded from PLOT output? | 07 §14 | `misc/light-point-glyph-0`, `misc/light-point-glyph-1`, `misc/light-spot` | answered |
 | Q-0248 | plotting | [U] Does a SECTION (SECTIONOBJECT) entity's section line/indicator plot? | 07 §14, §17 | plan: misc (png) — SECTIONOBJECT with 2-vertex section line | open |
 | Q-0249 | plotting | [U] Is a GEODATA geomarker displayed or plotted? | 07 §14 | `misc/geodata-short`, `misc/geodata-long-cs` | open |
 | Q-0250 | plotting | [A] Is the canonical media name (PLOTSETTINGS 4) of a raster custom size spelled 'Name_(W_x_H_Pixels)' after DXFOUT? | 08 §2.1 (code 4) (08:T-PL-8) | `layouts/pagesetup-truedxf-png` | open |
@@ -453,6 +463,7 @@ set the status here to `answered` (or `wontfix`) and add the answer in one line 
 | Q-0273 | plotting | [A] Is DWG TrueView scriptable (script/console) for plotting DXF? | 08 §6.8 | plan: none (none) | open |
 
 - Q-0246: Yes: an invisible INSERT hides all its content (`blocks/vis-invisible-flag`).
+- Q-0247: LIGHT glyphs never plot, whatever the plot-glyph flag (`misc/light-*`; CAMERA not tested).
 
 <a id="property-resolution"></a>
 ## Property resolution (`property-resolution`)
@@ -484,11 +495,11 @@ set the status here to `answered` (or `wontfix`) and add the answer in one line 
 
 | ID | topic | question | source | test | status |
 |---|---|---|---|---|---|
-| Q-0286 | draw-order | [U] Without SORTENTS, does AutoCAD draw in DXF file order or ascending handle order when they differ? | 06 §0 item 12, §8.1, §9 item 10 (06:D1) | `draworder/baseline-file-order`, `draworder/file-vs-handle-solid`, `draworder/file-vs-handle-hatch`, `draworder/file-vs-handle-reversed` | open |
-| Q-0287 | draw-order | [A] Without SORTENTSTABLE, is a solid hatch drawn in creation order over/under MTEXT, or always below? | 11b §11, Test ideas (11b:9) | `draworder/hatch-after-mtext`, `draworder/hatch-before-mtext`, `draworder/hatch-before-sortents-mtext` | open |
-| Q-0288 | draw-order | [U] Does PLOT honour SORTENTSTABLE draw order when $SORTENTS bit 32 (plot) is cleared, e.g. $SORTENTS 0 or 95 vs 127? | 01 §7.2, §10 item 14; 02 §3.12, §6; 06 §8.2 (02:T10) | `draworder/sortents-127`, `draworder/sortents-095`, `draworder/sortents-111`, `draworder/sortents-000` | open |
-| Q-0289 | draw-order | [T] With a SORTENTSTABLE, does PLOT sort by sort handle (hex int, stable), key unlisted entities by own handle, and draw sort handle 0 last? | 02 §0 item 8, §3.12; 06 §0 item 12, §8.2 (02:T10, 06:D1) | `draworder/sortents-127`, `draworder/sortents-095`, `draworder/sortents-111`, `draworder/sortents-000` (+6 more) | open |
-| Q-0290 | draw-order | [U] Does PLOT honour a block definition's own ACAD_SORTENTS table (sort handles differing from entity handles) when drawing its INSERTs? | 02 §3.12, §6; 06 §8.1, §9 item 10; 07 §3.2 (02:T10, 06:D3) | `draworder/block-file-order`, `draworder/block-sortents` | open |
+| Q-0286 | draw-order | [U] Without SORTENTS, does AutoCAD draw in DXF file order or ascending handle order when they differ? | 06 §0 item 12, §8.1, §9 item 10 (06:D1) | `draworder/baseline-file-order`, `draworder/file-vs-handle-solid`, `draworder/file-vs-handle-hatch`, `draworder/file-vs-handle-reversed` | answered |
+| Q-0287 | draw-order | [A] Without SORTENTSTABLE, is a solid hatch drawn in creation order over/under MTEXT, or always below? | 11b §11, Test ideas (11b:9) | `draworder/hatch-after-mtext`, `draworder/hatch-before-mtext`, `draworder/hatch-before-sortents-mtext` | answered |
+| Q-0288 | draw-order | [U] Does PLOT honour SORTENTSTABLE draw order when $SORTENTS bit 32 (plot) is cleared, e.g. $SORTENTS 0 or 95 vs 127? | 01 §7.2, §10 item 14; 02 §3.12, §6; 06 §8.2 (02:T10) | `draworder/sortents-127`, `draworder/sortents-095`, `draworder/sortents-111`, `draworder/sortents-000` | answered |
+| Q-0289 | draw-order | [T] With a SORTENTSTABLE, does PLOT sort by sort handle (hex int, stable), key unlisted entities by own handle, and draw sort handle 0 last? | 02 §0 item 8, §3.12; 06 §0 item 12, §8.2 (02:T10, 06:D1) | `draworder/sortents-127`, `draworder/sortents-095`, `draworder/sortents-111`, `draworder/sortents-000` (+6 more) | answered |
+| Q-0290 | draw-order | [U] Does PLOT honour a block definition's own ACAD_SORTENTS table (sort handles differing from entity handles) when drawing its INSERTs? | 02 §3.12, §6; 06 §8.1, §9 item 10; 07 §3.2 (02:T10, 06:D3) | `draworder/block-file-order`, `draworder/block-sortents` | answered |
 | Q-0291 | draw-order | [T] Are ATTRIBs always drawn after all block content (above a solid hatch in the block) in PLOT? | 07 §3.2, §4.2 (07:10) | `attribs/draworder-hatch-in-block`, `attribs/draworder-hatch-after-insert`, `draworder/attrib-after-content`, `draworder/attrib-vs-later-entity` | open |
 | Q-0292 | draw-order | [C] Does 'plot paperspace last' (70 bit 512 / -PLOT 'Plot paper space first?') decide whether PS entities plot over viewport content; does default 70=688 set it? | 06 §8.3, §9 item 10; 08 §3.10, §6.4, §7 item 6, §8 item 9, §2.2 (bit 512); 11a §13 (06:D2, 08:T-VP-8) | `draworder/ps-solid-after-viewport`, `draworder/ps-flags-176`, `draworder/ps-paperspace-first` | answered |
 | Q-0293 | draw-order | [U] Does AutoCAD plot viewport model content above or below paper-space entities, and does the VIEWPORT's position in draw order (storage/SORTENTS) matter? | 10 §1.3 (ezdxf draws viewports last); 10 §17 UNKNOWN 9 (10:vp_draworder.dxf) | `draworder/ps-solid-after-viewport`, `draworder/ps-solid-before-viewport`, `draworder/ps-sortents-viewport-top` | answered |
@@ -497,6 +508,11 @@ set the status here to `answered` (or `wontfix`) and add the answer in one line 
 - Q-0292: Yes: "Plot paper space first? No" (default when 70 bit 512 is set, e.g. 688) = viewport content first, paper on top; "Yes" = paper first (`layouts/ps-over-vp-*`, note 08 §10.12).
 - Q-0293: Viewport content is drawn as one group before (default) or after paper space; the VIEWPORT's position in the entity list does not matter; overlapping viewports by creation order (`layouts/ps-over-vp-*`, `vp-overlap-*`).
 - Q-0294: No: a paper-space WIPEOUT never masks viewport content, with either answer (`layouts/wipeout-over-vp-psfirst-*`).
+- Q-0286: File order (`draworder/file-vs-handle-*`).
+- Q-0287: Plain creation (file) order: a later solid hatch covers the MTEXT, an earlier one is covered (`draworder/hatch-*-mtext`).
+- Q-0288: Only with $SORTENTS bit 32: 0 and 95 plot in file order, 111 and 127 sorted (`draworder/sortents-*`).
+- Q-0289: Numeric sort-handle order, ties in file order, unlisted entities by own handle; sort handle 0 is key 0 and draws first, not last (`draworder/sortents-*`, `random-*`, note 06 §8.2).
+- Q-0290: Yes (`draworder/block-sortents`).
 
 <a id="linetypes"></a>
 ## Linetypes (`linetypes`)
@@ -982,9 +998,13 @@ Answers (VERIFIED-BY-ACAD, AutoCAD 2027, 2026-09-30):
 | Q-0662 | images | [U] Does underlay 'adjust for background' (280 bit 8) affect PLOT output or only screen display? | 07 §10.3 (07:16) | `images/pdf-flags-adjustbg`, `images/pdf-flags-plain` | open |
 | Q-0663 | images | [T] How do PDF underlay contrast (281) and fade (282) affect plotted underlay colors? | 07 §10.3 (07:16) | `images/pdf-fade50-contrast100`, `images/pdf-fade80-contrast100`, `images/pdf-fade00-contrast020`, `images/pdf-fade00-contrast060` (+1 more) | open |
 | Q-0664 | images | [U] Where are PDF underlay layer (OCG) visibility settings stored in DXF? | 07 §10.3 | `images/pdf-layers` | open |
-| Q-0665 | images | [U] Where is PDFFRAME (0/1/2) stored in DXF, and for which values does PLOT draw the PDF underlay frame? | 01 §7.2; 07 §10.3, §17; 02 §3.6 (07:16) | `images/pdfframe-dictvar-0`, `images/pdfframe-dictvar-1`, `images/pdfframe-dictvar-2` | open |
+| Q-0665 | images | [U] Where is PDFFRAME (0/1/2) stored in DXF, and for which values does PLOT draw the PDF underlay frame? | 01 §7.2; 07 §10.3, §17; 02 §3.6 (07:16) | `images/pdfframe-dictvar-0`, `images/pdfframe-dictvar-1`, `images/pdfframe-dictvar-2` | answered |
 | Q-0666 | images | [A] Is OLE2FRAME group 3 a descriptive string (e.g. 'Paintbrush Picture') rather than binary length in AutoCAD-written DXF? | 07 §11 (07:17) | plan: fileformat (dxfout) — embed Paintbrush bitmap OLE in AutoCAD, DXFOUT | open |
 | Q-0667 | images | [U] How does PLOT render OLE2FRAME objects (cached presentation WMF/EMF/DIB), incl. rotated frames from the 4 header corners? | 07 §11 (07:17) | plan: images (png) — embedded Paintbrush bitmap and Excel range OLE; rotated OLE frame | open |
+
+- Q-0650: Storage only: DXFOUT keeps RASTERVARIABLES 70 = 2 (`images/imageframe-2`); the plot effect is untestable, see the note below.
+- Q-0665: DICTIONARYVAR `PDFFRAME` is read: 1 (default when absent) plots the underlay frame, 0 and 2 do not (`images/pdfframe-dictvar-*`; 0 and 2 byte-identical).
+- Note: Blocked: accoreconsole (the reference harness) plots **no IMAGE and no WIPEOUT** at all — no bitmap, no frame, no mask; DXFOUT stores empty proxy graphics for both (note 07 §8.5). Q-0640 … Q-0658 and Q-0668 … Q-0675 need plots from full AutoCAD; truedxf renders them per the UNVERIFIED rules (RenderEnv.rasterEntities, harness uses omit).
 
 <a id="wipeout"></a>
 ## WIPEOUT (`wipeout`)
@@ -1005,18 +1025,28 @@ Answers (VERIFIED-BY-ACAD, AutoCAD 2027, 2026-09-30):
 
 | ID | topic | question | source | test | status |
 |---|---|---|---|---|---|
-| Q-0676 | mline | [C] For MLINE Top/Bottom justification with unsorted style element offsets, is shift -max/-min offset or first/last element offset? | 07 §12.2 (07:18) | `mline/unsorted-offsets-top`, `mline/unsorted-offsets-bottom` | open |
-| Q-0677 | mline | [C] Do MLINESTYLE element colors BYBLOCK/BYLAYER and element linetypes resolve against the MLINE's own color/layer (and enclosing INSERT)? | 02 §3.9; 07 §12.3, §17 (02:T14, 07:18) | `mline/props-modelspace`, `mline/props-in-insert-explicit`, `mline/props-in-insert-byblock` | open |
-| Q-0678 | mline | [T] Is an MLINE entity's true color (420) ignored by AutoCAD when plotting? | 07 §12.3 (07:18) | `mline/true-color` | open |
+| Q-0676 | mline | [C] For MLINE Top/Bottom justification with unsorted style element offsets, is shift -max/-min offset or first/last element offset? | 07 §12.2 (07:18) | `mline/unsorted-offsets-top`, `mline/unsorted-offsets-bottom` | answered |
+| Q-0677 | mline | [C] Do MLINESTYLE element colors BYBLOCK/BYLAYER and element linetypes resolve against the MLINE's own color/layer (and enclosing INSERT)? | 02 §3.9; 07 §12.3, §17 (02:T14, 07:18) | `mline/props-modelspace`, `mline/props-in-insert-explicit`, `mline/props-in-insert-byblock` | answered |
+| Q-0678 | mline | [T] Is an MLINE entity's true color (420) ignored by AutoCAD when plotting? | 07 §12.3 (07:18) | `mline/true-color` | answered |
 | Q-0679 | mline | [U] Can MLINESTYLE elements carry true colors (420) in DXF, and are they used when plotting? | 07 §12.3 | plan: mline (dxfout) — MLINESTYLE element with true color set in AutoCAD; DXFOUT | open |
 | Q-0680 | mline | [A] Does MLINESTYLE write true-color fill as 420/430 after 62 when a true color is set? | 02 §3.9, §6 (02:T14) | `fileformat/mlinestyle-true-color-fill` | open |
 | Q-0681 | mline | [U] How does AutoCAD render MLINE caps when MLINESTYLE start/end angles 51/52 are not 90 deg (e.g. 45, 135)? | 02 §3.9, §6 (02:T14) | `mline/angles-45-135-square`, `mline/angles-45-135-inner`, `mline/angles-45-135-round`, `mline/angles-45-135-all` (+1 more) | open |
-| Q-0682 | mline | [A] Are MLINE miter joints and square caps drawn as two halves colored by the top and bottom elements (incl. all vertices if closed)? | 07 §12.4 (07:18) | `mline/caps-square`, `mline/miters-open`, `mline/miters-closed` | open |
-| Q-0683 | mline | [A] Does AutoCAD draw MLINE arc end caps with a split-coloured start cap and an end cap in the second element's colour/linetype? | 11c §9 (MLINE caps, netDxf#93 REPORTED); 11c §15 item 13; 11c §18 #23 (10-11c:11c#23) | `mline/caps-round`, `mline/caps-outer-inner-3`, `mline/caps-outer-inner-4` | open |
-| Q-0684 | mline | [C] Do MLINE inner-arc caps connect all symmetric inner element pairs or only one pair? | 07 §12.4, §17 (07:18) | `mline/caps-inner-3`, `mline/caps-inner-4`, `mline/caps-inner-5`, `mline/caps-inner-6` (+3 more) | open |
-| Q-0685 | mline | [T] Is MLINE fill drawn under element lines, including round-cap areas, and does negative scale flip round-cap orientation? | 07 §12.4 (07:18) | `mline/fill-round-pos`, `mline/fill-round-neg`, `mline/fill-bylayer-miters` | open |
-| Q-0686 | mline | [C] Does PLOT honor MLINE element break parameters (41 list after a0/a1) from MLEDIT cuts? | 07 §12.2, §17 (07:18) | `mline/breaks-cut-all`, `mline/breaks-cut-single`, `mline/breaks-two-gaps` | open |
-| Q-0687 | mline | [U] How is MLINE fill split by MLEDIT fill-break parameters (75/42 lists)? | 07 §12.4, §17 (07:18) | `mline/fill-breaks-stop-start`, `mline/fill-breaks-with-start` | open |
+| Q-0682 | mline | [A] Are MLINE miter joints and square caps drawn as two halves colored by the top and bottom elements (incl. all vertices if closed)? | 07 §12.4 (07:18) | `mline/caps-square`, `mline/miters-open`, `mline/miters-closed` | answered |
+| Q-0683 | mline | [A] Does AutoCAD draw MLINE arc end caps with a split-coloured start cap and an end cap in the second element's colour/linetype? | 11c §9 (MLINE caps, netDxf#93 REPORTED); 11c §15 item 13; 11c §18 #23 (10-11c:11c#23) | `mline/caps-round`, `mline/caps-outer-inner-3`, `mline/caps-outer-inner-4` | answered |
+| Q-0684 | mline | [C] Do MLINE inner-arc caps connect all symmetric inner element pairs or only one pair? | 07 §12.4, §17 (07:18) | `mline/caps-inner-3`, `mline/caps-inner-4`, `mline/caps-inner-5`, `mline/caps-inner-6` (+3 more) | answered |
+| Q-0685 | mline | [T] Is MLINE fill drawn under element lines, including round-cap areas, and does negative scale flip round-cap orientation? | 07 §12.4 (07:18) | `mline/fill-round-pos`, `mline/fill-round-neg`, `mline/fill-bylayer-miters` | answered |
+| Q-0686 | mline | [C] Does PLOT honor MLINE element break parameters (41 list after a0/a1) from MLEDIT cuts? | 07 §12.2, §17 (07:18) | `mline/breaks-cut-all`, `mline/breaks-cut-single`, `mline/breaks-two-gaps` | answered |
+| Q-0687 | mline | [U] How is MLINE fill split by MLEDIT fill-break parameters (75/42 lists)? | 07 §12.4, §17 (07:18) | `mline/fill-breaks-stop-start`, `mline/fill-breaks-with-start` | answered |
+
+- Q-0676: AutoCAD draws the stored geometry; vertex element k takes the style element with the k-th largest offset, caps / joints run between vertex elements 0 and n-1 (`mline/unsorted-offsets-*`).
+- Q-0677: Like exploded LINEs on the MLINE's layer: BYLAYER -> MLINE layer, BYBLOCK -> enclosing block context (top level ACI 7 / Continuous); the MLINE's own colour and linetype are unused (`mline/props-*`).
+- Q-0678: Yes, ignored — as is the MLINE's ACI colour (`mline/true-color`).
+- Q-0682: Yes, two halves coloured by elements 0 and n-1, at all vertices when closed (`mline/miters-*`, `caps-square`).
+- Q-0683: Both round caps are two quarter arcs coloured by the outer elements (`mline/caps-round*`).
+- Q-0684: All symmetric inner pairs (k, n-1-k), k = 1 .. floor(n/2)-1 (`mline/caps-inner-*`).
+- Q-0685: Yes: fill first, round-cap areas included; negative scale works the same (`mline/fill-round-*`).
+- Q-0686: Yes (`mline/breaks-*`).
+- Q-0687: The hand-written 42 lists (30/45) did not split the fill at all (`mline/fill-breaks-*`).
 
 <a id="acad-table"></a>
 ## ACAD_TABLE (`acad-table`)
@@ -1033,7 +1063,7 @@ Answers (VERIFIED-BY-ACAD, AutoCAD 2027, 2026-09-30):
 | ID | topic | question | source | test | status |
 |---|---|---|---|---|---|
 | Q-0691 | proxy | [C] Which group code (92 or 160) does AutoCAD read/write for the proxy graphics byte count in R2013+ vs pre-R2013 DXF? | 03 §1, §3.17 | `misc/proxy-basic-r2010-92`, `misc/proxy-basic-r2018-160`, `misc/proxy-basic-r2018-92`, `misc/proxy-basic-r2010-160` | open |
-| Q-0692 | proxy | [A] Does AutoCAD omit proxy graphics (92/160 + 310) on native ACIS entities (3DSOLID/REGION/BODY) when saving DXF? | 03 §3.15 | `misc/solid-box-plan-r2000`, `misc/solid-box-plan-r2010`, `misc/solid-box-plan-r2013`, `misc/solid-box-plan-r2018` (+3 more) | open |
+| Q-0692 | proxy | [A] Does AutoCAD omit proxy graphics (92/160 + 310) on native ACIS entities (3DSOLID/REGION/BODY) when saving DXF? | 03 §3.15 | `misc/solid-box-plan-r2000`, `misc/solid-box-plan-r2010`, `misc/solid-box-plan-r2013`, `misc/solid-box-plan-r2018` (+3 more) | answered |
 | Q-0693 | proxy | [T] Does PLOT draw OLE2FRAME previews and ACAD_PROXY_ENTITY graphics (PROXYSHOW default)? | 11b §3, §15 | `misc/proxy-basic-r2010-92`, `misc/proxy-basic-r2018-160`, `misc/proxy-basic-r2018-92`, `misc/proxy-basic-r2010-160` (+2 more) | open |
 | Q-0694 | proxy | [T] With $PROXYGRAPHICS=0 or missing enabler, what does AutoCAD plot for a custom object (bbox + class name text)? | 07 §15.3 (07:20) | `misc/proxy-no-graphics` | open |
 | Q-0695 | proxy | [A] Does AutoCAD ignore proxy graphics (310) on known entity types (e.g. MULTILEADER from BricsCAD) and plot from entity data even when they disagree? | 07 §15.3; 05 §0 item 7, §12.5 (07:20, 05:T17) | plan: misc (png) — BricsCAD-written MLEADER with proxy graphic differing from native geometry | open |
@@ -1044,6 +1074,9 @@ Answers (VERIFIED-BY-ACAD, AutoCAD 2027, 2026-09-30):
 | Q-0700 | proxy | [U] Do proxy sub-entity traits default to the host's layer/color/ltype/lw, and how are color 0 (BYBLOCK) and circle normal (0,0,-1) resolved in an INSERT? | 07 §15.3, §17; 11a §16 (07:20, 11a:43) | `misc/proxy-color-layer`, `misc/proxy-traits-default-in-insert` | open |
 | Q-0701 | proxy | [U] Are proxy graphics coordinates of an entity inside a block in block coords, transformed by the INSERT matrix? | 07 §15.3, §17 (07:20) | `misc/proxy-traits-default-in-insert`, `misc/proxy-in-rotated-insert` | open |
 | Q-0702 | proxy | [U] Do nested PUSH_MODELXFORM (op 29/30) matrices in proxy graphics compose with each other and the outer transform? | 07 §15.3, §17 (07:20) | `misc/proxy-nested-matrix` | open |
+
+- Q-0692: Yes: DXFOUT writes 3DSOLID / REGION without 92/160 + 310 (`misc/solid-box-*`, `region-square-*`).
+- Note: Blocked: every `misc/proxy-*` fixture is rejected by AutoCAD on load (invalid-fixture); Q-0691, Q-0693 … Q-0702 need valid ACAD_PROXY_ENTITY fixtures (note 07 §15.4).
 
 <a id="layouts"></a>
 ## Layouts and PLOTSETTINGS (`layouts`)

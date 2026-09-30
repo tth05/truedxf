@@ -780,6 +780,22 @@ Object in NOD `ACAD_IMAGE_VARS`: 90 version, **70 frame** (0 no frame, 1 frame),
 
 ---------------------------------------------------------------------------------------------------
 
+### 8.5 What the reference harness shows (VERIFIED-BY-ACAD, accoreconsole 2027, 2026-09-30)
+
+- **accoreconsole plots no IMAGE and no WIPEOUT at all**: no bitmap, no frame (even with
+  IMAGEFRAME 1 / WIPEOUTFRAME 1, colour 1, 0.70 mm), no masking; every IMAGE case in `images/*`
+  and every `images/wipeout*` case plots only its vector context. On DXFOUT both entities get an
+  empty proxy graphic (PUSH_MODELXFORM identity + POP only): the ISM / WipeOut modules draw nothing
+  in the console. So §8.4 / §9 **cannot be verified with the console**; truedxf renders them
+  (RenderEnv.rasterEntities "draw", render/src/draw/image.ts, UNVERIFIED formulas) and the harness
+  uses "omit". Verifying needs plots from full AutoCAD (acad.exe).
+- Storage (DXFOUT): RASTERVARIABLES 70 keeps the value 2 (`imageframe-2`); WIPEOUTVARIABLES 70 = 2
+  is kept and a WIPEOUTFRAME DICTIONARYVAR is written (`wipeoutframe-*`).
+- PDF underlays **are** plotted by the console (content and colours, `images/pdf-*`). PDFFRAME is
+  read from the DICTIONARYVAR `PDFFRAME`: 1 (and absent) plots the frame, 0 and 2 do not
+  (`pdfframe-dictvar-0/1/2`; 0 and 2 byte-identical). truedxf draws only an underlay's clip frame
+  so far (no PDF content).
+
 ## 9. WIPEOUT (+ WIPEOUTVARIABLES)
 
 - Same subclass layout as IMAGE (`AcDbWipeout`/`AcDbRasterImage`, spec:L7534ff), with
@@ -991,6 +1007,26 @@ fill (flag 1): polygon bottom border (forward) + top border (reversed), fill col
 
 ---------------------------------------------------------------------------------------------------
 
+### 12.5 Verified (mline suite, AutoCAD 2027, 2026-09-30)
+
+- The stored vertex data are drawn as is; **vertex element k takes the style element with the
+  k-th largest offset** (AutoCAD keeps elements sorted), whatever the order of the style's 49
+  list (`unsorted-offsets-*`). Caps and joints run between vertex elements 0 and n-1.
+- Element colours / linetypes resolve like exploded LINEs on the MLINE's layer: BYLAYER -> the
+  MLINE's layer, BYBLOCK -> the enclosing block context (top level: ACI 7 / Continuous); the
+  MLINE's own colour, 420 true colour and linetype are not used (`props-*`, `true-color`); this
+  resolves the §12.3 CONFLICT against the "BYBLOCK = MLINE colour" assumption.
+- 340 wins over the style name in group 2 (`style-name-handle-mismatch`).
+- Square caps / joints: two halves from the ends to the midpoint, coloured by elements 0 and n-1;
+  round caps: two quarter arcs; inner arcs: every symmetric pair (k, n-1-k), k = 1 .. floor(n/2)-1
+  (`caps-*`, `miters-*`); fill under the lines including round caps, negative scale fine
+  (`fill-round-neg/pos`); 41 break parameters are honoured (`breaks-*`); the hand-written 42
+  fill-break lists did not split the fill (`fill-breaks-*`).
+- Linetypes restart per segment (like exploded LINEs); AutoCAD's dash pixels are 1 px off ours
+  along whole dashed lines (`props-*`), a linetype rasterization detail.
+- Open: fill of self-overlapping closed MLINEs (`random-0003`) and at sharp end miters
+  (`random-0004`); non-90 degree caps are close but not pixel-exact (`angles-45-135-*`).
+
 ## 13. ACAD_TABLE and TABLESTYLE
 
 ### 13.1 Structure (ezdxf:entities/acad_table.py:33-235, libredwg:dwg2.spec:477-560, acadsharp:Entities/TableEntity.cs)
@@ -1034,6 +1070,10 @@ fill (flag 1): polygon bottom border (forward) + top border (reversed), fill col
 | IDBUFFER / LAYER_FILTER / SPATIAL_INDEX | objects | no | |
 
 ---------------------------------------------------------------------------------------------------
+
+VERIFIED-BY-ACAD (misc suite, 2026-09-30): LIGHT plots nothing, whatever its plot-glyph flag
+(`light-point-glyph-0/1`, `light-spot`). Native 3DSOLID / REGION are written by DXFOUT without
+proxy graphics.
 
 ## 15. ACAD_PROXY_ENTITY and proxy graphics
 
@@ -1145,6 +1185,14 @@ faces `(rows−1)·(cols−1)`.
   and skips the entity.
 
 ---------------------------------------------------------------------------------------------------
+
+### 15.4 Status (2026-09-30)
+
+- All `misc/proxy-*` fixtures are rejected by AutoCAD 2027 on load ("Invalid or incomplete DXF
+  input", invalid-fixture), so nothing in §15.2 / §15.3 is verified yet; the generator needs a
+  valid ACAD_PROXY_ENTITY. truedxf decodes the opcodes of §15.2 (text and the LWPOLYLINE bitstream
+  are skipped), composes nested model transforms and starts from the entity's own traits
+  (render/src/draw/proxy.ts); unknown entities with proxy graphics fall back to it.
 
 ## 16. Explode / "virtual entities" semantics
 

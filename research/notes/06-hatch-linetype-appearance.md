@@ -1030,6 +1030,26 @@ netDxf:Transparency.cs)
 
 ---
 
+### 4.3 Calibration results (VERIFIED-BY-ACAD, AutoCAD 2027, 2026-09-30, transparency suite)
+
+- **PLOTTRANSPARENCYOVERRIDE**: 0 = never (opaque even when the LAYOUT XDATA `PLOTTRANSPARENCY
+  1071 1` is set: `layouts/pagesetup-plottransparency`, `transparency/entity-050-plot-off`),
+  1 = page setup XDATA, 2 = always (all other `transparency/*` cases set 2). The harness prologue
+  sets 0, so truedxf's PlotRequest default is 0 too (render/src/transparency.ts).
+- **Blend formula** (PNG, 8-bit per channel, no dithering, no AA): `out = (src*a + dst*(256 - a)) >> 8`
+  with `a = 440 & 0xFF`. 50 % (a = 127): red over white (255,128,128), over blue (126,0,128), over
+  black (126,0,0); 25/75/90 % and a second 50 % layer on top agree exactly (`entity-025/050/075/090`,
+  `overlap-same-color`). Every drawn primitive blends over what is already there.
+- Resolution: 440 absent or 0 -> layer (AcCmTransparency XDATA: `layer-070`, `bylayer-zero`,
+  `bylayer-absent`), `0x01000000` -> the INSERT's (`byblock-insert-*`), top-level BYBLOCK -> opaque
+  (`byblock-entity-toplevel`). AC1018 files plot transparency too (`ac1018`).
+- Blend units: a solid HATCH / SOLID blends once per pixel; a stroke blends **per segment**: the
+  round-capped segments of a 2.11 mm circle or LWPOLYLINE darken twice where they overlap, and the
+  segments of a width-6 LWPOLYLINE overlap at the joints (`other-fills`, `wide-lines`).
+- A pattern HATCH's background colour fill is transparent as well (`hatch-background`).
+- Open: ACI 30 at 60 % gives G = 203 where the formula with the plot palette's 127 gives 204
+  (`random-0001`): one channel of a few colours is off by one.
+
 ## 5. Lineweights
 
 ### 5.1 Values (370)
@@ -1359,6 +1379,22 @@ Notes:
   order.
 - `$SORTENTS` (spec:L1468, default 127) — legacy bit flags (16 = regen, 32 = plotting) "uses sort
   table for …". ASSUMPTION: modern AutoCAD always honours the table. Ignore.
+
+VERIFIED-BY-ACAD (draworder suite, AutoCAD 2027, 2026-09-30):
+- No SORTENTSTABLE: **file order**, not handle order (`draworder/file-vs-handle-*`).
+- With a table: key = sort handle if listed, else the entity's own handle; ascending numeric hex
+  (`sortents-hex-compare`: 9 < FF < 100), equal keys keep file order (`sortents-duplicate`); sort
+  handle `0` is an ordinary key 0, drawn **first**, not last (`sortents-zero-handle`; ezdxf's
+  "0 sorts last" does not hold for AutoCAD 2027 PLOT); entries for missing entities are ignored
+  (`sortents-invalid-entity`); unlisted entities interleave by their own handle
+  (`sortents-unlisted`, `random-*`).
+- `$SORTENTS` bit 32 (plotting) gates the table for PLOT: 0 and 95 plot in file order, 111 and
+  127 sorted (`sortents-000/095/111/127`).
+- Block definitions honour their own ACAD_SORTENTS (`block-sortents`); an INSERT is one unit in
+  the parent order and a table can move a top-level entity between two INSERTs
+  (`insert-sortents-between`).
+- Solid fills (HATCH, SOLID, TRACE, wide polylines) keep plain draw order
+  (`hatch-before/after-lines`, `mixed-fills-order`, `hatch-*-mtext`).
 
 ### 8.3 Special entities
 

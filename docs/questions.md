@@ -992,7 +992,7 @@ Answers (VERIFIED-BY-ACAD, AutoCAD 2027, 2026-09-30):
 | Q-0656 | images | [T] With IMAGE transparency flag 8, is PNG alpha honored (off: alpha forced opaque), and does entity transparency 440 multiply it? | 07 §8.4 (07:14) | `images/alpha-flag8-off`, `images/alpha-flag8-on`, `images/alpha-flag8-on-t50`, `images/alpha-flag8-off-t50` (+1 more) | open |
 | Q-0657 | images | [T] Are bitonal (1-bit) image foreground pixels plotted in entity color, and background transparent with flag 8? | 07 §8.4 (07:14) | `images/bitonal-png-red`, `images/bitonal-png-red-transp`, `images/bitonal-png-bylayer-green`, `images/bitonal-png-color7-transp` (+6 more) | open |
 | Q-0658 | images | [U] Which resampling filter (nearest/bilinear) and raster resolution does PLOT use when scaling an IMAGE up? | 07 §8.4, §17 (07:14) | `images/resample-2x2`, `images/resample-3x3-fraction`, `images/resample-pattern-up`, `images/resample-pattern-down` (+1 more) | open |
-| Q-0659 | images | [U] What is a PDF underlay's size at scale 1: 1 PDF inch = 1 drawing unit, with unit conversion baked into 41/42? | 07 §10.1, §17 (07:16) | `images/pdf-natural-mm`, `images/pdf-natural-inch`, `images/pdf-basic` | open |
+| Q-0659 | images | [U] What is a PDF underlay's size at scale 1: 1 PDF inch = 1 drawing unit, with unit conversion baked into 41/42? | 07 §10.1, §17 (07:16) | `images/pdf-natural-mm`, `images/pdf-natural-inch`, `images/pdf-basic` | answered |
 | Q-0660 | images | [T] Is an underlay clip boundary (11/21) in unscaled underlay-local units, and does flag 16 invert it? | 07 §10.1 (07:16) | `images/pdf-clip-rect`, `images/pdf-clip-inverted`, `images/pdf-clip-poly` | open |
 | Q-0661 | images | [A] Does underlay monochrome flag (280 bit 4) plot all non-white PDF content black? | 07 §10.3 (07:16) | `images/pdf-flags-mono`, `images/pdf-flags-off` | open |
 | Q-0662 | images | [U] Does underlay 'adjust for background' (280 bit 8) affect PLOT output or only screen display? | 07 §10.3 (07:16) | `images/pdf-flags-adjustbg`, `images/pdf-flags-plain` | open |
@@ -1003,6 +1003,7 @@ Answers (VERIFIED-BY-ACAD, AutoCAD 2027, 2026-09-30):
 | Q-0667 | images | [U] How does PLOT render OLE2FRAME objects (cached presentation WMF/EMF/DIB), incl. rotated frames from the 4 header corners? | 07 §11 (07:17) | plan: images (png) — embedded Paintbrush bitmap and Excel range OLE; rotated OLE frame | open |
 
 - Q-0650: Storage only: DXFOUT keeps RASTERVARIABLES 70 = 2 (`images/imageframe-2`); the plot effect is untestable, see the note below.
+- Q-0659: Yes: 1 PDF inch = 1 drawing unit at scale 1, independent of INSUNITS (`images/pdf-natural-mm`, `pdf-natural-inch`).
 - Q-0665: DICTIONARYVAR `PDFFRAME` is read: 1 (default when absent) plots the underlay frame, 0 and 2 do not (`images/pdfframe-dictvar-*`; 0 and 2 byte-identical).
 - Note: Blocked: accoreconsole (the reference harness) plots **no IMAGE and no WIPEOUT** at all — no bitmap, no frame, no mask; DXFOUT stores empty proxy graphics for both (note 07 §8.5). Q-0640 … Q-0658 and Q-0668 … Q-0675 need plots from full AutoCAD; truedxf renders them per the UNVERIFIED rules (RenderEnv.rasterEntities, harness uses omit).
 

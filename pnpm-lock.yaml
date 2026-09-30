@@ -291,12 +291,19 @@ importers:
 
   packages/text:
     dependencies:
+      '@truedxf/core':
+        specifier: workspace:*
+        version: link:../core
       '@truedxf/fonts':
         specifier: workspace:*
         version: link:../fonts
       '@truedxf/geometry':
         specifier: workspace:*
         version: link:../geometry
+    devDependencies:
+      '@truedxf/model':
+        specifier: workspace:*
+        version: link:../model
 
   packages/three:
     dependencies:

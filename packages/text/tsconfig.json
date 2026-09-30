@@ -8,6 +8,9 @@
   "include": ["src", "../../types/web-globals.d.ts"],
   "references": [
     {
+      "path": "../core"
+    },
+    {
       "path": "../fonts"
     },
     {

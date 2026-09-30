@@ -21,7 +21,11 @@
     "src"
   ],
   "dependencies": {
+    "@truedxf/core": "workspace:*",
     "@truedxf/fonts": "workspace:*",
     "@truedxf/geometry": "workspace:*"
+  },
+  "devDependencies": {
+    "@truedxf/model": "workspace:*"
   }
 }

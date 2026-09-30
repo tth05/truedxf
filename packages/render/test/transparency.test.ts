@@ -19,8 +19,11 @@ describe("plotsTransparency", () => {
     expect(plotsTransparency(doc, { ...request, sysvars: { PLOTTRANSPARENCYOVERRIDE: 2 } } as never)).toBe(
       true,
     );
-    // 1 (default): page setup; no LAYOUT XDATA here → opaque
+    // default 0 (harness prologue); 1 follows the page setup (no LAYOUT XDATA here → opaque)
     expect(plotsTransparency(doc, request)).toBe(false);
+    expect(plotsTransparency(doc, { ...request, sysvars: { PLOTTRANSPARENCYOVERRIDE: 1 } } as never)).toBe(
+      false,
+    );
   });
 });
 

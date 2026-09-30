@@ -2,9 +2,11 @@
  * Plotted transparency (note 06 §4).
  *
  * VERIFIED-BY-ACAD (transparency suite, 2026-09-30):
- * - PLOTTRANSPARENCYOVERRIDE 0 plots everything opaque (transparency/entity-050-plot-off);
- *   2 always plots transparency. 1 (AutoCAD's default) follows the page setup: LAYOUT XDATA
- *   `1001 PLOTTRANSPARENCY / 1071 1`.
+ * - PLOTTRANSPARENCYOVERRIDE 0 plots everything opaque, even with the page-setup flag set
+ *   (transparency/entity-050-plot-off, layouts/pagesetup-plottransparency); 2 always plots
+ *   transparency; 1 follows the page setup: LAYOUT XDATA `1001 PLOTTRANSPARENCY / 1071 1`.
+ *   PlotRequest.sysvars defaults to 0 like the reference harness prologue (docs/fixtures.md);
+ *   pass 1 for AutoCAD's out-of-the-box behaviour.
  * - Blending over what is already drawn, per 8-bit channel, alpha a = 440 & 0xFF:
  *   out = (src·a + dst·(256 − a)) >> 8 (entity-025/050/075/090, overlap-same-color, layer-070).
  * - Layer transparency (AcCmTransparency XDATA) applies to BYLAYER entities; BYBLOCK takes the
@@ -18,8 +20,7 @@ import type { PlotRequest } from "./plot.ts";
 import type { PixelGrid } from "./raster.ts";
 
 export function plotsTransparency(doc: DxfDocument, request: PlotRequest): boolean {
-  const sys = (request as PlotRequest & { sysvars?: Readonly<Record<string, number | string>> }).sysvars;
-  const override = Number(sys?.PLOTTRANSPARENCYOVERRIDE ?? 1);
+  const override = Number(request.sysvars?.PLOTTRANSPARENCYOVERRIDE ?? 0);
   if (override === 0) return false;
   if (override === 2) return true;
   const key = request.layout.toUpperCase();

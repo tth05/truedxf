@@ -45,6 +45,12 @@ export interface RenderEnv {
    * bare; the host decides how to search, e.g. relative to the DXF folder); undefined = missing.
    */
   loadImage?: (path: string) => Promise<Uint8Array | undefined>;
+  /**
+   * IMAGE and WIPEOUT (AutoCAD's ISM raster module): `draw` (default) or `omit`. accoreconsole
+   * plots neither — not even frames (VERIFIED-BY-ACAD, images suite, note 07 §8.4) — so the
+   * reference harness uses `omit`.
+   */
+  rasterEntities?: "draw" | "omit";
   calibration?: Partial<PlotCalibration>;
   /**
    * `autocad` (default for plots): emulate AutoCAD's raster plot rules exactly (pixel-snapped

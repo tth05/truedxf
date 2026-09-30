@@ -6,7 +6,7 @@
  * geometry is positioned relative to the camera centre in float64 on the CPU (float32 precision);
  * clip regions use the stencil buffer (even-odd via INVERT).
  */
-import type { Batch, DisplayList } from "@truedxf/render";
+import type { Batch, DisplayList, RasterImage } from "@truedxf/render";
 import * as THREE from "three";
 
 // raw sRGB byte values in, the same values out
@@ -14,6 +14,7 @@ THREE.ColorManagement.enabled = false;
 
 const TRIANGLES = 0;
 const LINES = 1;
+const IMAGE = 3;
 
 export interface RendererOptions {
   canvas?: HTMLCanvasElement | OffscreenCanvas;
@@ -45,6 +46,8 @@ export class DisplayListRenderer {
   readonly camera = new THREE.OrthographicCamera(-1, 1, 1, -1, -1, 1);
   private objects: BatchObject[] = [];
   private list: DisplayList | undefined;
+  /** Textures of DisplayList.images (shared by the batches of one list). */
+  private textures = new Map<RasterImage, THREE.DataTexture>();
   /** Group for user content drawn on top of the drawing (world coordinates via `worldGroup`). */
   readonly overlay = new THREE.Group();
   private centerX = 0;
@@ -103,13 +106,34 @@ export class DisplayListRenderer {
       stencilZPass: THREE.KeepStencilOp,
     } as const;
     let obj: THREE.Object3D;
-    if (batch.kind === TRIANGLES)
+    if (batch.kind === IMAGE && batch.uvs && batch.image !== undefined) {
+      geom.setAttribute("uv", new THREE.BufferAttribute(batch.uvs, 2));
+      const map = this.texture(this.list!.images[batch.image]!);
+      obj = new THREE.Mesh(geom, new THREE.MeshBasicMaterial({ ...common, map, side: THREE.DoubleSide }));
+    } else if (batch.kind === TRIANGLES)
       obj = new THREE.Mesh(geom, new THREE.MeshBasicMaterial({ ...common, side: THREE.DoubleSide }));
     else if (batch.kind === LINES) obj = new THREE.LineSegments(geom, new THREE.LineBasicMaterial(common));
     else
       obj = new THREE.Points(geom, new THREE.PointsMaterial({ ...common, size: 1, sizeAttenuation: false }));
     obj.frustumCulled = false;
     return obj;
+  }
+
+  /** Nearest-sampled RGBA texture, rows top first (uv (0,0) = top-left, so no flip). */
+  private texture(img: RasterImage): THREE.DataTexture {
+    let t = this.textures.get(img);
+    if (!t) {
+      t = new THREE.DataTexture(img.pixels, img.width, img.height, THREE.RGBAFormat, THREE.UnsignedByteType);
+      t.magFilter = THREE.NearestFilter;
+      t.minFilter = THREE.NearestFilter;
+      t.generateMipmaps = false;
+      t.flipY = false;
+      t.colorSpace = THREE.NoColorSpace;
+      t.unpackAlignment = 1;
+      t.needsUpdate = true;
+      this.textures.set(img, t);
+    }
+    return t;
   }
 
   private addStencilReset(order: number): void {
@@ -229,6 +253,8 @@ export class DisplayListRenderer {
       else mat?.dispose();
     }
     this.objects = [];
+    for (const t of this.textures.values()) t.dispose();
+    this.textures.clear();
     this.list = undefined;
   }
 

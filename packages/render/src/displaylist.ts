@@ -13,6 +13,12 @@ export const PrimitiveKind = {
   Lines: 1,
   /** Points, rendered as single device pixels. */
   Points: 2,
+  /**
+   * Textured triangle list (3 vertices per triangle): `uvs` per vertex into
+   * `DisplayList.images[batch.image]` ((0,0) = top-left corner of the bitmap, nearest sampling);
+   * the vertex colour multiplies the texel (white = unchanged; alpha = entity transparency).
+   */
+  Image: 3,
 } as const;
 export type PrimitiveKind = (typeof PrimitiveKind)[keyof typeof PrimitiveKind];
 
@@ -32,6 +38,17 @@ export interface Batch {
    * DisplayList.entities (entity handles / ids).
    */
   readonly pick: Uint32Array;
+  /** Image batches: texture coordinates per vertex (u, v pairs). */
+  readonly uvs?: Float32Array;
+  /** Image batches: index into DisplayList.images. */
+  readonly image?: number;
+}
+
+/** A decoded raster for Image batches: RGBA rows, top row first (not premultiplied). */
+export interface RasterImage {
+  readonly width: number;
+  readonly height: number;
+  readonly pixels: Uint8Array;
 }
 
 /** A clip region: polygons (even-odd) in the same world coordinates as the batches. */
@@ -55,6 +72,8 @@ export interface DisplayList {
   readonly bounds: Bounds;
   readonly batches: readonly Batch[];
   readonly clips: readonly ClipRegion[];
+  /** Rasters referenced by Image batches. */
+  readonly images: readonly RasterImage[];
   /** Entity identities referenced by pick ranges: handle (or "#id" when the entity has none). */
   readonly entities: readonly string[];
 }
@@ -73,8 +92,11 @@ export function transferables(list: DisplayList): ArrayBuffer[] {
   const out: ArrayBuffer[] = [];
   for (const b of list.batches) {
     out.push(b.positions.buffer as ArrayBuffer, b.colors.buffer as ArrayBuffer, b.pick.buffer as ArrayBuffer);
+    if (b.uvs) out.push(b.uvs.buffer as ArrayBuffer);
   }
-  return out;
+  // an image may be shared by several lists (caches): transfer copies only
+  for (const im of list.images) if (im.pixels.byteOffset === 0) out.push(im.pixels.buffer as ArrayBuffer);
+  return [...new Set(out)];
 }
 
 class GrowF32 {
@@ -127,6 +149,10 @@ export class DisplayListBuilder {
   background: [number, number, number] = [255, 255, 255];
   private readonly batches: Batch[] = [];
   private readonly clips: ClipRegion[] = [];
+  private readonly images: RasterImage[] = [];
+  private readonly imageIds = new Map<RasterImage, number>();
+  private image = -1;
+  private uv = new GrowF32();
   private readonly entities: string[] = [];
   private readonly bounds = emptyBounds();
   private kind: PrimitiveKind = PrimitiveKind.Triangles;
@@ -179,10 +205,11 @@ export class DisplayListBuilder {
     }
   }
 
-  private ensure(kind: PrimitiveKind, vertices: number, x: number, y: number): void {
-    if (kind !== this.kind || this.vertexCount + vertices > this.maxBatchVertices) {
+  private ensure(kind: PrimitiveKind, vertices: number, x: number, y: number, image = -1): void {
+    if (kind !== this.kind || image !== this.image || this.vertexCount + vertices > this.maxBatchVertices) {
       this.flush();
       this.kind = kind;
+      this.image = image;
     }
     if (this.vertexCount === 0) {
       this.originX = x;
@@ -226,6 +253,28 @@ export class DisplayListBuilder {
     }
   }
 
+  /**
+   * Adds textured triangles: `xy` as for {@link triangles}, `uv` one (u, v) pair per vertex with
+   * (0,0) = top-left corner of the bitmap; `color` multiplies the texels.
+   */
+  imageTriangles(xy: ArrayLike<number>, uv: ArrayLike<number>, image: RasterImage, color: Rgba): void {
+    const n = xy.length >> 1;
+    if (n < 3) return;
+    let id = this.imageIds.get(image);
+    if (id === undefined) {
+      id = this.images.length;
+      this.images.push(image);
+      this.imageIds.set(image, id);
+    }
+    this.ensure(PrimitiveKind.Image, n - (n % 3), xy[0]!, xy[1]!, id);
+    for (let i = 0; i + 2 < n; i += 3) {
+      for (let k = 0; k < 3; k++) {
+        this.vertex(xy[(i + k) * 2]!, xy[(i + k) * 2 + 1]!, color);
+        this.uv.push2(uv[(i + k) * 2]!, uv[(i + k) * 2 + 1]!);
+      }
+    }
+  }
+
   /** Adds single-pixel points [x0,y0,…]. */
   points(xy: ArrayLike<number>, color: Rgba): void {
     const n = xy.length >> 1;
@@ -245,8 +294,10 @@ export class DisplayListBuilder {
         colors: this.col.take(),
         clip: this.clip,
         pick: Uint32Array.from(this.pick),
+        ...(this.kind === PrimitiveKind.Image ? { uvs: this.uv.take(), image: this.image } : {}),
       });
     }
+    this.uv = new GrowF32();
     this.pos = new GrowF32();
     this.col = new GrowU8();
     this.pick = [];
@@ -262,6 +313,7 @@ export class DisplayListBuilder {
       bounds: { ...this.bounds },
       batches: this.batches,
       clips: this.clips,
+      images: this.images,
       entities: this.entities,
     };
   }

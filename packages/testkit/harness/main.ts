@@ -1,6 +1,7 @@
 /**
  * Browser side of the visual harness: parse → frontend → three.js → PNG, driven by Playwright
- * through `window.truedxf`. Fonts are fetched from the harness server (`/fonts/<file>`).
+ * through `window.truedxf`. Fonts are fetched from the harness server (`/fonts/<file>`), raster
+ * images from `/images/<suite>/<IMAGEDEF path>`.
  */
 import { loadDxf } from "@truedxf/model";
 import { type PlotRequest, type RenderEnv, renderPlot } from "@truedxf/render";
@@ -33,6 +34,18 @@ function fromBase64(b64: string): Uint8Array {
 export interface HarnessOptions {
   /** Fonts AutoCAD could not see when the references were made (regex on file/family name). */
   hideFonts?: string;
+  /** Fixture suite (image paths resolve relative to its folder). */
+  suite?: string;
+  /** Draw IMAGE / WIPEOUT (accoreconsole omits them). */
+  drawRaster?: boolean;
+}
+
+function imageLoader(suite: string | undefined) {
+  return async (path: string): Promise<Uint8Array | undefined> => {
+    if (!suite) return undefined;
+    const r = await fetch(`/images/${suite}/${encodeURIComponent(path)}`);
+    return r.ok ? new Uint8Array(await r.arrayBuffer()) : undefined;
+  };
 }
 
 export interface HarnessResult {
@@ -57,7 +70,11 @@ window.truedxf = {
     const t0 = performance.now();
     const doc = loadDxf(fromBase64(dxfBase64));
     const t1 = performance.now();
-    const env: RenderEnv & { text?: { unavailableFonts?: RegExp } } = { loadFont };
+    const env: RenderEnv & { text?: { unavailableFonts?: RegExp } } = {
+      loadFont,
+      loadImage: imageLoader(options?.suite),
+      rasterEntities: options?.drawRaster ? "draw" : "omit",
+    };
     if (options?.hideFonts) env.text = { unavailableFonts: new RegExp(options.hideFonts, "i") };
     const plot = await renderPlot(doc, request, env);
     const t2 = performance.now();

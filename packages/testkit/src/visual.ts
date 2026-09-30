@@ -3,7 +3,9 @@
  * headless Chromium (SwiftShader, no antialiasing) and compares them with AutoCAD references.
  *
  *   node packages/testkit/src/visual.ts [--suite s]… [--case suite/case]… [--refs <dir>]
- *        [--out <dir>] [--repeat 2] [--no-build]
+ *        [--out <dir>] [--repeat 2] [--no-build] [--draw-raster]
+ *
+ * IMAGE / WIPEOUT are omitted like accoreconsole does (note 07 §8.4) unless --draw-raster.
  *
  * Outputs to samples/out/visual/: <suite>/<case>.png (ours), <case>.diff.png, results.json,
  * report.html. See docs/fixtures.md for the fixture/reference layout.
@@ -13,6 +15,7 @@ import { createServer, type Server } from "node:http";
 import { dirname, extname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
+import { findImageFile } from "./image-files.ts";
 import { compare, diffImage, type Metrics } from "./metrics.ts";
 import { decodePng, readPng, writePng } from "./png.ts";
 
@@ -39,6 +42,8 @@ interface Args {
   build: boolean;
   /** Regex of fonts to treat as unavailable (mirrors fonts AutoCAD could not see). */
   hideFonts?: string;
+  /** Draw IMAGE / WIPEOUT (accoreconsole references never show them). */
+  drawRaster: boolean;
 }
 
 function parseArgs(argv: string[]): Args {
@@ -48,6 +53,7 @@ function parseArgs(argv: string[]): Args {
     out: join(ROOT, "samples", "out", "visual"),
     repeat: 1,
     build: true,
+    drawRaster: false,
   };
   for (let i = 0; i < argv.length; i++) {
     const k = argv[i];
@@ -58,6 +64,7 @@ function parseArgs(argv: string[]): Args {
     else if (k === "--repeat") a.repeat = Number(argv[++i]);
     else if (k === "--no-build") a.build = false;
     else if (k === "--hide-fonts") a.hideFonts = argv[++i]!;
+    else if (k === "--draw-raster") a.drawRaster = true;
   }
   return a;
 }
@@ -117,6 +124,22 @@ const MIME: Record<string, string> = {
 function serve(): Promise<{ server: Server; url: string }> {
   const server = createServer((req, res) => {
     const url = decodeURIComponent((req.url ?? "/").split("?")[0]!);
+    if (url.startsWith("/images/")) {
+      // /images/<suite>/<IMAGEDEF path>: resolved like AutoCAD relative to the fixture folder
+      const rest = url.slice(8);
+      const cut = rest.indexOf("/");
+      const suite = rest.slice(0, cut);
+      const hit = /^[a-z0-9-]+$/.test(suite)
+        ? findImageFile(rest.slice(cut + 1), join(GENERATED, suite))
+        : undefined;
+      if (!hit) {
+        res.writeHead(404).end();
+        return;
+      }
+      res.writeHead(200, { "content-type": "application/octet-stream" });
+      res.end(readFileSync(hit));
+      return;
+    }
     if (url.startsWith("/fonts/")) {
       const name = url.slice(7);
       for (const d of FONT_DIRS) {
@@ -153,7 +176,7 @@ interface HarnessWindow {
     render(
       dxf: string,
       plot: CaseMeta["plot"],
-      options?: { hideFonts?: string },
+      options?: { hideFonts?: string; suite?: string; drawRaster?: boolean },
     ): Promise<{ png: string; ms: unknown; batches: number }>;
   };
 }
@@ -199,7 +222,11 @@ async function main(): Promise<void> {
       for (let k = 0; k < Math.max(1, args.repeat); k++) {
         const res = await page.evaluate(
           ([d, p, o]) => (window as unknown as HarnessWindow).truedxf.render(d, p, o),
-          [b64, meta.plot, { hideFonts: args.hideFonts }] as const,
+          [
+            b64,
+            meta.plot,
+            { hideFonts: args.hideFonts, suite: meta.suite, drawRaster: args.drawRaster },
+          ] as const,
         );
         pngs.push(res.png);
         r.ms = res.ms;

@@ -1,7 +1,8 @@
 /**
  * Scores whole suites with the CPU rasterizer (no browser; fast triage between visual runs):
- *   node packages/testkit/src/cpu-suite.ts <suite>[/<case>] … [--out <dir>] [--quiet]
- * Images are resolved like the harness (IMAGEDEF path, then next to the fixture).
+ *   node packages/testkit/src/cpu-suite.ts <suite>[/<case>] … [--out <dir>] [--quiet] [--draw-raster]
+ * Images are resolved like the harness (IMAGEDEF path, then next to the fixture). IMAGE / WIPEOUT
+ * are omitted like accoreconsole does unless --draw-raster.
  */
 import { existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
@@ -19,10 +20,12 @@ const REF = join(ROOT, "samples", "refs", "acad2027-R26.0");
 const args = process.argv.slice(2);
 let out: string | undefined;
 let quiet = false;
+let drawRaster = false;
 const targets: string[] = [];
 for (let i = 0; i < args.length; i++) {
   if (args[i] === "--out") out = resolve(args[++i]!);
   else if (args[i] === "--quiet") quiet = true;
+  else if (args[i] === "--draw-raster") drawRaster = true;
   else targets.push(args[i]!);
 }
 let n = 0;
@@ -41,7 +44,10 @@ for (const t of targets) {
     if (!existsSync(refPng) || !existsSync(dxf)) continue;
     try {
       const doc = loadDxf(new Uint8Array(readFileSync(dxf)));
-      const r = await renderPlot(doc, meta.plot, { loadImage: nodeImageLoader(dir) });
+      const r = await renderPlot(doc, meta.plot, {
+        loadImage: nodeImageLoader(dir),
+        rasterEntities: drawRaster ? "draw" : "omit",
+      });
       const img = rasterize(r.displayList, r.view, meta.plot.canvas);
       const ref = readPng(refPng);
       const m = compare(img, ref);

@@ -3,7 +3,7 @@
  * through `window.truedxf`. Fonts are fetched from the harness server (`/fonts/<file>`).
  */
 import { loadDxf } from "@truedxf/model";
-import { type PlotRequest, renderPlot } from "@truedxf/render";
+import { type PlotRequest, type RenderEnv, renderPlot } from "@truedxf/render";
 import { DisplayListRenderer } from "@truedxf/three";
 
 const canvas = document.createElement("canvas");
@@ -30,6 +30,11 @@ function fromBase64(b64: string): Uint8Array {
   return out;
 }
 
+export interface HarnessOptions {
+  /** Fonts AutoCAD could not see when the references were made (regex on file/family name). */
+  hideFonts?: string;
+}
+
 export interface HarnessResult {
   png: string;
   width: number;
@@ -41,16 +46,20 @@ export interface HarnessResult {
 
 declare global {
   interface Window {
-    truedxf: { render(dxfBase64: string, request: PlotRequest): Promise<HarnessResult> };
+    truedxf: {
+      render(dxfBase64: string, request: PlotRequest, options?: HarnessOptions): Promise<HarnessResult>;
+    };
   }
 }
 
 window.truedxf = {
-  async render(dxfBase64, request) {
+  async render(dxfBase64, request, options) {
     const t0 = performance.now();
     const doc = loadDxf(fromBase64(dxfBase64));
     const t1 = performance.now();
-    const plot = await renderPlot(doc, request, { loadFont });
+    const env: RenderEnv & { text?: { unavailableFonts?: RegExp } } = { loadFont };
+    if (options?.hideFonts) env.text = { unavailableFonts: new RegExp(options.hideFonts, "i") };
+    const plot = await renderPlot(doc, request, env);
     const t2 = performance.now();
     const [w, h] = request.canvas;
     renderer.setSize(w, h, true);

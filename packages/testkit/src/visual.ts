@@ -37,6 +37,8 @@ interface Args {
   out: string;
   repeat: number;
   build: boolean;
+  /** Regex of fonts to treat as unavailable (mirrors fonts AutoCAD could not see). */
+  hideFonts?: string;
 }
 
 function parseArgs(argv: string[]): Args {
@@ -55,6 +57,7 @@ function parseArgs(argv: string[]): Args {
     else if (k === "--out") a.out = resolve(argv[++i]!);
     else if (k === "--repeat") a.repeat = Number(argv[++i]);
     else if (k === "--no-build") a.build = false;
+    else if (k === "--hide-fonts") a.hideFonts = argv[++i]!;
   }
   return a;
 }
@@ -147,7 +150,11 @@ function serve(): Promise<{ server: Server; url: string }> {
 
 interface HarnessWindow {
   truedxf: {
-    render(dxf: string, plot: CaseMeta["plot"]): Promise<{ png: string; ms: unknown; batches: number }>;
+    render(
+      dxf: string,
+      plot: CaseMeta["plot"],
+      options?: { hideFonts?: string },
+    ): Promise<{ png: string; ms: unknown; batches: number }>;
   };
 }
 
@@ -191,8 +198,8 @@ async function main(): Promise<void> {
       const pngs: string[] = [];
       for (let k = 0; k < Math.max(1, args.repeat); k++) {
         const res = await page.evaluate(
-          ([d, p]) => (window as unknown as HarnessWindow).truedxf.render(d, p),
-          [b64, meta.plot] as const,
+          ([d, p, o]) => (window as unknown as HarnessWindow).truedxf.render(d, p, o),
+          [b64, meta.plot, { hideFonts: args.hideFonts }] as const,
         );
         pngs.push(res.png);
         r.ms = res.ms;

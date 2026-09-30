@@ -4,7 +4,14 @@
   "description": "Rendering frontend: layouts, viewports, blocks, properties, draw order to a renderer-agnostic display list",
   "license": "MIT",
   "type": "module",
-  "sideEffects": false,
+  "sideEffects": [
+    "./src/draw/*.ts",
+    "./src/text.ts",
+    "./src/index.ts",
+    "./dist/draw/*.js",
+    "./dist/text.js",
+    "./dist/index.js"
+  ],
   "exports": {
     ".": "./src/index.ts"
   },

@@ -253,15 +253,19 @@ select {
   border: 1px solid rgba(128, 128, 128, 0.5);
   flex: none;
 }
-.eye {
+.layer-check {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  flex: none;
+  cursor: pointer;
+  accent-color: var(--accent, #2563eb);
+}
+/* icons are inline SVGs without intrinsic size */
+.icon-16 svg,
+.eye svg {
   width: 16px;
   height: 16px;
-  color: var(--muted);
-  flex: none;
-}
-.item.off .eye {
-  color: var(--faint);
-  opacity: 0.6;
 }
 .search {
   margin: 0 12px 6px;

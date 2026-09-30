@@ -250,6 +250,7 @@ export async function openSource(
   images?: (path: string) => string,
 ): Promise<void> {
   imageBase = images;
+  syncUrl(src);
   if (typeof src !== "string" || !src.startsWith(API)) {
     compare.root.style.display = "none";
   }
@@ -262,6 +263,29 @@ export async function openSource(
     // reported through the error event
   }
 }
+
+/**
+ * Keeps `?file=` in sync with the open drawing so links and reloads reopen it. Local files have
+ * no URL the page could reload, so opening one removes a stale `?file=`.
+ */
+function syncUrl(src: File | string): void {
+  const url = new URL(location.href);
+  const current = url.searchParams.get("file");
+  if (typeof src === "string") {
+    if (current === src) return;
+    url.searchParams.set("file", src);
+    history.pushState({ file: src }, "", url);
+  } else {
+    if (current === null) return;
+    url.searchParams.delete("file");
+    history.pushState({}, "", url);
+  }
+}
+
+window.addEventListener("popstate", () => {
+  const file = new URLSearchParams(location.search).get("file");
+  if (file) void openSource(file);
+});
 
 // ---- toolbar -----------------------------------------------------------------------------------
 
@@ -383,24 +407,38 @@ function renderLayers(): void {
     layers.map((l) => {
       const on = viewer.isLayerVisible(l.name);
       const flags = [l.off ? "off" : "", l.frozen ? "frozen" : "", l.plot ? "" : "no-plot"].filter(Boolean);
+      const toggle = (ev: Event) => {
+        ev.stopPropagation();
+        if ((ev as MouseEvent).altKey) {
+          viewer.setLayersVisible(
+            viewer.layers.map((x) => x.name),
+            false,
+          );
+          viewer.setLayerVisible(l.name, true);
+        } else viewer.setLayerVisible(l.name, !on);
+        renderLayers();
+      };
+      const box = h("input", {
+        type: "checkbox",
+        class: "layer-check",
+        "aria-label": `Show layer ${l.name}`,
+      });
+      box.checked = on;
+      box.addEventListener("click", toggle);
+      // ACI 7 is black or white depending on the background: show it split
+      const swatch =
+        l.aci === 7 && l.rgb === 0xffffff
+          ? "background:linear-gradient(135deg,#fff 50%,#000 50%)"
+          : `background:${hex(l.rgb)}`;
       return h(
         "div",
         {
           class: `item${on ? "" : " off"}`,
           title: `${l.name}${flags.length ? ` (${flags.join(", ")} in file)` : ""} — click: toggle, Alt+click: isolate`,
-          onclick: (ev: Event) => {
-            if ((ev as MouseEvent).altKey) {
-              viewer.setLayersVisible(
-                viewer.layers.map((x) => x.name),
-                false,
-              );
-              viewer.setLayerVisible(l.name, true);
-            } else viewer.setLayerVisible(l.name, !on);
-            renderLayers();
-          },
+          onclick: toggle,
         },
-        h("span", { class: "eye" }, icon(on ? ICONS.eye : ICONS.eyeOff)),
-        h("span", { class: "swatch", style: `background:${hex(l.rgb)}` }),
+        box,
+        h("span", { class: "swatch", style: swatch }),
         h("span", { class: "name" }, l.name),
         h("span", { class: "meta" }, l.entities ? fmtNum(l.entities) : ""),
       );

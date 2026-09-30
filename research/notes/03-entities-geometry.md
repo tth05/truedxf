@@ -373,6 +373,10 @@ elevation.
   the center moves to `(−cx, cy)` and the linetype direction flips).
 - Linetype start: AutoCAD starts the pattern at angle 0 of the OCS and runs CCW. **ASSUMPTION**; covered in the
   linetype note.
+- **VERIFIED-BY-ACAD** (AutoCAD 2027, 2026-09-30; `lines-curves/circle-degenerate-*`, `degenerate-lw-*`,
+  `fileformat/corpus-ezdxf-circle-radius-le-0`, Q-0130): a **negative** CIRCLE/ARC radius is repaired to **1** on
+  load (DXFOUT writes 40 = 1; the ARC keeps its angles); radius 0 is kept. A CIRCLE with 210 = (0,0,0) plots in the
+  XY plane around the WCS **origin** (centre collapses), an ARC with 210 = 0 is not drawn (`ocs/zero-extrusion-*`).
 
 ### 3.5 ARC
 
@@ -391,6 +395,8 @@ spec:3298-3320: AcDbCircle subclass (39, 10 center OCS, 40 radius), then 100 AcD
 - Bounding box (OCS plane): start with S and E, then add each axis point `C ± r·x̂`, `C ± r·ŷ` whose angle (0, 90,
   180, 270) lies inside the span. For N ≠ ±Z, compute the WCS bbox from the WCS ellipse-like projection instead (see
   §6).
+- **VERIFIED-BY-ACAD** (`lines-curves/arc-normalise-*`, Q-0131): angles are kept as written (DXFOUT keeps 30/450);
+  0/360, −180/180, 30/450 and 0/720 plot a **full circle** (end − start ≥ 360°), 350/10 a 20° arc through 0°.
 
 ### 3.6 Arc-like primitives: common math
 
@@ -442,6 +448,8 @@ P(t) = C + cos(t)·M + sin(t)·m      // t from 41 to 42, increasing = CCW about
 - Tangent: `P'(t) = −sin t·M + cos t·m`.
 - Bbox: for each axis i, the extreme parameters are `t = atan2(m_i, M_i)` and `t + π`, with half-extent
   `sqrt(M_i² + m_i²)` for the full ellipse. For arcs, clip the candidate t values to the span.
+- **VERIFIED-BY-ACAD** (`ellipses/param-2pi-*`, `param-0008`, Q-0166): end − start ≥ 2π plots the full ellipse
+  (0 … 6.2831855 and 0 … 7 are full, not a tiny wrap-around arc).
 
 ### 3.8 SPLINE
 
@@ -635,6 +643,17 @@ and `closed_uniform_bspline`. For HATCH spline edges with fit points only, ezdxf
 - netDxf: fixed `precision` uniform samples (Spline.cs:595-720).
 - Recommendation: Bézier-decompose, then flatten each segment adaptively in **device space** with sagitta tolerance
   ≤ 0.1 px (§5). The midpoint-sagitta test can miss inflections, so enforce a minimum of 2–4 subdivisions per span.
+
+**VERIFIED-BY-ACAD** via DXFOUT (AutoCAD 2027, 2026-09-30; `splines/fit-*`, Q-0171…Q-0175): AutoCAD rebuilds every
+interpolating fit-point SPLINE (fit tolerance 0) **from its fit points on load**: the §3.8.6 construction with
+**chord-length** knots (`[0,0,0,0, d1, d1+d2, …, L,L,L,L]` unnormalized), natural ends C'' = 0 without tangents, one
+end handled independently when only 12 or 13 is present, zero tangents ignored. The 70 bits 64/128 are **ignored**
+(DXFOUT rewrites 70 = 1064 with chord knots) and so are **stored control points and knots** when fit points exist
+(`fit-and-control`: the CVs are recomputed from the unrelated fit points). The tangent rows use the 12/13 vectors
+**unnormalized**: P1 − P0 = (U[p+1]/p)·T·L with T as stored (tangent (5,5) → 142.4 = 28.48·5; `fit-tangents-0003`).
+With fit tolerance 44 > 0 AutoCAD approximates (different knots, e.g. 90.33/161.98/233.83/319.04 instead of
+85.44/157.55/229.66/310.28 for `fit-tolerance`); that algorithm is still open (Q-0177) — truedxf uses the stored
+control points when present, else interpolates.
 
 ### 3.9 LWPOLYLINE
 

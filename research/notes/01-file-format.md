@@ -1249,6 +1249,15 @@ ezdxf-notes:"Load Documents.md"). **truedxf:** one parser with a strictness flag
 mirrors AutoCAD's acceptance (useful to predict "AutoCAD would refuse"), lenient mode mirrors
 ezdxf.recover.
 
+**VERIFIED-BY-ACAD** (AutoCAD 2027, 2026-09-30, `fileformat/*`; Q-0004, Q-0006, Q-0007):
+- 999 comments are accepted at the file start, between entities and between `0 SECTION` and its `2 name`
+  (`comment-999-*`, all plot normally).
+- Entity type names: in an R12 file lower-case types (`line`, `circle`, `text`) load and plot
+  (`lowercase-entities-r12`); in an AC1032 file lower-case or space-padded types (`LINE `) load without error
+  but the entities are **dropped** (nothing plots, `lowercase-entities-r2018`, `trailing-space-types-r2018`).
+  Lower-case or padded section/structure names make the file invalid (`lowercase-all-*`,
+  `trailing-space-sections-*`, `trailing-space-types-r12`: "invalid-fixture").
+
 ### 8.2 Performance strategies
 
 - ezdxf: "heavy I/O bound … Most potential for optimization is to reduce the cost of function call

@@ -3,6 +3,7 @@ export * from "./aci.ts";
 import "./draw/basic.ts";
 import "./draw/hatch.ts";
 import "./draw/image.ts";
+import "./draw/mesh.ts";
 import "./draw/mline.ts";
 import "./draw/viewport.ts";
 import "./draw/xclip.ts";

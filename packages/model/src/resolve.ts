@@ -87,11 +87,6 @@ export interface ResolvedProperties {
    * (note 07 §3.2, 02 §2.1.1; UNVERIFIED Q-0280, Q-0620).
    */
   readonly expandBlock: boolean;
-  /**
-   * For block references: whether their content can plot — false below a reference on a
-   * no-plot (290 = 0) or Defpoints layer (note 07 §3.2).
-   */
-  readonly contentPlottable: boolean;
 }
 
 export interface ResolveContext {
@@ -307,15 +302,9 @@ export class PropertyResolver {
     const frozen = lp.frozen || (viewport !== undefined && this.frozenIn(viewport).has(nameKey(layerName)));
     const parentsExpand = parent === undefined || parent.expandBlock;
     const visible = parentsExpand && !entity.invisible && !lp.off && !frozen;
-    // Defpoints never plots (note 02 §2.1.1). UNVERIFIED (Q-0283); 290=0 → no plot (Q-0282).
-    // A no-plot reference layer suppresses the whole block content, whatever the children's own
-    // layers (unlike off). VERIFIED-BY-ACAD blocks/vis-insert-layer-noplot, vis-layer0-noplot
-    // (note 07 §3.2); Defpoints is assumed to act the same (UNVERIFIED).
-    const layerPlots = lp.plot && nameKey(layerName) !== "DEFPOINTS";
-    const parentsPlot = parent === undefined || parent.contentPlottable;
-    const plottable = visible && layerPlots && parentsPlot;
+    // Defpoints never plots (note 02 §2.1.1). UNVERIFIED (Q-0283); 290=0 → no plot (Q-0282)
+    const plottable = visible && lp.plot && nameKey(layerName) !== "DEFPOINTS";
     const expandBlock = parentsExpand && !entity.invisible && !frozen;
-    const contentPlottable = parentsPlot && layerPlots;
 
     return {
       layer: layerName,
@@ -335,7 +324,6 @@ export class PropertyResolver {
       visible,
       plottable,
       expandBlock,
-      contentPlottable,
     };
   }
 

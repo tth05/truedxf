@@ -1,44 +1,24 @@
 /**
- * Effective entity properties for rendering (colour, lineweight, linetype, visibility) with
- * ByLayer / ByBlock / layer-0 inheritance through nested INSERTs and per-viewport layer state.
- * Delegates to @truedxf/model's `PropertyResolver` (resolve.ts; rules: note 06 §7, note 07 §3,
- * note 02 §2.1) and adapts the result to the renderer's `Resolved` / `Inherited` shapes.
+ * Effective entity properties for rendering (colour, lineweight, visibility) with ByLayer /
+ * ByBlock / layer-0 inheritance through nested INSERTs (note 06 §7, note 07 §3).
+ *
+ * TODO: switch to @truedxf/model's resolve.ts once available; this is the renderer's interim
+ * implementation of the same rules.
  */
-import {
-  type DxfDocument,
-  type EntityBase,
-  type InsertContext,
-  type LayerEntry,
-  type LayerViewportOverride,
-  PropertyResolver as ModelResolver,
-  type ResolvedProperties,
-  type ViewportContext,
-} from "@truedxf/model";
-
-/**
- * Layer state of the paper-space VIEWPORT being drawn: VP-frozen layers (331) and per-viewport
- * layer overrides (layer xdict ADSK_XREC_LAYER_*_OVR keyed by the VIEWPORT handle, note 08 §3.7).
- */
-export interface ViewportLayers {
-  /** VIEWPORT handle (selects the layer overrides). */
-  readonly handle: string;
-  /** Upper-case names of the layers frozen in this viewport. */
-  readonly frozen: ReadonlySet<string>;
-}
+import type { DxfDocument, EntityBase, LayerEntry } from "@truedxf/model";
+import { aciToRgb } from "./aci.ts";
 
 /** Properties an INSERT passes down to ByBlock / layer-0 content. */
 export interface Inherited {
   /** Effective layer name for layer-0 entities inside the block. */
-  readonly layer: string;
+  layer: string;
   /** Effective ACI or true colour of the INSERT (for ByBlock). */
-  readonly aci: number;
-  readonly trueColor: number | undefined;
+  aci: number;
+  trueColor: number | undefined;
   /** Effective lineweight of the INSERT in 1/100 mm (for ByBlock). */
-  readonly lineweight: number;
+  lineweight: number;
   /** Effective linetype name of the INSERT (for ByBlock). */
-  readonly linetype: string;
-  /** Enclosing block references, outermost first (model resolver context). */
-  readonly parents: readonly InsertContext[];
+  linetype: string;
 }
 
 export const TOP_LEVEL: Inherited = {
@@ -47,7 +27,6 @@ export const TOP_LEVEL: Inherited = {
   trueColor: undefined,
   lineweight: -3,
   linetype: "Continuous",
-  parents: [],
 };
 
 export interface Resolved {
@@ -60,10 +39,6 @@ export interface Resolved {
   layer: string;
   /** Effective linetype name (ByLayer / ByBlock resolved). */
   linetype: string;
-  /** Alpha 0…255 (255 = opaque). */
-  alpha?: number;
-  /** The full model resolution (visibility, plot style, …), when resolved from an entity. */
-  props?: ResolvedProperties;
 }
 
 const DEFAULT_LAYER: Omit<LayerEntry, "record"> = {
@@ -88,107 +63,90 @@ const DEFAULT_LAYER: Omit<LayerEntry, "record"> = {
 };
 
 export class PropertyResolver {
-  private readonly model: ModelResolver;
+  private readonly doc: DxfDocument;
   readonly lwDefault: number;
   readonly background: [number, number, number];
-  /** Set while drawing model space through a paper-space viewport (layout.ts / draw/viewport.ts). */
-  viewport: ViewportLayers | undefined;
-  /**
-   * Extents mode (the bounds pass of an Extents plot): entities count when they are displayed
-   * or merely not plotted — off, no-plot and Defpoints layers are included, frozen layers and
-   * invisible entities are not. VERIFIED-BY-ACAD (extents/probe-layer-*, probe-invisible-entity).
-   */
-  extents = false;
-  private readonly vpContexts = new WeakMap<ViewportLayers, ViewportContext>();
 
-  /** `lwDefault`: the LWDEFAULT system variable (registry; default: $LWDEFAULT or 25). */
-  constructor(doc: DxfDocument, background: [number, number, number] = [255, 255, 255], lwDefault?: number) {
+  constructor(doc: DxfDocument, background: [number, number, number] = [255, 255, 255]) {
+    this.doc = doc;
     this.background = background;
-    const dark = background[0] + background[1] + background[2] < 384;
-    this.model = new ModelResolver(doc, {
-      paper: dark ? "black" : "white",
-      ...(lwDefault === undefined ? {} : { lwDefault }),
-    });
-    this.lwDefault = this.model.lwDefault;
+    // $LWDEFAULT in 1/100 mm; AutoCAD default 25 (0.25 mm)
+    this.lwDefault = doc.header.num("$LWDEFAULT", 25);
   }
 
   layer(name: string): Omit<LayerEntry, "record"> {
     // Missing layers behave like a new layer with default properties (note 02 §4.2 rule 3)
-    return this.model.layer(name) ?? { ...DEFAULT_LAYER, name };
-  }
-
-  /** True if the layer is frozen globally or in the current viewport. */
-  frozen(name: string): boolean {
-    if (this.layer(name).frozen) return true;
-    return this.viewport?.frozen.has(name.toUpperCase()) === true;
-  }
-
-  /** Override of a layer in the current viewport, if any. */
-  override(name: string): LayerViewportOverride | undefined {
-    const vp = this.viewport;
-    const entry = vp ? this.model.layer(name) : undefined;
-    return vp && entry ? this.model.layerOverrides(entry).get(vp.handle) : undefined;
+    return this.doc.tables.layers.get(name) ?? { ...DEFAULT_LAYER, name };
   }
 
   /** Effective layer of an entity in the given insert context. */
   effectiveLayer(e: EntityBase, inh: Inherited): string {
-    return inh.parents.length > 0 && e.layer.trim() === "0" ? inh.layer : e.layer;
-  }
-
-  private viewportContext(): ViewportContext | undefined {
-    const vp = this.viewport;
-    if (!vp) return undefined;
-    let c = this.vpContexts.get(vp);
-    if (!c) this.vpContexts.set(vp, (c = { handle: vp.handle, frozenLayers: vp.frozen }));
-    return c;
-  }
-
-  /** Full model resolution of an entity in an insert context. */
-  properties(e: EntityBase, inh: Inherited): ResolvedProperties {
-    return this.model.resolve(e, inh.parents, this.viewportContext());
+    return e.layer === "0" ? inh.layer : e.layer;
   }
 
   /**
-   * Visibility of an entity for plotting (note 02 §2.1, note 07 §3): not invisible, effective
-   * layer on, not frozen (globally / in the viewport), plottable (290) and not Defpoints.
+   * Visibility of an entity for plotting. A frozen or off *effective* layer hides the entity;
+   * the Defpoints layer and layers with plot = false never plot (note 02 §2.1).
+   * UNVERIFIED (note 07 §3): frozen INSERT layer hides the whole reference (handled by the caller
+   * checking the INSERT itself), off INSERT layer only hides layer-0 content.
    */
   isPlotted(e: EntityBase, inh: Inherited): boolean {
-    const p = this.properties(e, inh);
-    return this.extents ? p.expandBlock : p.plottable;
-  }
-
-  /** Whether a block reference's content is traversed (frozen reference layer hides it all). */
-  expands(e: EntityBase, inh: Inherited): boolean {
-    return this.properties(e, inh).expandBlock;
+    if (e.invisible) return false;
+    const name = this.effectiveLayer(e, inh);
+    const l = this.layer(name);
+    if (l.off || l.frozen || !l.plot) return false;
+    if (name.toUpperCase() === "DEFPOINTS") return false;
+    // a frozen entity layer hides it even when the effective layer is the insert's
+    if (e.layer !== name) {
+      const own = this.layer(e.layer);
+      if (own.frozen) return false;
+    }
+    return true;
   }
 
   resolve(e: EntityBase, inh: Inherited): Resolved {
-    return toResolved(this.properties(e, inh));
+    const layerName = this.effectiveLayer(e, inh);
+    const layer = this.layer(layerName);
+    let aci: number;
+    let trueColor: number | undefined;
+    if (e.color === 0) {
+      aci = inh.aci;
+      trueColor = inh.trueColor;
+    } else if (e.color === 256 || e.color === 257) {
+      aci = layer.color;
+      trueColor = layer.trueColor;
+    } else {
+      aci = e.color;
+      trueColor = e.trueColor;
+    }
+    // a true colour stored together with ByLayer/ByBlock aci is ignored (writer bug, note 11b)
+    if (e.color !== 0 && e.color !== 256 && e.trueColor !== undefined) trueColor = e.trueColor;
+    let lw = e.lineweight;
+    if (lw === -2) lw = inh.lineweight;
+    if (lw === -1) lw = layer.lineweight;
+    if (lw === -2) lw = inh.lineweight; // layer never is ByBlock, but be safe
+    if (lw < 0) lw = this.lwDefault;
+    const rgb: [number, number, number] =
+      trueColor !== undefined
+        ? [(trueColor >> 16) & 255, (trueColor >> 8) & 255, trueColor & 255]
+        : aciToRgb(aci, this.background);
+    let linetype = e.linetype;
+    const lt = linetype.toUpperCase();
+    if (lt === "BYLAYER" || lt === "") linetype = layer.linetype;
+    else if (lt === "BYBLOCK") linetype = inh.linetype;
+    if (linetype.toUpperCase() === "BYBLOCK") linetype = "Continuous";
+    return { rgb, aci, trueColor, lineweight: lw, layer: layerName, linetype };
   }
 
   /** Properties an INSERT passes to its block content. */
   inherit(insert: EntityBase, inh: Inherited): Inherited {
-    const p = this.properties(insert, inh);
+    const r = this.resolve(insert, inh);
     return {
-      layer: p.layer,
-      aci: p.aci,
-      trueColor: p.trueColor,
-      lineweight: p.lineweight,
-      linetype: p.linetype,
-      parents: [...inh.parents, { entity: insert, resolved: p }],
+      layer: r.layer,
+      aci: r.aci,
+      trueColor: r.trueColor,
+      lineweight: r.lineweight,
+      linetype: r.linetype,
     };
   }
-}
-
-function toResolved(p: ResolvedProperties): Resolved {
-  return {
-    rgb: [(p.rgb >> 16) & 255, (p.rgb >> 8) & 255, p.rgb & 255],
-    aci: p.aci,
-    trueColor: p.trueColor,
-    lineweight: p.lineweight,
-    layer: p.layer,
-    linetype: p.linetype,
-    alpha: p.alpha,
-    props: p,
-  };
 }

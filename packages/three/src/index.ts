@@ -193,6 +193,9 @@ void main() {
       // three.js declares `attribute vec3 position` itself; our 2-component buffer gives z = 0
       vertexShader: "void main() { gl_Position = vec4(position.xy, 0.0, 1.0); }",
       fragmentShader: "void main() { gl_FragColor = vec4(0.0); }",
+      // transparent like the batches: three.js renders all opaque objects before all transparent
+      // ones, so stencil passes must be in the same list to keep their renderOrder position
+      transparent: true,
       colorWrite: false,
       depthTest: false,
       depthWrite: false,
@@ -227,6 +230,7 @@ void main() {
       const geom = new THREE.BufferGeometry();
       geom.setAttribute("position", new THREE.BufferAttribute(pos, 2));
       const mat = new THREE.MeshBasicMaterial({
+        transparent: true, // same render list as the batches (see addStencilReset)
         colorWrite: false,
         depthTest: false,
         depthWrite: false,

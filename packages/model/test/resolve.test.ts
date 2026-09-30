@@ -433,11 +433,9 @@ describe("resolveProperties: blocks (note 07 §3)", () => {
     expect(r.resolve(child, [{ entity: ins, resolved: r.resolve(ins) }]).visible).toBe(false);
   });
 
-  it("no-plot INSERT layer: all content is displayed but none plots (blocks/vis-insert-layer-noplot)", () => {
-    expect(res.get("4")).toMatchObject({ plottable: false, contentPlottable: false, expandBlock: true });
+  it("no-plot INSERT layer: inheriting content is displayed but not plotted", () => {
     expect(res.get("4/0")).toMatchObject({ visible: true, plottable: false, aci: 2 });
-    expect(res.get("4/2")).toMatchObject({ visible: true, plottable: false });
-    expect(res.get("0/2")).toMatchObject({ plottable: true });
+    expect(res.get("4/2")).toMatchObject({ visible: true, plottable: true });
   });
 });
 

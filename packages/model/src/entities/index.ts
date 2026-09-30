@@ -8,6 +8,8 @@ import "./leader.ts";
 import "./viewport.ts";
 import "./image.ts";
 import "./misc.ts";
+// object parsers beyond objects.ts; imported here so that document.ts always registers them
+import "../objects-extra.ts";
 
 import type {
   ArcEntity,

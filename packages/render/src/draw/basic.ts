@@ -239,7 +239,8 @@ registerDrawer("POINT", (fe, e, st) => {
   const mode = fe.doc.header.num("$PDMODE", 0);
   const loc = st.m.transformPoint(p.location);
   const sym = pointSymbol(mode, pointSize(fe, st));
-  if (sym.dot) fe.strokeFlat(new Float64Array([loc.x, loc.y]), false, r);
+  // POINT ignores the lineweight: always one pixel (note 08 §10.3)
+  if (sym.dot) fe.pixel(loc.x, loc.y, fe.color(r));
   if (sym.paths.subpaths.length === 0) return;
   // symbols are aligned with the point's angle (degrees, UCS X axis when drawn); UNVERIFIED sign
   const rot = Matrix44.rotationZ(degToRad(p.angle));

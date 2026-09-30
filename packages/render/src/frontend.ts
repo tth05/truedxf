@@ -21,6 +21,7 @@ import {
   triangulateFill,
 } from "@truedxf/geometry";
 import type { Block, DxfDocument, Entity, InsertEntity } from "@truedxf/model";
+import { plotAciToRgb } from "./aci.ts";
 import { type DisplayList, DisplayListBuilder, type Rgba } from "./displaylist.ts";
 import { LinetypeResolver, type LinetypeSpec } from "./linetype.ts";
 import {
@@ -33,11 +34,18 @@ import {
   viewFromBounds,
 } from "./plot.ts";
 import { type Inherited, PropertyResolver, type Resolved, TOP_LEVEL } from "./props.ts";
+import { bandOffset, linePixels, lineweightPixels, PixelGrid } from "./raster.ts";
 
 export interface RenderEnv {
   /** Font bytes by file or family name (lower-cased); undefined when not available. */
   loadFont?: (name: string) => Promise<Uint8Array | undefined>;
   calibration?: Partial<PlotCalibration>;
+  /**
+   * `autocad` (default for plots): emulate AutoCAD's raster plot rules exactly (pixel-snapped
+   * thin lines rasterized on the CPU, measured lineweight widths, snapped fills, plot palette).
+   * `smooth`: plain geometry for interactive viewing.
+   */
+  raster?: "autocad" | "smooth";
 }
 
 export interface PlotResult {
@@ -105,6 +113,9 @@ export class Frontend {
   readonly fillMode: boolean;
   /** Per-frontend caches for drawers (keyed by module). */
   readonly caches = new Map<string, unknown>();
+  /** Device pixel grid when emulating AutoCAD's raster rules. */
+  readonly grid: PixelGrid | undefined;
+  private readonly pixelScratch: number[] = [];
 
   constructor(
     doc: DxfDocument,
@@ -126,6 +137,7 @@ export class Frontend {
     this.monochrome = (request.styleTable ?? "").toLowerCase() === "monochrome.ctb";
     this.lineweights = request.lineweights ?? true;
     this.fillMode = doc.header.num("$FILLMODE", 1) !== 0;
+    this.grid = (env.raster ?? "autocad") === "autocad" ? new PixelGrid(view, request.canvas) : undefined;
   }
 
   note(what: string): void {
@@ -198,8 +210,28 @@ export class Frontend {
   }
 
   color(r: Resolved): Rgba {
+    // true colours keep their RGB even with monochrome.ctb (note 08 §10.7)
+    if (r.trueColor !== undefined) return [r.rgb[0], r.rgb[1], r.rgb[2], 255];
     if (this.monochrome) return [0, 0, 0, 255];
+    if (this.grid) {
+      const [red, g, b] = plotAciToRgb(r.aci);
+      return [red, g, b, 255];
+    }
     return [r.rgb[0], r.rgb[1], r.rgb[2], 255];
+  }
+
+  /** Plotted lineweight in device pixels (≥ 1). */
+  widthPixels(r: Resolved): number {
+    if (!this.lineweights) return 1;
+    return lineweightPixels(r.lineweight, this.calibration.dpi);
+  }
+
+  /** A single device pixel (POINT, which ignores lineweights). */
+  pixel(x: number, y: number, color: Rgba): void {
+    if (this.grid) {
+      const [cx, cy] = this.grid.snapCenter(x, y);
+      this.builder.points([cx, cy], color);
+    } else this.builder.points([x, y], color);
   }
 
   /** Lineweight in target units, or 0 for a 1-px hairline. */
@@ -234,7 +266,7 @@ export class Frontend {
   ): void {
     const lt = !options.noLinetype && e ? this.linetypeFor(e, r, st) : undefined;
     if (!lt) {
-      for (const pl of flattenPath(path, this.tolerance)) this.strokeFlat(pl.points, pl.closed, r);
+      for (const pl of this.flatten(path)) this.strokeFlat(pl.points, pl.closed, r);
       return;
     }
     const results = dashPath(path, lt.pattern, this.tolerance, {
@@ -265,6 +297,10 @@ export class Frontend {
   /** Strokes a flattened polyline (target coordinates) with the entity's lineweight. */
   strokeFlat(points: Float64Array, closed: boolean, r: Resolved): void {
     if (points.length < 2) return;
+    if (this.grid) {
+      this.rasterStroke(points, closed, r);
+      return;
+    }
     const color = this.color(r);
     const w = this.strokeWidth(r);
     if (w === 0) {
@@ -275,20 +311,117 @@ export class Frontend {
     this.builder.triangles(strokePolyline(points, { ...this.strokeOptions(w), closed }), color);
   }
 
-  fillTriangles(tri: ArrayLike<number>, color: Rgba): void {
+  /** AutoCAD raster rules for strokes (see raster.ts). */
+  private rasterStroke(points: Float64Array, closed: boolean, r: Resolved): void {
+    const g = this.grid!;
+    const color = this.color(r);
+    const w = this.widthPixels(r);
+    const n = points.length >> 1;
+    if (w <= 1) {
+      const out = this.pixelScratch;
+      out.length = 0;
+      const count = n === 1 ? 1 : closed ? n : n - 1;
+      for (let k = 0; k < count; k++) {
+        const a = k;
+        const b = n === 1 ? 0 : (k + 1) % n;
+        const i0 = g.px(points[a * 2]!);
+        const j0 = g.py(points[a * 2 + 1]!);
+        const i1 = g.px(points[b * 2]!);
+        const j1 = g.py(points[b * 2 + 1]!);
+        if (!g.visible(i0, j0, i1, j1)) continue;
+        linePixels(i0, j0, i1, j1, out, g);
+      }
+      if (out.length === 0) return;
+      const xy = new Float64Array(out.length);
+      for (let k = 0; k < out.length; k += 2) {
+        xy[k] = g.cx(out[k]!);
+        xy[k + 1] = g.cy(out[k + 1]!);
+      }
+      this.builder.points(xy, color);
+      return;
+    }
+    // snapped centre line (+ half a pixel up/right for even widths), round caps/joins
+    const off = bandOffset(w) * g.pixelSize;
+    const snapped = new Float64Array(points.length);
+    for (let k = 0; k < n; k++) {
+      snapped[k * 2] = g.cx(g.px(points[k * 2]!)) + off;
+      snapped[k * 2 + 1] = g.cy(g.py(points[k * 2 + 1]!)) + off;
+    }
+    const tri = strokePolyline(snapped, {
+      width: w * g.pixelSize,
+      cap: LineCap.Round,
+      join: LineJoin.Round,
+      tolerance: this.tolerance,
+      closed,
+    });
     this.builder.triangles(tri, color);
+  }
+
+  fillTriangles(tri: ArrayLike<number>, color: Rgba): void {
+    const g = this.grid;
+    if (!g) {
+      this.builder.triangles(tri, color);
+      return;
+    }
+    // fill vertices snap to pixel corners; pixel-centre coverage (note 08 §10.5)
+    const out = new Float64Array(tri.length);
+    for (let k = 0; k + 1 < tri.length; k += 2) {
+      out[k] = g.ex(g.px(tri[k]!));
+      out[k + 1] = g.ey(g.py(tri[k + 1]!));
+    }
+    this.builder.triangles(out, color);
   }
 
   /** Fills rings (target coordinates) with a fill rule. */
   fillRings(rings: readonly Float64Array[], color: Rgba, fillRule: FillRule = FillRule.NonZero): void {
     if (rings.length === 0) return;
-    this.builder.triangles(triangulateFill(rings, { fillRule, tolerance: this.tolerance }), color);
+    this.fillTriangles(triangulateFill(rings, { fillRule, tolerance: this.tolerance }), color);
+  }
+
+  /** Flattens a path with the plot-mode curve rules (see PlotCalibration.arcStepDeg). */
+  flatten(path: Path2): { points: Float64Array; closed: boolean }[] {
+    const step = this.grid ? this.calibration.arcStepDeg : undefined;
+    if (!step) return flattenPath(path, this.tolerance);
+    const out: { points: Float64Array; closed: boolean }[] = [];
+    for (const sp of path.subpaths) {
+      const pts: number[] = [];
+      for (const seg of sp.segments) {
+        if (seg.kind === "arc" || seg.kind === "ellipticArc") {
+          const n = Math.max(1, Math.ceil(Math.abs(seg.sweep) / ((step * Math.PI) / 180) - 1e-9));
+          const dr = (this.calibration.arcRadiusOffsetPx ?? 0) * this.pixelSize;
+          for (let k = pts.length === 0 ? 0 : 1; k <= n; k++) {
+            const t = seg.start + (seg.sweep * k) / n;
+            if (seg.kind === "arc")
+              pts.push(
+                seg.center.x + (seg.radius + dr) * Math.cos(t),
+                seg.center.y + (seg.radius + dr) * Math.sin(t),
+              );
+            else
+              pts.push(
+                seg.center.x + seg.u.x * Math.cos(t) + seg.v.x * Math.sin(t),
+                seg.center.y + seg.u.y * Math.cos(t) + seg.v.y * Math.sin(t),
+              );
+          }
+        } else {
+          const fl = flattenPath({ subpaths: [{ segments: [seg], closed: false }] }, this.tolerance)[0];
+          if (!fl) continue;
+          const start = pts.length === 0 ? 0 : 2;
+          for (let k = start; k < fl.points.length; k++) pts.push(fl.points[k]!);
+        }
+      }
+      let arr = Float64Array.from(pts);
+      if (sp.closed && arr.length >= 4 && arr[0] === arr[arr.length - 2] && arr[1] === arr[arr.length - 1]) {
+        arr = arr.slice(0, arr.length - 2);
+      }
+      out.push({ points: arr, closed: sp.closed });
+    }
+    return out;
   }
 
   /** Fills a path (target coordinates). */
   fillPath(path: Path2, color: Rgba, fillRule: FillRule = FillRule.NonZero): void {
     this.fillRings(
-      flattenPath(path, this.tolerance).map((p) => p.points),
+      this.flatten(path).map((p) => p.points),
       color,
       fillRule,
     );

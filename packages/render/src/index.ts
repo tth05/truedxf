@@ -2,6 +2,7 @@ export * from "./aci.ts";
 
 import "./draw/basic.ts";
 import "./draw/hatch.ts";
+import "./draw/mline.ts";
 import "./text.ts";
 
 export * from "./displaylist.ts";

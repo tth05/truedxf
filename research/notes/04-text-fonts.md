@@ -1334,3 +1334,131 @@ Fonts
 23. Vertical style (flag 4) with txt.shx + @extfont2.shx.
 24. TEXTFILL 0/1 and TEXTQLTY 0/50/100 plots of large Arial "O" (tessellation); SHX lineweight.
 
+
+## 10. Findings from @truedxf/fonts (2026-09-30, local AutoCAD 2027 font folder, facts only)
+
+- **Unifont code-7 subshape numbers are big-endian** (high byte first): all 888 subshape
+  references in the 28 unifonts of the AutoCAD 2027 `Fonts` folder resolve only when read
+  big-endian. This resolves the §4.3 CONFLICT (ML was right; EZ/YF/TZ/OSG read little-endian).
+- **The bigfont index is a hash table**, not a list: slot = byteswap(code) mod table size (a
+  prime), forward linear probing, empty slots all-zero — in all 13 bigfonts (`writeShx` builds it
+  that way and every AutoCAD SHX round-trips byte-identically).
+- **Pen rounding after arcs is strongly supported** (§4.3 hypothesis): chineset.shx has 15 glyphs
+  whose exact arc end lies off its 48-unit advance grid (e.g. 48.2254); rounding the pen to the
+  integer grid after every octant/fractional arc puts all of them on 48 (27 of 28 in bold.shx).
+- The position stack spans characters in some fonts (ISO.shx, times.shx, bold.shx: shape 1
+  "start" pushes, shape 13 CR pops) — decoded alone they under/overflow.
+- **special.shx** (and spec_bar/spec_sl) bigfont glyphs call 1-byte subshapes that exist only in
+  the **primary** font; special.shx `~z` is `3,4` only (a scale change meant to persist? UNKNOWN).
+- **gbcbig.shx header height anomaly**: shape 0 reads as above = 64 (`0,64,2,0`) while its glyphs
+  are scaled by 9/102 to about 8 units high — the effective height AutoCAD uses is UNKNOWN (needs a
+  TEXTBOX probe).
+- **simplex.shx "A"**: ink 16 units wide (7.619 at h = 10, as TEXTBOX measured), but the pen
+  advance is **22 units = 10.476 at h = 10**, not "≈ 9.5238" as §4.6 said. Re-checked against
+  AutoCAD: in suite `text` (plotted in simplex.shx, see §11) the Center box of "A " is exactly
+  41 units = 22 ("A") + 19 (space), and Center/Right/Middle/FIT/ALIGNED of 195 strings reproduce
+  AutoCAD's DXFOUT values to < 1e-3 h with the 22-unit advance — **VERIFIED-BY-ACAD**; the 9.5238
+  of §4.6 is wrong.
+
+## 11. AutoCAD 2027 PLOT findings for TEXT / MTEXT / ATTRIB (2026-09-30)
+
+Source: `tools/acad` references of the suites `text`, `mtext`, `attribs` (fixtures from `tools/gen`)
+and `text-lato` (`packages/text/scripts/gen_text_lato.py`), compared with the truedxf renderer
+(`packages/text`, `packages/render/src/text.ts`) and with AutoCAD's DXFOUT re-saves
+(`node packages/text/scripts/oracle.ts`). **Caveat**: the reference session did not see the
+Liberation fonts installed the same day ("Substituting [simplex.shx] for
+[LiberationSans-Regular.ttf]" in every log — the §4.1 "fonts registered mid-session" hypothesis
+confirmed), so the `text`/`mtext`/`attribs` references are **simplex.shx** renderings (compare
+with `visual.ts --hide-fonts ^liberation`); Lato and Cascadia Mono resolved, hence `text-lato` for
+TrueType. Everything below is VERIFIED-BY-ACAD (case ids in parentheses) unless marked.
+
+TEXT (§1)
+- SHX horizontal box = ink box [inkLeft, inkRight] (a leading space does not count), but the
+  advance box [0, Σadvance] when the string ends in a space (text/hbox-*, spaces-*). The TTF union
+  rule of §1.4 is confirmed with Lato and Cascadia Mono (text/middle-lato-*, bottom-*).
+- Missing group 11 with 72/73 ≠ 0: 11 defaults to the **origin** (text/missing11-*).
+- Invalid 72 (e.g. 6): LEFT at 10; valid 72 with an invalid 73 (e.g. 4): baseline at 11
+  (text/combo-invalid-*).
+- Height ≤ 0 draws with **$TEXTSIZE**; STYLE fixed height is ignored (text/height0-*). ALIGNED with
+  coincident points: AutoCAD computes h = 0 → $TEXTSIZE (text/aligned-coincident); FIT with
+  coincident points: LEFT at 10 with the stored height (text/fit-coincident).
+- A TEXT **without group 71** uses the STYLE's generation flags (text/flags-style-2/4), unlike
+  41/51 (entity values only).
+- FIT/ALIGNED with BACKWARD mirror **about the baseline** (like upside-down); both flags mirror
+  nothing — ezdxf#353 confirmed (text/fitflags-*).
+- Oblique is a shear applied **after** the width factor, x' = w·x + y·tan θ (text-lato/
+  text-oblique-width; resolves §1.5 item 2 and §8.7 for TEXT).
+- Control characters in SHX TEXT execute the font's own shape when present: `^J` (LF, shape 10)
+  moves the pen down by the shape's displacement **without returning x** (simplex: 36 units);
+  others draw "?" (text/caret-controls). `^?` = DEL → "?"; `^X` with X below "@" (e.g. `^6`) → "?"
+  (not ezdxf's mod-126 "t"); `^a` → "!", `^z` → ":" (X − 64) (text/caret-lowercase).
+- Unknown `%%x`: the `%%` is dropped and "x" drawn ("a%%xb" → "axb", "ab%% cd" → "ab cd",
+  "%%%%" → "%%") (text/unknown-pct*). `\u+XXXX` (lower-case u) decodes like `\U+`; `\U5C42`
+  without "+" stays literal (text/escape-spellings).
+- Characters missing from an SHX font draw the font's "?" in TEXT (text/escape-spellings).
+- `%%u` / `%%o` / `%%k`: SHX (simplex) lines at −0.2 h / +1.2 h / +0.5 h, spanning the characters'
+  advances but **shifted 0.15 h to the left** (text/special-*; the shift's origin is unknown);
+  TrueType (Lato) at −hhea descent / +hhea ascent / +0.5 h, **unshifted** (text-lato/text-*).
+- **$QTEXTMODE = 1** plots rectangles: TEXT [alignment box] × [−descent, h]; MTEXT one box per line
+  [ink left, ink right] × [baseline, baseline + h] (text/qtextmode-1).
+- A TEXT whose style does not exist, in a STYLE table without Standard: the first style is used
+  (text/no-standard-style).
+- A DXF ≤ R2004 with ANSI_936 whose bytes are UTF-8 renders as GBK ("?" per unknown DBCS pair):
+  AutoCAD decodes as declared (text/utf8-bytes-*); a "try UTF-8 first" load heuristic does not
+  match AutoCAD.
+- STYLE XDATA italic for Cascadia Mono renders with more slant than CascadiaMonoItalic.ttf —
+  synthetic oblique or another face? UNKNOWN (text/xdata-mono-italic).
+
+MTEXT (§3)
+- **Stacks** (simplex; hs = current char height; parts are drawn at hs — the usual 70 % comes
+  from an explicit `\H0.7x;`): `/` and `^`: lower part on the baseline, upper part's baseline at
+  4/3·hs; `/` draws a bar at 7/6·hs from the stack start to the widest part's ink right edge and
+  centres the parts by ink width, `^` left-aligns them; advance = the larger part advance.
+  `#`: upper part at the start on baseline hs, lower part on the baseline starting hs/3 after the
+  upper part's ink right; the slash is a 2·hs long line at 55° centred at (upper ink right + hs/6,
+  hs); advance = lower start + lower advance. No divider (`\S12;`): the text raised by hs/3.
+  Stack ink pushes the line down like any ink (mtext/stack-*). With TrueType the horizontal
+  centring differs slightly (text-lato/mtext-stacks, details UNVERIFIED).
+- `\S5^6;` is **not** a tolerance stack: `^6` is a caret code (→ "?"), giving the no-divider stack
+  "5?" (mtext/stack-caret-nospace) — the §3.6.3 assumption from ezdxf#889 is wrong; `\S1^ 2;` is a
+  stack.
+- `\C+5` swallows `\C` and prints "+5"; `\H1..5` → h = 1, then ".5"; `\AX` prints "X"; a stray `}`
+  is ignored; `\J` and `\:` are printed literally (mtext/code-invalid-codes) — the §3.3 claim
+  "\C+5 prints \C+5" does not hold for AutoCAD 2027.
+- `\c` = R + 256·G + 65536·B confirmed (mtext/color-truecolor); values ≥ 2^24 are **ignored**
+  (entity colour), not masked (mtext/color-truecolor-large).
+- `\X` outside dimensions is printed literally (mtext/code-dim-wrap).
+- Control characters draw a missing-glyph box (matches Arial's .notdef at Arial's own cap scale);
+  `^a`/`^z` are the printable "!"/":" (mtext/caret-*). Characters missing from an SHX font come from
+  a TrueType fallback **at that font's own cap-height scale** (SimSun reproduced 层 exactly) —
+  unlike TEXT, which draws "?" (text/escape-spellings).
+- `\T` multiplies advances, clamped to **0.75…4** (`\T0.5` and `\T0.1x` both give 0.75)
+  (mtext/code-tracking*).
+- At-least line gap with mixed heights: baseline_{i+1} = baseline_i − (5/3·f − 1)·(H_i + B_{i+1})/2
+  − ascent_{i+1}; H_i = largest cap height on line i, B = the char height where paragraph i+1
+  starts (outside its braces), ascent = max(largest cap height, ink top)
+  (mtext/spacing-big-line-1, height-style-0); reduces to 5/3·h·f for uniform text.
+- Paragraph spacing: `\pb<v>` / `\pa<v>` are **drawing units** before/after the paragraph (also
+  before the first one); `\pse<v>` = exact spacing as for char height v (pitch 5/3·v, first
+  baseline v below the top); `\psa<v>` = at least 5/3·v; `\psm<f>` = factor (mtext/para-spacing-*).
+- An overline raises the line like ink at +1.2 h (mtext/code-underline-all); MTEXT decoration
+  lines are **not** shifted (unlike SHX TEXT); TTF decorations use the hhea metrics as in TEXT.
+- Left-aligned lines put their **ink** at the margin (a positive left side bearing is removed,
+  text-lato/mtext-attach-1); centre/right alignment use the ink box.
+- Group 46 (defined height) does **not** move non-column MTEXT for any attachment
+  (mtext/defined-height-*).
+- 11 and 50 both present: the **later** one wins (mtext/rot-both-*).
+- Background mask: [0, frame width] × [bottom, top] grown by (45 − 1)·h on all sides (pixel-exact,
+  mtext/bg-*); with **$FILLMODE 0** the mask is drawn as its outline in the fill colour
+  (mtext/bg-fillmode-0).
+- Explicit `\pxt5,c15,r25;` stops produced the same positions as the default 4·h stops, and a tab
+  at the start of the paragraph did not move the first character — rule UNKNOWN
+  (mtext/tabs-explicit).
+
+ATTRIB / ATTDEF (§2)
+- MINSERT: the stored ATTRIBs are drawn in **every** cell (translated by the cell offset in the
+  insert's rotated frame) (attribs/minsert-*).
+- ATTRIBs of an INSERT on an **off** layer are still drawn when their own layer is on (layer-0
+  attributes inherit the off layer) (attribs/layer-off-insert).
+- R2018 attribute type 71 = 1 draws group 1 even when an embedded MTEXT is present
+  (attribs/multiline-attrib-type1).

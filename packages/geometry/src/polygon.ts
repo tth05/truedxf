@@ -82,7 +82,7 @@ export function ringsBounds(rings: readonly Float64Array[], out: Bounds2 = new B
 /**
  * Winding number of the rings around (x, y). Uses the half-open crossing rule
  * (`(y0 > y) ≠ (y1 > y)`), so a point exactly on a horizontal edge or vertex is classified
- * consistently (as if nudged by −ε in y) — the same rule the hatch scanline uses.
+ * consistently (as if nudged by +ε in y) — the same rule the hatch scanline uses.
  */
 export function windingNumber(rings: readonly Float64Array[], x: number, y: number): number {
   let w = 0;

@@ -17,9 +17,17 @@ export interface Inherited {
   trueColor: number | undefined;
   /** Effective lineweight of the INSERT in 1/100 mm (for ByBlock). */
   lineweight: number;
+  /** Effective linetype name of the INSERT (for ByBlock). */
+  linetype: string;
 }
 
-export const TOP_LEVEL: Inherited = { layer: "0", aci: 7, trueColor: undefined, lineweight: -3 };
+export const TOP_LEVEL: Inherited = {
+  layer: "0",
+  aci: 7,
+  trueColor: undefined,
+  lineweight: -3,
+  linetype: "Continuous",
+};
 
 export interface Resolved {
   rgb: [number, number, number];
@@ -29,6 +37,8 @@ export interface Resolved {
   lineweight: number;
   /** Effective layer (layer 0 inside blocks resolved to the insert's layer). */
   layer: string;
+  /** Effective linetype name (ByLayer / ByBlock resolved). */
+  linetype: string;
 }
 
 const DEFAULT_LAYER: Omit<LayerEntry, "record"> = {
@@ -120,12 +130,23 @@ export class PropertyResolver {
       trueColor !== undefined
         ? [(trueColor >> 16) & 255, (trueColor >> 8) & 255, trueColor & 255]
         : aciToRgb(aci, this.background);
-    return { rgb, aci, trueColor, lineweight: lw, layer: layerName };
+    let linetype = e.linetype;
+    const lt = linetype.toUpperCase();
+    if (lt === "BYLAYER" || lt === "") linetype = layer.linetype;
+    else if (lt === "BYBLOCK") linetype = inh.linetype;
+    if (linetype.toUpperCase() === "BYBLOCK") linetype = "Continuous";
+    return { rgb, aci, trueColor, lineweight: lw, layer: layerName, linetype };
   }
 
   /** Properties an INSERT passes to its block content. */
   inherit(insert: EntityBase, inh: Inherited): Inherited {
     const r = this.resolve(insert, inh);
-    return { layer: r.layer, aci: r.aci, trueColor: r.trueColor, lineweight: r.lineweight };
+    return {
+      layer: r.layer,
+      aci: r.aci,
+      trueColor: r.trueColor,
+      lineweight: r.lineweight,
+      linetype: r.linetype,
+    };
   }
 }

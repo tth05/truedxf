@@ -23,7 +23,7 @@ import {
   type OutlineGlyph,
   type StrokeGlyph,
 } from "@truedxf/fonts";
-import { Affine2, FillRule, type Matrix44, triangulateFill } from "@truedxf/geometry";
+import { Affine2, FillRule, Matrix44, ocsToWcsMatrix, triangulateFill } from "@truedxf/geometry";
 import {
   type AttribEntity,
   type DxfDocument,
@@ -300,7 +300,12 @@ function singleLine<T extends TextEntity | AttribEntity>(e: T, text: string = e.
 
 function attributeLayout(fe: Frontend, fonts: TextFonts, a: AttribEntity, text: string): TextLayout {
   const opts = layoutOptions(fe);
-  if (a.isMultiline) {
+  // R2018 attribute type 71 = 1 (single line) draws group 1 even with an embedded MTEXT
+  // (VERIFIED-BY-ACAD attribs/multiline-attrib-type1)
+  const sub = a.type === "ATTDEF" ? "AcDbAttributeDefinition" : "AcDbAttribute";
+  const i71 = a.record.find(71, sub);
+  const oneLine = i71 >= 0 && a.record.store.int(i71) === 1;
+  if (a.isMultiline && !oneLine) {
     // R2018 multi-line attribute: the embedded MTEXT wins over group 1 (note 04 §2.3)
     const mt = parseEmbeddedMText(a.record);
     if (mt) return layoutMText(text === a.tag && a.type === "ATTDEF" ? { ...mt, text } : mt, fonts, opts);
@@ -352,11 +357,29 @@ setAttribDrawer((fe, insert, st) => {
   // ByBlock / layer-0 attributes inherit from their INSERT
   const inh = fe.props.inherit(insert, st.inh);
   const b = fe.builder;
+  // MINSERT: the ATTRIBs (stored for cell 0,0) repeat in every cell (VERIFIED-BY-ACAD
+  // attribs/minsert-*): translate by the cell offset in the insert's rotated OCS frame
+  const cells: Matrix44[] = [];
+  const ocs = ocsToWcsMatrix(insert.extrusion);
+  const rot = (insert.rotation * Math.PI) / 180;
+  for (let row = 0; row < insert.rowCount; row++) {
+    for (let col = 0; col < insert.columnCount; col++) {
+      const dx = col * insert.columnSpacing;
+      const dy = row * insert.rowSpacing;
+      const v = ocs.transformDirection({
+        x: dx * Math.cos(rot) - dy * Math.sin(rot),
+        y: dx * Math.sin(rot) + dy * Math.cos(rot),
+        z: 0,
+      });
+      cells.push(row === 0 && col === 0 ? st.m : st.m.multiply(Matrix44.translation(v.x, v.y, v.z)));
+    }
+  }
   for (const a of insert.attribs) {
     if (!attribVisible(fe, a) || !fe.props.isPlotted(a, inh)) continue;
     b.beginEntity(a.handle || `#${a.id}`);
     try {
-      drawLayout(fe, attributeLayout(fe, fonts, a, a.text), a, st.m, inh);
+      const layout = attributeLayout(fe, fonts, a, a.text);
+      for (const m of cells) drawLayout(fe, layout, a, m, inh);
     } catch (err) {
       fe.note(`error:ATTRIB:${err instanceof Error ? err.message : String(err)}`);
     }

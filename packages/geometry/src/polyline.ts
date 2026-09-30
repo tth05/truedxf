@@ -13,14 +13,18 @@
  *
  * Wide polylines (note 03 §4):
  * - straight segments → quads offset by ±w(s)/2, widths tapering linearly;
- * - joints between consecutive straight segments are **mitered** (offset lines intersected);
- *   within ~1.8° of parallel/antiparallel the unmitered corner is used (ezdxf's 0.031415 rad);
- *   UNKNOWN: AutoCAD miter limit for spikes (note 03 test idea 22);
+ * - joints between consecutive straight segments are **mitered** (offset lines intersected)
+ *   when the widths meet (end width of one = start width of the next) and the joint is not too
+ *   sharp; otherwise both bands end unmitered (butt) at the vertex. VERIFIED-BY-ACAD
+ *   (polylines/width-arrow: width step → no miter; miter-angle-0002 30° mitered, miter-angle-0003
+ *   5° and width-hairpin 7.2° not mitered). The exact limit between 7.2° and 30° is UNVERIFIED;
+ *   we miter while the miter length ≤ `MITER_LIMIT` half-widths (≈ 11.5°);
  * - open ends are cut perpendicular (butt); a closed polyline also miters the closing joint;
  * - arc segments → annular sectors `r ± w(θ)/2` with radial ends; no miter between an arc and
  *   its neighbours (ezdxf; UNKNOWN in AutoCAD, test idea 23);
- * - `w/2 > r` (inner radius negative): UNKNOWN (test idea 25); the inner edge then passes
- *   through the centre to the opposite side (what the formula gives);
+ * - arc segment widths are clamped to the arc diameter 2r before tapering, so the inner
+ *   radius never goes negative. VERIFIED-BY-ACAD (polylines/ring-semicircle-w6: r = 2, w = 6 →
+ *   a half disk of radius 4; ring-semicircle-taper: 0 → 8 tapers like 0 → 4);
  * - zero-width segments are ordinary (lineweight) lines: returned separately as `thin`.
  * Each band piece is a closed, counter-clockwise subpath; fill them together with the nonzero
  * rule (= their union, so overlaps do not double-blend with transparency, note 03 §4.2).
@@ -155,6 +159,23 @@ export interface WideOutline {
 
 /** ezdxf's "nearly parallel" threshold for miters (π/100 ≈ 1.8°, trace.py). */
 const MITER_PARALLEL_EPS = 0.031415;
+/** Maximum miter length in half-widths (1 / sin(θ/2) for a joint angle θ). See module comment. */
+const MITER_LIMIT = 10;
+
+/** Whether the joint between two consecutive straight band segments is mitered. */
+function mitered(a: PolylineSegment, b: PolylineSegment): boolean {
+  const wa = a.endWidth;
+  const wb = b.startWidth;
+  if (Math.abs(wa - wb) > 1e-9 * Math.max(Math.abs(wa), Math.abs(wb))) return false;
+  const d1x = a.p1.x - a.p0.x;
+  const d1y = a.p1.y - a.p0.y;
+  const d2x = b.p1.x - b.p0.x;
+  const d2y = b.p1.y - b.p0.y;
+  // joint angle θ between the two segments at the vertex (π = straight on)
+  const turn = Math.abs(Math.atan2(d1x * d2y - d1y * d2x, d1x * d2x + d1y * d2y));
+  const theta = Math.PI - turn;
+  return theta >= Math.PI - 1e-12 || 1 / Math.sin(theta / 2) <= MITER_LIMIT;
+}
 
 interface OffsetLine {
   readonly a: Vec2;
@@ -230,9 +251,10 @@ function arcBand(s: PolylineSegment, tolerance: number): Subpath {
   const arc0 = s.arc!;
   const ccw = arc0.sweep > 0;
   const arc: CircularArc2 = ccw ? arc0 : { ...arc0, start: arc0.start + arc0.sweep, sweep: -arc0.sweep };
-  const w0 = ccw ? s.startWidth : s.endWidth;
-  const w1 = ccw ? s.endWidth : s.startWidth;
   const { center: c, radius: r, start, sweep } = arc;
+  // widths are clamped to the diameter (module comment)
+  const w0 = Math.min(ccw ? s.startWidth : s.endWidth, 2 * r);
+  const w1 = Math.min(ccw ? s.endWidth : s.startWidth, 2 * r);
   const segs: PathSegment[] = [];
   const pt = (rad: number, ang: number): Vec2 => ({
     x: c.x + rad * Math.cos(ang),
@@ -338,14 +360,14 @@ function emitLinearRun(run: PolylineSegment[], cyclic: boolean, out: Subpath[]):
     let r1 = o.right.b;
     const hasPrev = k > 0 || cyclic;
     const hasNext = k < m - 1 || cyclic;
-    if (hasPrev) {
+    if (hasPrev && mitered(run[(k - 1 + m) % m]!, s)) {
       const pk = (k - 1 + m) % m;
       const ps = run[pk]!;
       const po = off[pk]!;
       l0 = miter(po.left, ps, o.left, s, o.left.a);
       r0 = miter(po.right, ps, o.right, s, o.right.a);
     }
-    if (hasNext) {
+    if (hasNext && mitered(s, run[(k + 1) % m]!)) {
       const nk = (k + 1) % m;
       const ns = run[nk]!;
       const no = off[nk]!;

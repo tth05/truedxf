@@ -23,6 +23,11 @@ export interface PlotRequest {
   lineweights?: boolean;
   scale?: "fit" | readonly [number, number];
   /**
+   * Registry-only system variables in effect for the plot (not stored in the DXF), e.g.
+   * LWDEFAULT in 1/100 mm (note 06 §5.1). Fixture contract: meta.plot.sysvars.
+   */
+  sysvars?: Readonly<Record<string, number | string>>;
+  /**
    * Layouts: answer to -PLOT "Plot paper space first?". false (default, AutoCAD's default answer
    * for layouts with PLOTSETTINGS 70 bit 512): viewport content first, paper-space entities on
    * top; true: paper space first, viewport content on top (note 08 §3.10, VERIFIED-BY-ACAD).

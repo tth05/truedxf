@@ -38,6 +38,7 @@ import type {
   RayEntity,
   SolidEntity,
   SplineEntity,
+  VertexEntity,
 } from "@truedxf/model";
 import { type DrawState, type Frontend, registerDrawer } from "../frontend.ts";
 import type { Resolved } from "../props.ts";
@@ -56,22 +57,74 @@ function curve(
   fe.strokePath({ subpaths: [closed ? { ...sp, closed } : sp] }, r, e, st, { noLinetype });
 }
 
+/** Target-plane offset of an extrusion by `thickness` along N̂, or undefined if it is invisible. */
+function thicknessOffset(fe: Frontend, st: DrawState, thickness: number, n: Vec3): Vec3 | undefined {
+  if (thickness === 0) return undefined;
+  const len = Math.hypot(n.x, n.y, n.z) || 1;
+  const d = st.m.transformDirection({
+    x: (n.x * thickness) / len,
+    y: (n.y * thickness) / len,
+    z: (n.z * thickness) / len,
+  });
+  return Math.hypot(d.x, d.y) > fe.tolerance ? d : undefined;
+}
+
+/**
+ * A curve with thickness in 2D wireframe: the base curve, the top curve (+t·N̂) and a connecting
+ * edge at every vertex of the flattened base curve. VERIFIED-BY-ACAD (ocs/thickness-skew,
+ * lines-curves/line-thickness-*: LINE → quad, CIRCLE/ARC → two curves plus generator lines at the
+ * tessellation vertices, 40 for a 150 px circle; note 03 §2.6).
+ */
+function extruded(fe: Frontend, c: Curve3, st: DrawState, r: Resolved, d: Vec3, closed = false): void {
+  const sp = projectCurve3(c, st.m);
+  for (const fl of fe.flatten({ subpaths: [closed ? { ...sp, closed } : sp] })) {
+    const pts = fl.points;
+    const top = new Float64Array(pts.length);
+    for (let k = 0; k < pts.length; k += 2) {
+      top[k] = pts[k]! + d.x;
+      top[k + 1] = pts[k + 1]! + d.y;
+    }
+    fe.strokeFlat(pts, fl.closed, r);
+    fe.strokeFlat(top, fl.closed, r);
+    for (let k = 0; k < pts.length; k += 2)
+      fe.strokeFlat(Float64Array.of(pts[k]!, pts[k + 1]!, top[k]!, top[k + 1]!), false, r);
+  }
+}
+
+/** Extrusion 210 = (0, 0, 0): AutoCAD keeps such ARC/CIRCLE entities but does not draw them. */
+function zeroVector(n: Vec3): boolean {
+  return n.x === 0 && n.y === 0 && n.z === 0;
+}
+
 registerDrawer("LINE", (fe, e, st) => {
   const l = e as LineEntity;
-  curve(fe, line3(l.start, l.end), l, st, fe.resolve(l, st));
+  const r = fe.resolve(l, st);
+  const d = thicknessOffset(fe, st, l.thickness, l.extrusion);
+  if (d) extruded(fe, line3(l.start, l.end), st, r, d);
+  else curve(fe, line3(l.start, l.end), l, st, r);
 });
 
 registerDrawer("CIRCLE", (fe, e, st) => {
   const c = e as CircleEntity;
+  // VERIFIED-BY-ACAD ocs/zero-extrusion-circle (Q-0124)
+  if (zeroVector(c.extrusion)) return;
   const arc = ocsArcToEllipticArc3(c.center, c.radius, 0, Math.PI * 2, c.extrusion);
-  curve(fe, ellipticArcCurve3(arc), c, st, fe.resolve(c, st), true);
+  const r = fe.resolve(c, st);
+  const d = thicknessOffset(fe, st, c.thickness, c.extrusion);
+  if (d) extruded(fe, ellipticArcCurve3(arc), st, r, d, true);
+  else curve(fe, ellipticArcCurve3(arc), c, st, r, true);
 });
 
 registerDrawer("ARC", (fe, e, st) => {
   const a = e as ArcEntity;
+  // VERIFIED-BY-ACAD ocs/zero-extrusion-arc (Q-0124)
+  if (zeroVector(a.extrusion)) return;
   const sweep = degToRad(arcSpanDeg(a.startAngle, a.endAngle));
   const arc = ocsArcToEllipticArc3(a.center, a.radius, degToRad(a.startAngle), sweep, a.extrusion);
-  curve(fe, ellipticArcCurve3(arc), a, st, fe.resolve(a, st));
+  const r = fe.resolve(a, st);
+  const d = thicknessOffset(fe, st, a.thickness, a.extrusion);
+  if (d) extruded(fe, ellipticArcCurve3(arc), st, r, d);
+  else curve(fe, ellipticArcCurve3(arc), a, st, r);
 });
 
 registerDrawer("ELLIPSE", (fe, e, st) => {
@@ -152,16 +205,26 @@ function polyline2d(
   if (fe.linetypeFor(e, r, st)) fe.note("wide-polyline-linetype");
 }
 
+/**
+ * Negative widths: a per-vertex width counts with its absolute value, a negative constant width
+ * (43) as 0. VERIFIED-BY-ACAD polylines/width-negative-width (40/41 = -4 → 4 wide),
+ * width-const-negative (43 = -1 → hairline). The model reports an absent 40/41 as -1.
+ */
+function vertexWidth(w: number): number {
+  return w === -1 ? 0 : Math.abs(w);
+}
+
 registerDrawer("LWPOLYLINE", (fe, e, st) => {
   const p = e as LwPolylineEntity;
   const verts: PolylineVertex[] = p.vertices.map((v) => ({
     x: v.x,
     y: v.y,
     bulge: v.bulge,
-    startWidth: v.startWidth < 0 ? 0 : v.startWidth,
-    endWidth: v.endWidth < 0 ? 0 : v.endWidth,
+    startWidth: vertexWidth(v.startWidth),
+    endWidth: vertexWidth(v.endWidth),
   }));
-  polyline2d(fe, p, st, verts, p.closed, p.constantWidth, p.extrusion, p.elevation, (p.flags & 128) !== 0);
+  const cw = Math.max(0, p.constantWidth);
+  polyline2d(fe, p, st, verts, p.closed, cw, p.extrusion, p.elevation, (p.flags & 128) !== 0);
 });
 
 registerDrawer("POLYLINE", (fe, e, st) => {
@@ -185,6 +248,7 @@ registerDrawer("POLYLINE", (fe, e, st) => {
       st,
       r,
       p.closed,
+      true,
     );
     return;
   }
@@ -200,19 +264,26 @@ registerDrawer("POLYLINE", (fe, e, st) => {
 });
 
 function drawPolyface(fe: Frontend, p: PolylineEntity, st: DrawState): void {
-  const r = fe.resolve(p, st);
   const vertices: Vec3[] = [];
-  const faces: number[][] = [];
+  const faces: VertexEntity[] = [];
   for (const v of p.vertices) {
     if ((v.flags & 64) !== 0) vertices.push(v.location);
-    else if ((v.flags & 128) !== 0) faces.push([...v.faceIndices]);
+    else if ((v.flags & 128) !== 0) faces.push(v);
   }
+  // $SPLFRAME 1 shows invisible edges. VERIFIED-BY-ACAD polylines/polyface-invisible-splframe
+  const splframe = fe.doc.header.num("$SPLFRAME", 0) !== 0;
   const seen = new Set<string>();
-  for (const f of faces) {
+  for (const face of faces) {
+    // each face plots with its face record's own properties (colour, layer, …).
+    // VERIFIED-BY-ACAD polylines/polyface-face-colors
+    if (!fe.props.isPlotted(face, st.inh)) continue;
+    const r = fe.resolve(face, st);
+    // index 0 = unused corner (triangles)
+    const f = face.faceIndices.filter((x) => x !== 0);
     for (let i = 0; i < f.length; i++) {
       const a = f[i]!;
       const b = f[(i + 1) % f.length]!;
-      if (a <= 0) continue; // negative index = invisible edge starting at this vertex
+      if (a < 0 && !splframe) continue; // negative index = invisible edge starting at this vertex
       const pa = vertices[Math.abs(a) - 1];
       const pb = vertices[Math.abs(b) - 1];
       if (!pa || !pb) continue;
@@ -222,7 +293,7 @@ function drawPolyface(fe: Frontend, p: PolylineEntity, st: DrawState): void {
       if (seen.has(key)) continue;
       seen.add(key);
       // mesh edges plot continuous. VERIFIED-BY-ACAD (linetypes/other-polymesh)
-      curve(fe, line3(pa, pb), p, st, r, false, true);
+      curve(fe, line3(pa, pb), face, st, r, false, true);
     }
   }
 }
@@ -244,7 +315,7 @@ function drawPolygonMesh(fe: Frontend, p: PolylineEntity, st: DrawState): void {
   for (let j = 0; j < n; j++) {
     const col: Vec3[] = [];
     for (let i = 0; i < m; i++) col.push(pts[i * n + j]!);
-    curve(fe, polyline3(col, closedM), p, st, r, closedM);
+    curve(fe, polyline3(col, closedM), p, st, r, closedM, true);
   }
 }
 
@@ -254,51 +325,95 @@ registerDrawer("POINT", (fe, e, st) => {
   const mode = fe.doc.header.num("$PDMODE", 0);
   const loc = st.m.transformPoint(p.location);
   const sym = pointSymbol(mode, pointSize(fe, st));
-  // POINT ignores the lineweight: always one pixel (note 08 §10.3)
+  // POINT and its symbol ignore the lineweight: always one pixel. VERIFIED-BY-ACAD (note 08
+  // §10.3; points/symbol-lineweight-*)
+  const thin: Resolved = { ...r, lineweight: 0 };
   if (sym.dot) fe.pixel(loc.x, loc.y, fe.color(r));
+  if (p.thickness !== 0) {
+    // thickness: a line from P to P + t·N̂ (note 03 §2.6)
+    const n = p.extrusion;
+    const len = Math.hypot(n.x, n.y, n.z) || 1;
+    const k = p.thickness / len;
+    const top = { x: p.location.x + n.x * k, y: p.location.y + n.y * k, z: p.location.z + n.z * k };
+    curve(fe, line3(p.location, top), p, st, thin);
+  }
   if (sym.paths.subpaths.length === 0) return;
-  // symbols are aligned with the point's angle (degrees, UCS X axis when drawn); UNVERIFIED sign
-  const rot = Matrix44.rotationZ(degToRad(p.angle));
-  const at = Matrix44.translation(loc.x, loc.y, 0).multiply(rot);
-  fe.strokePath(transformPath(sym.paths, at.planeToAffine2(0)), r, undefined, st, { noLinetype: true });
+  // The symbol lies in the plane of 210 (arbitrary axis) at the WCS location, rotated by −angle
+  // (clockwise). VERIFIED-BY-ACAD (points/point-angle-*, point-ocs-*)
+  const lm = Matrix44.product(
+    Matrix44.translation(p.location.x, p.location.y, p.location.z),
+    ocsToWcsMatrix(p.extrusion),
+    Matrix44.rotationZ(-degToRad(p.angle)),
+  );
+  // the symbol is transformed with the block (distorted by non-uniform scale). VERIFIED-BY-ACAD
+  // (points/point-in-block-0001)
+  fe.strokePath(transformPath(sym.paths, st.m.multiply(lm).planeToAffine2(0)), thin, undefined, st, {
+    noLinetype: true,
+  });
 });
 
 /**
- * PDSIZE in target units: > 0 absolute (scaled by block transform), 0 → 5 % of the plotted view
- * height, < 0 → |PDSIZE| % of the view height (note 03 §3.1; UNVERIFIED which height PLOT uses).
+ * Point size S (the `+` arm length, points.ts) in the point's own units: PDSIZE > 0 absolute;
+ * 0 → 5 % and < 0 → |PDSIZE| % of *half* the plotted view height. VERIFIED-BY-ACAD
+ * (points/pdsize-relative-*, pdsize-vport-*, point-in-block-0001): the plot area height counts,
+ * not the *Active VPORT height; inside blocks the symbol is transformed with the block, and the
+ * relative size uses the view height measured in block units (|M⁻¹·(0, 1)|, point-in-block-0002).
  */
 function pointSize(fe: Frontend, st: DrawState): number {
   const pdsize = fe.doc.header.num("$PDSIZE", 0);
-  const viewH = fe.view.maxY - fe.view.minY;
-  if (pdsize > 0) return pdsize * fe.transformScale(st.m);
-  if (pdsize === 0) return viewH * 0.05;
-  return (viewH * -pdsize) / 100;
+  if (pdsize > 0) return pdsize;
+  const up = st.m.planeToAffine2(0).invert()?.applyVector({ x: 0, y: 1 });
+  const k = up ? Math.hypot(up.x, up.y) : 1;
+  const half = ((fe.view.maxY - fe.view.minY) / 2) * (k > 0 ? k : 1);
+  if (pdsize === 0) return half * 0.05;
+  return (half * -pdsize) / 100;
 }
 
 registerDrawer(["SOLID", "TRACE"], (fe, e, st) => {
   const s = e as SolidEntity;
   const r = fe.resolve(s, st);
   const m = st.m.multiply(ocsToWcsMatrix(s.extrusion));
-  // drawing order 1-2-4-3 (note 03 §3)
-  const q = [s.v0, s.v1, s.v3, s.v2].map((p) => m.transformPoint(p));
-  if (fe.fillMode) {
-    const tri = [
-      q[0]!.x,
-      q[0]!.y,
-      q[1]!.x,
-      q[1]!.y,
-      q[2]!.x,
-      q[2]!.y,
-      q[0]!.x,
-      q[0]!.y,
-      q[2]!.x,
-      q[2]!.y,
-      q[3]!.x,
-      q[3]!.y,
-    ];
-    fe.fillTriangles(tri, fe.color(r));
+  // outline order 1-2-4-3 (note 03 §3)
+  const corners = [s.v0, s.v1, s.v3, s.v2];
+  const d = thicknessOffset(fe, st, s.thickness, s.extrusion);
+  if (d) {
+    // a prism in wireframe: bottom, top and the four vertical edges, never filled.
+    // VERIFIED-BY-ACAD solids/solid-thickness-tilted, ocs/thickness-skew
+    const ocs = ocsToWcsMatrix(s.extrusion);
+    extruded(
+      fe,
+      polyline3(
+        corners.map((p) => ocs.transformPoint(p)),
+        true,
+      ),
+      st,
+      r,
+      d,
+      true,
+    );
+    return;
+  }
+  // Filled only when the plane faces the view (normal ∥ view direction); a tilted SOLID/TRACE
+  // plots as its outline. VERIFIED-BY-ACAD ocs/solid-small (210 = 0.01, 0.01, 1), solid-tilt-*,
+  // solid-edge-on
+  const ex = m.transformDirection({ x: 1, y: 0, z: 0 });
+  const ey = m.transformDirection({ x: 0, y: 1, z: 0 });
+  const nx = ex.y * ey.z - ex.z * ey.y;
+  const ny = ex.z * ey.x - ex.x * ey.z;
+  const nz = ex.x * ey.y - ex.y * ey.x;
+  const facing = Math.hypot(nx, ny) <= 1e-9 * Math.hypot(nx, ny, nz);
+  if (fe.fillMode && facing) {
+    // the 1-2-4-3 polygon is filled as is: a crossed order gives a bow tie, a concave one keeps
+    // its notch. VERIFIED-BY-ACAD solids/solid-polygon-order-fill1, solid-concave-fill1
+    const ring = new Float64Array(8);
+    corners.forEach((p, i) => {
+      const q = m.transformPoint(p);
+      ring[i * 2] = q.x;
+      ring[i * 2 + 1] = q.y;
+    });
+    fe.fillRings([ring], fe.color(r), FillRule.NonZero);
   } else {
-    const path: Path2 = { subpaths: [projectCurve3(polyline3([s.v0, s.v1, s.v3, s.v2], true), m)] };
+    const path: Path2 = { subpaths: [projectCurve3(polyline3(corners, true), m)] };
     fe.strokePath(path, r, s, st);
   }
 });
@@ -307,8 +422,10 @@ registerDrawer("3DFACE", (fe, e, st) => {
   const f = e as Face3dEntity;
   const r = fe.resolve(f, st);
   const v = [f.v0, f.v1, f.v2, f.v3];
+  const splframe = fe.doc.header.num("$SPLFRAME", 0) !== 0;
   for (let i = 0; i < 4; i++) {
-    if (f.invisibleEdges & (1 << i)) continue;
+    // $SPLFRAME 1 shows invisible edges. VERIFIED-BY-ACAD solids/3dface-nonplanar
+    if (f.invisibleEdges & (1 << i) && !splframe) continue;
     const a = v[i]!;
     const b = v[(i + 1) % 4]!;
     if (a.x === b.x && a.y === b.y && a.z === b.z) continue;
@@ -353,7 +470,10 @@ registerDrawer("INSERT", (fe, e, st) => {
   const base = block.basePoint;
   const ocs = ocsToWcsMatrix(ins.extrusion);
   const rot = Matrix44.rotationZ(degToRad(ins.rotation));
-  const scale = Matrix44.scaling(ins.scale.x, ins.scale.y, ins.scale.z);
+  // a zero scale factor is read as 1 (AutoCAD repairs it on load). VERIFIED-BY-ACAD
+  // blocks/zero-scale-x, zero-scale-y
+  const s1 = (v: number) => (v === 0 ? 1 : v);
+  const scale = Matrix44.scaling(s1(ins.scale.x), s1(ins.scale.y), s1(ins.scale.z));
   const toBase = Matrix44.translation(-base.x, -base.y, -base.z);
   for (let row = 0; row < ins.rowCount; row++) {
     for (let col = 0; col < ins.columnCount; col++) {

@@ -177,7 +177,8 @@ export class Frontend {
     this.pixelSize = pixelSizeOf(view, request.canvas);
     this.tolerance = this.pixelSize * TOLERANCE_PX;
     this.builder = new DisplayListBuilder(this.pixelSize);
-    this.props = new PropertyResolver(doc);
+    const lwDefault = request.sysvars?.LWDEFAULT;
+    this.props = new PropertyResolver(doc, undefined, typeof lwDefault === "number" ? lwDefault : undefined);
     this.linetypes = new LinetypeResolver(doc);
     this.calibration = calibration;
     this.monochrome = (request.styleTable ?? "").toLowerCase() === "monochrome.ctb";
@@ -284,11 +285,9 @@ export class Frontend {
   }
 
   private drawInsert(e: InsertEntity, st: DrawState): void {
-    if (e.invisible) return;
-    const layer = this.props.layer(this.props.effectiveLayer(e, st.inh));
-    // A frozen INSERT layer hides the whole reference; an off layer only hides content that
-    // inherits it (layer-0 entities). UNVERIFIED (note 07 §3 / note 02).
-    if (layer.frozen) return;
+    // An invisible reference or a frozen INSERT layer hides the whole reference; an off layer
+    // only hides content that inherits it (layer-0 entities). Note 07 §3.2 (props.ts)
+    if (!this.props.expands(e, st.inh)) return;
     const drawer = DRAWERS.get("INSERT");
     if (!drawer) return;
     drawer(this, e, st);
@@ -601,7 +600,12 @@ export async function renderPlot(
       [Math.max(ext.x, exn.x + 1e-9), Math.max(ext.y, exn.y + 1e-9)],
       request.canvas,
     );
-    const probe = new Frontend(doc, request, guess, calibration, env);
+    // geometric bounds: no pixel grid (it clips to the guessed canvas), no lineweight widening
+    const probe = new Frontend(doc, { ...request, lineweights: false }, guess, calibration, {
+      ...env,
+      raster: "smooth",
+    });
+    probe.props.extents = true;
     drawSpace(probe, space);
     view = viewFromBounds(probe.build().bounds, request.canvas);
   }

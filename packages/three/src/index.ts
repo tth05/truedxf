@@ -4,7 +4,9 @@
  * Rules: batches are drawn in display-list order (renderOrder, no depth test); colours are passed
  * through unchanged (no colour management / sRGB conversion) so plot colours stay exact; batch
  * geometry is positioned relative to the camera centre in float64 on the CPU (float32 precision);
- * clip regions use the stencil buffer (even-odd via INVERT).
+ * clip regions use the stencil buffer (even-odd via INVERT). Batches with alpha < 255 blend
+ * exactly like AutoCAD's plot, out = (src·a + dst·(256 − a)) >> 8 (note 06 §4.2): the frame so
+ * far is copied to a texture before such a batch and the shader computes the integer formula.
  */
 import type { Batch, DisplayList, RasterImage } from "@truedxf/render";
 import * as THREE from "three";
@@ -48,6 +50,9 @@ export class DisplayListRenderer {
   private list: DisplayList | undefined;
   /** Textures of DisplayList.images (shared by the batches of one list). */
   private textures = new Map<RasterImage, THREE.DataTexture>();
+  /** Copy of the frame below a transparent batch (sized in render()). */
+  private under: THREE.FramebufferTexture | undefined;
+  private readonly underSize = { value: new THREE.Vector2(1, 1) };
   /** Group for user content drawn on top of the drawing (world coordinates via `worldGroup`). */
   readonly overlay = new THREE.Group();
   private centerX = 0;
@@ -106,7 +111,9 @@ export class DisplayListRenderer {
       stencilZPass: THREE.KeepStencilOp,
     } as const;
     let obj: THREE.Object3D;
-    if (batch.kind === IMAGE && batch.uvs && batch.image !== undefined) {
+    if (batch.kind !== IMAGE && hasAlpha(batch.colors)) {
+      obj = this.createBlendBatch(batch, geom, common);
+    } else if (batch.kind === IMAGE && batch.uvs && batch.image !== undefined) {
       geom.setAttribute("uv", new THREE.BufferAttribute(batch.uvs, 2));
       const map = this.texture(this.list!.images[batch.image]!);
       obj = new THREE.Mesh(geom, new THREE.MeshBasicMaterial({ ...common, map, side: THREE.DoubleSide }));
@@ -116,6 +123,48 @@ export class DisplayListRenderer {
     else
       obj = new THREE.Points(geom, new THREE.PointsMaterial({ ...common, size: 1, sizeAttenuation: false }));
     obj.frustumCulled = false;
+    return obj;
+  }
+
+  /** A batch blended with AutoCAD's integer formula against a copy of the frame below it. */
+  private createBlendBatch(
+    batch: Batch,
+    geom: THREE.BufferGeometry,
+    common: Partial<THREE.MaterialParameters>,
+  ): THREE.Object3D {
+    const mat = new THREE.ShaderMaterial({
+      ...common,
+      // stays in the transparent render list so renderOrder interleaves it with the others
+      transparent: true,
+      blending: THREE.NoBlending,
+      uniforms: { under: { value: null }, size: this.underSize },
+      vertexShader: `varying vec4 vC;
+void main() {
+  vC = color;
+  gl_PointSize = 1.0;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position.xy, 0.0, 1.0);
+}`,
+      fragmentShader: `uniform sampler2D under;
+uniform vec2 size;
+varying vec4 vC;
+void main() {
+  vec3 d = floor(texture2D(under, gl_FragCoord.xy / size).rgb * 255.0 + 0.5);
+  vec3 s = floor(vC.rgb * 255.0 + 0.5);
+  float a = floor(vC.a * 255.0 + 0.5);
+  gl_FragColor = vec4(floor((s * a + d * (256.0 - a)) / 256.0) / 255.0, 1.0);
+}`,
+    });
+    const obj =
+      batch.kind === TRIANGLES
+        ? new THREE.Mesh(geom, mat)
+        : batch.kind === LINES
+          ? new THREE.LineSegments(geom, mat)
+          : new THREE.Points(geom, mat);
+    obj.onBeforeRender = () => {
+      if (!this.under) return;
+      this.renderer.copyFramebufferToTexture(this.under);
+      mat.uniforms.under!.value = this.under;
+    };
     return obj;
   }
 
@@ -220,6 +269,14 @@ export class DisplayListRenderer {
       o.object.position.set(o.originX - this.centerX, o.originY - this.centerY, 0);
     }
     this.overlay.position.set(-this.centerX, -this.centerY, 0);
+    const gl = this.renderer.getContext();
+    const w = gl.drawingBufferWidth;
+    const h = gl.drawingBufferHeight;
+    if (!this.under || this.under.image.width !== w || this.under.image.height !== h) {
+      this.under?.dispose();
+      this.under = new THREE.FramebufferTexture(w, h);
+      this.underSize.value.set(w, h);
+    }
     this.renderer.render(this.scene, cam);
   }
 
@@ -260,6 +317,12 @@ export class DisplayListRenderer {
 
   dispose(): void {
     this.clear();
+    this.under?.dispose();
     this.renderer.dispose();
   }
+}
+
+function hasAlpha(colors: Uint8Array): boolean {
+  for (let i = 3; i < colors.length; i += 4) if (colors[i]! < 255) return true;
+  return false;
 }

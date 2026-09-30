@@ -40,6 +40,7 @@ import {
 } from "./plot.ts";
 import { type Inherited, PropertyResolver, type Resolved, TOP_LEVEL } from "./props.ts";
 import { bandOffset, linePixels, lineweightPixels, PixelGrid } from "./raster.ts";
+import { coverage, plotsTransparency } from "./transparency.ts";
 
 export interface RenderEnv {
   /** Font bytes by file or family name (lower-cased); undefined when not available. */
@@ -136,7 +137,8 @@ export class Frontend {
   readonly pixelSize: number;
   /** Flattening tolerance in target (world) units. */
   readonly tolerance: number;
-  readonly builder: DisplayListBuilder;
+  /** Output; swapped for a capture builder while drawing a transparent entity. */
+  builder: DisplayListBuilder;
   readonly props: PropertyResolver;
   readonly linetypes: LinetypeResolver;
   readonly calibration: PlotCalibration;
@@ -150,6 +152,8 @@ export class Frontend {
   readonly grid: PixelGrid | undefined;
   /** Plot draw order of block entities (SORTENTSTABLE, draworder.ts). */
   readonly drawOrder: DrawOrder;
+  /** Whether this plot honours transparency (PLOTTRANSPARENCYOVERRIDE / page setup). */
+  readonly transparency: boolean;
   /**
    * Entity-level culling while drawing clipped content (front/back clip planes of viewports and
    * XCLIPs); an entity is skipped when any filter rejects it.
@@ -181,6 +185,7 @@ export class Frontend {
     this.fillMode = doc.header.num("$FILLMODE", 1) !== 0;
     this.grid = (env.raster ?? "autocad") === "autocad" ? new PixelGrid(view, request.canvas) : undefined;
     this.drawOrder = new DrawOrder(doc);
+    this.transparency = plotsTransparency(doc, request);
   }
 
   note(what: string): void {
@@ -220,8 +225,42 @@ export class Frontend {
       return;
     }
     this.builder.beginEntity(e.handle || `#${e.id}`);
-    drawer(this, e, st);
+    if (this.transparency && this.grid && this.alpha(this.resolve(e, st)) < 255)
+      this.drawTransparent(e, st, drawer);
+    else drawer(this, e, st);
     this.builder.endEntity();
+  }
+
+  /**
+   * A transparent entity is captured and re-emitted as single pixels, one batch per blend unit
+   * (a fill, a stroke segment), so each unit blends once per pixel (transparency.ts).
+   */
+  private drawTransparent(e: Entity, st: DrawState, drawer: EntityDrawer): void {
+    const out = this.builder;
+    const capture = new DisplayListBuilder(this.pixelSize);
+    this.builder = capture;
+    try {
+      drawer(this, e, st);
+    } finally {
+      this.builder = out;
+    }
+    // one blend unit per captured batch (a fill, a stroke segment, a run of pixels)
+    for (const cov of coverage(capture.build(), this.grid!)) {
+      out.breakBatch();
+      const c = cov.rgba;
+      for (let k = 0; k < cov.xy.length >> 1; k++)
+        out.points(
+          [cov.xy[k * 2]!, cov.xy[k * 2 + 1]!],
+          [c[k * 4]!, c[k * 4 + 1]!, c[k * 4 + 2]!, c[k * 4 + 3]!],
+        );
+    }
+    out.breakBatch();
+  }
+
+  /** Plotted alpha of resolved properties (255 when transparency does not plot). */
+  alpha(r: Resolved): number {
+    if (!this.transparency) return 255;
+    return (r as Resolved & { alpha?: number }).alpha ?? 255;
   }
 
   /** Draws a block's entities with an additional transform and the parent's inherited properties. */
@@ -306,14 +345,15 @@ export class Frontend {
   }
 
   color(r: Resolved): Rgba {
+    const a = this.alpha(r);
     // true colours keep their RGB even with monochrome.ctb (note 08 §10.7)
-    if (r.trueColor !== undefined) return [r.rgb[0], r.rgb[1], r.rgb[2], 255];
-    if (this.monochrome) return [0, 0, 0, 255];
+    if (r.trueColor !== undefined) return [r.rgb[0], r.rgb[1], r.rgb[2], a];
+    if (this.monochrome) return [0, 0, 0, a];
     if (this.grid) {
       const [red, g, b] = plotAciToRgb(r.aci);
-      return [red, g, b, 255];
+      return [red, g, b, a];
     }
-    return [r.rgb[0], r.rgb[1], r.rgb[2], 255];
+    return [r.rgb[0], r.rgb[1], r.rgb[2], a];
   }
 
   /** Plotted lineweight in device pixels (≥ 1). */
@@ -443,14 +483,24 @@ export class Frontend {
       snapped[k * 2] = g.cx(g.px(points[k * 2]!)) + off;
       snapped[k * 2 + 1] = g.cy(g.py(points[k * 2 + 1]!)) + off;
     }
-    const tri = strokePolyline(snapped, {
+    const opts = {
       width: w * g.pixelSize,
       cap: LineCap.Round,
       join: LineJoin.Round,
       tolerance: this.tolerance,
-      closed,
-    });
-    this.builder.triangles(tri, color);
+    };
+    if (color[3] < 255) {
+      // transparent strokes blend segment by segment: joints darken twice (transparency.ts)
+      const count = closed ? n : n - 1;
+      for (let k = 0; k < count; k++) {
+        const b = (k + 1) % n;
+        const seg = [snapped[k * 2]!, snapped[k * 2 + 1]!, snapped[b * 2]!, snapped[b * 2 + 1]!];
+        this.builder.triangles(strokePolyline(Float64Array.from(seg), { ...opts, closed: false }), color);
+        this.builder.breakBatch();
+      }
+      return;
+    }
+    this.builder.triangles(strokePolyline(snapped, { ...opts, closed }), color);
   }
 
   fillTriangles(tri: ArrayLike<number>, color: Rgba): void {

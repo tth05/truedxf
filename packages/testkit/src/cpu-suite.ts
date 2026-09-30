@@ -44,7 +44,9 @@ for (const t of targets) {
     if (!existsSync(refPng) || !existsSync(dxf)) continue;
     try {
       const doc = loadDxf(new Uint8Array(readFileSync(dxf)));
-      const r = await renderPlot(doc, meta.plot, {
+      // the harness prologue sets PLOTTRANSPARENCYOVERRIDE 0 unless the case overrides it
+      const plot = { ...meta.plot, sysvars: { PLOTTRANSPARENCYOVERRIDE: 0, ...meta.plot.sysvars } };
+      const r = await renderPlot(doc, plot, {
         loadImage: nodeImageLoader(dir),
         rasterEntities: drawRaster ? "draw" : "omit",
       });

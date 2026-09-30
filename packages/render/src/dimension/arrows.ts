@@ -32,6 +32,8 @@ export interface ArrowOptions {
   readonly cornerLeft?: boolean;
   /** Tip-to-base distance of the SOLID (arc arrows: the chord), default the arrow size. */
   readonly length?: number;
+  /** Part properties instead of the dimension's DIMCLRD / DIMLWD. */
+  readonly props?: PartProps;
 }
 
 /**

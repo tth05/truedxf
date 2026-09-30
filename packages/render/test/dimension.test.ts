@@ -123,3 +123,68 @@ describe("dimension block regeneration", () => {
     expect(lines).toContainEqual([38, 78, 42, 82]);
   });
 });
+
+describe("LEADER, TOLERANCE and block-less DIMENSION drawing", () => {
+  it("renders without unsupported notes", async () => {
+    const { renderPlot } = await import("../src/index.ts");
+    const d = modelDoc({
+      entities: `0 LEADER
+5 A1
+330 1F
+100 AcDbEntity
+8 0
+100 AcDbLeader
+3 Standard
+71 1
+72 0
+73 3
+76 3
+10 40
+20 30
+30 0
+10 100
+20 110
+30 0
+10 160
+20 110
+30 0
+0 TOLERANCE
+5 A2
+330 1F
+100 AcDbEntity
+8 0
+100 AcDbFcf
+3 Standard
+10 20
+20 20
+30 0
+1 X%%v0.1%%vA
+0 DIMENSION
+5 A3
+330 1F
+100 AcDbEntity
+8 0
+100 AcDbDimension
+3 Standard
+10 157.35
+20 80
+30 0
+70 32
+100 AcDbAlignedDimension
+13 40
+23 50
+33 0
+14 157.35
+24 50
+34 0
+100 AcDbRotatedDimension`,
+    });
+    const r = await renderPlot(
+      d,
+      { layout: "Model", area: { type: "window", min: [0, 0], max: [200, 150] }, canvas: [200, 150] },
+      { raster: "smooth" },
+    );
+    expect(Object.keys(r.unsupported).filter((k) => !k.startsWith("text-no-fonts"))).toEqual([]);
+    expect(r.displayList.batches.length).toBeGreaterThan(0);
+  });
+});

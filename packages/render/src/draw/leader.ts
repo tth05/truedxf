@@ -4,8 +4,14 @@
  * annotations. Parts are built like dimension block content (dimension/writer.ts) and drawn
  * as content of the LEADER, so BYBLOCK resolves to the entity.
  */
-import { ocsToWcsMatrix, wcsToOcsMatrix } from "@truedxf/geometry";
-import type { LeaderEntity, MTextEntity } from "@truedxf/model";
+import { Matrix44, ocsToWcsMatrix, wcsToOcsMatrix } from "@truedxf/geometry";
+import {
+  BY_BLOCK_RAW,
+  decodeRawColor,
+  type LeaderEntity,
+  type MTextEntity,
+  type MultiLeaderEntity,
+} from "@truedxf/model";
 import { arrowLength } from "../dimension/arrows.ts";
 import { add, DimCtx, len, sub, unit, type Vec } from "../dimension/context.ts";
 import { DimStyleVars } from "../dimension/vars.ts";
@@ -86,3 +92,128 @@ registerDrawer("LEADER", (fe, e, st: DrawState) => {
 });
 
 export type { Pt };
+
+// ---- MULTILEADER ------------------------------------------------------------------------------
+
+function recordName(fe: Frontend, handle: string | undefined): string {
+  if (!handle || handle === "0") return "";
+  const rec = fe.doc.byHandle.get(handle.toUpperCase());
+  const i = rec ? rec.find(2) : -1;
+  return rec && i >= 0 ? rec.store.str(i).trim() : "";
+}
+
+/** Raw colour → part colour (ACI; true colours as ACI 7 fallback with the RGB kept). */
+function rawPart(raw: number): { color: number; trueColor?: number } {
+  const d = decodeRawColor(raw);
+  if (d.rgb !== undefined) return { color: 7, trueColor: d.rgb };
+  return { color: d.aci ?? 0 };
+}
+
+/**
+ * MULTILEADER from its context data (note 05 §12.5): leader lines to the landing point plus
+ * the dogleg, arrows (per-line override, entity 342, closed filled), MTEXT or block content.
+ */
+function mleaderEntities(fe: Frontend, ml: MultiLeaderEntity) {
+  const ctx = ml.context;
+  if (!(Math.abs(ctx.scale) > 1e-12)) return undefined;
+  const doc = fe.doc;
+  const v = new DimStyleVars(doc, "Standard", undefined);
+  const w = new EntityWriter(ml.layer, 0, ml.linetypeScale);
+  const c = new DimCtx({ doc, fonts: annotationFonts(doc), lineweight: ml.lineweight }, v, w);
+  const lc = rawPart(ml.leaderColor);
+  const P = (p: { x: number; y: number }): Pt => ({ x: p.x, y: p.y });
+  if (ml.leaderType !== 0) {
+    for (const leader of ctx.leaders) {
+      if (!leader.hasLastLeaderLine) continue;
+      for (const line of leader.lines) {
+        const pts = [...line.vertices.map(P), P(leader.lastLeaderPoint)];
+        const color = line.color !== BY_BLOCK_RAW ? rawPart(line.color) : lc;
+        const props = { color: color.color, lineweight: line.lineweight ?? ml.leaderLineweight };
+        const size = line.arrowSize ?? ctx.arrowSize;
+        const override = ml.arrowHeads.find((a) => a.index === line.index)?.handle;
+        const arrow = recordName(fe, line.arrowHandle ?? override ?? ml.arrowHandle);
+        let draw = pts.length >= 2 && size > 0;
+        const first = draw ? len(sub(pts[1]!, pts[0]!)) : 0;
+        // no arrowhead unless the first segment is longer than twice its size (note 05 §12.5 step 3)
+        if (first <= 2 * size) draw = false;
+        const dir0 = draw ? unit(sub(pts[0]!, pts[1]!)) : { x: 1, y: 0 };
+        const linePts = [...pts];
+        if (draw) linePts[0] = add(pts[0]!, dir0, -arrowLength(arrow) * size);
+        if (ml.leaderType === 2 && linePts.length > 2) {
+          const n = linePts.length;
+          w.splineFit(
+            linePts,
+            unit(sub(linePts[1]!, linePts[0]!)),
+            unit(sub(linePts[n - 1]!, linePts[n - 2]!)),
+            props,
+          );
+        } else for (let k = 0; k + 1 < linePts.length; k++) w.line(linePts[k]!, linePts[k + 1]!, props);
+        // arrows take the leader line colour and lineweight
+        if (draw) c.arrowNamed(arrow, pts[0]!, dir0, size, { props });
+      }
+      // dogleg (landing) for straight leaders with horizontal attachment
+      if (
+        ml.leaderType === 1 &&
+        ml.dogleg &&
+        leader.hasDoglegVector &&
+        leader.doglegLength > 0 &&
+        leader.attachmentDirection === 0
+      ) {
+        const a = P(leader.lastLeaderPoint);
+        w.line(a, add(a, P(leader.doglegVector), leader.doglegLength), {
+          color: lc.color,
+          lineweight: ml.leaderLineweight,
+        });
+      }
+    }
+  }
+  const mt = ctx.mtext;
+  if (ml.contentType === 2 && mt) {
+    const style = recordName(fe, mt.styleHandle) || "Standard";
+    const tc = rawPart(mt.color);
+    const ang = Math.atan2(mt.direction.y, mt.direction.x);
+    w.mtext(
+      P(mt.insert),
+      ctx.textHeight,
+      mt.text,
+      style,
+      ang,
+      { color: tc.color },
+      {
+        attachment: mt.attachment,
+        width: mt.width,
+      },
+    );
+  }
+  return w.build();
+}
+
+registerDrawer("MULTILEADER", (fe, e, st: DrawState) => {
+  const ml = e as MultiLeaderEntity;
+  let cache = fe.caches.get("mleader:generated") as
+    | Map<MultiLeaderEntity, ReturnType<typeof mleaderEntities>>
+    | undefined;
+  if (!cache) {
+    cache = new Map();
+    fe.caches.set("mleader:generated", cache);
+  }
+  if (!cache.has(ml)) cache.set(ml, mleaderEntities(fe, ml));
+  const ents = cache.get(ml);
+  if (ents && ents.length > 0)
+    drawGenerated(fe, syntheticBlock(`*M~${ml.handle || ml.id}`, ents), Matrix44.identity(), e, st);
+  // block content: an INSERT of the context block (WCS location, scale, rotation)
+  const blk = ml.context.block;
+  if (ml.contentType === 1 && blk) {
+    const name = recordName(fe, blk.blockRecordHandle);
+    const block = name ? fe.doc.getBlock(name) : undefined;
+    if (!block) return;
+    const b = block.basePoint;
+    const local = Matrix44.product(
+      Matrix44.translation(blk.insert.x, blk.insert.y, blk.insert.z),
+      Matrix44.rotationZ(blk.rotation),
+      Matrix44.scaling(blk.scale.x || 1, blk.scale.y || 1, blk.scale.z || 1),
+      Matrix44.translation(-b.x, -b.y, -b.z),
+    );
+    fe.drawBlockContent(block, local, e, st);
+  }
+});

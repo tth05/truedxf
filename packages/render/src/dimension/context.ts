@@ -154,12 +154,12 @@ export class DimCtx {
       const deg = (angleOf(dir) * 180) / Math.PI;
       let known = true;
       this.w.place(tip, size, deg, () => {
-        known = arrowBlockEntities(name, this.w, this.arrowProps);
+        known = arrowBlockEntities(name, this.w, opts.props ?? this.arrowProps);
       });
       if (known) return;
       name = ""; // unknown and undefined: closed filled (GDAL's fallback)
     }
-    writeArrow(this.w, name, this.arrowBlock(name), tip, dir, size, this.arrowProps, opts);
+    writeArrow(this.w, name, this.arrowBlock(name), tip, dir, size, opts.props ?? this.arrowProps, opts);
   }
 
   /**

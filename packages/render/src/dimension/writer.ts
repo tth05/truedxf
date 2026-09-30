@@ -190,12 +190,16 @@ export class EntityWriter {
     style: string,
     angleRad: number,
     p: PartProps,
-    extra: { attachment?: number; bgFill?: { flags: number; color: number; scale: number } } = {},
+    extra: {
+      attachment?: number;
+      width?: number;
+      bgFill?: { flags: number; color: number; scale: number };
+    } = {},
   ): void {
     this.head("MTEXT", p, "AcDbMText", false);
     this.pt(10, at);
     this.tag(40, height);
-    this.tag(41, 0);
+    this.tag(41, extra.width ?? 0);
     this.tag(71, extra.attachment ?? 5);
     this.tag(72, 1);
     // group 1 holds at most 250 chars; longer content continues in 3 chunks

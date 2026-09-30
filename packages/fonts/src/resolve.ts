@@ -167,6 +167,7 @@ export class FontManager {
   readonly provider: FontProvider;
   readonly options: FontManagerOptions;
   private readonly fonts = new Map<string, Promise<Font | undefined>>();
+  private readonly byFile = new Map<string, Font>();
   private readonly fontMap = new Map<string, string>();
   private families: Promise<FamilyEntry[]> | undefined;
   private fallbackFonts: Promise<Font[]> | undefined;
@@ -230,9 +231,15 @@ export class FontManager {
     }
     const candidates = hasExtension(name) ? [name] : [".shx", ".ttf", ".ttc", ".otf"].map((e) => name + e);
     for (const c of candidates) {
+      // One instance per actual file (and face), however it was requested.
+      const key = `${c.toLowerCase()}#${face}`;
+      const cached = this.byFile.get(key);
+      if (cached) return cached;
       const bytes = await this.provider.getFile(c);
       if (!bytes) continue;
-      return this.fromBytes(bytes, c, face);
+      const font = this.fromBytes(bytes, face ? `${c}#${face}` : c, face);
+      if (font) this.byFile.set(key, font);
+      return font;
     }
     return undefined;
   }

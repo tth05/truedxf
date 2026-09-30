@@ -1,0 +1,4 @@
+# Test font assets must stay byte-exact (tests compare them with the generator).
+*.shx binary
+*.shp -text
+*.lin -text

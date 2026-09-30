@@ -181,7 +181,9 @@ interface ParagraphState {
   readonly lineSpacing: { mode: "atLeast" | "exact" | "multiple"; factor: number } | undefined;
   readonly spaceBefore: number;
   readonly spaceAfter: number;
-  /** Char height at the paragraph start (empty lines). */
+  /** Char height where the paragraph starts, outside inline scopes (line gap above). */
+  readonly baseHeight: number;
+  /** Char height of the paragraph's first token (empty lines). */
   readonly height: number;
   readonly columnBreakAfter: boolean;
 }
@@ -264,7 +266,12 @@ export function layoutMText(
     if (ln.first) pending += ln.paragraph.spaceBefore;
     if (!prev) ln.baseline = exact ? -cap : -ascent;
     else if (exact) ln.baseline = prev.baseline - LINE_PITCH * cap * (exact0 && !ls ? f0 : 1);
-    else ln.baseline = prev.baseline - Math.max(minPitch, LINE_PITCH * f * ln.capMax - ln.capMax + ascent);
+    // at least: the gap is (5/3·f − 1)·(previous line's largest height + this paragraph's base
+    // height)/2 (VERIFIED-BY-ACAD mtext/spacing-big-line-1, height-style-0)
+    else
+      ln.baseline =
+        prev.baseline -
+        Math.max(minPitch, ((LINE_PITCH * f - 1) * (prev.capMax + ln.paragraph.baseHeight)) / 2 + ascent);
     ln.baseline -= pending;
     pending = 0;
     const next = lines[i + 1];
@@ -411,7 +418,9 @@ export function mtextExtents(
       ln.baseline = 0;
       top = exact ? h0 : ascent;
     } else if (exact) ln.baseline = prev.baseline - LINE_PITCH * h0 * f;
-    else ln.baseline = prev.baseline - (LINE_PITCH * f * ln.capMax - ln.capMax) - ascent;
+    else
+      ln.baseline =
+        prev.baseline - ((LINE_PITCH * f - 1) * (prev.capMax + ln.paragraph.baseHeight)) / 2 - ascent;
     width = Math.max(width, ln.margin + ln.ext1 - ln.ext0);
     prev = ln;
   }
@@ -442,6 +451,7 @@ function paragraphState(
   tokens: readonly MTextToken[],
   endCtx: MTextContext,
   columnBreak: boolean,
+  baseHeight: number,
 ): ParagraphState {
   // The paragraph properties in effect at the paragraph's end apply to the whole paragraph
   // (a `\p…;` anywhere in the paragraph formats it — ASSUMPTION, suite mtext/para-scope-mid).
@@ -457,6 +467,7 @@ function paragraphState(
     spaceBefore: p.spaceBefore,
     spaceAfter: p.spaceAfter,
     height: h,
+    baseHeight,
     columnBreakAfter: columnBreak,
   };
 }
@@ -465,10 +476,13 @@ function splitParagraphs(tokens: readonly MTextToken[], h0: number): Paragraph[]
   const out: Paragraph[] = [];
   let cur: MTextToken[] = [];
   let lastCtx: MTextContext | undefined;
+  // the char height in effect where a paragraph starts (outside braces opened in it)
+  let base = h0;
   for (const t of tokens) {
     lastCtx = t.ctx;
     if (t.t === "paragraph" || t.t === "column" || t.t === "dimwrap") {
-      out.push({ tokens: cur, state: paragraphState(cur, t.ctx, t.t === "column") });
+      out.push({ tokens: cur, state: paragraphState(cur, t.ctx, t.t === "column", base) });
+      base = t.ctx.height;
       cur = [];
       continue;
     }
@@ -476,7 +490,7 @@ function splitParagraphs(tokens: readonly MTextToken[], h0: number): Paragraph[]
   }
   // a trailing \P does not add an empty last line (UNVERIFIED; suite mtext/wrap-trailing-p)
   if (cur.length > 0 || out.length === 0)
-    out.push({ tokens: cur, state: paragraphState(cur, lastCtx ?? defaultContext(h0), false) });
+    out.push({ tokens: cur, state: paragraphState(cur, lastCtx ?? defaultContext(h0), false, base) });
   return out;
 }
 
@@ -533,14 +547,13 @@ class Engine {
     const ink = m.ink
       ? { xMin: m.ink.xMin * h * w, xMax: m.ink.xMax * h * w, yMin: m.ink.yMin * h, yMax: m.ink.yMax * h }
       : undefined;
-    // `\T` tracking scales the advance (UNVERIFIED: factor vs. extra spacing, note 04 §3.6.2)
-    return { k: "glyph", ctx, m, h, w, adv: m.advance * h * w * (ctx.tracking || 1), ink };
+    return { k: "glyph", ctx, m, h, w, adv: m.advance * h * w * trackingFactor(ctx.tracking), ink };
   }
 
   private spaceAdvance(ctx: MTextContext): number {
     const font = this.fontOf(ctx);
     const m = measureGlyph(font, 0x20);
-    return m.advance * ctx.height * (ctx.widthFactor || 1) * (ctx.tracking || 1);
+    return m.advance * ctx.height * (ctx.widthFactor || 1) * trackingFactor(ctx.tracking);
   }
 
   items(tokens: readonly MTextToken[]): Item[] {
@@ -882,4 +895,13 @@ function lastInkIndex(ln: Line): number {
     if (k === "glyph" || k === "stack") return q;
   }
   return -1;
+}
+
+/**
+ * `\T` tracking multiplies the advances, clamped to AutoCAD's range 0.75…4 (VERIFIED-BY-ACAD
+ * mtext/code-tracking(-rel): \T0.5 and \T0.1x both give 0.75, \T2 and \T1.5x multiply).
+ */
+export function trackingFactor(t: number): number {
+  if (!(t > 0)) return 1;
+  return Math.min(4, Math.max(0.75, t));
 }

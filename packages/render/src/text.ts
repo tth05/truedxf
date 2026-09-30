@@ -404,6 +404,16 @@ export function drawLayout(fe: Frontend, layout: TextLayout, e: Entity, m: Matri
   const tol = fe.tolerance;
   for (const bg of layout.backgrounds) {
     const q = toTarget.applyPoints(Float64Array.from(bg.corners));
+    if (!fe.fillMode) {
+      // $FILLMODE 0: the mask is drawn as its outline (VERIFIED-BY-ACAD mtext/bg-fillmode-0)
+      const b = fe.props.background;
+      const rr: Resolved =
+        bg.color.kind === "canvas"
+          ? { ...r, rgb: [b[0], b[1], b[2]], trueColor: (b[0] << 16) | (b[1] << 8) | b[2] }
+          : overrideResolved(fe, r, bg.color, inh);
+      fe.strokeFlat(q, true, rr);
+      continue;
+    }
     fe.fillTriangles(
       [q[0]!, q[1]!, q[2]!, q[3]!, q[4]!, q[5]!, q[0]!, q[1]!, q[4]!, q[5]!, q[6]!, q[7]!],
       resolveColor(fe, r, bg.color, inh),

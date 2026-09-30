@@ -310,10 +310,14 @@ class Parser {
         const m = RE_INT.exec(s.slice(this.i));
         if (!m) return;
         this.i += m[0].length;
-        // n = R + 256·G + 65536·B (ezdxf; note 04 §3.3 CONFLICT with mlightcad's 0xRRGGBB)
-        const n = Number(BigInt(m[0]) & 0xffffffn);
-        const rgb = ((n & 0xff) << 16) | (n & 0xff00) | ((n >> 16) & 0xff);
-        this.set({ color: { kind: "rgb", rgb } });
+        // n = R + 256·G + 65536·B (VERIFIED-BY-ACAD mtext/color-truecolor); values ≥ 2^24 are
+        // ignored, not masked (VERIFIED-BY-ACAD mtext/color-truecolor-large)
+        const big = BigInt(m[0]);
+        if (big <= 0xffffffn) {
+          const n = Number(big);
+          const rgb = ((n & 0xff) << 16) | (n & 0xff00) | ((n >> 16) & 0xff);
+          this.set({ color: { kind: "rgb", rgb } });
+        }
         this.terminator();
         return;
       }

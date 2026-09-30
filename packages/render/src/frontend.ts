@@ -240,7 +240,10 @@ export class Frontend {
       return;
     }
     if (!this.props.isPlotted(e, st.inh)) return;
-    const drawer = DRAWERS.get(e.type === "UNKNOWN" ? e.dxfType : e.type);
+    // entities without a drawer fall back to their proxy graphics (draw/proxy.ts, note 07 §15.3)
+    const drawer =
+      DRAWERS.get(e.type === "UNKNOWN" ? e.dxfType : e.type) ??
+      (e.proxyGraphics ? DRAWERS.get("*PROXY-GRAPHICS") : undefined);
     if (!drawer) {
       this.note(`entity:${e.dxfType}`);
       return;

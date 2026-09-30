@@ -6,6 +6,7 @@ import "./draw/hatch.ts";
 import "./draw/image.ts";
 import "./draw/mesh.ts";
 import "./draw/misc.ts";
+import "./draw/proxy.ts";
 import "./draw/mline.ts";
 import "./draw/viewport.ts";
 import "./draw/xclip.ts";

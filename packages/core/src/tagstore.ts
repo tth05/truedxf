@@ -117,6 +117,7 @@ export class TagStore {
   num(i: number): number {
     if (this.format === "binary") {
       const v = this.value(i);
+      if (typeof v === "boolean") return v ? 1 : 0; // binary 290-299 (was NaN → header bools false)
       return typeof v === "number" ? v : typeof v === "bigint" ? Number(v) : Number.NaN;
     }
     return parseAsciiNumber(this.bytes, this.valueStarts[i]!, this.valueEnds[i]!);

@@ -3,8 +3,8 @@
  * (R12, and some third-party files) or in `AcDbEntity` (note 03 §1).
  */
 import type { Diagnostics } from "@truedxf/core";
-import { type FieldDef, fieldTable, readFields } from "../fields.ts";
-import type { DxfRecord } from "../record.ts";
+import { type FieldDef, fieldTable, readFields, readValueAt } from "../fields.ts";
+import { type DxfRecord, PartKind } from "../record.ts";
 
 export interface EntityBase {
   /** Parsed type discriminator; "UNKNOWN" for types without a parser (see `dxfType`). */
@@ -64,7 +64,36 @@ export const COMMON_FIELDS: readonly FieldDef[] = [
   { name: "plotStyleHandle", code: 390, kind: "handle", subclass: ENTITY },
   { name: "materialHandle", code: 347, kind: "handle", subclass: ENTITY },
 ];
-const COMMON = fieldTable(COMMON_FIELDS);
+// read without defaults so that absent fields can be recovered from other subclasses first
+const COMMON = fieldTable(COMMON_FIELDS.map(({ def: _def, ...d }) => d));
+
+/**
+ * Types whose own subclasses never use the common codes below, so a common code found there is a
+ * misplaced AcDbEntity property (QCAD/LibreCAD/QGIS write `100 AcDbEntity`, `100 AcDbLine`,
+ * `8 …`, `62 …`). ezdxf recovers these the same way (`recover_graphic_attributes`, note 01 §6.3);
+ * AutoCAD rejects such files, so the writer's intent is the only reference. MTEXT (48 = column
+ * width) and VIEWPORT are deliberately excluded.
+ */
+// biome-ignore format: compact list
+const RECOVER_TYPES = new Set([
+  "LINE", "POINT", "CIRCLE", "ARC", "ELLIPSE", "SOLID", "TRACE", "3DFACE", "RAY", "XLINE",
+  "SPLINE", "SHAPE", "LWPOLYLINE", "POLYLINE", "VERTEX", "SEQEND", "TEXT", "ATTRIB", "ATTDEF",
+  "INSERT", "DIMENSION", "LEADER", "TOLERANCE", "HATCH", "IMAGE", "WIPEOUT", "REGION", "3DSOLID",
+  "BODY",
+]);
+const RECOVER_CODES = new Map(COMMON_FIELDS.filter((d) => d.code !== 410).map((d) => [d.code, d]));
+
+function recoverMisplaced(rec: DxfRecord, f: Record<string, unknown>): void {
+  const codes = rec.store.codes;
+  for (const p of rec.parts) {
+    if (p.kind !== PartKind.Subclass || p.name === "AcDbEntity") continue;
+    const tags = [...rec.partTags(p)];
+    for (let k = 0; k < tags.length; k++) {
+      const d = RECOVER_CODES.get(codes[tags[k]!]!);
+      if (d && !(d.name in f)) f[d.name] = readValueAt(rec, tags, k, d.kind)[0];
+    }
+  }
+}
 
 export interface ParseContext {
   readonly diagnostics: Diagnostics;
@@ -87,6 +116,8 @@ export type EntityParser<E extends EntityBase = EntityBase> = (
 
 export function readBase(rec: DxfRecord): EntityBase {
   const f = readFields<Record<string, unknown>>(rec, COMMON);
+  if (rec.hasSubclasses && RECOVER_TYPES.has(rec.type)) recoverMisplaced(rec, f);
+  for (const d of COMMON_FIELDS) if (!(d.name in f) && d.def !== undefined) f[d.name] = d.def;
   const layer = (f.layer as string) || "0";
   const linetype = ((f.linetype as string) || "BYLAYER").trim();
   return {
@@ -169,6 +200,7 @@ export function registerEntity<E extends EntityBase>(
 
 /** Helper for simple spec-driven entities: base properties + fields from a table. */
 export function simpleParser<E extends EntityBase>(type: string, defs: readonly FieldDef[]): EntityParser<E> {
-  const table = fieldTable(defs);
+  // simple entities have unambiguous codes: lenient about misplaced subclass data (note 01 §6.3)
+  const table = fieldTable(defs, { lenient: true });
   return (rec, base) => readFields<E>(rec, table, { ...base, type } as Record<string, unknown>);
 }

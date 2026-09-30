@@ -294,8 +294,18 @@ export class DxfDocument {
 
   private addBlock(block: Block): void {
     const k = nameKey(block.name);
-    if (this.blocksByName.has(k)) {
-      this.diagnostics.warn("duplicate-block", `duplicate block ${block.name}`);
+    const prev = this.blocksByName.get(k);
+    if (prev) {
+      // AutoCAD merges same-named BLOCKs: name of the first, base point of the second, entities
+      // of both (ezdxf experiment, note 07 §1.1). UNVERIFIED (Q-0608)
+      this.diagnostics.warn("duplicate-block", `duplicate block ${block.name} (merged)`);
+      const merged: Block = {
+        ...prev,
+        basePoint: block.basePoint,
+        entities: [...prev.entities, ...block.entities],
+      };
+      this.blocksByName.set(k, merged);
+      this.blocks[this.blocks.indexOf(prev)] = merged;
       return;
     }
     this.blocksByName.set(k, block);
@@ -371,11 +381,8 @@ export class DxfDocument {
         let j = k + 1;
         while (j < recs.length && recs[j]!.type === childType) list.push(recs[j++]!);
         let seqend: DxfRecord | undefined;
-        if (
-          j < recs.length &&
-          recs[j]!.type === "SEQEND" &&
-          (list.length > 0 || type === "POLYLINE" || rec.num(66) === 1)
-        ) {
+        if (j < recs.length && recs[j]!.type === "SEQEND") {
+          // also without 66 / ATTRIBs: a SEQEND directly after an INSERT can only be its own
           seqend = recs[j++];
         } else if (list.length > 0 || type === "POLYLINE") {
           this.diagnostics.warn("missing-seqend", `${type} without SEQEND`, { tag: rec.start });
@@ -414,19 +421,40 @@ export class DxfDocument {
   private buildLayouts(): void {
     const layoutObjects = this.objects.filter((o): o is LayoutObject => o.type === "LAYOUT");
     const used = new Set<Block>();
+    const brByHandle = new Map(this.tables.blockRecords.entries.map((b) => [b.handle, b]));
+    const brByLayout = new Map<string, BlockRecordEntry>();
+    for (const b of this.tables.blockRecords.entries) if (b.layoutHandle) brByLayout.set(b.layoutHandle, b);
+    const linked = new Map<LayoutObject, Block>();
+    // 1. LAYOUT 330 → BLOCK_RECORD, 2. BLOCK_RECORD 340 → LAYOUT (template-copied LAYOUTs keep
+    // stale 330s, e.g. QGIS exports), 3. Model by name
     for (const lo of layoutObjects) {
-      let block: Block | undefined;
-      if (lo.blockRecordHandle) {
-        const br = this.tables.blockRecords.entries.find((b) => b.handle === lo.blockRecordHandle);
-        if (br) block = this.getBlock(br.name);
+      const br =
+        (lo.blockRecordHandle ? brByHandle.get(lo.blockRecordHandle) : undefined) ??
+        brByLayout.get(lo.handle);
+      let block = br ? this.getBlock(br.name) : undefined;
+      if (!block && nameKey(lo.name) === "MODEL") block = this.modelSpace;
+      if (block && !used.has(block)) {
+        linked.set(lo, block);
+        used.add(block);
       }
-      const isModel = nameKey(lo.name) === "MODEL" || (block !== undefined && block === this.modelSpace);
-      block ??= isModel ? this.modelSpace : undefined;
+    }
+    // 4. remaining paper layouts ↔ unused *Paper_Space* blocks, both in order of appearance
+    // (ezdxf's recovery for QGIS files, note 08 §2)
+    const spare = this.blocks.filter((b) => isPaperSpaceName(b.name) && !used.has(b));
+    for (const lo of layoutObjects) {
+      if (linked.has(lo) || nameKey(lo.name) === "MODEL") continue;
+      const block = spare.shift();
+      if (!block) break;
+      this.diagnostics.info("layout-relinked", `layout ${lo.name} linked to ${block.name} by position`);
+      linked.set(lo, block);
+      used.add(block);
+    }
+    for (const lo of layoutObjects) {
+      const block = linked.get(lo);
       if (!block) {
         this.diagnostics.warn("layout-without-block", `layout ${lo.name} has no block`);
         continue;
       }
-      used.add(block);
       this.layouts.push({
         name: lo.name,
         isModel: block === this.modelSpace,

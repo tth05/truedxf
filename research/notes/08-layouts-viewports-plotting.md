@@ -77,6 +77,8 @@ search-result snippets; they are marked as such.
   in the wild (QGIS writes fixed handles). ezdxf recovers them by pairing unassigned
   `*Paper_Space*` blocks with dangling LAYOUTs in order of appearance
   (`ezdxf:notes/pages/Read messed up LAYOUT structure created by QGIS.md`).
+  truedxf: LAYOUT 330, then BLOCK_RECORD 340, then "Model" by name, then the same pairing in order
+  of appearance (diagnostic `layout-relinked`; 34 corpus files, mostly QGIS).
 - Files produced by LibreDWG-based converters may reference `*Model_Space`/`*Paper_Space` twice or
   not at all. AutoCAD/ODA tolerate this (acadsharp#1157).
 

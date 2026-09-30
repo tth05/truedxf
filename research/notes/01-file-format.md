@@ -840,6 +840,15 @@ Seen in the wild:
   mix up the base class with AcDbEntity class", ezdxf:entities/dxfns.py
   `append_base_class_to_acdb_entity`), and recover can move misplaced graphic attributes
   (`recover_graphic_attributes`).
+- **Seen in the corpus (differential oracle vs ezdxf, 2026-09-30, tools/corpus/README.md):**
+  common properties *after* the entity marker (`100 AcDbEntity`, `100 AcDbLine`, `8`, `62`, `370`,
+  `6`; QCAD/LibreCAD/QGIS, ~240 k attributes), VERTEX data *before* its markers (ACadSharp#421),
+  interleaved `10 11 20 21 30 31` coordinates (AC1003, old QCAD), TEXT `7` in AcDbEntity. truedxf
+  recovers misplaced common codes for types whose subclasses never use them (not MTEXT: 48 is the
+  column width) and reads single fields of the simple entities leniently from other parts
+  (`fieldTable(…, { lenient: true })`), like ezdxf's `recover_graphic_attributes` /
+  `simple_dxfattribs_loader`. Files *without* `$ACADVER` but with markers: ezdxf parses them in
+  R12 mode and loses subclass data; truedxf decides per record by its markers.
 - **Parser design:** decode per subclass with a code → field map *per subclass name*. For codes
   that repeat, use "next unassigned field" semantics, as ezdxf does. Keep unknown tags per
   subclass for round-trip (§9).

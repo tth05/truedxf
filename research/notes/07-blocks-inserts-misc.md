@@ -68,8 +68,8 @@ Source abbreviations used below:
   paper spaces' entities inside their BLOCK definitions (block_management.rst).
 - Block names are case-insensitive. Two BLOCKs with the same name: AutoCAD merges them (name of
   the first, base point of the second, entities of both) — ezdxf experiment
-  (block_management.rst "Block Names"). **ASSUMPTION** for truedxf: last/first wins is fine, but
-  log a warning.
+  (block_management.rst "Block Names"). truedxf merges them the same way and logs
+  `duplicate-block` (UNVERIFIED, Q-0608; corpus: 7 files, e.g. LibreCAD#941 valentina_sock.dxf).
 - BLOCK group 3 is a duplicate of the name; ignore. Group 4 = description (R2000+).
 - DXF R12: no BLOCK_RECORD table; model/paper space block names are `$MODEL_SPACE`/`$PAPER_SPACE`
   (ezdxf maps them, `entities/block.py:129-136`).

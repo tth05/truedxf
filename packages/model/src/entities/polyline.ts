@@ -201,19 +201,22 @@ const VERTEX_SUBCLASSES = [
   "AcDbFaceRecord",
 ];
 
-const VERTEX = fieldTable([
-  { name: "location", code: 10, kind: "p3", subclass: VERTEX_SUBCLASSES, def: O },
-  { name: "startWidth", code: 40, kind: "num", subclass: VERTEX_SUBCLASSES, def: -1 },
-  { name: "endWidth", code: 41, kind: "num", subclass: VERTEX_SUBCLASSES, def: -1 },
-  { name: "bulge", code: 42, kind: "num", subclass: VERTEX_SUBCLASSES, def: 0 },
-  { name: "flags", code: 70, kind: "int", subclass: VERTEX_SUBCLASSES, def: 0 },
-  { name: "tangent", code: 50, kind: "num", subclass: VERTEX_SUBCLASSES },
-  { name: "f1", code: 71, kind: "int", subclass: VERTEX_SUBCLASSES },
-  { name: "f2", code: 72, kind: "int", subclass: VERTEX_SUBCLASSES },
-  { name: "f3", code: 73, kind: "int", subclass: VERTEX_SUBCLASSES },
-  { name: "f4", code: 74, kind: "int", subclass: VERTEX_SUBCLASSES },
-  { name: "vertexId", code: 91, kind: "int", subclass: VERTEX_SUBCLASSES },
-]);
+const VERTEX = fieldTable(
+  [
+    { name: "location", code: 10, kind: "p3", subclass: VERTEX_SUBCLASSES, def: O },
+    { name: "startWidth", code: 40, kind: "num", subclass: VERTEX_SUBCLASSES, def: -1 },
+    { name: "endWidth", code: 41, kind: "num", subclass: VERTEX_SUBCLASSES, def: -1 },
+    { name: "bulge", code: 42, kind: "num", subclass: VERTEX_SUBCLASSES, def: 0 },
+    { name: "flags", code: 70, kind: "int", subclass: VERTEX_SUBCLASSES, def: 0 },
+    { name: "tangent", code: 50, kind: "num", subclass: VERTEX_SUBCLASSES },
+    { name: "f1", code: 71, kind: "int", subclass: VERTEX_SUBCLASSES },
+    { name: "f2", code: 72, kind: "int", subclass: VERTEX_SUBCLASSES },
+    { name: "f3", code: 73, kind: "int", subclass: VERTEX_SUBCLASSES },
+    { name: "f4", code: 74, kind: "int", subclass: VERTEX_SUBCLASSES },
+    { name: "vertexId", code: 91, kind: "int", subclass: VERTEX_SUBCLASSES },
+  ],
+  { lenient: true },
+); // data before the markers occurs (ACadSharp#421 contours.dxf)
 
 export function parseVertex(rec: DxfRecord): VertexEntity {
   const base = readBase(rec);

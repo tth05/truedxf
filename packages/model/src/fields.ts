@@ -40,13 +40,17 @@ function finite(v: number): number {
 
 /**
  * Reads the value of tag `tags[k]`; returns [value, number of tags consumed]. Points consume the
- * following Y (code+10) and, for p3, Z (code+20) tags when present.
+ * following Y (code+10) and, for p3, Z (code+20) tags when present. With `scan`, a Y/Z that does
+ * not follow directly is searched for further on (up to the next X of the same code): old
+ * writers interleave coordinates as `10 11 20 21 30 31` (AC1003 files, old QCAD; note 01 §6.3).
+ * The out-of-order tags are not reported as consumed; they have no field of their own.
  */
 export function readValueAt(
   rec: DxfRecord,
   tags: readonly number[],
   k: number,
   kind: FieldKind,
+  scan = false,
 ): [Value, number] {
   const s = rec.store;
   const i = tags[k]!;
@@ -82,6 +86,16 @@ export function readValueAt(
         if (kind === "p3" && l !== undefined && s.codes[l] === code + 20) {
           z = finite(s.num(l));
           n = 3;
+        } else if (kind === "p3" && scan) {
+          const m = scanFor(s.codes, tags, k + 2, code + 20, code);
+          if (m >= 0) z = finite(s.num(m));
+        }
+      } else if (scan) {
+        const m = scanFor(s.codes, tags, k + 1, code + 10, code);
+        if (m >= 0) {
+          y = finite(s.num(m));
+          const l = kind === "p3" ? scanFor(s.codes, tags, k + 1, code + 20, code) : -1;
+          if (l >= 0) z = finite(s.num(l));
         }
       }
       return [kind === "p2" ? { x, y } : { x, y, z }, n];
@@ -89,20 +103,42 @@ export function readValueAt(
   }
 }
 
+/** Tag index of the first `code` in tags[from…], stopping at the next `stop` code; -1 if none. */
+function scanFor(
+  codes: ArrayLike<number>,
+  tags: readonly number[],
+  from: number,
+  code: number,
+  stop: number,
+): number {
+  for (let k = from; k < tags.length; k++) {
+    const c = codes[tags[k]!]!;
+    if (c === code) return tags[k]!;
+    if (c === stop) return -1;
+  }
+  return -1;
+}
+
 /** Compiled lookup: code → definitions in order. */
 export interface FieldTable {
   readonly defs: readonly FieldDef[];
   readonly byCode: ReadonlyMap<number, readonly FieldDef[]>;
+  /**
+   * After the subclass-aware pass, fill still-missing single fields from tags in *other* parts
+   * that no field consumed (data before the markers, or in the wrong subclass). Only for types
+   * whose codes are unambiguous across subclasses (ezdxf `simple_dxfattribs_loader`, note 01 §6.3).
+   */
+  readonly lenient: boolean;
 }
 
-export function fieldTable(defs: readonly FieldDef[]): FieldTable {
+export function fieldTable(defs: readonly FieldDef[], options: { lenient?: boolean } = {}): FieldTable {
   const byCode = new Map<number, FieldDef[]>();
   for (const d of defs) {
     let l = byCode.get(d.code);
     if (!l) byCode.set(d.code, (l = []));
     l.push(d);
   }
-  return { defs, byCode };
+  return { defs, byCode, lenient: options.lenient ?? false };
 }
 
 function matchesSubclass(def: FieldDef, subclass: string, strict: boolean): boolean {
@@ -119,10 +155,13 @@ export function readFields<T>(rec: DxfRecord, table: FieldTable, into: Record<st
   const strict = rec.hasSubclasses;
   const filled = new Set<FieldDef>();
   const codes = rec.store.codes;
+  const lenient = strict && table.lenient;
+  const skipped: number[][] = [];
   for (const part of rec.parts) {
     if (part.kind !== 0 && part.kind !== 1) continue;
     const subclass = part.kind === 0 ? "" : part.name;
     const tags = [...rec.partTags(part)];
+    let unmatched: number[] | undefined;
     for (let k = 0; k < tags.length; ) {
       const defs = table.byCode.get(codes[tags[k]!]!);
       let def: FieldDef | undefined;
@@ -136,10 +175,11 @@ export function readFields<T>(rec: DxfRecord, table: FieldTable, into: Record<st
         }
       }
       if (!def) {
+        if (lenient && defs) (unmatched ??= []).push(k);
         k++;
         continue;
       }
-      const [v, n] = readValueAt(rec, tags, k, def.kind);
+      const [v, n] = readValueAt(rec, tags, k, def.kind, !def.many);
       k += n;
       if (def.many) {
         let arr = into[def.name] as Value[] | undefined;
@@ -149,6 +189,17 @@ export function readFields<T>(rec: DxfRecord, table: FieldTable, into: Record<st
         into[def.name] = v;
         filled.add(def);
       }
+    }
+    if (unmatched) skipped.push(tags, unmatched);
+  }
+  // lenient pass: misplaced single-valued fields (e.g. VERTEX data before `100 AcDbVertex`)
+  for (let p = 0; p < skipped.length; p += 2) {
+    const tags = skipped[p]!;
+    for (const k of skipped[p + 1]!) {
+      const def = table.byCode.get(codes[tags[k]!]!)!.find((d) => !d.many && !filled.has(d));
+      if (!def) continue;
+      into[def.name] = readValueAt(rec, tags, k, def.kind, true)[0];
+      filled.add(def);
     }
   }
   for (const d of table.defs) {

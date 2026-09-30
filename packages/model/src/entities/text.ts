@@ -69,7 +69,7 @@ const textFields = (valignCode: number, valignSubclass: string | string[]): Fiel
   { name: "valign", code: valignCode, kind: "int", subclass: valignSubclass, def: 0 },
 ];
 
-const TEXT = fieldTable(textFields(73, TEXT_SUB));
+const TEXT = fieldTable(textFields(73, TEXT_SUB), { lenient: true });
 
 registerEntity<TextEntity>("TEXT", (rec, base) =>
   readFields<TextEntity>(rec, TEXT, { ...base, type: "TEXT" } as Record<string, unknown>),
@@ -144,19 +144,22 @@ export interface InsertEntity extends EntityBase {
 }
 
 const INSERT_SUB = ["AcDbBlockReference", "AcDbMInsertBlock"];
-const INSERT = fieldTable([
-  { name: "blockName", code: 2, kind: "name", subclass: INSERT_SUB, def: "" },
-  { name: "insert", code: 10, kind: "p3", subclass: INSERT_SUB, def: O },
-  { name: "sx", code: 41, kind: "num", subclass: INSERT_SUB, def: 1 },
-  { name: "sy", code: 42, kind: "num", subclass: INSERT_SUB, def: 1 },
-  { name: "sz", code: 43, kind: "num", subclass: INSERT_SUB, def: 1 },
-  { name: "rotation", code: 50, kind: "num", subclass: INSERT_SUB, def: 0 },
-  { name: "columnCount", code: 70, kind: "int", subclass: INSERT_SUB, def: 1 },
-  { name: "rowCount", code: 71, kind: "int", subclass: INSERT_SUB, def: 1 },
-  { name: "columnSpacing", code: 44, kind: "num", subclass: INSERT_SUB, def: 0 },
-  { name: "rowSpacing", code: 45, kind: "num", subclass: INSERT_SUB, def: 0 },
-  { name: "extrusion", code: 210, kind: "p3", subclass: INSERT_SUB, def: Z },
-]);
+const INSERT = fieldTable(
+  [
+    { name: "blockName", code: 2, kind: "name", subclass: INSERT_SUB, def: "" },
+    { name: "insert", code: 10, kind: "p3", subclass: INSERT_SUB, def: O },
+    { name: "sx", code: 41, kind: "num", subclass: INSERT_SUB, def: 1 },
+    { name: "sy", code: 42, kind: "num", subclass: INSERT_SUB, def: 1 },
+    { name: "sz", code: 43, kind: "num", subclass: INSERT_SUB, def: 1 },
+    { name: "rotation", code: 50, kind: "num", subclass: INSERT_SUB, def: 0 },
+    { name: "columnCount", code: 70, kind: "int", subclass: INSERT_SUB, def: 1 },
+    { name: "rowCount", code: 71, kind: "int", subclass: INSERT_SUB, def: 1 },
+    { name: "columnSpacing", code: 44, kind: "num", subclass: INSERT_SUB, def: 0 },
+    { name: "rowSpacing", code: 45, kind: "num", subclass: INSERT_SUB, def: 0 },
+    { name: "extrusion", code: 210, kind: "p3", subclass: INSERT_SUB, def: Z },
+  ],
+  { lenient: true },
+);
 
 registerEntity<InsertEntity>("INSERT", (rec, base, _ctx, children) => {
   const f = readFields<{

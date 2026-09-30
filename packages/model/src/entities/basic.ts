@@ -218,23 +218,33 @@ registerEntity(
   ]),
 );
 
-registerEntity(
-  "SPLINE",
-  simpleParser<SplineEntity>("SPLINE", [
-    { name: "normal", code: 210, kind: "p3", subclass: "AcDbSpline" },
-    { name: "flags", code: 70, kind: "int", subclass: "AcDbSpline", def: 0 },
-    { name: "degree", code: 71, kind: "int", subclass: "AcDbSpline", def: 3 },
-    { name: "knotTolerance", code: 42, kind: "num", subclass: "AcDbSpline", def: 1e-10 },
-    { name: "controlPointTolerance", code: 43, kind: "num", subclass: "AcDbSpline", def: 1e-10 },
-    { name: "fitTolerance", code: 44, kind: "num", subclass: "AcDbSpline", def: 1e-10 },
-    { name: "startTangent", code: 12, kind: "p3", subclass: "AcDbSpline" },
-    { name: "endTangent", code: 13, kind: "p3", subclass: "AcDbSpline" },
-    { name: "knots", code: 40, kind: "num", subclass: "AcDbSpline", many: true },
-    { name: "weights", code: 41, kind: "num", subclass: "AcDbSpline", many: true },
-    { name: "controlPoints", code: 10, kind: "p3", subclass: "AcDbSpline", many: true },
-    { name: "fitPoints", code: 11, kind: "p3", subclass: "AcDbSpline", many: true },
-  ]),
-);
+const isNull = (v: Point3 | undefined) => v !== undefined && v.x === 0 && v.y === 0 && v.z === 0;
+
+const splineParser = simpleParser<SplineEntity>("SPLINE", [
+  { name: "normal", code: 210, kind: "p3", subclass: "AcDbSpline" },
+  { name: "flags", code: 70, kind: "int", subclass: "AcDbSpline", def: 0 },
+  { name: "degree", code: 71, kind: "int", subclass: "AcDbSpline", def: 3 },
+  { name: "knotTolerance", code: 42, kind: "num", subclass: "AcDbSpline", def: 1e-10 },
+  { name: "controlPointTolerance", code: 43, kind: "num", subclass: "AcDbSpline", def: 1e-10 },
+  { name: "fitTolerance", code: 44, kind: "num", subclass: "AcDbSpline", def: 1e-10 },
+  { name: "startTangent", code: 12, kind: "p3", subclass: "AcDbSpline" },
+  { name: "endTangent", code: 13, kind: "p3", subclass: "AcDbSpline" },
+  { name: "knots", code: 40, kind: "num", subclass: "AcDbSpline", many: true },
+  { name: "weights", code: 41, kind: "num", subclass: "AcDbSpline", many: true },
+  { name: "controlPoints", code: 10, kind: "p3", subclass: "AcDbSpline", many: true },
+  { name: "fitPoints", code: 11, kind: "p3", subclass: "AcDbSpline", many: true },
+]);
+
+// (0,0,0) tangents (LibreDWG, ODA) carry no direction: treat as absent like ezdxf (note 03 §3)
+registerEntity<SplineEntity>("SPLINE", (rec, base, ctx, ch) => {
+  const e = splineParser(rec, base, ctx, ch);
+  if (!isNull(e.startTangent) && !isNull(e.endTangent)) return e;
+  return {
+    ...e,
+    startTangent: isNull(e.startTangent) ? undefined : e.startTangent,
+    endTangent: isNull(e.endTangent) ? undefined : e.endTangent,
+  };
+});
 
 registerEntity(
   "SHAPE",

@@ -146,6 +146,20 @@ export class EntityWriter {
     if (Math.abs(r) > 1e-9 && Math.abs(r - 360) > 1e-9) this.tag(50, r);
   }
 
+  /** Fit-point SPLINE (degree 3) with optional end tangents. */
+  splineFit(fit: readonly Pt[], startTan: Pt | undefined, endTan: Pt | undefined, p: PartProps): void {
+    this.head("SPLINE", p, "AcDbSpline");
+    this.tag(70, 8);
+    this.tag(71, 3);
+    this.tag(72, 0);
+    this.tag(73, 0);
+    this.tag(74, fit.length);
+    this.tag(44, 1e-10);
+    if (startTan) this.pt(12, startTan);
+    if (endTan) this.pt(13, endTan);
+    for (const f of fit) this.pt(11, f);
+  }
+
   lwpolyline(
     verts: readonly { x: number; y: number; bulge?: number }[],
     closed: boolean,

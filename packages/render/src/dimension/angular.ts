@@ -10,7 +10,6 @@ import {
   dirOf,
   dot,
   left,
-  len,
   norm2pi,
   readable,
   sub,

@@ -318,6 +318,19 @@ importers:
         specifier: ^26.6.3
         version: 26.6.3
 
+  tools/corpus:
+    dependencies:
+      '@truedxf/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@truedxf/model':
+        specifier: workspace:*
+        version: link:../../packages/model
+    devDependencies:
+      '@types/node':
+        specifier: ^26.6.3
+        version: 26.6.3
+
 packages:
 
   '@biomejs/biome@2.5.14':

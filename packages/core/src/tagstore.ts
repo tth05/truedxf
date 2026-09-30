@@ -323,7 +323,23 @@ export function parseAsciiNumber(b: Uint8Array, s: number, e: number): number {
       return neg ? -r : r;
     }
   }
-  return Number(latin1(b, s, e));
+  return parseNumberString(latin1(b, s, e));
+}
+
+const STRTOD_PREFIX = /^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?/;
+
+/**
+ * Number() for well-formed values, else C `strtod` semantics after removing inner whitespace
+ * (seen in the wild: "0.0l", "1.000000000000000E 20"; note 01 §1.4). Hex/binary literals and
+ * "Infinity", which Number() would accept, are not DXF numbers.
+ */
+function parseNumberString(str: string): number {
+  if (!/^[+-]?(?:0[xXbBoO]|Infinity)/.test(str)) {
+    const n = Number(str);
+    if (!Number.isNaN(n)) return n;
+  }
+  const m = STRTOD_PREFIX.exec(str.replace(/\s+/g, ""));
+  return m ? Number(m[0]) : Number.NaN;
 }
 
 function latin1(b: Uint8Array, s: number, e: number): string {

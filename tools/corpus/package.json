@@ -1,0 +1,15 @@
+{
+  "name": "@truedxf/tools-corpus",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Corpus runners: parse / round-trip / model checks over samples/external",
+  "license": "MIT",
+  "type": "module",
+  "dependencies": {
+    "@truedxf/core": "workspace:*",
+    "@truedxf/model": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.3"
+  }
+}

@@ -195,8 +195,20 @@ describe("numbers", () => {
     );
   });
 
+  it("parses malformed numbers like strtod", () => {
+    const parse = (s: string) => {
+      const b = enc.encode(s);
+      return parseAsciiNumber(b, 0, b.length);
+    };
+    expect(parse("0.0l")).toBe(0);
+    expect(parse("1.000000000000000E 20")).toBe(1e20);
+    expect(parse("1.2.3")).toBe(1.2);
+    expect(parse("nan.0")).toBeNaN();
+    expect(parse("0x10")).toBe(0);
+  });
+
   it("rejects empty and invalid values", () => {
-    for (const s of ["", "  ", "abc", "1.2.3", "."]) {
+    for (const s of ["", "  ", "abc", "."]) {
       const b = enc.encode(s);
       expect(parseAsciiNumber(b, 0, b.length)).toBeNaN();
     }

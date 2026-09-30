@@ -77,6 +77,6 @@ def update_questions(path: Path, suite_names: list[str]) -> int:
             covered += 1
         cells[-3] = f" {new} "
         lines[i] = "|".join(cells)
-    path.write_text("\n".join(lines), encoding="utf-8")
+    path.write_text("\n".join(lines), encoding="utf-8", newline="\n")
     print(f"{covered}/{len(ids)} questions have at least one case")
     return 1 if unknown else 0

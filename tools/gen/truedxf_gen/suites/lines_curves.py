@@ -24,6 +24,7 @@ def build(s: SuiteBuilder) -> None:
             tags=["LINE", "pixel-centre"],
             params={"offset_px": off},
         )
+        c.half_pixel_shift = False  # offsets are relative to exact pixel boundaries here
         d = off / 10  # 10 px/unit
         for k in range(5):
             y = 20 + k * 25 + d

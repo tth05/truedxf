@@ -68,6 +68,8 @@ BASE_HEADER: dict[str, Any] = {
     "$CELWEIGHT": -1,
     "$TEXTSIZE": 2.5,
     "$DIMSCALE": 1.0,
+    # ezdxf.new(setup=False) leaves $DIMSTYLE=ISO-25, a style it does not create
+    "$DIMSTYLE": "Standard",
 }
 
 
@@ -252,6 +254,9 @@ class Case:
         # False: store ezdxf's bounding box as $EXTMIN/$EXTMAX; True: leave the header extents
         # as set by the suite (e.g. ezdxf's "empty" +1e20/-1e20 so AutoCAD must recompute)
         self.keep_header_extents = False
+        # window plots are shifted by half a pixel (see window()); set False per case to plot
+        # the exact window given
+        self.half_pixel_shift = True
 
     # --- resources -------------------------------------------------------------------------
     def layer(self, name: str, **kw: Any) -> str:
@@ -282,9 +287,18 @@ class Case:
         vmin: Sequence[float],
         vmax: Sequence[float],
         canvas: Sequence[int] = DEFAULT_CANVAS,
+        half_pixel: Optional[bool] = None,
     ) -> None:
+        """Window plot. By default the window is shifted by half a device pixel towards -x/-y
+        so that round coordinates land on pixel centres instead of exact pixel-boundary ties,
+        which AutoCAD resolves by floating-point noise (tools/acad/README.md, note 08 §10)."""
         canvas = check_canvas(canvas)
         check_window(vmin, vmax, canvas)
+        if self.half_pixel_shift if half_pixel is None else half_pixel:
+            p = (vmax[0] - vmin[0]) / canvas[0] / 2
+            vmin = (round(vmin[0] - p, 9), round(vmin[1] - p, 9))
+            vmax = (round(vmax[0] - p, 9), round(vmax[1] - p, 9))
+            check_window(vmin, vmax, canvas)
         self.plot.area = {
             "type": "window",
             "min": [float(vmin[0]), float(vmin[1])],

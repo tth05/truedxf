@@ -2,6 +2,7 @@ import "./basic.ts";
 import "./polyline.ts";
 import "./text.ts";
 import "./mtext.ts";
+import "./hatch.ts";
 
 import type {
   ArcEntity,
@@ -16,12 +17,14 @@ import type {
   SplineEntity,
 } from "./basic.ts";
 import type { EntityBase } from "./common.ts";
+import type { HatchEntity, MPolygonEntity } from "./hatch.ts";
 import type { MTextEntity } from "./mtext.ts";
 import type { LwPolylineEntity, PolylineEntity, VertexEntity } from "./polyline.ts";
 import type { AttribEntity, InsertEntity, TextEntity } from "./text.ts";
 
 export * from "./basic.ts";
 export * from "./common.ts";
+export * from "./hatch.ts";
 export * from "./mtext.ts";
 export * from "./polyline.ts";
 export * from "./text.ts";
@@ -49,6 +52,8 @@ export type Entity =
   | AttribEntity
   | InsertEntity
   | MTextEntity
+  | HatchEntity
+  | MPolygonEntity
   | UnknownEntity;
 
 export type EntityType = Entity["type"];

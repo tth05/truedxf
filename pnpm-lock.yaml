@@ -199,6 +199,9 @@ importers:
       clipper2-ts:
         specifier: 2.0.1-18
         version: 2.0.1-18
+      earcut:
+        specifier: ^3.2.4
+        version: 3.2.4
 
   packages/model:
     dependencies:

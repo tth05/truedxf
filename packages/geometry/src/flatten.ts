@@ -7,9 +7,9 @@
  *
  * Deterministic segment counts (no time limits, no randomness):
  * - line: 1.
- * - circular arc, radius r, sweep Δ: `n = max(1, ceil(|Δ| / (2·acos(1 − tol/r))))` (note 03
- *   §5.3) with `1 − tol/r` clamped to ≥ −1; vertices at equal angle steps on the arc
- *   (inscribed polygon, sagitta `r(1 − cos(Δ/2n)) ≤ tol`).
+ * - circular arc, radius r, sweep Δ: `n = max(1, ceil(|Δ| / min(π, 2·acos(1 − tol/r))))` (note
+ *   03 §5.3; `1 − tol/r` clamped to ≥ −1, the π cap only matters for r < tol); vertices at equal
+ *   angle steps on the arc (inscribed polygon, sagitta `r(1 − cos(Δ/2n)) ≤ tol`).
  * - elliptic arc (conjugate form, semi-major a = σmax[U V]): the same formula with r = a,
  *   equal *parameter* steps. The image of the unit-circle chord error `1 − cos(h/2)` is
  *   stretched at most by σmax, so the error is ≤ tol; the bound is tight at the major vertices.
@@ -42,8 +42,9 @@ export function arcSegmentCount(radius: number, sweep: number, tol: number): num
   const r = Math.abs(radius);
   const s = Math.abs(sweep);
   if (!(r > 0) || !(s > 0)) return 1;
-  const c = Math.max(-1, 1 - tol / r);
-  const step = 2 * Math.acos(c);
+  // 2·acos(1 − x) written as 4·asin(√(x/2)): identical, but exact for tiny x = tol/r where
+  // 1 − x rounds to 1. Step capped at π so a full circle never collapses into one segment.
+  const step = Math.min(Math.PI, 4 * Math.asin(Math.sqrt(Math.min(1, tol / (2 * r)))));
   if (!(step > 0)) return MAX_SEGMENTS_PER_CURVE;
   return Math.min(Math.max(1, Math.ceil(s / step)), MAX_SEGMENTS_PER_CURVE);
 }

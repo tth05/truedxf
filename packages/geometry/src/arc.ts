@@ -97,12 +97,18 @@ export function arcBounds(arc: CircularArc2, out: Bounds2 = new Bounds2()): Boun
 // ---- Bulge ---------------------------------------------------------------------------------
 
 /**
+ * Bulges with `|b| <` this are straight: the sagitta `|b|·c/2` is then below 5e-11 of the chord,
+ * far below any device tolerance, while the radius `~c/(4|b|)` would overflow for denormal b.
+ */
+export const MIN_BULGE = 1e-10;
+
+/**
  * Arc of a bulge segment from `p1` to `p2` (note 03 §3.9.1). Returns `undefined` for a straight
- * segment (b = 0) or coincident points. The arc starts at `p1` and ends at `p2`; its sweep is
- * `4·atan(b)` (signed).
+ * segment (|b| < {@link MIN_BULGE}) or coincident points. The arc starts at `p1` and ends at
+ * `p2`; its sweep is `4·atan(b)` (signed).
  */
 export function bulgeToArc(p1: Vec2, p2: Vec2, bulge: number): CircularArc2 | undefined {
-  if (bulge === 0 || !Number.isFinite(bulge)) return undefined;
+  if (!(Math.abs(bulge) >= MIN_BULGE) || !Number.isFinite(bulge)) return undefined;
   const dx = p2.x - p1.x;
   const dy = p2.y - p1.y;
   const c = Math.hypot(dx, dy);

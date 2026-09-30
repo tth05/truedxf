@@ -639,10 +639,10 @@ Answers (VERIFIED-BY-ACAD, AutoCAD 2027, 2026-09-30):
 | Q-0360 | hatches | [A] What is the default value of HPMAXLINES in current AutoCAD (assumed 1,000,000)? | 06 §1.6.3 | plan: hatches (lisp) — LISP (getvar "HPMAXLINES") on fresh profile | open |
 | Q-0361 | hatches | [U] At what density does PLOT switch a pattern hatch to solid or drop lines (HPMAXLINES criterion), and does it match the on-screen behaviour? | 06 §1.6.3, §9 item 9; 08 §5.6; 11a §11, Open conflicts (06:H11, 11a:21) | `hatches/dense-count-*`, `hatches/dense-count-30000`, `hatches/dense-count-60000`, `hatches/dense-count-80000` (+5 more) | open |
 | Q-0362 | hatches | [U] What interpolation does PLOT use for each of the 9 gradient names with 1/2 colors, shift 0/0.5/1, tint and angle 0/30/45? | 06 §1.7, §9 item 9; 11a §11 (06:G1) | `hatches/gradient-linear-shift0-a0`, `hatches/gradient-linear-shift0-a45`, `hatches/gradient-linear-shift1-a0`, `hatches/gradient-linear-shift1-a45` (+39 more) | open |
-| Q-0363 | hatches | [C] Does AutoCAD write the computed second color for single-color gradients (452=1), and how does 462 tint derive it? | 06 §1.7, §9 item 9 (06:G2) | `hatches/gradient-onecolor-tint0`, `hatches/gradient-onecolor-tint0p25`, `hatches/gradient-onecolor-tint0p5`, `hatches/gradient-onecolor-tint0p75` (+2 more) | open |
-| Q-0364 | hatches | [U] Does AutoCAD interpolate gradient colors in sRGB or another color space? | 06 §1.7 (06:G1) | `hatches/gradient-colorspace-red-green`, `hatches/gradient-colorspace-blue-yellow` | open |
-| Q-0365 | hatches | [U] Is the gradient normalized to the hatch extents in OCS or to the extents rotated by 460? | 06 §1.7 (06:G1) | `hatches/gradient-extents-a0`, `hatches/gradient-extents-a30`, `hatches/gradient-extents-a90`, `hatches/gradient-extents-rotated-boundary` | open |
-| Q-0366 | hatches | [U] Does the PNG plot of a gradient hatch show banding or dithering (how many distinct steps)? | 06 §1.7 (06:G1) | `hatches/gradient-extents-a0`, `hatches/gradient-extents-a30`, `hatches/gradient-extents-a90` | open |
+| Q-0363 | hatches | [C] Does AutoCAD write the computed second color for single-color gradients (452=1), and how does 462 tint derive it? | 06 §1.7, §9 item 9 (06:G2) | `hatches/gradient-onecolor-tint0`, `hatches/gradient-onecolor-tint0p25`, `hatches/gradient-onecolor-tint0p5`, `hatches/gradient-onecolor-tint0p75` (+2 more) | answered |
+| Q-0364 | hatches | [U] Does AutoCAD interpolate gradient colors in sRGB or another color space? | 06 §1.7 (06:G1) | `hatches/gradient-colorspace-red-green`, `hatches/gradient-colorspace-blue-yellow` | answered |
+| Q-0365 | hatches | [U] Is the gradient normalized to the hatch extents in OCS or to the extents rotated by 460? | 06 §1.7 (06:G1) | `hatches/gradient-extents-a0`, `hatches/gradient-extents-a30`, `hatches/gradient-extents-a90`, `hatches/gradient-extents-rotated-boundary` | answered |
+| Q-0366 | hatches | [U] Does the PNG plot of a gradient hatch show banding or dithering (how many distinct steps)? | 06 §1.7 (06:G1) | `hatches/gradient-extents-a0`, `hatches/gradient-extents-a30`, `hatches/gradient-extents-a90` | answered |
 | Q-0367 | hatches | [T] Does PLOT draw the MPOLYGON boundary, ignore hatch style 75, and fill with 63 for loops with holes? | 06 §1.12, §0 item 2 (06:H14) | `hatches/mpolygon-solid-holes`, `hatches/mpolygon-pattern`, `hatches/mpolygon-truecolor` | open |
 | Q-0368 | hatches | [A] What does MPOLYGON code 11 (offset vector) do to plotted paths/pattern? | 06 §1.12 (06:H14) | `hatches/mpolygon-offset-0-0`, `hatches/mpolygon-offset-5-5` | open |
 | Q-0369 | hatches | [A] Does AutoCAD reject an MPOLYGON carrying group 63, and is R2000 MPOLYGON fill BYLAYER? | 11a §7 | `fileformat/mpolygon-r2000-with-63`, `fileformat/mpolygon-r2000-without-63`, `fileformat/mpolygon-r2004-with-63`, `fileformat/mpolygon-r2004-without-63` | open |
@@ -655,6 +655,11 @@ Answers (VERIFIED-BY-ACAD, AutoCAD 2027, 2026-09-30):
 - Q-0345: One polygon through the start points of all 8 edges in order (the two rectangles joined by straight lines), filled even-odd (`hatches/one-loop-two-rects`, note 06 §1.3.5).
 - Q-0348: Any gap (1e-6 … 1) is bridged by a straight line to the next edge's start; edges are never reordered or reversed (`hatches/edges-gap-*`, `edges-shuffled*`, `edges-reversed-one`).
 - Q-0346: Selected by flags only (0: all loops, 1: external+outermost, 2: external), filled even-odd; with no external flag styles 1/2 plot nothing — no geometric fallback (`hatches/nested-*`).
+- Q-0363: The stored second 421 colour is plotted; the tint is not recomputed (`hatches/gradient-onecolor-*`, note 06 §1.7.1).
+- Q-0364: sRGB, per channel linear (`hatches/gradient-colorspace-*`).
+- Q-0365: To the region's extent projected on the gradient direction (exact at 0°/45°/90°; 30° is bent by AutoCAD's shading mesh) (`hatches/gradient-extents-*`).
+- Q-0366: Ordered-dither-like pattern: iso-lines step by 1 px every 40 rows in a 160-row cycle; 256 levels, no banding beyond 8-bit (`hatches/gradient-extents-*`).
+- Q-0367/Q-0368: not answerable with the harness — accoreconsole plots MPOLYGON as an empty proxy (AcMPolygonObj26.dbx not loaded).
 - Q-0349: It fills as if closed but the open path has n−1 segments, so the last vertex is dropped (`hatches/poly-open-u-shape`).
 
 <a id="text"></a>

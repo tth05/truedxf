@@ -455,6 +455,26 @@ AutoCAD-written example (acs-sample HATCH 3, LINEAR, blue→yellow):
 - Colors used for plotting still go through the CTB? **UNKNOWN** (true colors bypass CTB colors in
   most cases; §6).
 
+#### 1.7.1 Gradients in AutoCAD 2027 PLOT (VERIFIED-BY-ACAD 2026-09-30, partly empirical)
+
+Cases `hatches/gradient-*` (160×80 and 180×45 rectangles); implementation
+`packages/render/src/draw/gradient.ts` (F1(r=1) ≈ 0.84 over 54 cases, not pixel exact):
+- Colours are interpolated per channel in **sRGB** (red→green midpoint 127/128/0,
+  `gradient-colorspace-*`); one-colour gradients use the **stored** second 421 colour, the tint
+  is not recomputed (`gradient-onecolor-conflict` plots blue→red).
+- LINEAR: f = t across the extent of the region **projected on the gradient direction**
+  (45° on 160×80: span 169.7 = (160+80)·cos 45°). CYLINDER: f = sin(πt). SPHERICAL:
+  f = cos(π/2·min(1, d/R)), R = half the larger box side, centre = box centre. INV* = 1 − f.
+- 461 is effectively boolean (0.5 plots like 1). Shifted SPHERICAL moves the centre by
+  (−R/2, +R/2) — exact to one level; shifted 1D types put the middle at t ≈ 0.3125 and stretch
+  the rest to ≈ 0.703 (empirical).
+- HEMISPHERICAL ≈ radial cos law with the centre H/2 below the box bottom and R = the larger
+  side; CURVED ≈ sin(π/2·(w − 0.1125 q²)) with w = 0 at the top edge (empirical fits, shifted
+  variants not modelled).
+- AutoCAD Gouraud-shades its own triangle mesh with an ordered dither (iso-lines step by 1 px
+  every 40 rows in a 160-row cycle), so pixel exactness is out of reach; rotated gradients at 30°
+  fit a plane at 33–35° (mesh artefact), 45° is exact.
+
 ### 1.8 Elevation, OCS, extrusion
 
 All boundary and pattern coordinates are 2D in the hatch OCS (210); the Z of code 10 is the
@@ -1488,6 +1508,15 @@ VERIFIED-BY-ACAD (draworder suite, AutoCAD 2027, 2026-09-30):
 ---
 
 ## 9. Consolidated UNKNOWN list (to resolve with AutoCAD)
+
+**Open after the 2026-09-30 AutoCAD pass (rungs 7–8):** linetypes on wide polylines (dashes are
+butt-ended quads at the local width; not implemented, `linetypes/pl-wide-*`); AutoCAD's arc
+tessellation chords determine complex-element rotation on arcs (≤ 1° off here); exact
+too-dense threshold (0.38–0.51 px); gradient mesh/dither emulation, HEMISPHERICAL/CURVED shift;
+MPOLYGON (accoreconsole cannot load its enabler); text-box loops (flag 8), ellipse-edge angle vs
+parameter (`ellipse-edge-param-closed` still 0.78), HATCHBACKGROUNDCOLOR (not drawn yet,
+`bgcolor-*`), dots with lineweight, HPMAXLINES (`dense-count-*` ≥ 30000 lines are very slow in
+our CPU scorer).
 
 1. ~~A-type linetype alignment exact formula; circles/ellipses/splines/closed polylines; PLINEGEN runs;
    dots at the ends.~~ ANSWERED §2.6.1 (only the too-dense criterion is open).

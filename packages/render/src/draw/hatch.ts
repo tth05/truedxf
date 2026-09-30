@@ -1,7 +1,7 @@
 /**
  * HATCH / MPOLYGON (note 06 §1): boundary loops from polyline or edge paths (OCS), solid fill
  * with island selection by hatch style, or the stored pattern lines (already scaled/rotated)
- * clipped to the loops. Gradients are filled with their first colour for now.
+ * clipped to the loops. Gradients: gradient.ts.
  */
 import {
   type Affine2,
@@ -18,13 +18,14 @@ import {
   ocsToWcsMatrix,
   type PathSegment,
   projectCurve3,
+  selectHatchLoops,
   transformHatchPatternLine,
   transformPath,
 } from "@truedxf/geometry";
 import type { HatchEdge, HatchEntity, HatchPath, MPolygonEntity } from "@truedxf/model";
-import { aciToRgb } from "../aci.ts";
 import type { Rgba } from "../displaylist.ts";
 import { type Frontend, registerDrawer } from "../frontend.ts";
+import { fillGradient } from "./gradient.ts";
 
 const IDENTITY = Matrix44.identity();
 
@@ -115,19 +116,13 @@ registerDrawer(["HATCH", "MPOLYGON"], (fe, e, st) => {
   // (hatches/solid-fillmode-0)
   if (!fe.fillMode && (h.solid || h.gradient?.kind === 1)) return;
   const style = h.style;
-  let color: Rgba = fe.color(r);
+  const color: Rgba = fe.color(r);
   if (h.gradient && h.gradient.kind === 1) {
-    // UNVERIFIED: gradient interpolation not implemented (note 06 §1.7); first colour as fill
-    fe.note("hatch-gradient");
-    const c = h.gradient.colors[0];
-    if (c && !fe.monochrome) {
-      const rgb =
-        c.rgb !== undefined ? [(c.rgb >> 16) & 255, (c.rgb >> 8) & 255, c.rgb & 255] : aciToRgb(c.aci ?? 7);
-      color = [rgb[0]!, rgb[1]!, rgb[2]!, 255];
-    }
-    fe.fillTriangles(
-      hatchSolidTriangles(loops, style, { tolerance: fe.tolerance, fillRule: FillRule.EvenOdd }),
-      color,
+    // gradient interpolation: draw/gradient.ts (note 06 §1.7)
+    fillGradient(
+      fe,
+      selectHatchLoops(loops, style).map((k) => loops[k]!.points),
+      h.gradient,
     );
     return;
   }

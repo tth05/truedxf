@@ -78,4 +78,8 @@ TTF_FONTS: dict[str, str] = {
 }
 
 # AutoCAD-shipped SHX fonts: allowed ONLY in the acad-default-fonts suite.
-ACAD_SHX_FONTS = ("txt.shx", "simplex.shx", "romans.shx", "isocp.shx", "gdt.shx", "ltypeshp.shx")
+# (present in C:\Program Files\Autodesk\AutoCAD 2027\Fonts; gdt.shx is NOT installed there)
+ACAD_SHX_FONTS = (
+    "txt.shx", "simplex.shx", "romans.shx", "isocp.shx", "amgdt.shx", "ltypeshp.shx",
+    "bigfont.shx", "chineset.shx", "extfont.shx",
+)

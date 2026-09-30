@@ -138,6 +138,11 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--check-determinism", action="store_true", help="generate twice and compare bytes")
     ap.add_argument("--update-questions", action="store_true", help="rewrite the test column of docs/questions.md")
     args = ap.parse_args(argv)
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[attr-defined]
+        except AttributeError:  # pragma: no cover
+            pass
 
     names = _select_suites(args.suite)
     if args.list:

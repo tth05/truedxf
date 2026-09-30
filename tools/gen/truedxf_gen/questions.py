@@ -13,6 +13,7 @@ from pathlib import Path
 from .core import build_suite
 
 ROW_RE = re.compile(r"^\|\s*(Q-\d{4})\s*\|")
+CELL_SPLIT = re.compile(r"(?<!\\)\|")
 MAX_IDS = 4
 
 
@@ -62,7 +63,7 @@ def update_questions(path: Path, suite_names: list[str]) -> int:
         m = ROW_RE.match(line)
         if not m:
             continue
-        cells = line.split("|")
+        cells = CELL_SPLIT.split(line)  # escaped pipes (\|) stay inside cells
         # ['', ' Q-0001 ', ' topic ', ' question ', ' source ', ' test ', ' status ', '']
         if len(cells) < 8:
             continue

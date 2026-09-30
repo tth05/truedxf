@@ -14,7 +14,8 @@
     "lint": "biome check .",
     "format": "biome check --write .",
     "corpus:tags": "node --disable-warning=ExperimentalWarning tools/corpus/src/parse-tags.ts",
-    "corpus:model": "node --disable-warning=ExperimentalWarning tools/corpus/src/load-model.ts"
+    "corpus:model": "node --disable-warning=ExperimentalWarning tools/corpus/src/load-model.ts",
+    "test:visual": "node --disable-warning=ExperimentalWarning packages/testkit/src/visual.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.14",

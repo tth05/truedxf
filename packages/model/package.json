@@ -4,7 +4,12 @@
   "description": "Lossless typed DXF document model: header, tables, blocks, entities, objects, property resolution",
   "license": "MIT",
   "type": "module",
-  "sideEffects": false,
+  "sideEffects": [
+    "./src/entities/*.ts",
+    "./src/*.ts",
+    "./dist/entities/*.js",
+    "./dist/*.js"
+  ],
   "exports": {
     ".": "./src/index.ts"
   },

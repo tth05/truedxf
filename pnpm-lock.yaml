@@ -323,9 +323,15 @@ importers:
       '@truedxf/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@truedxf/geometry':
+        specifier: workspace:*
+        version: link:../../packages/geometry
       '@truedxf/model':
         specifier: workspace:*
         version: link:../../packages/model
+      '@truedxf/render':
+        specifier: workspace:*
+        version: link:../../packages/render
     devDependencies:
       '@types/node':
         specifier: ^26.6.3

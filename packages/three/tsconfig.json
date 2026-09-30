@@ -3,9 +3,10 @@
   "compilerOptions": {
     "rootDir": "src",
     "outDir": "dist",
-    "types": []
+    "types": [],
+    "lib": ["ES2023", "DOM"]
   },
-  "include": ["src", "../../types/web-globals.d.ts"],
+  "include": ["src"],
   "references": [
     {
       "path": "../render"

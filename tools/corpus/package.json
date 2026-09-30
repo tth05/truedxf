@@ -7,7 +7,9 @@
   "type": "module",
   "dependencies": {
     "@truedxf/core": "workspace:*",
-    "@truedxf/model": "workspace:*"
+    "@truedxf/model": "workspace:*",
+    "@truedxf/render": "workspace:*",
+    "@truedxf/geometry": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^26.6.3"

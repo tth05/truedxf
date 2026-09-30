@@ -152,7 +152,8 @@ describe("encoding", () => {
       "  0",
       "EOF",
     ]);
-    const { store, encoding, diagnostics } = readTags(bytes);
+    expect(readTags(bytes).encoding.reason).toBe("codepage"); // AutoCAD default: strict
+    const { store, encoding, diagnostics } = readTags(bytes, { utf8Heuristic: true });
     expect(encoding.reason).toBe("utf8-heuristic");
     expect(store.str(store.count - 2)).toBe("한국어");
     expect(diagnostics.summary()["utf8-in-codepage-file"]).toBe(1);

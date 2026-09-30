@@ -118,6 +118,12 @@ export function detectEncoding(
   sections: SectionInfo[],
   diag: Diagnostics,
   override?: string,
+  /**
+   * Decode pre-R2007 files as UTF-8 when every non-ASCII string is valid UTF-8 (mislabelled
+   * files). Off by default: AutoCAD decodes strictly by $DWGCODEPAGE (text/utf8-bytes-*,
+   * VERIFIED-BY-ACAD, note 04 §11).
+   */
+  utf8Heuristic = false,
 ): EncodingInfo {
   const verTag = findHeaderValueTag(store, sections, "$ACADVER");
   const cpTag = findHeaderValueTag(store, sections, "$DWGCODEPAGE");
@@ -132,6 +138,15 @@ export function detectEncoding(
   }
   if (isUtf8Version(acadver)) {
     return { acadver, dwgcodepage, encoding: "utf-8", fallbackEncoding: cp.encoding, reason: "utf8-version" };
+  }
+  if (!utf8Heuristic) {
+    return {
+      acadver,
+      dwgcodepage,
+      encoding: cp.encoding,
+      fallbackEncoding: undefined,
+      reason: dwgcodepage ? "codepage" : "default",
+    };
   }
   // pre-R2007: check whether the non-ASCII strings are all valid UTF-8
   let nonAscii = 0;
@@ -179,6 +194,8 @@ export function detectEncoding(
 export interface ReadTagsOptions extends TokenizeOptions {
   /** Force a string encoding (WHATWG label), bypassing detection. */
   encoding?: string;
+  /** See {@link detectEncoding}; default false (AutoCAD behaviour). */
+  utf8Heuristic?: boolean;
 }
 
 export interface DxfTags {
@@ -193,7 +210,7 @@ export function readTags(bytes: Uint8Array, options: ReadTagsOptions = {}): DxfT
   const diagnostics = options.diagnostics ?? new Diagnostics();
   const store = tokenize(bytes, { diagnostics });
   const sections = scanSections(store, diagnostics);
-  const encoding = detectEncoding(store, sections, diagnostics, options.encoding);
+  const encoding = detectEncoding(store, sections, diagnostics, options.encoding, options.utf8Heuristic);
   store.encoding = encoding.encoding;
   store.fallbackEncoding = encoding.fallbackEncoding;
   return { store, sections, encoding, diagnostics };

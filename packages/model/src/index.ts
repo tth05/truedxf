@@ -1,3 +1,4 @@
+export * from "./aci.ts";
 export { concatBytes, TagCursor } from "./cursor.ts";
 export * from "./dimstyle.ts";
 export {
@@ -25,6 +26,7 @@ export * from "./objects.ts";
 export * from "./objects-extra.ts";
 export * from "./raw-color.ts";
 export { DxfRecord, PartKind, type RecordPart } from "./record.ts";
+export * from "./resolve.ts";
 export * from "./tables.ts";
 export * from "./tags.ts";
 export * from "./types.ts";

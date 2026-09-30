@@ -6,8 +6,10 @@
  */
 import { Matrix44, ocsToWcsMatrix, wcsToOcsMatrix } from "@truedxf/geometry";
 import {
+  type AttribEntity,
   BY_BLOCK_RAW,
   decodeRawColor,
+  type Entity,
   type LeaderEntity,
   type MTextEntity,
   type MultiLeaderEntity,
@@ -215,5 +217,23 @@ registerDrawer("MULTILEADER", (fe, e, st: DrawState) => {
       Matrix44.translation(-b.x, -b.y, -b.z),
     );
     fe.drawBlockContent(block, local, e, st);
+    drawBlockAttributes(fe, ml, local, st);
   }
 });
+
+/**
+ * MULTILEADER block content: attribute values live in the MULTILEADER (330/302 pairs), not in
+ * ATTRIBs, so the block's ATTDEFs are drawn with the stored values, transformed like the block
+ * (user/studienleistung: the numbers inside the circled leaders).
+ */
+function drawBlockAttributes(fe: Frontend, ml: MultiLeaderEntity, local: Matrix44, st: DrawState): void {
+  if (ml.blockAttributes.length === 0) return;
+  const inh = fe.props.inherit(ml, st.inh);
+  const m = st.m.multiply(local);
+  for (const a of ml.blockAttributes) {
+    const def = fe.doc.getEntity(a.attdefHandle) as AttribEntity | undefined;
+    if (def?.type !== "ATTDEF" || def.attribFlags & 1) continue;
+    const text = { ...def, type: "TEXT", dxfType: "TEXT", text: a.text } as unknown as Entity;
+    fe.drawEntities([text], { m, inh, stack: st.stack });
+  }
+}

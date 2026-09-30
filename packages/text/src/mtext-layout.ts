@@ -322,8 +322,11 @@ export function layoutMText(
   const totalW = cols ? nCols * (colStep - cols.gutter) + (nCols - 1) * cols.gutter : frameW;
   let frameH = -boxBottom;
   // 46 (defined height) does not move non-column text (VERIFIED-BY-ACAD mtext/defined-height-*)
-  const defH = cols ? (colHeights?.[0] ?? 0) : 0;
-  if (defH > 0) frameH = defH; // defined height (46): UNVERIFIED frame rule
+  // A stored column height sets the frame only for real multi-column text: single-column dynamic
+  // column data (count 1, heights[0] > 0) doesn't move middle/bottom attachments
+  // (VERIFIED-BY-ACAD user/studienleistung street names). Multi-column rule: UNVERIFIED.
+  const defH = cols && nCols > 1 ? (colHeights?.[0] ?? 0) : 0;
+  if (defH > 0) frameH = defH;
   const xAtt = col === 1 ? 0 : col === 2 ? totalW / 2 : totalW;
   const yAtt = row === 0 ? 0 : row === 1 ? -frameH / 2 : -frameH;
 
@@ -769,8 +772,17 @@ class Engine {
       ln.ext0 = 0;
       ln.ext1 = ln.pen;
     } else {
-      // ink left of the pen origin is not counted (Arial "Arc", note 04 §3.6.1)
-      ln.ext0 = Math.max(0, ink.xMin);
+      // ink left of the pen origin is not counted (Arial "Arc", note 04 §3.6.1). Only the first
+      // glyph's own side bearing is removed: leading tabs/spaces keep their advance (a line
+      // starting with ^I sits on the 4·h tab stop, VERIFIED-BY-ACAD user/studienleistung legend)
+      let firstInkX = 0;
+      for (const pi of ln.items) {
+        if ((pi.item.k === "glyph" || pi.item.k === "stack") && pi.item.ink) {
+          firstInkX = pi.x;
+          break;
+        }
+      }
+      ln.ext0 = Math.max(0, ink.xMin - firstInkX);
       ln.ext1 = ink.xMax;
       // tabs count with their full advance ("asasas^I" → 8 h, VERIFIED-BY-ACAD)
       const lastInk = lastInkIndex(ln);

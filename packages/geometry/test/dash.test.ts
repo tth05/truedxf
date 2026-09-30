@@ -89,7 +89,10 @@ describe("A-type candidate fit (UNVERIFIED hypothesis, note 06 §2.6)", () => {
     expect(exact.dashes.length).toBe(0);
     expect(exact.dots.length / 3).toBe(5);
     const r = dashPolyline(line(1.1), DOT);
-    expect(rangesOf(r).map(([a, b]) => b! - a!)).toEqual([expect.closeTo(0.05, 12), expect.closeTo(0.05, 12)]);
+    expect(rangesOf(r).map(([a, b]) => b! - a!)).toEqual([
+      expect.closeTo(0.05, 12),
+      expect.closeTo(0.05, 12),
+    ]);
     const xs = [];
     for (let i = 0; i < r.dots.length; i += 3) xs.push(r.dots[i]!);
     expect(xs.map((x) => Math.round(x * 1e9) / 1e9)).toEqual([0.3, 0.55, 0.8]);
@@ -143,7 +146,12 @@ describe("paths: exact arc length", () => {
   it("dashes along an arc sit at exact arc-length angles", () => {
     const r = 10;
     const path = {
-      subpaths: [{ segments: [arcSegment({ center: { x: 0, y: 0 }, radius: r, start: 0, sweep: Math.PI / 2 })], closed: false }],
+      subpaths: [
+        {
+          segments: [arcSegment({ center: { x: 0, y: 0 }, radius: r, start: 0, sweep: Math.PI / 2 })],
+          closed: false,
+        },
+      ],
     };
     const m = measureSubpath(path.subpaths[0]!, 0.01);
     expectClose(m.distances[m.distances.length - 1]!, (r * Math.PI) / 2, 1e-12);
@@ -205,8 +213,11 @@ describe("dots, complex elements, limits", () => {
       ],
     };
     const seen: number[] = [];
-    const r = dashPolyline(Float64Array.of(10, 0, 0, 0), gas, { fit: phaseFit(0), onComplex: (p) => seen.push(p.distance) });
-    expect(r.placements.length).toBe(Math.floor(10 / 0.95) + (10 % 0.95 >= 0.7 ? 1 : 0));
+    const r = dashPolyline(Float64Array.of(10, 0, 0, 0), gas, {
+      fit: phaseFit(0),
+      onComplex: (p) => seen.push(p.distance),
+    });
+    expect(r.placements.length).toBe(10); // anchors at 0.7 + 0.95·i ≤ 10
     const p = r.placements[0]!;
     expect(p.distance).toBeCloseTo(0.7, 12);
     expect(p.x).toBeCloseTo(10 - 0.6, 12); // anchor 0.7 − X 0.1 along the (leftward) line
@@ -215,7 +226,11 @@ describe("dots, complex elements, limits", () => {
     expect(Math.cos(p.angle)).toBeCloseTo(1, 12);
     expect(seen.length).toBe(r.placements.length);
     const abs = dashPolyline(Float64Array.of(10, 0, 0, 0), {
-      elements: gas.elements.map((e) => (e.complex ? { ...e, complex: { ...e.complex, rotationMode: ComplexRotation.Absolute, rotation: 0.3 } } : e)),
+      elements: gas.elements.map((e) =>
+        e.complex
+          ? { ...e, complex: { ...e.complex, rotationMode: ComplexRotation.Absolute, rotation: 0.3 } }
+          : e,
+      ),
     });
     expect(abs.placements.every((q) => q.angle === 0.3)).toBe(true);
   });

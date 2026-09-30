@@ -19,7 +19,8 @@ import {
 } from "../src/index.ts";
 import { distanceToPolyline, expectClose } from "./helpers.ts";
 
-const sq = (x0: number, y0: number, s: number) => Float64Array.of(x0, y0, x0 + s, y0, x0 + s, y0 + s, x0, y0 + s);
+const sq = (x0: number, y0: number, s: number) =>
+  Float64Array.of(x0, y0, x0 + s, y0, x0 + s, y0 + s, x0, y0 + s);
 
 const nested: HatchLoop[] = [
   { points: sq(0, 0, 10), flags: HatchPathFlags.EXTERNAL | HatchPathFlags.POLYLINE },
@@ -59,7 +60,11 @@ describe("hatch loop selection and solid fill (note 06 §1.5)", () => {
   it("drops text-box loops by default", () => {
     const withText = [...nested.slice(0, 1), { points: sq(3, 3, 1), flags: HatchPathFlags.TEXTBOX }];
     expectClose(trianglesArea(hatchSolidTriangles(withText, HatchStyle.Normal)), 100, 1e-9);
-    expectClose(trianglesArea(hatchSolidTriangles(withText, HatchStyle.Normal, { textBoxes: "keep" })), 99, 1e-9);
+    expectClose(
+      trianglesArea(hatchSolidTriangles(withText, HatchStyle.Normal, { textBoxes: "keep" })),
+      99,
+      1e-9,
+    );
   });
 
   it("even-odd over overlapping separate loops leaves the overlap empty", () => {
@@ -122,7 +127,12 @@ describe("hatch pattern lines", () => {
   });
 
   it("dashes are anchored at each line's own origin B + k·v (brick-style shift)", () => {
-    const brick: HatchPatternLine = { angle: 0, base: { x: 0, y: 0.5 }, offset: { x: 0.5, y: 1 }, dashes: [1, -1] };
+    const brick: HatchPatternLine = {
+      angle: 0,
+      base: { x: 0, y: 0.5 },
+      offset: { x: 0.5, y: 1 },
+      dashes: [1, -1],
+    };
     const r = hatchPatternLines([{ points: sq(0, 0, 10), flags: 1 }], 0, [brick]);
     for (const [x0, y0, x1] of segs(r)) {
       const k = Math.round(y0! - 0.5);
@@ -132,7 +142,12 @@ describe("hatch pattern lines", () => {
       expect(x0 === 0 || Math.abs(u) < 1e-9 || Math.abs(u - 2) < 1e-9).toBe(true);
       expect(x1! - x0!).toBeLessThanOrEqual(1 + 1e-12);
     }
-    const dots: HatchPatternLine = { angle: 90, base: { x: 0.5, y: 0 }, offset: { x: -1, y: 0 }, dashes: [0, -1] };
+    const dots: HatchPatternLine = {
+      angle: 90,
+      base: { x: 0.5, y: 0 },
+      offset: { x: -1, y: 0 },
+      dashes: [0, -1],
+    };
     const d = hatchPatternLines([{ points: sq(0, 0, 3), flags: 1 }], 0, [dots]);
     expect(d.segments.length).toBe(0);
     expect(d.dots.length / 2).toBe(3 * 4); // x = 0.5, 1.5, 2.5; y = 0, 1, 2, 3 (inclusive)
@@ -159,9 +174,14 @@ describe("hatch pattern lines", () => {
       { angle: 0, base: { x: 0, y: 0.5 }, offset: { x: 1, y: 0 }, dashes: [] },
     ]);
     expect(zero.tooDense).toBe(true);
-    const manyDashes = hatchPatternLines([{ points: sq(0, 0, 10), flags: 1 }], 0, [{ ...ansi31(), dashes: [0.001, -0.001] }], {
-      maxPrimitives: 1000,
-    });
+    const manyDashes = hatchPatternLines(
+      [{ points: sq(0, 0, 10), flags: 1 }],
+      0,
+      [{ ...ansi31(), dashes: [0.001, -0.001] }],
+      {
+        maxPrimitives: 1000,
+      },
+    );
     expect(manyDashes.tooDense).toBe(true);
   });
 
@@ -194,7 +214,10 @@ describe("hatch pattern lines", () => {
           const line: HatchPatternLine = {
             angle,
             base: { x: 0.25, y: -0.5 },
-            offset: { x: -Math.sin(a) * spacing + Math.cos(a) * 0.3, y: Math.cos(a) * spacing + Math.sin(a) * 0.3 },
+            offset: {
+              x: -Math.sin(a) * spacing + Math.cos(a) * 0.3,
+              y: Math.cos(a) * spacing + Math.sin(a) * 0.3,
+            },
             dashes: dashed ? [0.7, -0.4, 0, -0.4] : [],
           };
           const r = hatchPatternLinesInRings(rings, [line]);

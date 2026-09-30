@@ -555,9 +555,11 @@ async function openFixture(c: FixtureCase): Promise<void> {
 }
 
 async function openCorpus(row: CorpusRow): Promise<void> {
-  const dir = row.path.split("/").slice(0, -1).join("/");
+  // corpus names contain '#', '%', spaces…: encode each path segment
+  const enc = (p: string) => p.split("/").map(encodeURIComponent).join("/");
+  const dir = enc(row.path.split("/").slice(0, -1).join("/"));
   await openSource(
-    `${API}file/external/${row.path}`,
+    `${API}file/external/${enc(row.path)}`,
     basenameOf(row.path),
     (p) => `${API}file/external/${dir}/${encodeURIComponent(basenameOf(p))}`,
   );

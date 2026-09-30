@@ -83,19 +83,24 @@ try {
       if (m.type() === "error") errors.push(m.text());
     });
     const t0 = Date.now();
-    await page.goto(`${url}?file=${encodeURIComponent(`api/samples/file/${f}`)}`);
+    // corpus names contain '#', '%', spaces…: encode each path segment for the fetch URL
+    const fileUrl = `api/samples/file/${f.split("/").map(encodeURIComponent).join("/")}`;
+    await page.goto(`${url}?file=${encodeURIComponent(fileUrl)}`);
     let metric: Record<string, number | string> | undefined;
     try {
       await page.waitForFunction(
-        () => (window as unknown as { truedxf?: { metrics: unknown[] } }).truedxf?.metrics.length,
+        () =>
+          (window as unknown as { truedxf?: { metrics: unknown[] } }).truedxf?.metrics.length ||
+          document.querySelector(".toast.on"),
         undefined,
         { timeout: a.timeout * 1000, polling: 250 },
       );
       metric = await page.evaluate(
         () =>
           (window as unknown as { truedxf: { metrics: Record<string, number | string>[] } }).truedxf
-            .metrics[0]!,
+            .metrics[0],
       );
+      if (!metric) errors.push(`load failed: ${await page.locator(".toast").textContent()}`);
     } catch (e) {
       errors.push(String(e));
     }

@@ -54,6 +54,7 @@ Run all three (typecheck, test, lint) before committing.
   learn something new (especially from AutoCAD). Tag verified facts **VERIFIED-BY-ACAD** with
   the case id / date.
 - Open questions and conflicts are tracked in `docs/questions.md` (ID → test case → answer).
+- Open work items are tracked in `docs/TODO.md`; tick them off or add new ones as you go.
 - The official DXF reference is often wrong; AutoCAD output wins.
 
 ## Licensing rules (strict)

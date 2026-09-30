@@ -44,7 +44,8 @@ update it when decisions change.
 
 Reproduce: `node packages/testkit/src/cpu-suite.ts <suite> --quiet --hide-fonts "^liberation"`.
 
-**Known limitations / next steps** (details in the notes and docs/questions.md):
+**Known limitations / next steps** (the full list of open todos is [docs/TODO.md](TODO.md); AutoCAD
+questions are in docs/questions.md):
 - **Fonts:** the Liberation TTFs were installed during the AutoCAD session, so the references of
   text/mtext/attribs/… were plotted with AutoCAD's simplex.shx substitution. After a Windows
   log-off/on, re-run `node tools/acad/src/run.ts --suite <s> --force` for text-bearing suites and

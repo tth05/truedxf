@@ -212,7 +212,7 @@ export function wangSegmentCount(b: BezierCurve, tol: number): number {
   return Math.min(Math.max(n, 1), MAX_SEGMENTS_PER_CURVE);
 }
 
-/** Distance from point `q` (index i in homogeneous h) to segment h[0]–h[n], in Cartesian. */
+/** Max distance of the inner control points of homogeneous piece `h` from its chord h[0]–h[n]. */
 function hullDeviation(h: Float64Array, n: number, d: number): number {
   const s = d + 1;
   const w0 = h[d]!;

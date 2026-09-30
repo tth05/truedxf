@@ -39,6 +39,11 @@ export interface EntityBase {
   readonly plotStyleHandle: string | undefined;
   readonly materialHandle: string | undefined;
   readonly extensionDictionary: string | undefined;
+  /**
+   * Proxy graphics bytes (92/160 length tag + 310 chunks in AcDbEntity, or in AcDbProxyEntity for
+   * ACAD_PROXY_ENTITY), concatenated; undefined if absent (note 07 §15.1).
+   */
+  readonly proxyGraphics?: Uint8Array | undefined;
   readonly record: DxfRecord;
 }
 
@@ -104,8 +109,51 @@ export function readBase(rec: DxfRecord): EntityBase {
     plotStyleHandle: f.plotStyleHandle as string | undefined,
     materialHandle: f.materialHandle as string | undefined,
     extensionDictionary: rec.extensionDictionary,
+    proxyGraphics: readProxyGraphics(rec, "AcDbEntity"),
     record: rec,
   };
+}
+
+/**
+ * Proxy graphics of a subclass: the first 92 or 160 length tag directly followed by 310 chunks.
+ * The version-to-length-code rule is unreliable (ezdxf#978), so both are accepted (note 07 §15.1).
+ */
+export function readProxyGraphics(rec: DxfRecord, subclass: string): Uint8Array | undefined {
+  const p = rec.hasSubclasses ? rec.subclass(subclass) : undefined;
+  if (!p) return undefined;
+  const s = rec.store;
+  const codes = s.codes;
+  // fast path: most entities carry no 310 at all (avoids the partTags generator)
+  let any = false;
+  for (let i = p.start; i < p.end; i++)
+    if (codes[i] === 310) {
+      any = true;
+      break;
+    }
+  if (!any) return undefined;
+  let chunks: Uint8Array[] | undefined;
+  let prev = -1;
+  for (const i of rec.partTags(p)) {
+    const c = codes[i]!;
+    if (chunks) {
+      if (c !== 310) break;
+      chunks.push(s.binary(i));
+    } else if (c === 310 && (prev === 92 || prev === 160)) {
+      chunks = [s.binary(i)];
+    }
+    prev = c;
+  }
+  if (!chunks) return undefined;
+  if (chunks.length === 1) return chunks[0];
+  let n = 0;
+  for (const b of chunks) n += b.length;
+  const out = new Uint8Array(n);
+  let o = 0;
+  for (const b of chunks) {
+    out.set(b, o);
+    o += b.length;
+  }
+  return out;
 }
 
 /** Parser registry by DXF type name. */

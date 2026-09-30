@@ -1,3 +1,4 @@
+export { concatBytes, TagCursor } from "./cursor.ts";
 export {
   type Block,
   type DxfClass,
@@ -20,6 +21,8 @@ export {
 } from "./fields.ts";
 export { Header, type HeaderValue } from "./header.ts";
 export * from "./objects.ts";
+export * from "./raw-color.ts";
 export { DxfRecord, PartKind, type RecordPart } from "./record.ts";
 export * from "./tables.ts";
+export * from "./tags.ts";
 export * from "./types.ts";

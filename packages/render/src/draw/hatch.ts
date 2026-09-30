@@ -4,12 +4,12 @@
  * clipped to the loops. Gradients are filled with their first colour for now.
  */
 import {
+  type Affine2,
   arcSpanDeg,
   buildSplineCurve,
   bulgePolylineToSubpath,
   degToRad,
   FillRule,
-  flattenPath,
   type HatchLoop,
   hatchPatternLines,
   hatchSolidTriangles,
@@ -18,14 +18,13 @@ import {
   ocsToWcsMatrix,
   type PathSegment,
   projectCurve3,
-  type Subpath,
   transformHatchPatternLine,
   transformPath,
 } from "@truedxf/geometry";
 import type { HatchEdge, HatchEntity, HatchPath, MPolygonEntity } from "@truedxf/model";
 import { aciToRgb } from "../aci.ts";
 import type { Rgba } from "../displaylist.ts";
-import { registerDrawer } from "../frontend.ts";
+import { type Frontend, registerDrawer } from "../frontend.ts";
 
 const IDENTITY = Matrix44.identity();
 
@@ -73,24 +72,48 @@ function edgeSegment(edge: HatchEdge): PathSegment[] {
   }
 }
 
-function pathToSubpath(p: HatchPath): Subpath {
-  if (p.kind === "polyline") return bulgePolylineToSubpath(p.vertices, true);
-  return { segments: p.edges.flatMap(edgeSegment), closed: true };
+/** Boundary segments of a path in stored order (polyline paths: n − 1 segments when open). */
+function pathSegments(p: HatchPath): PathSegment[] {
+  if (p.kind === "polyline") return [...bulgePolylineToSubpath(p.vertices, p.closed).segments];
+  return p.edges.flatMap(edgeSegment);
+}
+
+/**
+ * Loop polygon of a path the way AutoCAD builds it: every segment contributes its flattened
+ * points **without its end point**, in stored order, and the loop closes from the last point to
+ * the first. Edges are never reordered or reversed, gaps become straight lines to the next
+ * start, and an open polyline path (73 = 0) loses its last vertex. VERIFIED-BY-ACAD
+ * (hatches/edges-shuffled*, edges-reversed-one, edges-open-3-edges, poly-open-u-shape,
+ * one-loop-two-rects, edges-gap-*; note 06 §1.3.3)
+ */
+function loopPoints(fe: Frontend, p: HatchPath, plane: Affine2): Float64Array {
+  const out: number[] = [];
+  for (const seg of pathSegments(p)) {
+    const t = transformPath({ subpaths: [{ segments: [seg], closed: false }] }, plane);
+    for (const fl of fe.flatten(t)) {
+      for (let i = 0; i < fl.points.length - 2; i++) out.push(fl.points[i]!);
+    }
+  }
+  return Float64Array.from(out);
 }
 
 registerDrawer(["HATCH", "MPOLYGON"], (fe, e, st) => {
   const h = e as HatchEntity | MPolygonEntity;
+  // A zero extrusion vector (210 = 0,0,0) does not plot. VERIFIED-BY-ACAD (lead, basic-entities
+  // references)
+  if (h.extrusion.x === 0 && h.extrusion.y === 0 && h.extrusion.z === 0) return;
   const r = fe.resolve(h, st);
   // OCS plane (with elevation) → target
   const plane = st.m.multiply(ocsToWcsMatrix(h.extrusion)).planeToAffine2(h.elevation);
   const loops: HatchLoop[] = [];
   for (const p of h.paths) {
-    const target = transformPath({ subpaths: [pathToSubpath(p)] }, plane);
-    for (const fl of flattenPath(target, fe.tolerance)) {
-      if (fl.points.length >= 6) loops.push({ points: fl.points, flags: p.flags });
-    }
+    const pts = loopPoints(fe, p, plane);
+    if (pts.length >= 6) loops.push({ points: pts, flags: p.flags });
   }
   if (loops.length === 0) return;
+  // FILLMODE 0 hides solid and gradient hatches completely (no outline). VERIFIED-BY-ACAD
+  // (hatches/solid-fillmode-0)
+  if (!fe.fillMode && (h.solid || h.gradient?.kind === 1)) return;
   const style = h.style;
   let color: Rgba = fe.color(r);
   if (h.gradient && h.gradient.kind === 1) {
@@ -123,7 +146,10 @@ registerDrawer(["HATCH", "MPOLYGON"], (fe, e, st) => {
   if (res.tooDense) {
     // UNVERIFIED (note 06 §1.6: HPMAXLINES): too dense patterns are filled solid
     fe.note("hatch-too-dense");
-    fe.fillTriangles(hatchSolidTriangles(loops, style, { tolerance: fe.tolerance }), color);
+    fe.fillTriangles(
+      hatchSolidTriangles(loops, style, { tolerance: fe.tolerance, fillRule: FillRule.EvenOdd }),
+      color,
+    );
     return;
   }
   const seg = res.segments;

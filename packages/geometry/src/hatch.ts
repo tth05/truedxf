@@ -4,12 +4,13 @@
  * Input loops are already flattened (edge paths / bulge polylines → `flattenSubpath`) and
  * implicitly closed — every loop is closed for filling, even with 73 = 0 (note 06 §1.3.2).
  *
- * **Loop selection** (note 06 §1.5, recommendation 1–3, ASSUMPTION until tests H5/H6):
+ * **Loop selection** (note 06 §1.5):
  * - style 0 normal: all loops; 1 outer: loops flagged external (1) or outermost (16);
  *   2 ignore: external loops only (ezdxf `rendering_paths`);
- * - if style ∈ {1, 2} and no loop carries the external flag (files from other writers), the
- *   selection falls back to geometric nesting depth (dxf-viewer): outer → depth ≤ 1,
- *   ignore → depth 0;
+ * - if style ∈ {1, 2} and no loop carries the external flag (files from other writers), nothing
+ *   is selected — AutoCAD plots nothing then (VERIFIED-BY-ACAD hatches/nested-*-zero-style1|2);
+ *   `geometricFallback: true` selects by geometric nesting depth instead (dxf-viewer): outer →
+ *   depth ≤ 1, ignore → depth 0;
  * - text-box loops (flag 8) are dropped by default (ezdxf#573); `textBoxes: "keep"` keeps them
  *   as holes (UNKNOWN which AutoCAD does, test H6).
  * The selected loops are then filled **even-odd** (odd parity; winding is irrelevant in AutoCAD
@@ -80,7 +81,11 @@ export interface HatchLoop {
 export interface HatchLoopSelectionOptions {
   /** Text-box loops (flag 8): `drop` (default, ezdxf) or `keep` as ordinary loops. */
   readonly textBoxes?: "drop" | "keep";
-  /** Fall back to geometric nesting when no loop is flagged external. Default true. */
+  /**
+   * Fall back to geometric nesting when no loop is flagged external. Default false: AutoCAD
+   * draws nothing for styles 1/2 without an external loop (VERIFIED-BY-ACAD
+   * hatches/nested-*-zero-style1|2).
+   */
   readonly geometricFallback?: boolean;
 }
 
@@ -128,7 +133,7 @@ export function selectHatchLoops(
   }
   if (style !== HatchStyle.Outer && style !== HatchStyle.Ignore) return cand;
   const hasExternal = cand.some((i) => loops[i]!.flags & HatchPathFlags.EXTERNAL);
-  if (hasExternal || opts.geometricFallback === false) {
+  if (hasExternal || opts.geometricFallback !== true) {
     const mask =
       style === HatchStyle.Outer
         ? HatchPathFlags.EXTERNAL | HatchPathFlags.OUTERMOST

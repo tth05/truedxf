@@ -242,6 +242,28 @@ the path data stored in the hatch is authoritative (AutoCAD rebuilds it only on 
 with 71=1 but missing 97/330 tags is "not valid for AutoCAD" per ezdxf comment; ACadSharp pr-1209
 ("A hatch does not claim a boundary the file does not carry") clears 71 in that case.
 
+### 1.3.5 How AutoCAD 2027 PLOT builds loops (VERIFIED-BY-ACAD, 2026-09-30)
+
+Cases `hatches/edges-*`, `poly-open-*`, `one-loop-two-rects`, `nested-*`, `solid-fillmode-0`,
+`mpolygon-*`; implementation `packages/render/src/draw/hatch.ts` `loopPoints`:
+- A loop is the sequence of the **start points** of its edges in stored order: every edge
+  contributes its flattened points except its end point, and the loop closes from the last point
+  to the first. AutoCAD never reorders or reverses edges: shuffled edges give a bow-tie, one
+  reversed edge a triangle, 3 edges of a square a triangle (`edges-shuffled*`,
+  `edges-reversed-one`, `edges-open-3-edges`); gaps of 1e-6 … 1 unit are simply bridged
+  (`edges-gap-*`); one path with two separate rectangles is one self-intersecting polygon
+  (`one-loop-two-rects`). ezdxf's gap closing / chaining is therefore wrong for plots.
+- A polyline path with 73 = 0 has n − 1 segments, so its **last vertex is dropped**
+  (`poly-open-u-shape`: a U of 4 vertices fills the triangle of the first three).
+- Styles 1 (outer) and 2 (ignore) with no loop flagged external (92 bit 1) plot **nothing** — no
+  geometric nesting fallback (`nested-solid-zero-style1|2`, `nested-ansi31-zero-style1|2`);
+  style 0 fills all loops even-odd.
+- $FILLMODE = 0: solid (and gradient) hatches are not plotted at all, no outline
+  (`solid-fillmode-0`). A zero extrusion (210 = 0,0,0) hatch does not plot.
+- MPOLYGON: accoreconsole does not load AcMPolygonObj26.dbx, the entities become proxies with
+  empty graphics and plot nothing (`mpolygon-*`, DXFOUT writes 310 proxy data) — a harness
+  limitation, not AutoCAD behaviour; the references cannot verify MPOLYGON rendering.
+
 ### 1.4 Seed points, pixel size, origin
 
 - `98` + `10/20` seed points (OCS): pick points used by the flood/boundary-detection when the hatch

@@ -49,12 +49,15 @@ describe("hatch loop selection and solid fill (note 06 §1.5)", () => {
     expectClose(trianglesArea(hatchSolidTriangles(nested, HatchStyle.Ignore)), 100, 1e-9);
   });
 
-  it("falls back to geometric nesting depth without external flags", () => {
+  it("styles 1/2 select nothing without external flags (VERIFIED-BY-ACAD hatches/nested-*-zero-*)", () => {
     const unflagged = nested.map((l) => ({ ...l, flags: 0 }));
     expect(loopNestingDepths(unflagged.map((l) => l.points))).toEqual([0, 1, 2]);
-    expect(selectHatchLoops(unflagged, HatchStyle.Outer)).toEqual([0, 1]);
-    expect(selectHatchLoops(unflagged, HatchStyle.Ignore)).toEqual([0]);
-    expect(selectHatchLoops(unflagged, HatchStyle.Ignore, { geometricFallback: false })).toEqual([]);
+    expect(selectHatchLoops(unflagged, HatchStyle.Outer)).toEqual([]);
+    expect(selectHatchLoops(unflagged, HatchStyle.Ignore)).toEqual([]);
+    expect(selectHatchLoops(unflagged, HatchStyle.Normal)).toEqual([0, 1, 2]);
+    // optional geometric nesting fallback (dxf-viewer behaviour)
+    expect(selectHatchLoops(unflagged, HatchStyle.Outer, { geometricFallback: true })).toEqual([0, 1]);
+    expect(selectHatchLoops(unflagged, HatchStyle.Ignore, { geometricFallback: true })).toEqual([0]);
   });
 
   it("drops text-box loops by default", () => {

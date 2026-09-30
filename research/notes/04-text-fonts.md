@@ -450,7 +450,7 @@ Tokenisation rules (ezdxf parser):
 | `\O` `\o` | overline on/off | |
 | `\K` `\k` | strike-through on/off | |
 | `\A0;` `\A1;` `\A2;` | vertical alignment of the following text relative to the line: 0 bottom, 1 center, 2 top | "3".."9" and "-" → 0; any other char terminates the command and is printed ("\AX" → "X") |
-| `\Cn;` | ACI color | leading +/- terminates the command ("\C+5" prints "\C+5"); values > 255 consumed but ignored ("\C1000" prints nothing); ezdxf accepts ≤ 256 |
+| `\Cn;` | ACI color | leading +/- terminates the command ("\C+5" prints "\C+5"; AutoCAD 2027 prints "+5", §11); values > 255 consumed but ignored ("\C1000" prints nothing); ezdxf accepts ≤ 256 |
 | `\cn;` | true color as integer n = R + 256·G + 65536·B ("\c255;" = red, "\c16711680;" = blue — ezdxf tools/text.py comment; netDxf writes `BitConverter.ToInt32([R,G,B,0])`, same). **CONFLICT**: mlightcad reads 0xRRGGBB. | ≥ 16777216 masked with 0xFFFFFF; "\c9999999999;" switches to (255,227,11) |
 | `\Hv;` / `\Hvx;` | absolute height (drawing units) / factor of current height | negative ignored (abs used), leading "+", ".5", "1e2" valid; invalid float terminates and is printed ("\H1..5") |
 | `\Wv;` / `\Wvx;` | width factor absolute / relative | as \H |
@@ -645,7 +645,8 @@ frame width is 41 when set). Verify placement with PLOT.
 - `\S5^6;` (no space after ^) occurs in real AutoCAD MTEXT together with `\pxsm2;`, `\ps*;`, `\pq*;`,
   `\pi-3,l3,t3;`, `\fISOCPEUR|b0|i0|c0|p34;`, `\C152;\c12285479;` (ezdxf#889 sample) → the caret decoder
   must not eat `^6` inside stacks; follow AutoCAD: inside `\S`, "^" followed by a non-space is still the
-  divider (ASSUMPTION based on this sample rendering as a stack).
+  divider (ASSUMPTION based on this sample rendering as a stack; **REFUTED** by AutoCAD 2027: `S5^6;` renders the
+  no-divider stack "5?", §11).
 - Inline `\C` overrides the entity color (dxf-viewer#160, VERIFIED AutoCAD); BYBLOCK outside blocks →
   ACI 7.
 - A `\M+` sequence split across a 3/1 chunk boundary is still decoded by AutoCAD 2024 (ezdxf#1322) →
@@ -1003,7 +1004,7 @@ Autodesk TTF look-alikes installed in `C:\Windows\Fonts` (Autodesk copyright; ra
 | gdt_____, AMGDT___ | gdt, amgdt | 1522 | – | – |
 
 Measured SHX at h = 10 (VERIFIED-BY-ACAD): txt "A" 0..6.6667 × 0..10, x-height 6.6667, descender
-−3.3333, "A" advance 10; simplex "A" width 7.61905, advance ≈ 9.5238; romans "A" 0.476..8.095; isocp
+−3.3333, "A" advance 10; simplex "A" width 7.61905, advance ≈ 9.5238 (**wrong**: 22 units = 10.476, §10); romans "A" 0.476..8.095; isocp
 "A" 1.5..7.5 × 0.5..9.5 (glyphs inset 0.5 — pen-width compensation). ezdxf's hard-coded SHX guesses
 `DESCENDER_FACTOR = 0.333`, `X_HEIGHT_FACTOR = 0.666` (fonts.py:79, "just guessing") equal txt exactly.
 

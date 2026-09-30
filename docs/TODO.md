@@ -9,6 +9,10 @@ Tick items off (or delete them) when done.
 - [ ] Regenerate all AutoCAD references now that the Liberation fonts are visible to AutoCAD
       (started 2026-10-01; before, most suites were plotted with simplex.shx substitution), then
       re-score without `--hide-fonts` and update the scoreboard in PLAN.md.
+- [ ] `fileformat` suite: 274 harness failures in the 2026-10-01 regeneration run (was fine
+      before) — check the runner log (`samples/logs/regen-fileformat.log`).
+- [ ] Re-score all suites against the regenerated (real-font) references: MTEXT drops from
+      204/250 to 138/250 at F1(r=1) ≥ 0.99 — TrueType MTEXT layout/metrics need work.
 - [ ] Remove the Liberation workaround from scripts/docs once references are regenerated
       (`--hide-fonts ^liberation`, harness `text.unavailableFonts`).
 - [ ] Verify IMAGE / WIPEOUT against full AutoCAD (`acad.exe`) plots — accoreconsole never plots

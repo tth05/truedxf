@@ -1463,3 +1463,12 @@ ATTRIB / ATTDEF (§2)
   attributes inherit the off layer) (attribs/layer-off-insert).
 - R2018 attribute type 71 = 1 draws group 1 even when an embedded MTEXT is present
   (attribs/multiline-attrib-type1).
+
+## 12. Findings 2026-10-01 (user drawing, VERIFIED-BY-ACAD user/studienleistung)
+
+- MTEXT lines that start with `^I` keep the tab advance: the text sits on the default 4·h tab
+  stop. The "left edge = ink" rule (§3.6.1) removes only the first glyph's own side bearing,
+  not leading tabs/spaces.
+- Single-column dynamic column data (75 = 2, count 1, stored column height > 0) does not set the
+  frame height for middle/bottom attachments; the frame comes from the text content. Whether a
+  stored height sets the frame for real multi-column text is still UNVERIFIED.

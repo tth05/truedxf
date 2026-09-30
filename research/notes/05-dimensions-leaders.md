@@ -1503,3 +1503,10 @@ These findings supersede the ASSUMPTION/UNKNOWN markers of §1–§13 where they
 - MULTILEADER: dogleg length 0 / disabled dogleg, spline leaders, text frames, underline
   attachments 5/6/8, breaks and block attributes are not reproduced yet.
 - LARGE_RADIAL group 40 moves the text (jogged-40-jogangle-nb, meaning UNKNOWN).
+
+## 18. Findings 2026-10-01 (VERIFIED-BY-ACAD user/studienleistung)
+
+- MULTILEADER with block content: the attribute values are stored in the MULTILEADER (330 ATTDEF
+  handle + 302 value, see §6) and AutoCAD draws them at their ATTDEF's placement, height and
+  style, transformed with the block content (circled numbers in the fixture). Non-constant ATTDEFs
+  of the block are not drawn themselves.

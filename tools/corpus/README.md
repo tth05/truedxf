@@ -1,0 +1,88 @@
+# tools/corpus — corpus runners
+
+Runners over the local-only external corpus (`samples/external/manifest.jsonl`, see
+`samples/README.md`). Reports go to `samples/reports/` (never committed). All runners accept
+`--filter <regex>` (path) and `--limit <n>`.
+
+| Command | What |
+|---|---|
+| `node --disable-warning=ExperimentalWarning tools/corpus/src/parse-tags.ts` | tokenize + by-value round trip (`core-tags.json`) |
+| `node --disable-warning=ExperimentalWarning tools/corpus/src/load-model.ts` | load into `@truedxf/model`, exceptions / diagnostics / coverage (`model-load.json`) |
+| `node --disable-warning=ExperimentalWarning tools/corpus/src/diff-ezdxf.ts` | differential oracle vs ezdxf (`diff-ezdxf.json`, `diff-ezdxf.md`) |
+| `node --disable-warning=ExperimentalWarning tools/corpus/src/dump.ts FILE.dxf` | truedxf's normalized dump of one file (JSON on stdout) |
+| `tools/gen/.venv/Scripts/python tools/corpus/ezdxf_dump.py FILE.dxf` | ezdxf's normalized dump of one file |
+
+## Differential oracle (docs/PLAN.md §5 Phase 2 item 7)
+
+`ezdxf_dump.py` (ezdxf 1.4.4 from the `tools/gen` venv; `ezdxf.readfile`, falling back to
+`ezdxf.recover.readfile`) and `src/dump.ts` write the same normalized JSON: a header-variable
+subset, LAYER/LTYPE/STYLE/BLOCK_RECORD tables, layouts, blocks and model/paper space with the
+attributes of LINE, POINT, CIRCLE, ARC, ELLIPSE, SOLID, TRACE, 3DFACE, RAY, XLINE, SPLINE, SHAPE,
+LWPOLYLINE, POLYLINE+VERTEX, TEXT, ATTRIB, ATTDEF and INSERT (other types: type + handle only, so
+the entity lists still align). Field names are truedxf's; absent optional values are `null`;
+numbers are rounded to 12 significant digits.
+
+`src/diff-ezdxf.ts` runs both over the corpus and compares with a relative tolerance of 1e-9:
+
+- ezdxf dumps are cached in `samples/reports/ezdxf-cache/<hash of ezdxf_dump.py>/<sha256>.json.gz`
+  (changing the script invalidates the cache; old hash directories can be deleted). Python runs
+  as `--jobs` parallel `ezdxf_dump.py --serve` workers (default min(8, cores − 2)); a worker that
+  exceeds `--timeout` seconds (default 300) is killed and restarted. `--refresh` re-dumps.
+- Files above `--max-mb` (default 40) are skipped (ezdxf needs ~20× the file size in RAM).
+- `--sample n` picks a deterministic sample (every k-th file in sha256 order).
+- Entity lists are paired by index when the type sequences match, else by handle, else by type
+  order; unpaired entities count as "missing in …". Each compared leaf attribute counts once.
+- Patterns are keyed `context TYPE.field`; string differences that are only decoding get a
+  ` [escapes]` / ` [codepage]` suffix, keys that differ only by decoding ` [encoded name]`.
+  `src/diff-classes.ts` classifies every pattern (`ezdxf`, `ambiguous`, `dump`, `truedxf-bug`);
+  the markdown report lists the top patterns with value pairs and notes.
+
+Full run (4833 DXF, 7 > 40 MB skipped, 41 that ezdxf cannot load even in recover mode): ~45 s
+ezdxf with 10 workers (cold cache) + ~50 s compare.
+
+## Triage log (2026-09-30)
+
+| | compared attributes | disagreements | agreement |
+|---|---:|---:|---:|
+| before | 50 659 171 | 650 517 | 98.716 % |
+| after | 50 759 993 | 114 773 | 99.774 % (all 116 patterns classified: 112 624 ezdxf, 2 147 ambiguous, 2 dump) |
+
+truedxf bugs found and fixed:
+
+1. **Common properties after the subclass marker** (`100 AcDbEntity`, `100 AcDbLine`, `8 …`,
+   `62 …`; QCAD/LibreCAD/QGIS). `readBase` now recovers 8/6/62/420/430/440/
+   370/48/60/67/390/347 from other subclasses when absent from AcDbEntity, for types whose own
+   subclasses never use those codes (not MTEXT: 48 = column width). Same as ezdxf
+   `recover_graphic_attributes`; AutoCAD rejects such files (note 11c §1.3), so the writer's
+   intent is the only reference. (~239 k attributes)
+2. **Entity data before the subclass markers** (VERTEX `10/20/30/70` before `100 AcDbVertex`,
+   ACadSharp#421): ~250 k attributes. `fieldTable(defs, { lenient: true })` fills still-missing
+   single fields from unconsumed tags of other parts; used for the simple entities (LINE … SHAPE,
+   SPLINE single fields, VERTEX, TEXT, INSERT), not ATTRIB/ATTDEF (ambiguous 73/280).
+3. **Interleaved coordinates** `10 11 20 21 30 31` (AC1003 files, old QCAD): Y/Z are searched
+   for up to the next X of the same code.
+4. **SPLINE (0,0,0) tangents** (LibreDWG/ODA; ~17 k) are dropped (note 03 §3, ezdxf does the same).
+5. **Binary DXF bools** (290–299) read as NaN → false in `TagStore.num` (packages/core): e.g.
+   `$PSTYLEMODE`, layer 290 in binary files.
+6. **Duplicate BLOCKs** are merged like AutoCAD (first name, second base point, both entity
+   lists; note 07 §1.1, Q-0608) instead of dropping the second.
+7. **SEQEND after an INSERT without 66/ATTRIBs** is attached to the INSERT instead of reported
+   as orphan.
+8. **LAYOUT ↔ block links** (the 39 "layout-without-block" files, mostly QGIS exports with stale
+   LAYOUT 330 handles copied from a template): relinked via BLOCK_RECORD 340, then the Model
+   layout by name, then remaining paper layouts ↔ unused `*Paper_Space*` blocks in order of
+   appearance, as ezdxf does (note 08 §2; diagnostic `layout-relinked`). 5 files remain (ezdxf's
+   intentionally broken layout test files).
+
+Documented ezdxf differences (truedxf keeps the file's / AutoCAD's value): `\U+`/`\M+` escapes
+kept by ezdxf and code-page mojibake (ezdxf trusts `$DWGCODEPAGE`; truedxf detects UTF-8 and
+DBCS, note 01 §5); resources ezdxf creates on load (Defpoints/0 layers, BYBLOCK/BYLAYER/
+Continuous, Standard, `*Model_Space` records, arrow blocks, Layout1); `$ACADVER` upgrades; 67=1
+forced on paper-space block content; Defpoints `plot=0` forced; invalid layer color 0 → 7 (truedxf
+at parse time); case-sensitive XDATA APPID lookup; lineweight/style repairs of ezdxf.recover;
+MTEXT column merging; entities ezdxf drops; files without `$ACADVER` parsed in R12 mode by ezdxf
+(subclass data lost).
+
+Ambiguous (AutoCAD behaviour unknown): duplicate ENTITIES/TABLES sections (truedxf concatenates),
+duplicate table records and header variables (truedxf: first wins; Q-0085), TEXT without 40
+(truedxf 1, ezdxf 2.5; Q-0406), `210` without 220/230, relinking order of broken layouts.

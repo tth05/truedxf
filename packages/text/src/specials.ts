@@ -87,9 +87,14 @@ export function decodeCarets(s: string): string {
   return out;
 }
 
-/** Code of `^X`: ezdxf rule chr((ord(X) − 64) mod 126); `^?` is DEL (VERIFIED-BY-ACAD text/caret-lowercase). */
+/**
+ * Code of `^X` (X ≠ space): X − 64 for X ≥ "@" (`^J` LF, `^a` "!", `^z` ":"), `^?` DEL, and a
+ * "?" for X below "@" (`^6` renders "?" — not ezdxf's mod-126 "t"). VERIFIED-BY-ACAD
+ * text/caret-lowercase(-mtext), mtext/stack-caret-nospace.
+ */
 export function caretCode(next: number): number {
-  return next === 0x3f ? 0x7f : (next - 64 + 126) % 126;
+  if (next === 0x3f) return 0x7f;
+  return next >= 0x40 ? next - 64 : 0x3f;
 }
 
 /** Decodes a TEXT/ATTRIB string into characters with decoration flags. */

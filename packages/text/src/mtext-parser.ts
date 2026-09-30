@@ -174,7 +174,8 @@ class Parser {
             this.i = s.length;
             break;
           }
-          this.control(code);
+          if (code >= 0x20 && code !== 0x7f) this.emitChar(code);
+          else this.control(code);
         }
         continue;
       }
@@ -483,6 +484,13 @@ class Parser {
         // backslashes inside stacks are ignored except as an escape (note 04 §3.4)
         escaped = true;
         c = expr[++k]!;
+      }
+      if (!escaped && c === "^" && k + 1 < expr.length && expr[k + 1] !== " ") {
+        // "^X" is a caret code even inside a stack: "\S5^6;" is "5?" without divider
+        // (VERIFIED-BY-ACAD mtext/stack-caret-nospace; the ezdxf#889 assumption was wrong)
+        const code = caretCode(expr.charCodeAt(++k));
+        (kind === "" ? upper : lower).push({ cp: code < 0x20 || code === 0x7f ? 0x3f : code });
+        continue;
       }
       if (!escaped && kind === "" && (c === "^" || c === "/" || c === "#")) {
         kind = c;

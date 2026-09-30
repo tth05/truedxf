@@ -62,7 +62,7 @@ describe("MTEXT inline codes (note 04 §3.3)", () => {
   it("parses stacks", () => {
     expect(show(parse("\\S1/2;"))).toBe("[1/2]");
     expect(show(parse("\\S1^ 2;"))).toBe("[1^2]");
-    expect(show(parse("\\S5^6;"))).toBe("[5^6]");
+    expect(show(parse("\\S5^6;"))).toBe("[5?]");
     expect(show(parse("\\S1#2;x"))).toBe("[1#2]x");
     expect(show(parse("\\S\\N^ \\P;"))).toBe("[N^P]");
     expect(show(parse("\\S1/2/3;"))).toBe("[1/2/3]");
@@ -94,6 +94,7 @@ describe("MTEXT inline codes (note 04 §3.3)", () => {
   it("decodes %% specials, control characters and NUL", () => {
     expect(show(parse("%%c%%d%%p%%%"))).toBe("Ø°±%");
     expect(show(parse("a^Bb"))).toBe("a▯b");
+    expect(show(parse("A^aB^zC^?D"))).toBe("A!B:C▯D");
     expect(show(parse("x^@y"))).toBe("x");
     expect(show(parse("1^ 2"))).toBe("1^2");
   });

@@ -93,8 +93,6 @@ export interface MTextLayoutOptions {
   underlineOffset?: number;
   overlineOffset?: number;
   strikeOffset?: number;
-  /** Stack geometry (UNVERIFIED, note 04 §3.4): gap between the parts and the bar, in part heights. */
-  stackGap?: number;
 }
 
 export const MTEXT_DECORATION = { underline: -0.2, overline: 1.2, strike: 0.5 } as const;
@@ -542,8 +540,7 @@ class Engine {
           out.push({ k: "tab", ctx: t.ctx });
           break;
         case "stack":
-          if (t.kind === "") for (const ch of t.upper) out.push(this.glyph(t.ctx, ch));
-          else out.push(this.stack(t.ctx, t.upper, t.lower, t.kind));
+          out.push(this.stack(t.ctx, t.upper, t.lower, t.kind));
           break;
         default:
           break;
@@ -552,12 +549,23 @@ class Engine {
     return out;
   }
 
-  /** Stack geometry — UNVERIFIED guesses (note 04 §3.4 lists no AutoCAD numbers). */
+  /**
+   * Stack geometry, measured in AutoCAD 2027 plots with simplex.shx (suite mtext/stack-*,
+   * VERIFIED-BY-ACAD 2026-09-30; hs = the current char height, parts are drawn at hs — the usual
+   * 70 % comes from an explicit \H0.7x;):
+   * - "/" and "^": lower part on the baseline, upper part's baseline at 4/3·hs; "/" draws a bar at
+   *   7/6·hs from the stack start to the widest part's ink right edge; "/" centres the parts on
+   *   the bar by ink width, "^" left-aligns them; advance = the larger part advance;
+   * - "#": upper part at the start on baseline hs, lower part on the baseline starting h/3 after
+   *   the upper part's ink right edge; a 2·hs long slash at 55° centred at (upper ink right + hs/6,
+   *   hs); advance = lower start + lower advance;
+   * - no divider: the text raised by hs/3.
+   */
   private stack(
     ctx: MTextContext,
     upper: readonly MTextChar[],
     lower: readonly MTextChar[],
-    kind: "^" | "/" | "#",
+    kind: "^" | "/" | "#" | "",
   ): StackItem {
     const h = ctx.height;
     const run = (chars: readonly MTextChar[]) => {
@@ -570,34 +578,39 @@ class Engine {
         if (g.ink) ink.add(g.ink, pen, 0);
         pen += g.adv;
       }
-      const width = ink.empty ? pen : Math.max(pen, ink.xMax);
-      return { gs, xs, width };
+      return { gs, xs, adv: pen, inkRight: ink.empty ? pen : ink.xMax };
     };
     const up = run(upper);
     const lo = run(lower);
-    const gap = (this.o.stackGap ?? 0.2) * h;
-    const mid = h / 2;
     const parts: SubGlyph[] = [];
     const bars: { x0: number; y0: number; x1: number; y1: number }[] = [];
+    const tan = Math.tan(ctx.oblique * DEG);
     const add = (r: ReturnType<typeof run>, dx: number, y: number) => {
       r.gs.forEach((g, k) => {
-        parts.push({ m: g.m, x: dx + r.xs[k]!, y, h: g.h, w: g.w, tanOb: Math.tan(ctx.oblique * DEG) });
+        parts.push({ m: g.m, x: dx + r.xs[k]!, y, h: g.h, w: g.w, tanOb: tan });
       });
     };
     let adv: number;
-    if (kind === "#") {
-      const slant = 0.3 * h;
-      add(up, 0, mid);
-      add(lo, up.width + slant, mid - h);
-      bars.push({ x0: up.width, y0: mid - h, x1: up.width + slant, y1: mid + h });
-      adv = up.width + slant + lo.width;
+    if (kind === "") {
+      // no divider: the text raised by hs/3 (VERIFIED-BY-ACAD mtext/stack-no-divider)
+      add(up, 0, h / 3);
+      adv = up.adv;
+    } else if (kind === "#") {
+      const lx = up.inkRight + h / 3;
+      add(up, 0, h);
+      add(lo, lx, 0);
+      const cx = up.inkRight + h / 6;
+      const dx = Math.cos(55 * DEG) * h;
+      const dy = Math.sin(55 * DEG) * h;
+      bars.push({ x0: cx - dx, y0: h - dy, x1: cx + dx, y1: h + dy });
+      adv = lx + lo.adv;
     } else {
-      const width = Math.max(up.width, lo.width);
+      const width = Math.max(up.inkRight, lo.inkRight);
       const center = kind === "/";
-      add(up, center ? (width - up.width) / 2 : 0, mid + gap);
-      add(lo, center ? (width - lo.width) / 2 : 0, mid - gap - h);
-      if (kind === "/") bars.push({ x0: 0, y0: mid, x1: width, y1: mid });
-      adv = width;
+      add(up, center ? (width - up.inkRight) / 2 : 0, (4 / 3) * h);
+      add(lo, center ? (width - lo.inkRight) / 2 : 0, 0);
+      if (kind === "/") bars.push({ x0: 0, y0: (7 / 6) * h, x1: width, y1: (7 / 6) * h });
+      adv = Math.max(up.adv, lo.adv);
     }
     const ink = new InkBox();
     for (const p of parts) {
@@ -611,7 +624,6 @@ class Engine {
     }
     for (const b of bars)
       ink.add({ xMin: b.x0, xMax: b.x1, yMin: Math.min(b.y0, b.y1), yMax: Math.max(b.y0, b.y1) }, 0, 0);
-    if (!this.notes.includes("mtext-stack-unverified")) this.notes.push("mtext-stack-unverified");
     return { k: "stack", ctx, parts, bars, adv, ink: ink.empty ? undefined : ink, h };
   }
 

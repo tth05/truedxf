@@ -35,6 +35,7 @@ import {
 } from "@truedxf/model";
 import {
   type BackgroundColor,
+  type ColorOverride,
   type InlineFontSpec,
   inlineFonts,
   layoutMText,
@@ -355,12 +356,13 @@ setAttribDrawer((fe, insert, st) => {
   }
 });
 
-function resolveColor(fe: Frontend, r: Resolved, c: BackgroundColor, inh: Inherited): Rgba {
+/** The entity's resolved properties with an inline colour applied. */
+function overrideResolved(fe: Frontend, r: Resolved, c: ColorOverride | undefined, inh: Inherited): Resolved {
+  if (!c) return r;
   const bg = fe.props.background;
-  if (c.kind === "canvas") return [bg[0], bg[1], bg[2], 255];
   if (c.kind === "rgb") {
     const rgb: [number, number, number] = [(c.rgb >> 16) & 255, (c.rgb >> 8) & 255, c.rgb & 255];
-    return fe.color({ ...r, rgb, trueColor: c.rgb });
+    return { ...r, rgb, trueColor: c.rgb };
   }
   let aci = c.aci;
   let tc: number | undefined;
@@ -374,7 +376,15 @@ function resolveColor(fe: Frontend, r: Resolved, c: BackgroundColor, inh: Inheri
   }
   const rgb: [number, number, number] =
     tc !== undefined ? [(tc >> 16) & 255, (tc >> 8) & 255, tc & 255] : aciToRgb(Math.abs(aci), bg);
-  return fe.color({ ...r, rgb, aci, trueColor: tc });
+  return { ...r, rgb, aci, trueColor: tc };
+}
+
+function resolveColor(fe: Frontend, r: Resolved, c: BackgroundColor, inh: Inherited): Rgba {
+  if (c.kind === "canvas") {
+    const bg = fe.props.background;
+    return [bg[0], bg[1], bg[2], 255];
+  }
+  return fe.color(overrideResolved(fe, r, c, inh));
 }
 
 /** Emits a text layout: backgrounds, glyphs, decoration lines. */
@@ -391,12 +401,7 @@ export function drawLayout(fe: Frontend, layout: TextLayout, e: Entity, m: Matri
       resolveColor(fe, r, bg.color, inh),
     );
   }
-  const colored = (c: BackgroundColor | undefined): Resolved => {
-    if (!c) return r;
-    const rgba = resolveColor(fe, r, c, inh);
-    // strokeFlat colours via fe.color(r): hand it a resolved colour that maps to rgba
-    return { ...r, rgb: [rgba[0], rgba[1], rgba[2]] };
-  };
+  const colored = (c: ColorOverride | undefined): Resolved => overrideResolved(fe, r, c, inh);
   const baseColor = fe.color(r);
   for (const g of layout.glyphs) {
     const t = toTarget.multiply(g.matrix);

@@ -15,7 +15,7 @@ for (let y = 0; y < height; y++) {
     } else {
       if (run >= Number(minRun))
         console.log(
-          `row ${y} x ${start}..${x - 1} (world y ${(149.95 - (y + 0.5) / 10).toFixed(2)}, x ${(-0.05 + start / 10).toFixed(2)}..${(-0.05 + x / 10).toFixed(2)})`,
+          `row ${y} x ${start}..${x - 1} (world y ${(Number(process.env.TOP ?? 149.95) - (y + 0.5) / Number(process.env.PPU ?? 10)).toFixed(3)}, x ${(Number(process.env.LEFT ?? -0.05) + start / Number(process.env.PPU ?? 10)).toFixed(3)}..${(Number(process.env.LEFT ?? -0.05) + x / Number(process.env.PPU ?? 10)).toFixed(3)})`,
         );
       run = 0;
     }

@@ -196,7 +196,8 @@ export class TextFonts implements TextFontSource {
 
   style(name: string): ResolvedTextStyle {
     const key = name.toUpperCase();
-    const hit = this.styles.get(key) ?? this.styles.get("STANDARD");
+    // missing style → Standard, else the first style (VERIFIED-BY-ACAD text/no-standard-style)
+    const hit = this.styles.get(key) ?? this.styles.get("STANDARD") ?? this.styles.values().next().value;
     if (hit) return hit;
     return (
       this.fontAltStyle ?? { name, font: undefined, suppressed: false, spec: undefined, substitutions: [] }

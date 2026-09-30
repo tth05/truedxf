@@ -44,6 +44,8 @@ interface Args {
   hideFonts?: string;
   /** Draw IMAGE / WIPEOUT (accoreconsole references never show them). */
   drawRaster: boolean;
+  /** Per-case time limit in seconds; the page is recreated after a timeout or crash. */
+  timeout: number;
 }
 
 function parseArgs(argv: string[]): Args {
@@ -54,6 +56,7 @@ function parseArgs(argv: string[]): Args {
     repeat: 1,
     build: true,
     drawRaster: false,
+    timeout: 120,
   };
   for (let i = 0; i < argv.length; i++) {
     const k = argv[i];
@@ -65,6 +68,7 @@ function parseArgs(argv: string[]): Args {
     else if (k === "--no-build") a.build = false;
     else if (k === "--hide-fonts") a.hideFonts = argv[++i]!;
     else if (k === "--draw-raster") a.drawRaster = true;
+    else if (k === "--timeout") a.timeout = Number(argv[++i]);
   }
   return a;
 }
@@ -209,10 +213,19 @@ async function main(): Promise<void> {
     headless: true,
     args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"],
   });
-  const page = await browser.newPage({ deviceScaleFactor: 1 });
-  page.on("pageerror", (e) => console.error("page error:", e.message));
-  await page.goto(url);
-  await page.waitForFunction(() => document.title === "ready");
+  // A case that crashes the renderer process or never finishes must not stall the whole run:
+  // every case races a timeout, and the page is replaced after a crash / timeout.
+  const openPage = async () => {
+    const p = await browser.newPage({ deviceScaleFactor: 1 });
+    p.on("pageerror", (e) => console.error("page error:", e.message));
+    await p.goto(url);
+    await p.waitForFunction(() => document.title === "ready");
+    return p;
+  };
+  let page = await openPage();
+  let crashed = false;
+  const watchCrash = () => page.on("crash", () => (crashed = true));
+  watchCrash();
   mkdirSync(args.out, { recursive: true });
   const results: CaseResult[] = [];
   for (const { meta, dxf } of cases) {
@@ -221,7 +234,7 @@ async function main(): Promise<void> {
       const b64 = readFileSync(dxf).toString("base64");
       const pngs: string[] = [];
       for (let k = 0; k < Math.max(1, args.repeat); k++) {
-        const res = await page.evaluate(
+        const evaluation = page.evaluate(
           ([d, p, o]) => (window as unknown as HarnessWindow).truedxf.render(d, p, o),
           [
             b64,
@@ -230,6 +243,11 @@ async function main(): Promise<void> {
             { hideFonts: args.hideFonts, suite: meta.suite, drawRaster: args.drawRaster },
           ] as const,
         );
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const limit = new Promise<never>((_, reject) => {
+          timer = setTimeout(() => reject(new Error(`timeout after ${args.timeout}s`)), args.timeout * 1000);
+        });
+        const res = await Promise.race([evaluation, limit]).finally(() => clearTimeout(timer));
         pngs.push(res.png);
         r.ms = res.ms;
         r.batches = res.batches;
@@ -251,6 +269,12 @@ async function main(): Promise<void> {
     } catch (e) {
       r.status = "error";
       r.error = e instanceof Error ? e.message : String(e);
+      if (crashed || /timeout|crash|closed|Target/i.test(r.error)) {
+        await page.close().catch(() => {});
+        page = await openPage();
+        crashed = false;
+        watchCrash();
+      }
     }
     results.push(r);
     const m = r.metrics;

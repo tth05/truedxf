@@ -1,0 +1,20 @@
+node_modules/
+dist/
+*.tsbuildinfo
+# third-party reference clones (large, various licenses) - see research/repos.md
+research/repos/
+# raw GitHub dumps and downloaded specs (regenerable via scripts)
+research/github/raw/
+research/github/downloads/
+research/spec/*.pdf
+research/spec/*.txt
+# all samples (external corpus, generated fixtures, AutoCAD references) stay local only
+samples/*
+!samples/README.md
+# tool environments
+.venv/
+__pycache__/
+*.pyc
+# AutoCAD console crash reports
+ErrorReports/
+research/github/logs/

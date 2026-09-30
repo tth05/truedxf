@@ -1,0 +1,13 @@
+* text=auto eol=lf
+# DXF/DWG test data must never be touched by git line-ending conversion
+*.dxf -text
+*.DXF -text
+*.dwg binary
+*.shx binary
+*.ttf binary
+*.png binary
+*.pdf binary
+*.ctb binary
+*.stb binary
+*.pc3 binary
+*.pmp binary

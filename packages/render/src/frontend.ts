@@ -132,6 +132,26 @@ export function registerPreparer(p: Preparer): void {
   PREPARERS.push(p);
 }
 
+/** Linetype periods below this many device pixels plot continuous (note 06 §2.6.1). */
+export const DENSE_LINETYPE_PERIOD_PX = 0.5;
+
+/**
+ * Upright (U=) linetype elements flip when the line points left **in the entity's own block
+ * coordinates**: a mirrored or rotated INSERT does not flip them. VERIFIED-BY-ACAD
+ * (linetypes/ctext-insert-mirror, ctext-insert-rotate). Undefined = decide in target coordinates.
+ */
+function blockUpsideDown(m: Matrix44): ((t: number) => boolean) | undefined {
+  const x = m.transformDirection({ x: 1, y: 0, z: 0 });
+  const y = m.transformDirection({ x: 0, y: 1, z: 0 });
+  if (x.x === 1 && x.y === 0 && y.x === 0 && y.y === 1) return undefined;
+  const det = x.x * y.y - x.y * y.x;
+  if (det === 0) return undefined;
+  // first row of the inverse of [x y]: the block x component of a target direction
+  const i0 = y.y / det;
+  const i1 = -y.x / det;
+  return (t) => i0 * Math.cos(t) + i1 * Math.sin(t) < -1e-9;
+}
+
 /** Chord tolerance in device pixels for curve flattening. */
 export const TOLERANCE_PX = 0.1;
 const MAX_BLOCK_DEPTH = 64;
@@ -428,13 +448,17 @@ export class Frontend {
     st: DrawState,
     options: StrokeOptions = {},
   ): void {
-    const lt = !options.noLinetype && e ? this.linetypeFor(e, r, st) : undefined;
+    let lt = !options.noLinetype && e ? this.linetypeFor(e, r, st) : undefined;
+    // A pattern whose period is below half a device pixel plots continuous (dash count does not
+    // matter). VERIFIED-BY-ACAD (note 06 §2.6.1; linetypes/dense-*: 0.38 px continuous, 0.51 px dashed)
+    if (lt && lt.period < DENSE_LINETYPE_PERIOD_PX * this.pixelSize) lt = undefined;
     if (!lt) {
       for (const pl of this.flatten(path)) this.strokeFlat(pl.points, pl.closed, r);
       return;
     }
     const results = dashPath(path, lt.pattern, this.tolerance, {
       units: options.units ?? DashUnits.Continuous,
+      upsideDown: blockUpsideDown(st.m),
     });
     const color = this.color(r);
     const w = this.strokeWidth(r);

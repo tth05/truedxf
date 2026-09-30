@@ -219,6 +219,38 @@ describe("paths: exact arc length", () => {
 });
 
 describe("dots, complex elements, limits", () => {
+  it("complex elements on arcs sit on the true arc with the true tangent", () => {
+    const pat: DashPattern = {
+      elements: [
+        { length: 1 },
+        {
+          length: -1,
+          complex: {
+            kind: "shape",
+            rotation: 0,
+            rotationMode: ComplexRotation.Relative,
+            offsetX: 0,
+            offsetY: 0,
+            scale: 1,
+          },
+        },
+      ],
+    };
+    const arc = {
+      subpaths: [
+        {
+          segments: [arcSegment({ center: { x: 0, y: 0 }, radius: 10, start: 0, sweep: Math.PI })],
+          closed: false,
+        },
+      ],
+    };
+    const res = dashPath(arc, pat, 0.5, { fit: phaseFit(0) })[0]!;
+    for (const p of res.placements) {
+      expect(Math.hypot(p.x, p.y)).toBeCloseTo(10, 9);
+      expect(p.tangentAngle).toBeCloseTo(p.distance / 10 + Math.PI / 2, 9);
+    }
+  });
+
   it("dots as short strokes", () => {
     const r = dashPolyline(line(1), dashPattern([0, -0.25]), { dotMode: "strokes", dotLength: 0.02 });
     expect(r.dots.length).toBe(0);
@@ -253,11 +285,21 @@ describe("dots, complex elements, limits", () => {
     expect(r.placements.length).toBe(10); // anchors at 0.7 + 0.95·i ≤ 10
     const p = r.placements[0]!;
     expect(p.distance).toBeCloseTo(0.7, 12);
-    expect(p.x).toBeCloseTo(10 - 0.6, 12); // anchor 0.7 − X 0.1 along the (leftward) line
-    expect(p.y).toBeCloseTo(0.05, 12); // Y = −0.05 on the left normal (0, −1)
+    // unflipped: anchor 0.7 − X 0.1 along the (leftward) line = x 9.4, Y −0.05 on the left normal
+    // (0, −1) = y 0.05; upright turns it by 180° about the middle of the gap [0.5, 0.95] (x 9.275)
+    expect(p.x).toBeCloseTo(9.15, 12);
+    expect(p.y).toBeCloseTo(-0.05, 12);
     expect(p.flipped).toBe(true);
     expect(Math.cos(p.angle)).toBeCloseTo(1, 12);
     expect(seen.length).toBe(r.placements.length);
+    // the caller decides "upside down" in the entity's own coordinates (mirrored INSERT)
+    const kept = dashPolyline(Float64Array.of(10, 0, 0, 0), gas, {
+      fit: phaseFit(0),
+      upsideDown: () => false,
+    });
+    expect(kept.placements[0]!.flipped).toBe(false);
+    expect(kept.placements[0]!.x).toBeCloseTo(9.4, 12);
+    expect(Math.cos(kept.placements[0]!.angle)).toBeCloseTo(-1, 12);
     const abs = dashPolyline(Float64Array.of(10, 0, 0, 0), {
       elements: gas.elements.map((e) =>
         e.complex

@@ -811,6 +811,30 @@ def dense_cases(s: SuiteBuilder) -> None:
         c.msp.add_line((10, 115), (190, 115), dxfattribs=lt_attr("DOT"))
         c.msp.add_circle((100, 50), 40, dxfattribs=lt_attr("DASHED"))
         c.window((0, 0), (200, 150))
+    # device period vs dash count: short lines with sub-pixel periods, long lines with many
+    # visible periods (Q-0312; 10 px/unit)
+    c = s.case(
+        "dense-short-subpixel",
+        "Short LINEs (18 units) at 10 px/unit: DASHED 48=0.002 (period 0.38 px, 472 periods), DOT 48=0.005 (0.32 px, 567), DASHED 48=0.004 (0.76 px) — continuous by device size or dashed by count?",
+        tags=["LINE", "linetype", "dense"],
+        questions=["Q-0312"],
+    )
+    c.linetype("DASHED")
+    c.linetype("DOT")
+    for i, (lt, v) in enumerate((("DASHED", 0.002), ("DOT", 0.005), ("DASHED", 0.004), ("DOT", 0.008))):
+        c.msp.add_line((20, 120 - 25 * i), (38, 120 - 25 * i), dxfattribs=lt_attr(lt, ltscale=v))
+    c.window((0, 0), (200, 150))
+    c = s.case(
+        "dense-long-visible",
+        "Long LINEs (1800 units, mostly outside the window) at 10 px/unit: DASHED 48=0.01 (1.9 px, 9449 periods), DOT 48=0.02 (1.27 px, 14173 periods), DASHED 48=0.05 (9.5 px, 1890 periods)",
+        tags=["LINE", "linetype", "dense"],
+        questions=["Q-0312"],
+    )
+    c.linetype("DASHED")
+    c.linetype("DOT")
+    for i, (lt, v) in enumerate((("DASHED", 0.01), ("DOT", 0.02), ("DASHED", 0.05))):
+        c.msp.add_line((-800, 110 - 30 * i), (1000, 110 - 30 * i), dxfattribs=lt_attr(lt, ltscale=v))
+    c.window((0, 0), (200, 150))
 
 
 def odd_ltype_cases(s: SuiteBuilder) -> None:
@@ -1029,6 +1053,21 @@ def complex_text_cases(s: SuiteBuilder) -> None:
     blk.add_line((0, 0), (170, 0), dxfattribs=lt_attr("GAS_LINE"))
     c.msp.add_blockref("GASB", (15, 110))
     c.msp.add_blockref("GASB", (185, 40), dxfattribs={"xscale": -1})
+    c.window((0, 0), (200, 150))
+
+    # rotated INSERTs: is the upright (U=) flip decided in block or in world coordinates?
+    c = s.case(
+        "ctext-insert-rotate",
+        "Block with a GAS_LINE LINE (0,0)-(170,0) inserted at rotation 0 (top), 180 (middle) and 150 (bottom): upright flip in block or world coordinates?",
+        tags=["INSERT", "linetype", "complex-linetype", "upright"],
+        questions=["Q-0325", "Q-0320"],
+    )
+    complex_ltype(c, "GAS_LINE", GAS_LINE)
+    blk = c.doc.blocks.new("GASB")
+    blk.add_line((0, 0), (170, 0), dxfattribs=lt_attr("GAS_LINE"))
+    c.msp.add_blockref("GASB", (15, 130))
+    c.msp.add_blockref("GASB", (185, 90), dxfattribs={"rotation": 180})
+    c.msp.add_blockref("GASB", (170, 60), dxfattribs={"rotation": 150})
     c.window((0, 0), (200, 150))
 
 

@@ -629,6 +629,37 @@ standard definitions):
   (mlightcad pr-668 "Match AutoCAD when a polyline segment is shorter than one linetype pattern
   cycle: draw a continuous stroke and skip partial dashes / TEXT / SHAPE placements").
 
+#### 2.3.1 Complex elements in AutoCAD 2027 PLOT (VERIFIED-BY-ACAD, 2026-09-30)
+
+Cases `linetypes/ctext-*`, `fit-gasline`, `fit-hotwatersupply`, `pl-gasline-*`,
+`acad-default-fonts/ltype-*` (ltypeshp.shx FENCELINE1/2, TRACKS, ZIGZAG, BATTING); implementation
+`packages/render/src/draw/complex-linetype.ts` + dash.ts placements:
+- 74 bit 2 = text, bit 4 = shape, bit 1 = absolute, bit 8 = upright (DXF reference meaning, not
+  ODA's); 50 is **degrees** (`ctext-rot-units-*`: 50 = 1.5708 is 1.57°).
+- Origin = end of the carrying element (on the fitted pattern, so it moves with the A-type head
+  h), then X along and Y across the line (left normal), both × linetype scale; R= rotates about
+  that point relative to the line, A= absolute. On arcs the anchor lies on the true arc; AutoCAD
+  rotates by the direction of its own tessellation chord (≈ 2.3° chords for r = 400 px), which we
+  approximate by the true tangent (≤ 1° error).
+- **Shapes**: one shape unit = S × linetype scale, from the STYLE (340, flag 1) shape file; S < 0
+  mirrors through the origin; S = 0 collapses the shape along the line and keeps 1 drawing unit
+  across it (`ltype-fenceline2-scale-zero|negative`); a missing .shx draws nothing
+  (`ctext-missing-shx`). A pattern without gaps (TRACKS: dashes + shapes) is not continuous.
+- **Text**: height = |S| × the STYLE's fixed height when that is set, else |S|
+  (`ctext-height-*`); S = 0 → 1 × linetype scale, S < 0 → text turned by 180° about its insertion
+  (`ctext-scale-*`). Linetype text **cannot use TrueType**: a TTF style (installed, used by TEXT
+  entities in the same plot) is drawn with FONTALT (simplex.shx) — matched to F1(r=1) ≥ 0.98.
+- **Upright (U=)**: the flip is decided by the **line direction alone** (not direction + rotation)
+  and only when it points left (cos < 0; exactly vertical up or down never flips;
+  `ctext-orient-u-*`), and in the entity's **own block coordinates**: texts of a mirrored or
+  rotated (180°, 150°) INSERT are drawn upside down, unflipped (`ctext-insert-mirror`,
+  `ctext-insert-rotate`). A flipped element is turned by 180° about the middle of the pen-up span
+  (gap) around its anchor — on a straight line exactly where a reversed line would put it; on
+  circles it stays in its own slot (`ctext-gasline-shapes`). A rotated U= element (U=30) turns
+  about the centre of its glyph box, R= about the insertion point (`ctext-orient-u-30-0` vs
+  `ctext-orient-r-30-0`).
+- Short units (L < P) are continuous without elements, like simple linetypes.
+
 ### 2.4 .lin file format
 
 (Autodesk help "About Simple Custom Linetypes", 2018 LT: fetched text; ezdxf:tools/complex_ltype.py.)
@@ -809,10 +840,11 @@ end symmetrically at the window edges; a RAY starts with a head dash at its base
 **Lineweights** do not change the pattern (`lw-*`); ISO W100 linetypes are not adjusted to the
 pen width (Q-0313: `lw-iso02-scaled` — only 48 scales them).
 
-**Too dense** (`dense-*`, 10 px/unit): DASHED with period 0.95 px (1890 periods per 180-unit line)
-and DOT with 0.64 px (2835) are still dashed; DASHED 0.38 px (4724) / DOT 0.32 px (5669) and
-denser plot **continuous**. Whether the criterion is the device period (≈ 0.4–0.6 px) or the dash
-count per entity is still open (T-LT-DENSE in docs/questions.md Q-0312).
+**Too dense** (`dense-*`, 10 px/unit): the criterion is the **device size of the period**, not the
+dash count: periods of 0.32 px (DOT) and 0.38 px (DASHED) plot continuous, 0.51 px (DOT), 0.64 px,
+0.76 px and 0.95 px stay dashed — on 18-unit lines with only 472 periods (`dense-short-subpixel`)
+as on 1800-unit lines with 14173 periods (`dense-long-visible`). truedxf: continuous when the
+period (Σ|ei| × scale) < 0.5 device px (threshold somewhere in (0.38, 0.51]).
 
 **Which primitive is "an individual line"?** (pre-test notes; §2.6.1 has the verified answers)
 - LINE: one unit.

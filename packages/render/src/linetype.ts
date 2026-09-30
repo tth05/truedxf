@@ -7,7 +7,14 @@
  * lives in block space); PSLTSCALE for viewports is handled by the paper-space code path.
  */
 import { ComplexRotation, type DashElement, type DashPattern } from "@truedxf/geometry";
-import type { DxfDocument, LinetypeEntry } from "@truedxf/model";
+import type { DxfDocument, LinetypeElement, LinetypeEntry } from "@truedxf/model";
+
+/** Payload of a complex dash element: the LTYPE record element and the pattern scale. */
+export interface ComplexElementData {
+  readonly element: LinetypeElement;
+  /** Effective linetype scale the pattern was multiplied with. */
+  readonly scale: number;
+}
 
 export interface LinetypeSpec {
   readonly entry: LinetypeEntry;
@@ -34,7 +41,9 @@ export class LinetypeResolver {
     let e = this.cache.get(key);
     if (e === undefined) {
       const t = this.doc.tables.linetypes.get(name);
-      e = t && t.elements.length > 0 && t.elements.some((x) => x.length < 0) ? t : null;
+      // a pattern needs a gap or a complex element to differ from a continuous line (TRACKS has
+      // only dashes and shapes: acad-default-fonts/ltype-tracks-*)
+      e = t?.elements.some((x) => x.length < 0 || (x.flags & 6) !== 0) ? t : null;
       this.cache.set(key, e);
     }
     return e ?? undefined;
@@ -66,7 +75,7 @@ export class LinetypeResolver {
           offsetX: el.offsetX * scale,
           offsetY: el.offsetY * scale,
           scale: el.scale * scale,
-          data: el,
+          data: { element: el, scale } satisfies ComplexElementData,
         },
       };
     });

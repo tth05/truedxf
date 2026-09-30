@@ -42,7 +42,7 @@
 
 import { flattenSegmentInto } from "./flatten.ts";
 import { segmentLength } from "./length.ts";
-import { type Path2, type Subpath, segmentStart } from "./path.ts";
+import { type Path2, type PathSegment, type Subpath, segmentStart } from "./path.ts";
 
 // ---- Pattern --------------------------------------------------------------------------------
 
@@ -275,6 +275,14 @@ export interface MeasuredPolyline {
   readonly distances: Float64Array;
   readonly units: Uint32Array;
   readonly closed: boolean;
+  /** Source segments by distance range (measureSubpath), for exact points on arcs. */
+  readonly spans?: readonly SegmentSpan[];
+}
+
+export interface SegmentSpan {
+  readonly s0: number;
+  readonly s1: number;
+  readonly seg: PathSegment;
 }
 
 export const DashUnits = {
@@ -324,6 +332,7 @@ export function measureSubpath(
   const pts: number[] = [];
   const dist: number[] = [];
   const unitStarts: number[] = [];
+  const spans: SegmentSpan[] = [];
   const segs = sp.segments;
   if (segs.length === 0) {
     return {
@@ -368,6 +377,7 @@ export function measureSubpath(
     const exact = s.kind === "line" ? chordSum : segmentLength(s);
     const f = exact / chordSum;
     unitStarts.push(startIdx);
+    spans.push({ s0: d0, s1: d0 + exact, seg: s });
     let acc = 0;
     for (let i = 0; i < chords.length; i++) {
       acc += chords[i]!;
@@ -391,6 +401,7 @@ export function measureSubpath(
     distances: Float64Array.from(dist),
     units: Uint32Array.from(u),
     closed: sp.closed && pts.length > 2,
+    spans,
   };
 }
 
@@ -425,6 +436,11 @@ export interface DashOptions {
   readonly maxPrimitives?: number;
   /** Called for every complex element placement (also collected in the result). */
   readonly onComplex?: (p: ComplexPlacement) => void;
+  /**
+   * Upright (U=) test for a line direction (radians); default: points left. The caller maps
+   * directions back into the entity's own coordinates (a mirrored INSERT does not flip).
+   */
+  readonly upsideDown?: (tangentAngle: number) => boolean;
 }
 
 export interface DashResult {
@@ -499,13 +515,74 @@ function extract(m: MeasuredPolyline, s0: number, s1: number, out: number[]): vo
   pointAt(m, s1, out);
 }
 
-function uprightAngle(a: number): { angle: number; flipped: boolean } {
-  const c = Math.cos(a);
-  const s = Math.sin(a);
-  // UNVERIFIED threshold (note 06 §2.2): flip when the element would point left, and at exactly
-  // vertical when it would point down.
-  if (c < -1e-12 || (Math.abs(c) <= 1e-12 && s < 0)) return { angle: a + Math.PI, flipped: true };
-  return { angle: a, flipped: false };
+/**
+ * Exact point and tangent direction at distance s on a circular arc span (arc length is linear in
+ * the angle), or undefined for other segments (the chord interpolation is used then).
+ */
+function exactOnArc(m: MeasuredPolyline, s: number): { x: number; y: number; angle: number } | undefined {
+  const spans = m.spans;
+  if (!spans || spans.length === 0) return undefined;
+  let lo = 0;
+  let hi = spans.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if (spans[mid]!.s0 <= s) lo = mid;
+    else hi = mid - 1;
+  }
+  const sp = spans[lo]!;
+  if (s < sp.s0 - 1e-9 || s > sp.s1 + 1e-9 || !(sp.s1 > sp.s0)) return undefined;
+  const g = sp.seg;
+  const f = Math.min(1, Math.max(0, (s - sp.s0) / (sp.s1 - sp.s0)));
+  if (g.kind === "arc") {
+    const t = g.start + g.sweep * f;
+    const dir = g.sweep >= 0 ? Math.PI / 2 : -Math.PI / 2;
+    return { x: g.center.x + g.radius * Math.cos(t), y: g.center.y + g.radius * Math.sin(t), angle: t + dir };
+  }
+  if (g.kind === "ellipticArc") {
+    const lu = Math.hypot(g.u.x, g.u.y);
+    const lv = Math.hypot(g.v.x, g.v.y);
+    const dot = g.u.x * g.v.x + g.u.y * g.v.y;
+    if (Math.abs(lu - lv) > 1e-9 * lu || Math.abs(dot) > 1e-9 * lu * lu) return undefined;
+    const t = g.start + g.sweep * f;
+    const c = Math.cos(t);
+    const n = Math.sin(t);
+    const k = g.sweep >= 0 ? 1 : -1;
+    return {
+      x: g.center.x + g.u.x * c + g.v.x * n,
+      y: g.center.y + g.u.y * c + g.v.y * n,
+      angle: Math.atan2(k * (-g.u.y * n + g.v.y * c), k * (-g.u.x * n + g.v.x * c)),
+    };
+  }
+  return undefined;
+}
+
+/** Pen-up span [g0, g1] around s between the merged dash intervals (s0, s1, unit triples). */
+function gapAround(merged: readonly number[], s: number, total: number, closed: boolean): [number, number] {
+  let g0 = 0;
+  let g1 = total;
+  let before = -1;
+  let after = -1;
+  for (let i = 0; i < merged.length; i += 3) {
+    if (merged[i + 1]! <= s + 1e-12 * Math.max(1, total)) before = i;
+    else if (merged[i]! >= s) {
+      after = i;
+      break;
+    } else return [s, s]; // inside a dash: turn about the anchor
+  }
+  if (before >= 0) g0 = merged[before + 1]!;
+  else if (closed && merged.length > 0) g0 = merged[merged.length - 2]! - total;
+  if (after >= 0) g1 = merged[after]!;
+  else if (closed && merged.length > 0) g1 = merged[0]! + total;
+  return [g0, g1];
+}
+
+/**
+ * Does a line direction make upright elements read upside down? Only when it points left:
+ * exactly vertical lines keep the direction (up and down). VERIFIED-BY-ACAD
+ * (linetypes/ctext-orient-u-*: lines at 85/90/270/275 keep, 95/180/265 flip).
+ */
+function upsideDown(a: number): boolean {
+  return Math.cos(a) < -1e-9;
 }
 
 /** Apply a pattern along a measured polyline. */
@@ -634,20 +711,36 @@ export function dashMeasured(
   }
 
   const placements: ComplexPlacement[] = [];
-  for (const c of complexS) {
+  const frame = (s: number): { x: number; y: number; t: number } => {
+    const ex = exactOnArc(m, s);
+    if (ex) return { x: ex.x, y: ex.y, t: ex.angle };
     tmp.length = 0;
-    pointAt(m, c.s, tmp);
-    const t = tangentAt(m, c.s);
+    pointAt(m, s, tmp);
+    return { x: tmp[0]!, y: tmp[1]!, t: tangentAt(m, s) };
+  };
+  for (const c of complexS) {
+    const a = frame(c.s);
+    const el = c.el;
+    const t = a.t;
     const ct = Math.cos(t);
     const st = Math.sin(t);
-    const el = c.el;
-    // ASSUMPTION (note 06 §2.3): X/Y offsets in the line frame, rotation about the anchor.
-    const x = tmp[0]! + ct * el.offsetX - st * el.offsetY;
-    const y = tmp[1]! + st * el.offsetX + ct * el.offsetY;
+    // X/Y offsets in the line frame, rotation about the anchor (note 06 §2.3).
+    let x = a.x + ct * el.offsetX - st * el.offsetY;
+    let y = a.y + st * el.offsetX + ct * el.offsetY;
     let angle = t + el.rotation;
     let flipped = false;
     if (el.rotationMode === ComplexRotation.Absolute) angle = el.rotation;
-    else if (el.rotationMode === ComplexRotation.Upright) ({ angle, flipped } = uprightAngle(angle));
+    else if (el.rotationMode === ComplexRotation.Upright && (options.upsideDown ?? upsideDown)(t)) {
+      // An upright element that would read upside down is turned by 180° about the middle of the
+      // pen-up span around its anchor: on a straight line that is exactly where a reversed line
+      // puts it. VERIFIED-BY-ACAD (linetypes/ctext-orient-u-*, ctext-gasline-shapes circle)
+      const [g0, g1] = gapAround(merged, c.s, total, m.closed);
+      const q = frame(((((g0 + g1) / 2) % total) + total) % total);
+      x = 2 * q.x - x;
+      y = 2 * q.y - y;
+      angle += Math.PI;
+      flipped = true;
+    }
     const p: ComplexPlacement = {
       x,
       y,

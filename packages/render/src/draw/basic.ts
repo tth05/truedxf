@@ -3,11 +3,14 @@
  * Geometry rules: research/notes/03-entities-geometry.md; blocks: 07.
  */
 import {
+  type Affine2,
   arcSpanDeg,
   buildSplineCurve,
   bulgePolylineToSubpath,
   type Curve3,
+  type DashPattern,
   DashUnits,
+  dashPath,
   degToRad,
   ellipseFromDxf,
   ellipticArcCurve3,
@@ -19,7 +22,9 @@ import {
   type Path2,
   type PolylineVertex,
   polyline3,
+  polylineSegments,
   projectCurve3,
+  scaledPattern,
   transformPath,
   type Vec3,
   widePolylineOutline,
@@ -209,7 +214,10 @@ function polyline2d(
   const r = fe.resolve(e, st);
   const plane = st.m.multiply(ocsToWcsMatrix(extrusion)).planeToAffine2(elevation);
   const wide = constantWidth !== 0 || verts.some((v) => (v.startWidth ?? 0) > 0 || (v.endWidth ?? 0) > 0);
-  const units = plinegen ? DashUnits.Continuous : DashUnits.PerSegment;
+  // PLINEGEN does not apply to polylines with tapered segments (AutoCAD docs; VERIFIED-BY-ACAD
+  // linetypes/pl-wide-taper-gen1 plots exactly like -gen0)
+  const tapered = constantWidth === 0 && verts.some((v) => (v.startWidth ?? 0) !== (v.endWidth ?? 0));
+  const units = plinegen && !tapered ? DashUnits.Continuous : DashUnits.PerSegment;
   if (!wide) {
     // A closed PLINEGEN polyline is one closed linetype unit whose pattern starts at vertex 1.
     // VERIFIED-BY-ACAD (note 06 §2.6; linetypes/pl-zigzag-*-closed-gen1, pl-fine-gen1)
@@ -220,6 +228,23 @@ function polyline2d(
   }
   // tolerance in OCS units for tapered arcs: target tolerance / plane scale
   const scale = fe.transformScale(st.m) || 1;
+  const lt = fe.linetypeFor(e, r, st);
+  if (lt && fe.fillMode) {
+    const vs = closed && plinegen && verts.length > 1 ? [...verts.slice(1), verts[0]!] : verts;
+    dashedWidePolyline(
+      fe,
+      st,
+      r,
+      vs,
+      closed,
+      constantWidth,
+      plane,
+      units,
+      scaledPattern(lt.pattern, 1 / scale),
+      scale,
+    );
+    return;
+  }
   const outline = widePolylineOutline(verts, { closed, constantWidth, tolerance: fe.tolerance / scale });
   if (fe.fillMode) {
     fe.fillPath(transformPath(outline.fill, plane), fe.color(r), FillRule.NonZero);
@@ -230,8 +255,95 @@ function polyline2d(
   if (outline.thin.length > 0) {
     fe.strokePath(transformPath({ subpaths: outline.thin }, plane), r, e, st, { units });
   }
-  // UNVERIFIED (note 03 §4): linetypes on wide polylines (dashing the band) are not applied yet
-  if (fe.linetypeFor(e, r, st)) fe.note("wide-polyline-linetype");
+  // FILLMODE 0 with a linetype: the outline is not dashed yet (UNVERIFIED)
+  if (lt) fe.note("wide-polyline-linetype");
+}
+
+/**
+ * A wide polyline with a linetype: every dash is a piece of the band between its two arc-length
+ * positions, with the widths interpolated along the segments and mitered where a dash runs
+ * over a vertex; PLINEGEN decides whether the pattern restarts per segment. VERIFIED-BY-ACAD
+ * (linetypes/pl-wide-const-gen*, pl-wide-taper-gen*, pl-wide-bulge-gen*; note 03 §4.1).
+ * Dots (0-length elements) of a wide polyline are not drawn (UNVERIFIED).
+ */
+function dashedWidePolyline(
+  fe: Frontend,
+  st: DrawState,
+  r: Resolved,
+  verts: PolylineVertex[],
+  closed: boolean,
+  constantWidth: number,
+  plane: Affine2,
+  units: DashUnits,
+  pattern: DashPattern,
+  scale: number,
+): void {
+  const segs = polylineSegments(verts, closed, constantWidth);
+  if (segs.length === 0) return;
+  const lengths = segs.map((s) =>
+    s.arc ? Math.abs(s.arc.radius * s.arc.sweep) : Math.hypot(s.p1.x - s.p0.x, s.p1.y - s.p0.y),
+  );
+  const starts: number[] = [0];
+  for (const l of lengths) starts.push(starts[starts.length - 1]! + l);
+  const total = starts[starts.length - 1]!;
+  const tol = fe.tolerance / scale;
+  const sub = bulgePolylineToSubpath(verts, closed);
+  const res = dashPath({ subpaths: [sub] }, pattern, tol, { units })[0];
+  if (!res) return;
+  // point, width and tangent-preserving bulge at arc length s on segment i
+  const at = (i: number, s: number): { x: number; y: number; w: number } => {
+    const g = segs[i]!;
+    const f = lengths[i]! > 0 ? Math.min(1, Math.max(0, (s - starts[i]!) / lengths[i]!)) : 0;
+    const w = g.startWidth + (g.endWidth - g.startWidth) * f;
+    if (!g.arc) return { x: g.p0.x + (g.p1.x - g.p0.x) * f, y: g.p0.y + (g.p1.y - g.p0.y) * f, w };
+    const a = g.arc.start + g.arc.sweep * f;
+    return {
+      x: g.arc.center.x + g.arc.radius * Math.cos(a),
+      y: g.arc.center.y + g.arc.radius * Math.sin(a),
+      w,
+    };
+  };
+  const segAt = (s: number): number => {
+    let i = 0;
+    while (i + 1 < segs.length && s >= starts[i + 1]!) i++;
+    return i;
+  };
+  const bulge = (i: number, s0: number, s1: number): number => {
+    const g = segs[i]!;
+    if (!g.arc || lengths[i]! <= 0) return 0;
+    const frac = (s1 - s0) / lengths[i]!;
+    return Math.tan((g.arc.sweep * frac) / 4);
+  };
+  const piece = (s0: number, s1: number): PolylineVertex[] => {
+    const out: PolylineVertex[] = [];
+    let s = s0;
+    let i = segAt(s0);
+    for (;;) {
+      const end = Math.min(s1, starts[i + 1]!);
+      const p = at(i, s);
+      const q = at(i, end);
+      out.push({ x: p.x, y: p.y, bulge: bulge(i, s, end), startWidth: p.w, endWidth: q.w });
+      if (end >= s1 - 1e-12 || i + 1 >= segs.length) {
+        out.push({ x: q.x, y: q.y });
+        return out;
+      }
+      s = end;
+      i++;
+    }
+  };
+  const rings: Float64Array[] = [];
+  const ranges = res.ranges;
+  for (let k = 0; k + 1 < ranges.length; k += 2) {
+    const s0 = ranges[k]!;
+    const s1 = ranges[k + 1]!;
+    const vs = s0 <= s1 ? piece(s0, s1) : [...piece(s0, total).slice(0, -1), ...piece(0, s1)];
+    if (vs.length < 2) continue;
+    const outline = widePolylineOutline(vs, { closed: false, tolerance: tol });
+    for (const p of fe.flatten(transformPath(outline.fill, plane))) rings.push(p.points);
+    if (outline.thin.length > 0)
+      fe.strokePath(transformPath({ subpaths: outline.thin }, plane), r, undefined, st, { noLinetype: true });
+  }
+  if (rings.length > 0) fe.fillRings(rings, fe.color(r), FillRule.NonZero);
 }
 
 /**

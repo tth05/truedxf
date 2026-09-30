@@ -7,6 +7,7 @@ import "./dimension.ts";
 import "./leader.ts";
 import "./viewport.ts";
 import "./image.ts";
+import "./misc.ts";
 
 import type {
   ArcEntity,
@@ -25,6 +26,14 @@ import type { DimensionEntity } from "./dimension.ts";
 import type { HatchEntity, MPolygonEntity } from "./hatch.ts";
 import type { ImageEntity, Ole2FrameEntity, UnderlayEntity, WipeoutEntity } from "./image.ts";
 import type { LeaderEntity, MultiLeaderEntity, ToleranceEntity } from "./leader.ts";
+import type {
+  AcadTableEntity,
+  AcisEntity,
+  HelixEntity,
+  MeshEntity,
+  MLineEntity,
+  ProxyEntity,
+} from "./misc.ts";
 import type { MTextEntity } from "./mtext.ts";
 import type { LwPolylineEntity, PolylineEntity, VertexEntity } from "./polyline.ts";
 import type { AttribEntity, InsertEntity, TextEntity } from "./text.ts";
@@ -36,6 +45,7 @@ export * from "./dimension.ts";
 export * from "./hatch.ts";
 export * from "./image.ts";
 export * from "./leader.ts";
+export * from "./misc.ts";
 export * from "./mtext.ts";
 export * from "./polyline.ts";
 export * from "./text.ts";
@@ -75,6 +85,12 @@ export type Entity =
   | WipeoutEntity
   | UnderlayEntity
   | Ole2FrameEntity
+  | MLineEntity
+  | AcadTableEntity
+  | MeshEntity
+  | HelixEntity
+  | AcisEntity
+  | ProxyEntity
   | UnknownEntity;
 
 export type EntityType = Entity["type"];

@@ -844,8 +844,9 @@ Group codes (spec:3229-3250, 6112-6135, 6412ff; ezdxf entities/acis.py):
 - SAT "encryption" for R2000–R2010 DXF (ezdxf tools/crypt.py): every character c except space (0x20) becomes
   `chr(159 − ord(c))`. ezdxf implements it as a table plus `c ^ 0x5F`, which is equivalent for printable ASCII, e.g.
   `'^'(0x5E) ↔ 'A'`, `'@' ↔ '_'`. ezdxf has one quirk: after decoding 0x5E ('A') it **skips the following character**,
-  and the encoder appends a space after 'A'. **UNKNOWN**: whether that's a real AutoCAD rule. Check against a sample
-  before relying on it.
+  and the encoder appends a space after 'A'. Confirmed on AutoCAD-written data (ACadSharp `sample_AC1015_ascii.dxf`,
+  REGION D69: `^ *+0\^ [` decodes to "AutoCAD" only when the space after each encoded 'A' is dropped;
+  line 2 decodes to `16 Autodesk AutoCAD 20 ASM 230.7.0.65535 NT 0`), 2026-09-30.
 - SAT versions: the first line is e.g. `700 0 1 0` (version 7.0). SAB starts with `ACIS BinaryFile`. The format is the
   proprietary Spatial ACIS format. ezdxf's `acis` package parses both (acis/sat.py, sab.py) and can build
   **meshes only from flat polygonal faces**. Curved surfaces need an ACIS kernel (ezdxf acis/mesh.py:12-36).

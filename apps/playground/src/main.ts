@@ -3,6 +3,15 @@
  * layers, pick entities and inspect their raw DXF tags, measure distances.
  */
 import { type DocumentInfo, DxfViewer, type EntityInfo, type RenderStats } from "@truedxf/viewer";
+import {
+  API,
+  type CorpusRow,
+  corpusBrowser,
+  type FixtureCase,
+  fixtureBrowser,
+  samplesStatus,
+} from "./browse.ts";
+import { ComparePanel } from "./compare.ts";
 import { h, ICONS, icon, mount } from "./dom.ts";
 import { fmtBytes, fmtCoord, fmtMs, fmtNum } from "./format.ts";
 
@@ -59,9 +68,7 @@ const layoutList = h("div", { class: "list" });
 const layerList = h("div", { class: "list" });
 const layerSearch = h("input", { class: "search", type: "search", placeholder: "Filter layers…" });
 const layerCount = h("span", { class: "count" });
-const leftPanel = h(
-  "aside",
-  { class: "sidebar left" },
+const viewerSections = [
   h("div", { class: "section" }, h("div", { class: "section-head" }, "Layouts"), layoutList),
   h(
     "div",
@@ -78,7 +85,8 @@ const leftPanel = h(
     layerSearch,
     layerList,
   ),
-);
+];
+const leftPanel = h("aside", { class: "sidebar left" }, ...viewerSections);
 
 const viewerHost = h("div", { class: "viewer" });
 const emptyState = h(
@@ -96,6 +104,8 @@ const emptyState = h(
 const busy = h("div", { class: "busy" }, h("span", { class: "spinner" }), h("span", {}, "Loading"));
 const toast = h("div", { class: "toast" });
 const measureChip = h("div", { class: "measure-chip" });
+const compare = new ComparePanel();
+compare.root.style.display = "none";
 const stage = h(
   "section",
   { class: "stage" },
@@ -104,6 +114,7 @@ const stage = h(
   h("div", { class: "drop" }, "Drop to open"),
   busy,
   measureChip,
+  compare.root,
   toast,
 );
 
@@ -135,7 +146,17 @@ mount(app, topbar, main, statusbar);
 
 // ---- viewer ------------------------------------------------------------------------------------
 
-const viewer = new DxfViewer(viewerHost, { background: "dark", fontBaseUrl: "fonts/" });
+/** Where IMAGEDEF paths of the current file resolve (fixtures / corpus files via the samples API). */
+let imageBase: ((path: string) => string) | undefined;
+const viewer = new DxfViewer(viewerHost, {
+  background: "dark",
+  fontBaseUrl: "fonts/",
+  loadImage: async (path) => {
+    if (!imageBase) return undefined;
+    const r = await fetch(imageBase(path));
+    return r.ok ? new Uint8Array(await r.arrayBuffer()) : undefined;
+  },
+});
 (window as unknown as { viewer: DxfViewer }).viewer = viewer;
 let info: DocumentInfo | undefined;
 let lastRender: RenderStats | undefined;
@@ -190,7 +211,15 @@ viewer.on("measure", (m) => {
   );
 });
 
-export async function openSource(src: File | string, name?: string): Promise<void> {
+export async function openSource(
+  src: File | string,
+  name?: string,
+  images?: (path: string) => string,
+): Promise<void> {
+  imageBase = images;
+  if (typeof src !== "string" || !src.startsWith(API)) {
+    compare.root.style.display = "none";
+  }
   loadStart = performance.now();
   firstFrame = undefined;
   hideError();
@@ -473,6 +502,74 @@ function hideError(): void {
   toast.classList.remove("on");
 }
 
+// ---- modes: viewer / fixtures / corpus (dev server with local samples only) -------------------------
+
+const basenameOf = (p: string) => p.replaceAll("\\", "/").split("/").pop() ?? p;
+
+async function openFixture(c: FixtureCase): Promise<void> {
+  const suite = c.id.split("/")[0]!;
+  await openSource(
+    `${API}file/${c.dxf}`,
+    `${c.name}.dxf`,
+    (p) => `${API}image/${suite}/${encodeURIComponent(p)}`,
+  );
+  if (!c.plot) {
+    compare.root.style.display = "none";
+    return;
+  }
+  compare.root.style.display = "";
+  await compare.show(viewer, c.plot, c.ref ? `${API}file/${c.ref}` : undefined);
+}
+
+async function openCorpus(row: CorpusRow): Promise<void> {
+  const dir = row.path.split("/").slice(0, -1).join("/");
+  await openSource(
+    `${API}file/external/${row.path}`,
+    basenameOf(row.path),
+    (p) => `${API}file/external/${dir}/${encodeURIComponent(basenameOf(p))}`,
+  );
+}
+
+async function initModes(): Promise<void> {
+  const st = await samplesStatus();
+  if (!st.available) return;
+  let fixtures: HTMLElement | undefined;
+  let corpus: HTMLElement | undefined;
+  const tabs = {
+    viewer: h("button", { class: "btn" }, "Viewer"),
+    fixtures: h("button", { class: "btn", title: "Generated fixtures vs AutoCAD references" }, "Fixtures"),
+    corpus: h(
+      "button",
+      { class: "btn", title: `${fmtNum(st.corpus)} DXF files in samples/external` },
+      "Corpus",
+    ),
+  };
+  const set = (m: keyof typeof tabs) => {
+    for (const [k, b] of Object.entries(tabs)) b.setAttribute("aria-pressed", String(k === m));
+    if (m === "viewer") mount(leftPanel, ...viewerSections);
+    else if (m === "fixtures")
+      mount(leftPanel, (fixtures ??= fixtureBrowser(st, (c) => void openFixture(c))));
+    else mount(leftPanel, (corpus ??= corpusBrowser((r) => void openCorpus(r))));
+    if (m !== "fixtures") compare.root.style.display = "none";
+    try {
+      localStorage.setItem("truedxf.mode", m);
+    } catch {
+      // storage unavailable
+    }
+  };
+  tabs.viewer.addEventListener("click", () => set("viewer"));
+  tabs.fixtures.addEventListener("click", () => set("fixtures"));
+  tabs.corpus.addEventListener("click", () => set("corpus"));
+  mount(modeTabs, tabs.viewer, tabs.fixtures, tabs.corpus);
+  let saved: string | null = null;
+  try {
+    saved = localStorage.getItem("truedxf.mode");
+  } catch {
+    // storage unavailable
+  }
+  set(saved === "fixtures" || saved === "corpus" ? saved : "viewer");
+}
+
 // ---- start -------------------------------------------------------------------------------------
 
 renderLayouts();
@@ -480,5 +577,6 @@ renderDiagnostics();
 void showInspector(undefined);
 const initial = new URLSearchParams(location.search).get("file");
 if (initial) void openSource(initial);
+void initModes();
 
 export { viewer };

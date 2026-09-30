@@ -184,6 +184,9 @@ importers:
 
   apps/playground:
     dependencies:
+      '@truedxf/three':
+        specifier: workspace:*
+        version: link:../../packages/three
       '@truedxf/viewer':
         specifier: workspace:*
         version: link:../../packages/viewer

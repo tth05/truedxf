@@ -14,6 +14,13 @@ import * as THREE from "three";
 // raw sRGB byte values in, the same values out
 THREE.ColorManagement.enabled = false;
 
+/**
+ * Bounding sphere for all our geometry: three.js computes spheres for transparent sorting (after
+ * uploading, when a released array is gone, and as NaN for our 2-component positions);
+ * everything is at z = 0 and never frustum-culled, so any sphere will do.
+ */
+const UNBOUNDED = new THREE.Sphere(new THREE.Vector3(), Number.POSITIVE_INFINITY);
+
 const TRIANGLES = 0;
 const LINES = 1;
 const IMAGE = 3;
@@ -120,9 +127,7 @@ export class DisplayListRenderer {
 
   private createBatch(batch: Batch, clipped: boolean): THREE.Object3D {
     const geom = new THREE.BufferGeometry();
-    // three.js computes bounding spheres (for transparent sorting) after uploading, when a released
-    // array is gone; everything is at z = 0 and never frustum-culled, so any sphere will do
-    geom.boundingSphere = new THREE.Sphere(new THREE.Vector3(), Number.POSITIVE_INFINITY);
+    geom.boundingSphere = UNBOUNDED.clone();
     geom.setAttribute("position", this.attribute(batch.positions, 2));
     geom.setAttribute("color", this.attribute(batch.colors, 4, true));
     const common = {
@@ -219,6 +224,7 @@ void main() {
   private addStencilReset(order: number): void {
     // full-screen quad in clip space that writes 0 into the stencil buffer
     const geom = new THREE.BufferGeometry();
+    geom.boundingSphere = UNBOUNDED.clone();
     geom.setAttribute("position", new THREE.BufferAttribute(new Float32Array([-1, -1, 3, -1, -1, 3]), 2));
     const mat = new THREE.ShaderMaterial({
       // three.js declares `attribute vec3 position` itself; our 2-component buffer gives z = 0
@@ -259,6 +265,7 @@ void main() {
         pos[k + 5] = ring[i * 2 + 3]! - oy;
       }
       const geom = new THREE.BufferGeometry();
+      geom.boundingSphere = UNBOUNDED.clone();
       geom.setAttribute("position", new THREE.BufferAttribute(pos, 2));
       const mat = new THREE.MeshBasicMaterial({
         transparent: true, // same render list as the batches (see addStencilReset)

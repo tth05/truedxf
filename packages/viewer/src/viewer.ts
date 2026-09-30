@@ -424,6 +424,14 @@ export class DxfViewer {
     return this.backend.call({ type: "inspect", handle });
   }
 
+  /**
+   * Renders a display list of the loaded document with explicit parameters (e.g. a plot with
+   * `raster: "autocad"` for comparisons) without changing what the viewer shows.
+   */
+  renderList(params: RenderParams): Promise<RenderResult> {
+    return this.backend.call({ type: "render", params });
+  }
+
   /** Renders a frame now (normally scheduled automatically). */
   renderNow(): void {
     if (!this.view || this.disposed) return;

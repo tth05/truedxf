@@ -14,7 +14,14 @@ import {
   loadDxf,
   PropertyResolver as ModelResolver,
 } from "@truedxf/model";
-import { ACI_RGB, type DisplayList, type PlotArea, renderPlot, transferables } from "@truedxf/render";
+import {
+  ACI_RGB,
+  type DisplayList,
+  type PlotArea,
+  type PlotRequest,
+  renderPlot,
+  transferables,
+} from "@truedxf/render";
 import { buildPickData, type PickData } from "./pick.ts";
 import type { Rect } from "./view.ts";
 
@@ -74,6 +81,10 @@ export interface RenderParams {
   visibility?: "display" | "plot";
   /** Plot style table name (plot mode), e.g. "monochrome.ctb". */
   styleTable?: string;
+  /** Further plot request fields (fixture contract: meta.plot). */
+  scale?: PlotRequest["scale"];
+  sysvars?: PlotRequest["sysvars"];
+  paperSpaceFirst?: boolean;
 }
 
 export interface RenderResult {
@@ -213,6 +224,9 @@ export class ViewerCore {
         canvas: p.canvas,
         lineweights: p.lineweights,
         ...(p.styleTable ? { styleTable: p.styleTable } : {}),
+        ...(p.scale ? { scale: p.scale } : {}),
+        ...(p.sysvars ? { sysvars: p.sysvars } : {}),
+        ...(p.paperSpaceFirst !== undefined ? { paperSpaceFirst: p.paperSpaceFirst } : {}),
       },
       {
         loadFont: this.loadFont,

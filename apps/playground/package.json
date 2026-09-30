@@ -11,6 +11,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@truedxf/three": "workspace:*",
     "@truedxf/viewer": "workspace:*",
     "three": "^0.186.1"
   },

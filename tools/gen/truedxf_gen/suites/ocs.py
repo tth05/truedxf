@@ -245,11 +245,11 @@ def _question_cases(s: SuiteBuilder) -> None:
             params={"levels": levels},
         )
         b0 = c.doc.blocks.new("B0")
-        b0.add_arc((0, 0), 12, 0, 120)
-        b0.add_text("Fg", height=8, dxfattribs={"insert": (2, 2)})
+        b0.add_arc((0, 0), 36, 0, 120)
+        b0.add_text("Fg", height=24, dxfattribs={"insert": (6, 6)})
         h = b0.add_hatch(color=1)
-        h.paths.add_polyline_path([(-20, -20), (-5, -20), (-5, -5)], is_closed=True)
-        b0.add_attdef("TAG", (-20, 5), dxfattribs={"height": 5})
+        h.paths.add_polyline_path([(-60, -60), (-15, -60), (-15, -15)], is_closed=True)
+        b0.add_attdef("TAG", (-60, 15), dxfattribs={"height": 15})
         name = "B0"
         for k in range(1, levels):
             b = c.doc.blocks.new(f"B{k}")

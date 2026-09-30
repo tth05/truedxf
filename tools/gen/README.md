@@ -79,6 +79,7 @@ Sans), `style_table` (`"monochrome.ctb"` | `"acad.ctb"`, default from the suite)
 | `c.layer(name, color=, linetype=, lineweight=, plot=, on=, frozen=, locked=, true_color=, transparency=)` | create a layer once |
 | `c.linetype(name)` | add an AutoCAD-valued standard/ISO linetype (`resources.py`; note 11a §12) |
 | `c.style(name, font=, width=, oblique=, height=, bigfont=)` | text style; fonts from [FONTS.md](FONTS.md) |
+| `c.sysvar("PLOTTRANSPARENCYOVERRIDE", 2)` / `c.plot.paperSpaceFirst = True` | harness extensions emitted as `plot.sysvars` / `plot.paperSpaceFirst` (registry sysvars and plot prompts a DXF can't carry; see tools/acad) |
 | `c.header(pdmode=3, ltscale=2)` | set header vars (`$` + upper-cased name) |
 | `c.add_file("img-a.png", data)` | extra file written next to the case; returns its absolute canonical path (`samples/generated/<suite>/…`) |
 | `c.notes.append("…")` | free-text notes copied into the meta JSON (`notes`) |

@@ -26,7 +26,7 @@ from ezdxf.addons.drawing.matplotlib import MatplotlibBackend  # noqa: E402
 
 def render_sheet(metas: list[Path], out: Path, cols: int = 4, cell: float = 3.2) -> None:
     rows = math.ceil(len(metas) / cols)
-    fig = plt.figure(figsize=(cols * cell, rows * cell * 0.8), dpi=100)
+    fig = plt.figure(figsize=(cols * cell, rows * cell * 0.85), dpi=100)
     for i, mpath in enumerate(metas):
         meta = json.loads(mpath.read_text(encoding="utf-8"))
         doc = ezdxf.readfile(str(mpath.with_suffix(".dxf")))
@@ -45,7 +45,7 @@ def render_sheet(metas: list[Path], out: Path, cols: int = 4, cell: float = 3.2)
             ax.set_xlim(area["min"][0], area["max"][0])
             ax.set_ylim(area["min"][1], area["max"][1])
         ax.set_aspect("equal", adjustable="box")
-    fig.tight_layout()
+    fig.subplots_adjust(left=0.01, right=0.99, bottom=0.01, top=0.97, wspace=0.05, hspace=0.15)
     fig.savefig(out)
     plt.close(fig)
 

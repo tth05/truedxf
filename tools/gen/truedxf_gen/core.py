@@ -36,7 +36,7 @@ from .resources import ACAD_SHX_FONTS, TTF_FONTS, linetype_def
 # Fixed metadata: constant $TDCREATE/$TDUPDATE, null GUIDs, constant ezdxf marker string.
 ezdxf.options.write_fixed_meta_data_for_testing = True
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[3]  # tools/gen/truedxf_gen/core.py -> repo root
 DEFAULT_OUT = REPO_ROOT / "samples" / "generated"
 GENERATOR = f"tools/gen {VERSION} / ezdxf {ezdxf.__version__}"
 
@@ -92,7 +92,8 @@ def new_doc(
     - handles are allocated sequentially by ezdxf, so $HANDSEED depends only on build order;
     - timestamps/GUIDs are fixed via ``ezdxf.options.write_fixed_meta_data_for_testing``.
     """
-    doc = ezdxf.new(dxfversion, setup=False, units=units)
+    # R12 has no $INSUNITS (ezdxf warns if units are passed)
+    doc = ezdxf.new(dxfversion, setup=False, **({} if dxfversion == "R12" else {"units": units}))
     for k, v in BASE_HEADER.items():
         doc.header[k] = v
     if header:
@@ -177,9 +178,13 @@ class Plot:
     styleTable: str = "monochrome.ctb"
     lineweights: bool = True
     scale: Any = "fit"
+    # harness extensions (tools/acad/src/script.ts PlotMeta): answer to "Plot paper space
+    # first?" and extra session sysvars set after the prologue (e.g. PLOTTRANSPARENCYOVERRIDE 2)
+    paperSpaceFirst: Optional[bool] = None
+    sysvars: dict[str, Any] = field(default_factory=dict)
 
     def to_json(self) -> dict[str, Any]:
-        return {
+        d: dict[str, Any] = {
             "layout": self.layout,
             "area": self.area,
             "canvas": list(self.canvas),
@@ -187,6 +192,11 @@ class Plot:
             "lineweights": self.lineweights,
             "scale": self.scale,
         }
+        if self.paperSpaceFirst is not None:
+            d["paperSpaceFirst"] = self.paperSpaceFirst
+        if self.sysvars:
+            d["sysvars"] = dict(self.sysvars)
+        return d
 
 
 class Case:
@@ -358,7 +368,19 @@ class Case:
     def id(self) -> str:
         return f"{self.suite.name}/{self.name}"
 
+    def sysvar(self, name: str, value: Any) -> None:
+        """Session sysvar the harness sets before plotting (registry values such as LWDEFAULT or
+        PLOTTRANSPARENCYOVERRIDE that a DXF cannot carry)."""
+        self.plot.sysvars[name.upper()] = value
+
     def meta(self) -> dict[str, Any]:
+        # legacy form: params["harness"] = {"sysvars": {...}, "paperSpaceFirst": bool}
+        h = self.params.get("harness")
+        if isinstance(h, dict):
+            for k, v in (h.get("sysvars") or {}).items():
+                self.plot.sysvars.setdefault(k.upper(), v)
+            if "paperSpaceFirst" in h and self.plot.paperSpaceFirst is None:
+                self.plot.paperSpaceFirst = bool(h["paperSpaceFirst"])
         m: dict[str, Any] = {
             "id": self.id,
             "suite": self.suite.name,

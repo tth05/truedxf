@@ -1397,3 +1397,109 @@ AutoCAD and read back the `*D` block.
     through two viewports with different annotation scales, ANNOALLVISIBLE 0/1.
 20. **Colors**: dimstyle with true-color DIMCLRD/E/T → verify which values appear in DXF (ACI
     approximation vs 420 in block) and in plot.
+
+---
+
+## 17. AutoCAD 2027 findings (dimensions / leaders suites, 2026-09-30)
+
+All **VERIFIED-BY-ACAD** with the case ids given (refs `samples/refs/acad2027-R26.0/`). For `-nb`
+cases the DXFOUT re-save contains the block AutoCAD regenerated; truedxf's generator
+(`packages/render/src/dimension/*`) reproduces 518 of 521 of those blocks entity by entity.
+These findings supersede the ASSUMPTION/UNKNOWN markers of §1–§13 where they differ.
+
+### 17.1 Blocks and regeneration
+- The stored `*D` block is drawn **translated by group 12** (OCS), also nested (struct-group12-ez,
+  struct-group12-nested-ez). An existing but **empty** block draws nothing (struct-empty-block).
+- A missing/undefined block is regenerated for dimensions in a layout; inside block definitions
+  only 3-point angular dimensions are regenerated (struct-in-block-nb, struct-in-block-angular3p-nb).
+- Regenerated block entities: layer = the dimension's layer, `62`/`370` from DIMCLRx/DIMLWx
+  (0 / −2 by default), no linetype unless DIMLTYPE/DIMLTEX are set (→ `6=<name>`), `48` = the
+  DIMENSION's 48 on every part (dimltype-*-nb). SOLID arrows keep lineweight −2; INSERT arrows
+  take DIMCLRD + DIMLWD; the MTEXT has DIMCLRT and the *entity's* lineweight
+  (entity-color-byblock-nb). Order: ext1, ext2, dim line(s), arrows, MTEXT, DIMGAP<0 frame.
+- DSTYLE code 5 (R12 DIMBLK name) is ignored in R2018 files (arrow-catalog-r2018-names-nb).
+
+### 17.2 Linear / aligned
+- 52 (oblique) is ignored on regeneration: extension lines stay perpendicular (oblique-30-nb).
+- Arrows: closed filled SOLID length DIMASZ, half-width DIMASZ/6; zero-length arrows (no line
+  shortening, DIMDLE allowed) = `_ArchTick _Oblique _DotSmall _Small _Integral _None`; `_Dot`,
+  `_Origin`, user blocks shorten by DIMASZ (arrow-*-nb, dimdle-2-*-nb). `_None` writes nothing.
+- Ticks (DIMTSZ > 0): LINE P ± DIMTSZ·(d + n) in DIMCLRD/DIMLWD, dim line extended by DIMDLE.
+- Fit (fit-* sheets): both inside iff m ≥ 2·(asz + gap) and m ≥ text space (text breaking the
+  line: 2·(asz + gap) + w + 2·gap). Otherwise DIMATFIT 0: both out; 1: arrows out, text in if it
+  fits; 2: text out, arrows in only if m > 2·(asz + gap); 3: text in (arrows out) if it fits, else
+  arrows in if m ≥ 2·(asz + gap). DIMTIX keeps the text in; DIMSOXD then drops outside arrows.
+- Arrows outside: a DIMASZ stub beyond each arrow base; inner line when DIMTOFL or text inside.
+  Text outside: beside ext line 2 (DIMJUST 1: ext line 1) at (arrow if outside) + asz + gap + w/2;
+  with DIMTAD ≠ 0 the stub continues under the text to its end + gap.
+- Text centre: above = gap + h/2 along the *readable* text's up vector (h = MTEXT frame height,
+  ink based); DIMGAP < 0 doubles the gap and adds a frame |gap| around the text in DIMCLRD/DIMLWD
+  (dimgap-m1-nb, dimgap-box-colors-nb). Readability flip for angles in (90°, 270°]
+  (flip-angle-*). DIMTAD 2 = away from the defpoints, 3 = like 1, 4 = below. DIMTVP shifts by
+  DIMTVP·h; the line is broken only for |DIMTVP| < 0.7.
+- DIMJUST 1/2: text centre asz + 2·gap + w/2 from the ext line; 3/4: text along the ext line,
+  exe + gap + w/2 past the dim line on the left of the ext-line direction, the ext line extended by
+  gap + w + gap. DIMTIH on a non-horizontal line or a 53 rotation: text centred on the line, the
+  line cut at the gap-enlarged text box. `\X` splits the text into two MTEXTs above/below.
+- DIMTMOVE with user text (70 & 128): 0 moves the dim line through 11; 1 leader from the line middle
+  to 11 − gap·d, then under the text (omitted near the line); 2 text at 11, no leader. Text moved
+  by the fit rules: 1.375·h above the middle (TMOVE 1 leader knee 0.4125·h along; one sample).
+- DIMTXTDIRECTION is code 294; 1 turns the text by 180° (dimtxtdirection-1-nb).
+- A text style's fixed height is used as is, not × DIMSCALE (text-fixed-height-style-nb).
+- A DIMSTYLE without 340 (R2000+) plots no text (dimtxsty-absent-nb).
+- DIMTFILL: MTEXT background flags 3 (DIMTFILL 1) / 1 with 63 = DIMTFILLCLR (2), box scale 1.1.
+
+### 17.3 Text strings (fmt-*, tol-*, dimalt-*, text-override-*)
+- Rounding half away from zero; DIMDSEP 0 → '.'; DIMZIN 8 drops the separator (12); DIMLUNIT 6 =
+  machine locale ("1.234,5000"); architectural/fractional stacks `{\H<DIMTFAC>x;\Sn/d;}` (`#` for
+  DIMFRAC 1, "a b/c" unstacked for 2); feet/inch DIMZIN 0–3 as §7.1, the whole-inch 0 kept before
+  a fraction only together with feet.
+- DIMADEC −1 gives 0 decimals (not DIMDEC); DMS classes as §7.2; grads `g`, radians `r`.
+- `\A<DIMTOLJ>;` leads every measured text when DIMTOLJ ≠ 0 (not tied to DIMTAD; imperial
+  defaults give `\A1;`). Tolerances: `117.35±0.1`, `117.35\S+0.1^ -0.2;`; DIMTFAC ≠ 1 →
+  `{\H<absolute height>;…}`; the DIMPOST suffix follows the stack; limits `\S117.45^ 117.15;`.
+- DIMPOST without `<>` is a suffix; any DIMPOST drops the automatic `R` / `∅` prefix.
+- Override: only the first `<>` is replaced; literal text drops tolerances/DIMPOST; `[]` becomes
+  " [alt]" only when `<>` is also present; alternate units follow as " [alt]".
+- DIMLFAC < 0 applies as |DIMLFAC| in paper space only (fmt-lfac-m2-nb, -paperspace-nb).
+
+### 17.4 Radial, angular, arc length, ordinate, jogged
+- Radius/diameter default: text outside beyond 15 (DIMTIX no effect, flip flags ignored), leader
+  from the text end to the arrow base; DIMTOFL 1 adds the centre line (diameter: full line, second
+  arrow and stub), 0 a centre mark (DIMCEN × DIMSCALE in DIMCLRE; DIMCEN < 0 adds lines from 2|c|
+  to r + |c|). DIMTOH: horizontal landing from a knee DIMASZ (diameter 2·DIMASZ) past the base.
+  Moved text inside: one line text → arrow, arrow inside, no second diameter arrow; TMOVE 2: text
+  free, line centre → arrow (radius-/diameter-moved-*).
+- Angular: 2-line sector = the one containing 16; 3-point: the one containing 10; radial extension
+  lines only where the arc misses the lines; arrows are chords (tip and base on the arc, arc
+  shortened by 2·asin(asz / 2r)); DIMTIH makes angular text horizontal, the arc is cut at the box.
+- Arc length: radial ext lines, orthogonal (parallel to the bisector) below 90°; DIMARCSYM 0 = ARC
+  r 0.8·h, centre w/2 + h before and 0.4·h below the text centre; 1 = ARC r 1.0875·h over the text
+  from 46.3972° to 133.6028°; 2 none. Leader (71 = 1) only for full arcs: dim arc middle → measured
+  arc with an arrow; 16/17 ignored.
+- Ordinate: leader in DIMCLRE from 13 + DIMEXO; jog from 14 − 4·asz to 14 − 2·asz; line to
+  14 + gap + w; text gap + w/2 past 14, above.
+- LARGE_RADIAL: 13 = override centre, 14 = jog point, 15 = chord point (measurement |15 − 10|).
+  Lines 13 → A → B → arrow at 15, B = jog line (through 14 at DIMJOGANG to the radial, turned to
+  the side of 13) ∩ radial line 10 → 15, A = 2·14 − B; text midway between B and the arrow base.
+  DIMSTYLE 50 is in degrees (0.5236 → 0.5236°); ≥ 90 → 45° (jogged-*).
+
+### 17.5 LEADER / MULTILEADER / TOLERANCE
+- LEADER: arrow DIMLDRBLK, omitted when the first segment is shorter than 2·size; 77 is ignored
+  (entity colour); a text annotation without hook gets the hook vertex added (DXFOUT gains it);
+  DIMTAD ≠ 0: unstored extension of gap + 41 from the last vertex along 211 (74 = 1 reverses it,
+  even back over the stored hook) in DIMCLRD/DIMLWD (leaders/leader-*). Spline leaders: fit spline
+  with the first/last segment directions as end tangents (sub-pixel differences remain).
+- MULTILEADER: drawn from the context data; arrows omitted unless the first segment exceeds
+  2·size; arrows in the leader line colour.
+- TOLERANCE: t = DIMTXT·DIMSCALE; rows 2·t high from the insertion point (middle of row 1's left
+  edge); cells = text width + t, text middle-left at t/2; DIMGAP unused; empty rows keep their
+  place (a row without fields draws t-long top/bottom edges); composite rows are **not** merged;
+  frame DIMCLRD, text DIMCLRT (leaders/tol-*).
+
+### 17.6 Open
+- MTEXT `\A1;`/`\A2;` against a stack (tol-unequal-j1/j2-nb): the text engine keeps the main text
+  bottom-aligned, AutoCAD centres/tops it against the stack.
+- MULTILEADER: dogleg length 0 / disabled dogleg, spline leaders, text frames, underline
+  attachments 5/6/8, breaks and block attributes are not reproduced yet.
+- LARGE_RADIAL group 40 moves the text (jogged-40-jogangle-nb, meaning UNKNOWN).

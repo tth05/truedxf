@@ -330,7 +330,8 @@ export function visibleBounds(list: Pick<DisplayList, "batches" | "clips">): Rec
   const clipBox = new Map<number, Rect>();
   for (const b of list.batches) {
     const p = b.positions;
-    if (p.length < 2) continue;
+    // infinite XLINE/RAY extensions don't count for fitting
+    if (p.length < 2 || b.unbounded) continue;
     let minX = Number.POSITIVE_INFINITY;
     let minY = Number.POSITIVE_INFINITY;
     let maxX = Number.NEGATIVE_INFINITY;

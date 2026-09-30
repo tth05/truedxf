@@ -585,6 +585,10 @@ registerDrawer(["RAY", "XLINE"], (fe, e, st) => {
   const d = st.m.transformDirection(x.direction);
   const len = Math.hypot(d.x, d.y);
   if (len === 0) return;
+  if (!fe.grid) {
+    drawInfiniteForViewing(fe, x, st, r, p, d, len);
+    return;
+  }
   // Clipped to the plot window first, then fitted like a LINE of that length (A-type ends at
   // the window edges). VERIFIED-BY-ACAD (note 06 §2.6; linetypes/infinite-xline*, infinite-ray)
   const v = fe.view;
@@ -603,6 +607,43 @@ registerDrawer(["RAY", "XLINE"], (fe, e, st) => {
   const b = { x: p.x + d.x * t1, y: p.y + d.y * t1 };
   fe.strokePath({ subpaths: [{ segments: [{ kind: "line", p0: a, p1: b }], closed: false }] }, r, x, st);
 });
+
+/**
+ * Interactive viewing: the display list is reused while the user pans and zooms, so infinite
+ * lines must not be clipped to the render window (they vanished whenever the window didn't
+ * contain them, e.g. an XLINE just outside the extents). They are extended to 100× the larger of
+ * the view and the drawing extents — far beyond anything reachable before the next LOD step,
+ * yet small enough for float32 display coordinates. Each half is emitted from the base point in a
+ * batch of its own, so the far endpoints never become the float32 origin of a shared batch, and
+ * those batches are excluded from the bounds used for fitting.
+ */
+function drawInfiniteForViewing(
+  fe: Frontend,
+  x: RayEntity,
+  st: DrawState,
+  r: Resolved,
+  p: { x: number; y: number },
+  d: { x: number; y: number },
+  len: number,
+): void {
+  const v = fe.view;
+  let span = Math.max(v.maxX - v.minX, v.maxY - v.minY);
+  const lo = fe.doc.header.point("$EXTMIN", { x: 0, y: 0, z: 0 });
+  const hi = fe.doc.header.point("$EXTMAX", { x: 0, y: 0, z: 0 });
+  if (hi.x >= lo.x && hi.y >= lo.y && hi.x - lo.x < 1e19) span = Math.max(span, hi.x - lo.x, hi.y - lo.y);
+  const reach = (span * 100) / len;
+  const far = (t: number) => ({ x: p.x + d.x * t, y: p.y + d.y * t });
+  const half = (t: number) => ({
+    subpaths: [{ segments: [{ kind: "line" as const, p0: { x: p.x, y: p.y }, p1: far(t) }], closed: false }],
+  });
+  fe.builder.setUnbounded(true);
+  fe.strokePath(half(reach), r, x, st);
+  if (x.type === "XLINE") {
+    fe.builder.breakBatch();
+    fe.strokePath(half(-reach), r, x, st);
+  }
+  fe.builder.setUnbounded(false);
+}
 
 registerDrawer("INSERT", (fe, e, st) => {
   const ins = e as InsertEntity;

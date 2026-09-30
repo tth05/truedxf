@@ -42,6 +42,11 @@ export interface Batch {
   readonly uvs?: Float32Array;
   /** Image batches: index into DisplayList.images. */
   readonly image?: number;
+  /**
+   * Geometry that doesn't count for bounds / fit (infinite XLINE/RAY extensions in viewing
+   * mode). Not included in DisplayList.bounds.
+   */
+  readonly unbounded?: boolean;
 }
 
 /** A decoded raster for Image batches: RGBA rows, top row first (not premultiplied). */
@@ -231,10 +236,20 @@ export class DisplayListBuilder {
     }
   }
 
+  private unbounded = false;
+
+  /** Subsequent primitives go into batches excluded from bounds (see Batch.unbounded). */
+  setUnbounded(on: boolean): void {
+    if (on === this.unbounded) return;
+    this.flush();
+    this.unbounded = on;
+  }
+
   private vertex(x: number, y: number, c: Rgba): void {
     this.pos.push2(x - this.originX, y - this.originY);
     this.col.push4(c[0], c[1], c[2], c[3]);
     this.vertexCount++;
+    if (this.unbounded) return;
     const b = this.bounds;
     if (x < b.minX) b.minX = x;
     if (x > b.maxX) b.maxX = x;
@@ -313,6 +328,7 @@ export class DisplayListBuilder {
         colors: this.col.take(),
         clip: this.clip,
         pick: Uint32Array.from(this.pick),
+        ...(this.unbounded ? { unbounded: true } : {}),
         ...(this.kind === PrimitiveKind.Image ? { uvs: this.uv.take(), image: this.image } : {}),
       });
     }

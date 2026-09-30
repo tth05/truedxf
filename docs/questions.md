@@ -546,7 +546,7 @@ set the status here to `answered` (or `wontfix`) and add the answer in one line 
 | Q-0305 | linetypes | [A] Are open/closed ELLIPSE and SPLINE linetypes fitted like arcs (open) and circles (closed)? | 06 §2.6, §9 item 1 (06:L3) | `linetypes/ellipse-dashed-full`, `linetypes/ellipse-dashed-half`, `linetypes/ellipse-dashed-partial`, `linetypes/ellipse-dashed-rot30-full` (+11 more) | answered |
 | Q-0306 | linetypes | [U] Where does the dash pattern phase start on a dashed XLINE/RAY (at base point 10, running both directions for XLINE)? | 03 §3.3, Test ideas 34 (03:T34) | `linetypes/infinite-xline`, `linetypes/infinite-ray`, `linetypes/infinite-xline-dashed`, `linetypes/infinite-extents` | answered |
 | Q-0307 | linetypes | [U] With PLINEGEN off, is each LWPOLYLINE segment fitted separately; with it on, is the whole polyline fitted, and does a closed one start/close at vertex 0? | 06 §2.6, §9 item 1 (06:L2) | `linetypes/pl-zigzag-dashed-open-gen0`, `linetypes/pl-zigzag-dashed-open-gen1`, `linetypes/pl-zigzag-dashed-closed-gen0`, `linetypes/pl-zigzag-dashed-closed-gen1` (+16 more) | answered |
-| Q-0308 | linetypes | [U] On wide/tapered LWPOLYLINEs, is each dash a wide quad inheriting local width, and how does PLINEGEN (70 bit 128) change this with per-segment widths? | 03 §3.9, Test ideas 27, §4.1; 06 §2.6 (03:T27, 06:L6) | `linetypes/pl-wide-const-gen0`, `linetypes/pl-wide-const-gen1`, `linetypes/pl-wide-taper-gen0`, `linetypes/pl-wide-taper-gen1` (+2 more) | open |
+| Q-0308 | linetypes | [U] On wide/tapered LWPOLYLINEs, is each dash a wide quad inheriting local width, and how does PLINEGEN (70 bit 128) change this with per-segment widths? | 03 §3.9, Test ideas 27, §4.1; 06 §2.6 (03:T27, 06:L6) | `linetypes/pl-wide-const-gen0`, `linetypes/pl-wide-const-gen1`, `linetypes/pl-wide-taper-gen0`, `linetypes/pl-wide-taper-gen1` (+2 more) | answered |
 | Q-0309 | linetypes | [A] Are linetypes on 3D POLYLINEs and polyface/polygon meshes applied per segment? | 06 §2.6 | `linetypes/other-polyline3d`, `linetypes/other-polymesh` | answered |
 | Q-0310 | linetypes | [U] Do 3DFACE edges get the entity linetype when plotted? | 06 §2.6 | `linetypes/other-3dface` | answered |
 | Q-0311 | linetypes | [A] Do TEXT/MTEXT, SOLID, TRACE and IMAGE frames ignore the entity linetype when plotted? | 06 §2.6 | `linetypes/other-nonlinear` | open |
@@ -574,6 +574,7 @@ set the status here to `answered` (or `wontfix`) and add the answer in one line 
 - Q-0316: The header $PSLTSCALE decides for the active layout; LAYOUT 70 bit 1 for the other layouts (`layouts/psltscale-h*-l*`, `psltscale-two-layouts-*`).
 - Q-0317: Per layout: LAYOUT 70 bit 1 (the header mirrors the active layout) (`layouts/psltscale-two-layouts-*`).
 - Q-0318: Yes: PLOT regenerates; no REGENALL needed (`layouts/psltscale-h1-l1`).
+- Q-0308: Yes: each dash is the band piece between its positions with interpolated widths (mitered over vertices); PLINEGEN is ignored when the polyline has tapered segments (`linetypes/pl-wide-*`, note 03 §4.1).
 
 Answers (VERIFIED-BY-ACAD, AutoCAD 2027, 2026-09-30):
 - Q-0295: No: an LTYPE with 73=0 (even named DASHED) plots continuous for $MEASUREMENT 0/1/absent; no .lin reload (`linetypes/odd-dashed-empty-meas-*`, note 06 §2.6.1).

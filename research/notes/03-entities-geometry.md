@@ -1010,6 +1010,11 @@ spec:6199-6238; ezdxf entities/shape.py: 39 thickness, 10 insertion point (WCS v
 - Negative widths: per-vertex 40/41 = −4 plot as width 4 (absolute value, `width-negative-width`); a negative
   constant width 43 = −1 plots as width 0 (hairline, `width-const-negative`).
 - Line–arc joints are not mitered (`joins-line-arc`, `width-mixed-bulge` match without miters).
+- Linetypes on wide polylines: every dash is a **piece of the band** between its arc-length positions on the
+  centre line, with the widths interpolated along the segment and a miter where a dash runs over a vertex
+  (`linetypes/pl-wide-const-gen*`, `pl-wide-taper-gen*` match; `pl-wide-bulge-gen*` shows a small dash phase drift
+  on wide arcs, open). **PLINEGEN is ignored for polylines with tapered segments** (`pl-wide-taper-gen1` plots
+  pixel-identical to `-gen0`, as the AutoCAD docs say).
 - `$FILLMODE = 0`: outlines of the band pieces; tapered arcs show a radial rung at every tessellation step
   (`polylines/fillmode-0`; truedxf draws only the outer outline, open).
 - Polyface meshes: each face plots with its **face record's own properties** (62 of the face VERTEX, not of the

@@ -10,9 +10,10 @@
 import {
   BooleanOp,
   booleanPolygons,
+  type ComplexPlacement,
   DashUnits,
-  dilateBySquare,
   dashPath,
+  dilateBySquare,
   FillRule,
   flattenPath,
   LineCap,
@@ -88,6 +89,14 @@ export interface DrawState {
 
 export type EntityDrawer = (fe: Frontend, e: Entity, st: DrawState) => void;
 export type AttribDrawer = (fe: Frontend, insert: InsertEntity, st: DrawState) => void;
+/** Draws complex linetype elements (shapes / texts) placed by the dash engine (draw/complex-linetype.ts). */
+export type ComplexElementDrawer = (
+  fe: Frontend,
+  placements: readonly ComplexPlacement[],
+  e: Entity,
+  r: Resolved,
+  st: DrawState,
+) => void;
 export type Preparer = (doc: DxfDocument, env: RenderEnv) => Promise<void>;
 /**
  * Called before a block reference's content is drawn (once per MINSERT cell) with the
@@ -98,11 +107,16 @@ export type BlockClipHook = (fe: Frontend, parent: Entity, st: DrawState) => (()
 
 const DRAWERS = new Map<string, EntityDrawer>();
 let attribDrawer: AttribDrawer | undefined;
+let complexDrawer: ComplexElementDrawer | undefined;
 let blockClipHook: BlockClipHook | undefined;
 const PREPARERS: Preparer[] = [];
 
 export function registerDrawer(types: string | readonly string[], drawer: EntityDrawer): void {
   for (const t of typeof types === "string" ? [types] : types) DRAWERS.set(t, drawer);
+}
+
+export function setComplexElementDrawer(d: ComplexElementDrawer): void {
+  complexDrawer = d;
 }
 
 export function setAttribDrawer(d: AttribDrawer): void {
@@ -297,7 +311,9 @@ export class Frontend {
     const drawer = DRAWERS.get("INSERT");
     if (!drawer) return;
     drawer(this, e, st);
-    if (e.attribs.length > 0 && this.props.isPlotted(e, st.inh)) {
+    // ATTRIBs on visible layers still plot when the INSERT's layer is off (attribs/layer-off-insert,
+    // VERIFIED-BY-ACAD); the drawer checks each ATTRIB's own visibility with the inherited props.
+    if (e.attribs.length > 0) {
       if (attribDrawer) attribDrawer(this, e, st);
       else this.note("attrib-text");
     }
@@ -430,7 +446,10 @@ export class Frontend {
             color,
           );
       }
-      if (res.placements.length > 0) this.note("complex-linetype-element");
+      if (res.placements.length > 0) {
+        if (complexDrawer && e) complexDrawer(this, res.placements, e, r, st);
+        else this.note("complex-linetype-element");
+      }
     }
   }
 

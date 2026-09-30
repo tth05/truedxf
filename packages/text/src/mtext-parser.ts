@@ -128,8 +128,13 @@ const SPECIALS: Record<string, [number, SpecialSymbol | undefined]> = {
 };
 
 /** Tokenizes MTEXT content. */
-export function parseMText(content: string, initial: MTextContext): MTextToken[] {
-  return new Parser(content, initial).run();
+/**
+ * Tokenizes MTEXT content. `dimension`: the text belongs to a dimension, where `\X` splits the
+ * text at the dimension line; elsewhere AutoCAD prints `\X` literally (VERIFIED-BY-ACAD
+ * mtext/code-dim-wrap).
+ */
+export function parseMText(content: string, initial: MTextContext, dimension = false): MTextToken[] {
+  return new Parser(content, initial, dimension).run();
 }
 
 class Parser {
@@ -139,9 +144,12 @@ class Parser {
   private readonly stack: MTextContext[] = [];
   private readonly out: MTextToken[] = [];
 
-  constructor(s: string, ctx: MTextContext) {
+  private readonly dimension: boolean;
+
+  constructor(s: string, ctx: MTextContext, dimension: boolean) {
     this.s = s;
     this.ctx = ctx;
+    this.dimension = dimension;
   }
 
   private emitChar(cp: number, symbol?: SpecialSymbol): void {
@@ -258,6 +266,7 @@ class Parser {
         this.out.push({ t: "column", ctx: this.ctx });
         return;
       case "X":
+        if (!this.dimension) break;
         this.out.push({ t: "dimwrap", ctx: this.ctx });
         return;
       case "~":
@@ -289,7 +298,8 @@ class Parser {
       }
       case "C": {
         const m = RE_INT.exec(s.slice(this.i));
-        if (!m) break; // "\C+5" is printed verbatim (ezdxf mtext.rst)
+        // "\C+5" consumes "\C" and prints "+5" (VERIFIED-BY-ACAD mtext/code-invalid-codes)
+        if (!m) return;
         this.i += m[0].length;
         const aci = Number(m[0]);
         if (aci <= 256) this.set({ color: { kind: "aci", aci } });
@@ -298,7 +308,7 @@ class Parser {
       }
       case "c": {
         const m = RE_INT.exec(s.slice(this.i));
-        if (!m) break;
+        if (!m) return;
         this.i += m[0].length;
         // n = R + 256·G + 65536·B (ezdxf; note 04 §3.3 CONFLICT with mlightcad's 0xRRGGBB)
         const n = Number(BigInt(m[0]) & 0xffffffn);

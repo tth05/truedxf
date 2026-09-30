@@ -85,6 +85,8 @@ export interface MTextInput {
 export interface MTextLayoutOptions {
   /** Wrap width override (pre-R2018 linked columns: the master's column width, note 04 §3.7). */
   wrapWidth?: number;
+  /** Dimension text: `\X` wraps at the dimension line (elsewhere it is literal). */
+  dimension?: boolean;
   /** $TEXTSIZE: the char height used when 40 ≤ 0 (as for TEXT — ASSUMPTION for MTEXT). */
   defaultHeight?: number;
   /** $QTEXTMODE ≠ 0: one rectangle per line (cap top to baseline, VERIFIED-BY-ACAD text/qtextmode-1). */
@@ -95,6 +97,7 @@ export interface MTextLayoutOptions {
   strikeOffset?: number;
 }
 
+/** MTEXT decoration offsets in char heights (VERIFIED-BY-ACAD mtext/code-underline-all; unlike TEXT, no x shift). */
 export const MTEXT_DECORATION = { underline: -0.2, overline: 1.2, strike: 0.5 } as const;
 
 // ---- items ------------------------------------------------------------------------------------
@@ -176,6 +179,8 @@ interface ParagraphState {
   readonly indent: number;
   readonly tabs: readonly { pos: number; kind: string }[];
   readonly lineSpacing: { mode: "atLeast" | "exact" | "multiple"; factor: number } | undefined;
+  readonly spaceBefore: number;
+  readonly spaceAfter: number;
   /** Char height at the paragraph start (empty lines). */
   readonly height: number;
   readonly columnBreakAfter: boolean;
@@ -219,7 +224,7 @@ export function layoutMText(
   if (e.flowDirection === 3) notes.push("mtext-vertical-flow-unsupported");
   const spec = style.spec;
   const ctx0 = defaultContext(h0, spec?.widthFactor || 1, spec?.oblique ?? 0);
-  const tokens = parseMText(e.text, ctx0);
+  const tokens = parseMText(e.text, ctx0, options.dimension);
   const cols = e.columns && e.columns.type > 0 ? e.columns : undefined;
   let wrap = options.wrapWidth ?? (cols && cols.width > 0 ? cols.width : e.width);
   if (!(wrap > 0)) wrap = 0;
@@ -240,37 +245,47 @@ export function layoutMText(
 
   // ---- vertical placement, column breaking
   const colHeights = columnHeights(cols, e.definedHeight);
-  let y = 0;
   let column = 0;
   let prev: Line | undefined;
   let bottom = 0;
-  let columnBottom = 0;
-  for (const ln of lines) {
+  // Paragraph line spacing (VERIFIED-BY-ACAD mtext/para-spacing-*): \pse<v> = exact spacing as
+  // for char height v (pitch 5/3·v, first baseline v below the top), \psa<v> = at least 5/3·v,
+  // \psm<f> = factor f; \pb/\pa = space before/after the paragraph in drawing units.
+  let pending = 0;
+  let exactCap = h0;
+  for (let i = 0; i < lines.length; i++) {
+    const ln = lines[i]!;
     const ls = ln.paragraph.lineSpacing;
     const exact = ls ? ls.mode === "exact" : exact0;
-    const f = ls && ls.factor > 0 ? ls.factor : f0;
+    const cap = ls?.mode === "exact" ? ls.factor : h0;
+    const f = ls?.mode === "multiple" && ls.factor > 0 ? ls.factor : ls ? 1 : f0;
+    const minPitch = ls?.mode === "atLeast" ? LINE_PITCH * ls.factor : 0;
     const ascent = Math.max(ln.capMax, ln.inkTop);
-    if (!prev) ln.baseline = exact ? -h0 : -ascent;
-    else if (exact) ln.baseline = prev.baseline - LINE_PITCH * h0 * f;
-    else ln.baseline = prev.baseline - (LINE_PITCH * f * ln.capMax - ln.capMax) - ascent;
+    if (ln.first) pending += ln.paragraph.spaceBefore;
+    if (!prev) ln.baseline = exact ? -cap : -ascent;
+    else if (exact) ln.baseline = prev.baseline - LINE_PITCH * cap * (exact0 && !ls ? f0 : 1);
+    else ln.baseline = prev.baseline - Math.max(minPitch, LINE_PITCH * f * ln.capMax - ln.capMax + ascent);
+    ln.baseline -= pending;
+    pending = 0;
+    const next = lines[i + 1];
+    if (!next || next.first) pending += ln.paragraph.spaceAfter;
     // column overflow (UNVERIFIED rule: the baseline passes the column height)
     const limit = colHeights?.[column] ?? colHeights?.[colHeights.length - 1];
-    const forced = prev?.paragraph.columnBreakAfter && prev !== ln && isParagraphStart(lines, ln);
+    const forced = prev?.paragraph.columnBreakAfter && isParagraphStart(lines, ln);
     if (cols && prev && ((limit !== undefined && limit > 0 && -ln.baseline > limit) || forced)) {
       column++;
-      ln.baseline = exact ? -h0 : -ascent;
+      ln.baseline = exact ? -cap : -ascent;
     }
     ln.column = column;
-    const lnBottom = exact ? ln.baseline - h0 / 3 : ln.baseline + Math.min(0, ln.inkBottom);
-    columnBottom = column === (prev?.column ?? 0) ? lnBottom : lnBottom;
-    bottom = Math.min(bottom, columnBottom);
-    y = ln.baseline;
+    exactCap = cap;
+    const lnBottom = exact ? ln.baseline - cap / 3 : ln.baseline + Math.min(0, ln.inkBottom);
+    bottom = Math.min(bottom, lnBottom);
     prev = ln;
   }
-  void y;
   const last = lines[lines.length - 1]!;
   // the extents bottom counts only the descenders of the last line (note 04 §3.6.1)
-  const lastBottom = exact0 ? last.baseline - h0 / 3 : last.baseline + Math.min(0, last.inkBottom);
+  const lastExact = last.paragraph.lineSpacing ? last.paragraph.lineSpacing.mode === "exact" : exact0;
+  const lastBottom = lastExact ? last.baseline - exactCap / 3 : last.baseline + Math.min(0, last.inkBottom);
   const boxBottom = cols ? bottom : lastBottom;
 
   // ---- horizontal placement
@@ -298,7 +313,8 @@ export function layoutMText(
   const colStep = cols ? (cols.width > 0 ? cols.width : frameW) + cols.gutter : 0;
   const totalW = cols ? nCols * (colStep - cols.gutter) + (nCols - 1) * cols.gutter : frameW;
   let frameH = -boxBottom;
-  const defH = cols ? (colHeights?.[0] ?? 0) : e.definedHeight;
+  // 46 (defined height) does not move non-column text (VERIFIED-BY-ACAD mtext/defined-height-*)
+  const defH = cols ? (colHeights?.[0] ?? 0) : 0;
   if (defH > 0) frameH = defH; // defined height (46): UNVERIFIED frame rule
   const xAtt = col === 1 ? 0 : col === 2 ? totalW / 2 : totalW;
   const yAtt = row === 0 ? 0 : row === 1 ? -frameH / 2 : -frameH;
@@ -438,6 +454,8 @@ function paragraphState(
     indent: p.indent,
     tabs: p.tabs,
     lineSpacing: p.lineSpacing,
+    spaceBefore: p.spaceBefore,
+    spaceAfter: p.spaceAfter,
     height: h,
     columnBreakAfter: columnBreak,
   };
@@ -718,7 +736,16 @@ class Engine {
     ink.yMax = Number.NEGATIVE_INFINITY;
     for (const pi of ln.items) {
       const it = pi.item;
-      if ((it.k === "glyph" || it.k === "stack") && it.ink) ink.add(it.ink, pi.x, this.alignShift(it, cap));
+      if ((it.k === "glyph" || it.k === "stack") && it.ink) {
+        const dy = this.alignShift(it, cap);
+        ink.add(it.ink, pi.x, dy);
+        // an overline raises the line like ink (VERIFIED-BY-ACAD mtext/code-underline-all)
+        const d = MTEXT_DECORATION;
+        if (it.ctx.overline)
+          ink.add({ xMin: 0, xMax: pi.adv, yMin: d.overline * it.h, yMax: d.overline * it.h }, pi.x, dy);
+        if (it.ctx.underline)
+          ink.add({ xMin: 0, xMax: pi.adv, yMin: d.underline * it.h, yMax: d.underline * it.h }, pi.x, dy);
+      }
     }
     ln.capMax = cap;
     ln.hasInk = !ink.empty;

@@ -314,9 +314,17 @@ registerDrawer(["TEXT", "MTEXT", "ATTDEF"], (fe, e, st) => {
   if (e.type === "TEXT") {
     drawLayout(fe, layoutText(singleLine(e as TextEntity), fonts, layoutOptions(fe)), e, st.m, st.inh);
   } else if (e.type === "MTEXT") {
-    const mt = e as MTextEntity;
+    let mt = e as MTextEntity;
+    // 11 and 50 both present: the later one wins (VERIFIED-BY-ACAD mtext/rot-both-*)
+    if (mt.direction) {
+      const i11 = mt.record.find(11, "AcDbMText");
+      const i50 = mt.record.find(50, "AcDbMText");
+      if (i11 >= 0 && i50 > i11) mt = { ...mt, direction: undefined };
+    }
     const wrapWidth = linkedColumnWidths(fe).get(mt.handle.toUpperCase());
-    const opts = layoutOptions(fe);
+    // dimension blocks (*D…): \X wraps at the dimension line
+    const dimension = (st.stack[st.stack.length - 1] ?? "").toUpperCase().startsWith("*D");
+    const opts = { ...layoutOptions(fe), dimension };
     drawLayout(
       fe,
       layoutMText(mt, fonts, wrapWidth !== undefined ? { ...opts, wrapWidth } : opts),

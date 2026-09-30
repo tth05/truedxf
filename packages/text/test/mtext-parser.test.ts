@@ -29,7 +29,9 @@ describe("MTEXT inline codes (note 04 §3.3)", () => {
   });
   it("prints unknown commands verbatim", () => {
     expect(show(parse("a\\:b"))).toBe("a\\:b");
-    expect(show(parse("\\C+5x"))).toBe("\\C+5x");
+    // AutoCAD 2027 swallows "\C" without digits (VERIFIED-BY-ACAD mtext/code-invalid-codes)
+    expect(show(parse("\\C+5x"))).toBe("+5x");
+    expect(show(parse("a\\C+5b\\H1..5c\\AXd}e\\Jf\\:g"))).toBe("a+5b.5cXde\\Jf\\:g");
   });
   it("parses heights (absolute, relative, accumulating, invalid)", () => {
     const t = parse("\\H2.5;a{\\H2x;b\\H3x;c}d\\H1..5");

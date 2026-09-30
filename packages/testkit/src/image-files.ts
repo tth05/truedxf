@@ -6,11 +6,11 @@
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { basename, isAbsolute, join } from "node:path";
 
-const RASTER = /\.(png|jpe?g|bmp|tiff?)$/i;
+const RASTER = /\.(png|jpe?g|bmp|tiff?|pdf)$/i;
 
 export function findImageFile(path: string, fixtureDir: string): string | undefined {
   const p = path.replaceAll("\\", "/");
-  // raster files only: the harness server must not hand out arbitrary files
+  // raster / underlay files only: the harness server must not hand out arbitrary files
   if (!RASTER.test(p)) return undefined;
   const bare = basename(p);
   const tries = [

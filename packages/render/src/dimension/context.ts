@@ -5,7 +5,7 @@
  */
 import type { DxfDocument } from "@truedxf/model";
 import type { TextFontSource } from "@truedxf/text";
-import { arrowBlockEntities, arrowKey, arrowLength, writeArrow } from "./arrows.ts";
+import { type ArrowOptions, arrowBlockEntities, arrowKey, arrowLength, writeArrow } from "./arrows.ts";
 import { measureText, type TextBox } from "./measure.ts";
 import type { DimStyleVars } from "./vars.ts";
 import type { EntityWriter, PartProps, Pt } from "./writer.ts";
@@ -56,6 +56,8 @@ export interface GenInput {
   readonly fonts: TextFontSource | undefined;
   /** Lineweight of the dimension entity (copied to the text). */
   readonly lineweight?: number;
+  /** Drawn in a paper-space layout. */
+  readonly paperSpace?: boolean;
 }
 
 export class DimCtx {
@@ -134,7 +136,7 @@ export class DimCtx {
   }
 
   /** Arrow at a dimension-line end: tip `tip`, pointing along `dir` (or a DIMTSZ tick). */
-  arrow(i: 0 | 1, tip: Pt, dir: Pt): void {
+  arrow(i: 0 | 1, tip: Pt, dir: Pt, opts: ArrowOptions = {}): void {
     if (this.tsz > 0) {
       // ticks: a LINE ±DIMTSZ along (d + n) in DIMCLRD/DIMLWD (VERIFIED-BY-ACAD dimtsz-2-*-nb)
       const d = i === 0 ? neg(dir) : dir;
@@ -142,11 +144,11 @@ export class DimCtx {
       this.w.line(add(tip, k, -this.tsz), add(tip, k, this.tsz), this.arrowProps);
       return;
     }
-    this.arrowNamed(this.arrowNames[i], tip, dir, this.asz);
+    this.arrowNamed(this.arrowNames[i], tip, dir, this.asz, opts);
   }
 
   /** Any arrow by name; blocks the file lacks are synthesized in place (note 05 §10.3). */
-  arrowNamed(name: string, tip: Pt, dir: Pt, size: number): void {
+  arrowNamed(name: string, tip: Pt, dir: Pt, size: number, opts: ArrowOptions = {}): void {
     const key = arrowKey(name);
     if (key !== "" && key !== "NONE" && !this.doc.getBlock(this.arrowBlock(name))) {
       const deg = (angleOf(dir) * 180) / Math.PI;
@@ -157,7 +159,7 @@ export class DimCtx {
       if (known) return;
       name = ""; // unknown and undefined: closed filled (GDAL's fallback)
     }
-    writeArrow(this.w, name, this.arrowBlock(name), tip, dir, size, this.arrowProps);
+    writeArrow(this.w, name, this.arrowBlock(name), tip, dir, size, this.arrowProps, opts);
   }
 
   /**

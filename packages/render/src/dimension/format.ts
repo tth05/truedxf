@@ -281,8 +281,10 @@ function measuredText(
   const f = linearFormat(v);
   const post = v.str("DIMPOST");
   const lfac = v.num("DIMLFAC");
-  // DIMLFAC < 0 applies only in paper space; model-space dims use 1 (fmt-lfac-m2-nb)
-  const value = kind === "linear" ? measurement * (lfac > 0 ? lfac : 1) : measurement;
+  // DIMLFAC < 0 applies (as |DIMLFAC|) only in paper space; model-space dims use 1
+  // (VERIFIED-BY-ACAD fmt-lfac-m2-nb, fmt-lfac-m2-paperspace-nb; Q-0577)
+  const lf = lfac > 0 ? lfac : v.paperSpace ? -lfac : 1;
+  const value = kind === "linear" ? measurement * lf : measurement;
   const main = kind === "linear" ? formatLinear(value, f) : formatAngle(value, v);
   // the automatic R / ∅ prefix is dropped when DIMPOST is set (radius-dimpost-*, diameter-dimpost-*)
   const withPrefix = post === "" ? autoPrefix + main : main;

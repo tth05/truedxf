@@ -10,6 +10,8 @@ export class DimStyleVars {
   readonly vars: DimVars;
   /** DIMSCALE (0 → 1: no viewport scale for model-space regeneration, note 05 §14). */
   readonly scale: number;
+  /** The dimension lies in paper space (DIMLFAC < 0 applies there). */
+  paperSpace = false;
 
   constructor(doc: DxfDocument, styleName: string, overrides: ReadonlyMap<number, DimValue> | undefined) {
     this.doc = doc;

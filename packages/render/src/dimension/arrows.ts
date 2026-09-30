@@ -27,6 +27,13 @@ export function allowsExtension(name: string): boolean {
   return ZERO_LENGTH.has(arrowKey(name));
 }
 
+export interface ArrowOptions {
+  /** SOLID corner 10 left (true) / right of the arrow direction; default: the linear rule. */
+  readonly cornerLeft?: boolean;
+  /** Tip-to-base distance of the SOLID (arc arrows: the chord), default the arrow size. */
+  readonly length?: number;
+}
+
 /**
  * Emits an arrowhead with its tip at `tip`, pointing along the unit vector `dir`.
  * `_None` writes nothing (dimensions/arrow-none-nb).
@@ -39,16 +46,26 @@ export function writeArrow(
   dir: Pt,
   size: number,
   props: PartProps,
+  opts: ArrowOptions = {},
 ): void {
   const key = arrowKey(name);
   if (key === "NONE") return;
   if (key === "" || key === "CLOSEDFILLED") {
-    const bx = tip.x - dir.x * size;
-    const by = tip.y - dir.y * size;
+    const l = opts.length ?? size;
+    const bx = tip.x - dir.x * l;
+    const by = tip.y - dir.y * l;
     // corner 10 lies left of the dimension line direction (left of arrows pointing right, right
-    // of arrows pointing left); 12 = 13 = tip (dimensions/*-nb references)
+    // of arrows pointing left); 12 = 13 = tip (dimensions/*-nb references). On arcs corner 10 is
+    // left of the arrow direction.
     const a = Math.atan2(dir.y, dir.x);
-    const k = a > -Math.PI / 2 + 1e-9 && a <= Math.PI / 2 + 1e-9 ? 1 : -1;
+    const k =
+      opts.cornerLeft !== undefined
+        ? opts.cornerLeft
+          ? 1
+          : -1
+        : a > -Math.PI / 2 + 1e-9 && a <= Math.PI / 2 + 1e-9
+          ? 1
+          : -1;
     const hx = (-dir.y * size * k) / 6;
     const hy = (dir.x * size * k) / 6;
     // the SOLID keeps a BYBLOCK lineweight (lineweights-nb)

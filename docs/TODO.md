@@ -84,5 +84,10 @@ Tick items off (or delete them) when done.
 - [ ] Layers panel: per-layout VP-freeze state, layer colour / linetype overrides; xref layers.
 - [ ] Picking inside block references returns the innermost entity; offer "select parent INSERT".
 - [ ] Measure: object snaps (endpoint, midpoint, intersection) and a thicker overlay line.
+- [ ] Batch fragmentation: the builder starts a new batch at every Lines ↔ Triangles switch, so
+      drawings mixing hairlines and widened strokes / fills get thousands of draw calls (1972 and
+      3976 batches in two corpus files: 180–240 ms per frame on SwiftShader, ~15 ms on a real
+      GPU). Options: hairlines as thin triangles in smooth mode, or reorder when primitives do
+      not overlap.
 - [ ] WebGPU renderer trial (PLAN Phase 7.1).
 

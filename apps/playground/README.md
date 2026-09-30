@@ -42,3 +42,15 @@ repository or the build output.
   the corpus in the built app and reports parse / frontend / upload / first-frame / frame times
   (SwiftShader by default, so pessimistic). Results: `samples/reports/viewer-perf.json`.
 
+Measured 2026-10-01 (`pnpm perf:viewer --count 6`, headless Chromium on SwiftShader, 1600×1000,
+worker backend; the 75.8 MB file renders at ~15 ms per frame on this machine's GPU):
+
+| File | MB | parse | frontend | first frame | vertices / batches | frame (SwiftShader) |
+|---|---|---|---|---|---|---|
+| spline_points_large | 80.2 | 1.7 s | 3.3 s | 5.3 s | 1.67 M / 2 | 104 ms |
+| 1#门诊…(proxy entities) | 75.8 | 0.8 s | 1.6 s | 3.1 s | 2.40 M / 3976 | 242 ms |
+| ellipse_large | 43.7 | 1.1 s | 1.1 s | 2.4 s | 1.73 M / 2 | 118 ms |
+| arcs-large | 40.4 | 1.4 s | 1.2 s | 2.9 s | 2.87 M / 3 | 240 ms |
+| lines_large | 35.6 | 1.0 s | 0.6 s | 1.9 s | 0.38 M / 1 | 27 ms |
+| Mr DIY … Elektrik Projeler | 34.5 | 0.3 s | 1.3 s | 1.9 s | 1.98 M / 1972 | 181 ms |
+

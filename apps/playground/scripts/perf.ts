@@ -82,6 +82,7 @@ try {
     page.on("console", (m) => {
       if (m.type() === "error") errors.push(m.text());
     });
+    console.log(`… ${f.split("/").pop()}`);
     const t0 = Date.now();
     // corpus names contain '#', '%', spaces…: encode each path segment for the fetch URL
     const fileUrl = `api/samples/file/${f.split("/").map(encodeURIComponent).join("/")}`;
@@ -120,7 +121,7 @@ try {
           const gl = v.renderer.renderer.getContext();
           const px = new Uint8Array(4);
           const t: number[] = [];
-          for (let i = 0; i < 12; i++) {
+          for (let i = 0; i < 6; i++) {
             v.zoom(i % 2 ? 1 / 1.05 : 1.05);
             const s = performance.now();
             v.renderNow();

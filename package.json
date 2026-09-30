@@ -15,7 +15,9 @@
     "format": "biome check --write .",
     "corpus:tags": "node --disable-warning=ExperimentalWarning tools/corpus/src/parse-tags.ts",
     "corpus:model": "node --disable-warning=ExperimentalWarning tools/corpus/src/load-model.ts",
-    "test:visual": "node --disable-warning=ExperimentalWarning packages/testkit/src/visual.ts"
+    "test:visual": "node --disable-warning=ExperimentalWarning packages/testkit/src/visual.ts",
+    "playground": "pnpm --filter @truedxf/playground dev",
+    "playground:build": "pnpm --filter @truedxf/playground build"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.14",

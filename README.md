@@ -17,8 +17,12 @@ aims to match AutoCAD's plot output exactly.
 | `@truedxf/text` | TEXT and MTEXT parsing and layout |
 | `@truedxf/render` | Rendering frontend → renderer-agnostic display list, AutoCAD raster plot emulation |
 | `@truedxf/three` | three.js renderer for the display list |
+| `@truedxf/viewer` | Embeddable viewer: worker pipeline, pan/zoom, LOD, layouts, layers, picking, measure |
 | `@truedxf/testkit` | Visual harness (headless Chromium), CPU rasterizer, metrics, suite scorers |
 | `@truedxf/plot` | (placeholder) plot styles CTB/STB — not implemented yet |
+
+Apps: `apps/playground` (Vite: open/drag DXF files, layouts, layers, inspector, measure; fixture
+compare and corpus browser over the local `samples/`). Run it with `pnpm playground`.
 
 Tools: `tools/gen` (Python/ezdxf fixture generator), `tools/acad` (AutoCAD reference harness),
 `tools/corpus` (corpus runners, ezdxf differential oracle).
@@ -28,6 +32,7 @@ Tools: `tools/gen` (Python/ezdxf fixture generator), `tools/acad` (AutoCAD refer
 ```bash
 pnpm install
 pnpm typecheck && pnpm test && pnpm lint
+pnpm playground                        # viewer app on http://localhost:5173
 pnpm corpus:tags / corpus:model        # parse the local corpus (samples/external)
 pnpm test:visual --suite lines-curves  # three.js in headless Chromium vs AutoCAD references
 node packages/testkit/src/cpu-suite.ts <suite> --quiet   # fast CPU scorer

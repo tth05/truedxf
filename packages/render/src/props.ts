@@ -99,16 +99,43 @@ export class PropertyResolver {
    * invisible entities are not. VERIFIED-BY-ACAD (extents/probe-layer-*, probe-invisible-entity).
    */
   extents = false;
+  /**
+   * Display mode (RenderEnv.visibility "display", viewers): entities count when displayed —
+   * no-plot and Defpoints layers are shown like on screen in AutoCAD.
+   */
+  display = false;
   private readonly vpContexts = new WeakMap<ViewportLayers, ViewportContext>();
 
-  /** `lwDefault`: the LWDEFAULT system variable (registry; default: $LWDEFAULT or 25). */
-  constructor(doc: DxfDocument, background: [number, number, number] = [255, 255, 255], lwDefault?: number) {
+  /**
+   * `lwDefault`: the LWDEFAULT system variable (registry; default: $LWDEFAULT or 25).
+   * `forceVisible`: viewer layer toggles (RenderEnv.layerVisibility); layers mapped to true are
+   * treated as on and thawed.
+   */
+  constructor(
+    doc: DxfDocument,
+    background: [number, number, number] = [255, 255, 255],
+    lwDefault?: number,
+    forceVisible?: ReadonlyMap<string, boolean>,
+  ) {
     this.background = background;
     const dark = background[0] + background[1] + background[2] < 384;
-    this.model = new ModelResolver(doc, {
-      paper: dark ? "black" : "white",
-      ...(lwDefault === undefined ? {} : { lwDefault }),
-    });
+    const layerOf =
+      forceVisible && [...forceVisible.values()].some((v) => v)
+        ? (name: string): LayerEntry | undefined => {
+            const l = doc.tables.layers.get(name);
+            return l && forceVisible.get(name.toUpperCase()) === true && (l.off || l.frozen)
+              ? { ...l, off: false, frozen: false }
+              : l;
+          }
+        : undefined;
+    this.model = new ModelResolver(
+      doc,
+      {
+        paper: dark ? "black" : "white",
+        ...(lwDefault === undefined ? {} : { lwDefault }),
+      },
+      layerOf,
+    );
     this.lwDefault = this.model.lwDefault;
   }
 
@@ -154,7 +181,7 @@ export class PropertyResolver {
    */
   isPlotted(e: EntityBase, inh: Inherited): boolean {
     const p = this.properties(e, inh);
-    return this.extents ? p.expandBlock : p.plottable;
+    return this.extents ? p.expandBlock : this.display ? p.visible : p.plottable;
   }
 
   /** Whether a block reference's content is traversed (frozen reference layer hides it all). */

@@ -182,6 +182,31 @@ importers:
         specifier: ^5.0.2
         version: 5.0.2(@types/node@26.6.3)(vite@8.3.1(@types/node@26.6.3))
 
+  apps/playground:
+    dependencies:
+      '@truedxf/viewer':
+        specifier: workspace:*
+        version: link:../../packages/viewer
+      three:
+        specifier: ^0.186.1
+        version: 0.186.1
+    devDependencies:
+      '@types/node':
+        specifier: ^26.6.3
+        version: 26.6.3
+      '@types/three':
+        specifier: ^0.186.0
+        version: 0.186.0
+      fast-png:
+        specifier: ^8.0.0
+        version: 8.0.0
+      playwright:
+        specifier: ^1.63.0
+        version: 1.63.0
+      vite:
+        specifier: ^8.3.1
+        version: 8.3.1(@types/node@26.6.3)
+
   packages/core: {}
 
   packages/fonts:
@@ -325,6 +350,31 @@ importers:
         version: 0.186.0
       three:
         specifier: '>=0.170.0'
+        version: 0.186.1
+
+  packages/viewer:
+    dependencies:
+      '@truedxf/core':
+        specifier: workspace:*
+        version: link:../core
+      '@truedxf/model':
+        specifier: workspace:*
+        version: link:../model
+      '@truedxf/render':
+        specifier: workspace:*
+        version: link:../render
+      '@truedxf/three':
+        specifier: workspace:*
+        version: link:../three
+      flatbush:
+        specifier: ^4.6.2
+        version: 4.6.2
+    devDependencies:
+      '@types/three':
+        specifier: ^0.186.0
+        version: 0.186.0
+      three:
+        specifier: ^0.186.1
         version: 0.186.1
 
   tools/acad:
@@ -816,6 +866,12 @@ packages:
 
   fflate@0.8.3:
     resolution: {integrity: sha512-tbZNuJrLwGUp3zshBtdy4W+ORxZuIh8a5ilyIEQDC5rY1f3U20JMry0Ll3WBzU58EZKsEuJFXhb5gwv8CsPvgA==}
+
+  flatbush@4.6.2:
+    resolution: {integrity: sha512-nNT7MFJ58Q4IAm3aYsEg+zgZGpdRcmR1i4U+aa8c+r91jmYZg7FTQwNnIMC0FyBqVZTbClKdAnrJkKkfp1BOvw==}
+
+  flatqueue@3.1.0:
+    resolution: {integrity: sha512-Ia4qIYrrsEqIRx3c3XhkT+QDLQuUV5ovsr6ah1rIgKT5wclhoGK3lAMS1bWRAWxlx7wtlTBpV7QXB5d9fOSRxA==}
 
   fsevents@2.3.3:
     resolution: {integrity: sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw==}
@@ -1370,6 +1426,12 @@ snapshots:
       picomatch: 4.0.7
 
   fflate@0.8.3: {}
+
+  flatbush@4.6.2:
+    dependencies:
+      flatqueue: 3.1.0
+
+  flatqueue@3.1.0: {}
 
   fsevents@2.3.3:
     optional: true

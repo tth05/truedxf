@@ -26,7 +26,13 @@
       "path": "packages/three"
     },
     {
+      "path": "packages/viewer"
+    },
+    {
       "path": "packages/testkit"
+    },
+    {
+      "path": "apps/playground"
     }
   ]
 }

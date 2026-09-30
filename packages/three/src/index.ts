@@ -26,6 +26,17 @@ export interface RendererOptions {
   preserveDrawingBuffer?: boolean;
   /** Device pixel ratio (default 1). */
   pixelRatio?: number;
+  /**
+   * Blend transparent batches with AutoCAD's integer plot formula (default true; needs a frame
+   * copy per transparent batch). false: ordinary alpha blending, for interactive viewers.
+   */
+  exactBlend?: boolean;
+  /**
+   * Drop the renderer's references to vertex arrays after they are uploaded to the GPU (PLAN
+   * §4.2b memory budget). The caller's DisplayList still references them; release it too to free
+   * the memory. Default false (tests re-read nothing, but keep the classic behaviour).
+   */
+  releaseArrays?: boolean;
 }
 
 export interface View {
@@ -53,8 +64,12 @@ export class DisplayListRenderer {
   /** Copy of the frame below a transparent batch (sized in render()). */
   private under: THREE.FramebufferTexture | undefined;
   private readonly underSize = { value: new THREE.Vector2(1, 1) };
-  /** Group for user content drawn on top of the drawing (world coordinates via `worldGroup`). */
+  /** Group for user content drawn on top of the drawing (children in world coordinates). */
   readonly overlay = new THREE.Group();
+  /** Group for user content drawn below the drawing (children in world coordinates). */
+  readonly underlay = new THREE.Group();
+  private readonly exactBlend: boolean;
+  private readonly releaseArrays: boolean;
   private centerX = 0;
   private centerY = 0;
 
@@ -73,6 +88,11 @@ export class DisplayListRenderer {
     this.renderer.autoClearStencil = true;
     this.overlay.renderOrder = Number.MAX_SAFE_INTEGER;
     this.scene.add(this.overlay);
+    // group render order sorts before the batches' renderOrder (three.js groupOrder)
+    this.underlay.renderOrder = -1;
+    this.scene.add(this.underlay);
+    this.exactBlend = options.exactBlend ?? true;
+    this.releaseArrays = options.releaseArrays ?? false;
   }
 
   setDisplayList(list: DisplayList): void {
@@ -94,12 +114,17 @@ export class DisplayListRenderer {
       this.scene.add(obj);
       this.objects.push({ object: obj, originX: batch.originX, originY: batch.originY });
     }
+    // the list is only needed while building (images, clips)
+    if (this.releaseArrays) this.list = undefined;
   }
 
   private createBatch(batch: Batch, clipped: boolean): THREE.Object3D {
     const geom = new THREE.BufferGeometry();
-    geom.setAttribute("position", new THREE.BufferAttribute(batch.positions, 2));
-    geom.setAttribute("color", new THREE.BufferAttribute(batch.colors, 4, true));
+    // three.js computes bounding spheres (for transparent sorting) after uploading, when a released
+    // array is gone; everything is at z = 0 and never frustum-culled, so any sphere will do
+    geom.boundingSphere = new THREE.Sphere(new THREE.Vector3(), Number.POSITIVE_INFINITY);
+    geom.setAttribute("position", this.attribute(batch.positions, 2));
+    geom.setAttribute("color", this.attribute(batch.colors, 4, true));
     const common = {
       vertexColors: true,
       transparent: true,
@@ -111,10 +136,10 @@ export class DisplayListRenderer {
       stencilZPass: THREE.KeepStencilOp,
     } as const;
     let obj: THREE.Object3D;
-    if (batch.kind !== IMAGE && hasAlpha(batch.colors)) {
+    if (this.exactBlend && batch.kind !== IMAGE && hasAlpha(batch.colors)) {
       obj = this.createBlendBatch(batch, geom, common);
     } else if (batch.kind === IMAGE && batch.uvs && batch.image !== undefined) {
-      geom.setAttribute("uv", new THREE.BufferAttribute(batch.uvs, 2));
+      geom.setAttribute("uv", this.attribute(batch.uvs, 2));
       const map = this.texture(this.list!.images[batch.image]!);
       obj = new THREE.Mesh(geom, new THREE.MeshBasicMaterial({ ...common, map, side: THREE.DoubleSide }));
     } else if (batch.kind === TRIANGLES)
@@ -124,6 +149,12 @@ export class DisplayListRenderer {
       obj = new THREE.Points(geom, new THREE.PointsMaterial({ ...common, size: 1, sizeAttenuation: false }));
     obj.frustumCulled = false;
     return obj;
+  }
+
+  private attribute(array: Float32Array | Uint8Array, itemSize: number, normalized = false) {
+    const a = new THREE.BufferAttribute(array, itemSize, normalized);
+    if (this.releaseArrays) a.onUpload(releaseArray);
+    return a;
   }
 
   /** A batch blended with AutoCAD's integer formula against a copy of the frame below it. */
@@ -273,6 +304,7 @@ void main() {
       o.object.position.set(o.originX - this.centerX, o.originY - this.centerY, 0);
     }
     this.overlay.position.set(-this.centerX, -this.centerY, 0);
+    this.underlay.position.set(-this.centerX, -this.centerY, 0);
     const gl = this.renderer.getContext();
     const w = gl.drawingBufferWidth;
     const h = gl.drawingBufferHeight;
@@ -324,6 +356,11 @@ void main() {
     this.under?.dispose();
     this.renderer.dispose();
   }
+}
+
+function releaseArray(this: THREE.BufferAttribute): void {
+  // three.js keeps `count` and the GPU buffer; the CPU copy is no longer needed
+  (this as { array: unknown }).array = null;
 }
 
 function hasAlpha(colors: Uint8Array): boolean {

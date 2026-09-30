@@ -82,6 +82,23 @@ export interface RenderEnv {
    * `smooth`: plain geometry for interactive viewing.
    */
   raster?: "autocad" | "smooth";
+  /**
+   * Background (paper) colour, default white. ACI 7 and white/black true colours contrast with it
+   * (interactive viewers with a dark background); plots are always on white paper.
+   */
+  background?: readonly [number, number, number];
+  /**
+   * Viewer layer toggles by upper-case layer name. `false` hides a layer like turning it off (an
+   * entity is skipped when its effective layer is hidden; layer-0 block content takes the
+   * INSERT's layer; block references are still traversed). `true` shows a layer that is off or
+   * frozen in the file.
+   */
+  layerVisibility?: ReadonlyMap<string, boolean>;
+  /**
+   * `plot` (default): what a plot shows. `display`: what the screen shows — no-plot and
+   * Defpoints layers are drawn too (interactive viewers).
+   */
+  visibility?: "plot" | "display";
 }
 
 export interface PlotResult {
@@ -235,8 +252,16 @@ export class Frontend {
     this.pixelSize = pixelSizeOf(view, request.canvas);
     this.tolerance = this.pixelSize * TOLERANCE_PX;
     this.builder = new DisplayListBuilder(this.pixelSize);
+    const background: [number, number, number] = env.background ? [...env.background] : [255, 255, 255];
+    this.builder.background = background;
     const lwDefault = request.sysvars?.LWDEFAULT;
-    this.props = new PropertyResolver(doc, undefined, typeof lwDefault === "number" ? lwDefault : undefined);
+    this.props = new PropertyResolver(
+      doc,
+      background,
+      typeof lwDefault === "number" ? lwDefault : undefined,
+      env.layerVisibility,
+    );
+    this.props.display = env.visibility === "display";
     this.linetypes = new LinetypeResolver(doc);
     this.calibration = calibration;
     this.monochrome = (request.styleTable ?? "").toLowerCase() === "monochrome.ctb";
@@ -279,6 +304,8 @@ export class Frontend {
       return;
     }
     if (!this.props.isPlotted(e, st.inh)) return;
+    const vis = this.env.layerVisibility;
+    if (vis && vis.size > 0 && vis.get(this.props.effectiveLayer(e, st.inh).toUpperCase()) === false) return;
     // entities without a drawer fall back to their proxy graphics (draw/proxy.ts, note 07 §15.3)
     const drawer =
       DRAWERS.get(e.type === "UNKNOWN" ? e.dxfType : e.type) ??
@@ -414,7 +441,18 @@ export class Frontend {
   color(r: Resolved): Rgba {
     const a = this.alpha(r);
     // true colours keep their RGB even with monochrome.ctb (note 08 §10.7)
-    if (r.trueColor !== undefined) return [r.rgb[0], r.rgb[1], r.rgb[2], a];
+    if (r.trueColor !== undefined) {
+      // interactive display (no pixel grid): pure black / white true colours contrast with the
+      // background like ACI 7, so they stay visible (a viewer choice, not plot behaviour)
+      if (!this.grid && this.env.background) {
+        const bg = this.env.background;
+        const dark = bg[0] + bg[1] + bg[2] < 384;
+        const c = r.trueColor & 0xffffff;
+        if (dark && c === 0) return [255, 255, 255, a];
+        if (!dark && c === 0xffffff) return [0, 0, 0, a];
+      }
+      return [r.rgb[0], r.rgb[1], r.rgb[2], a];
+    }
     if (this.monochrome) return [0, 0, 0, a];
     if (this.grid) {
       const [red, g, b] = plotAciToRgb(r.aci);
@@ -760,19 +798,33 @@ export async function renderPlot(
     // extents: a first pass at a coarse resolution finds the drawing bounds
     const ext = doc.header.point("$EXTMAX", { x: 1, y: 1, z: 0 });
     const exn = doc.header.point("$EXTMIN", { x: 0, y: 0, z: 0 });
-    const guess = fitWindow(
-      [exn.x, exn.y],
-      [Math.max(ext.x, exn.x + 1e-9), Math.max(ext.y, exn.y + 1e-9)],
-      request.canvas,
-    );
     // geometric bounds: no pixel grid (it clips to the guessed canvas), no lineweight widening
-    const probe = new Frontend(doc, { ...request, lineweights: false }, guess, calibration, {
-      ...env,
-      raster: "smooth",
-    });
-    probe.props.extents = true;
-    drawSpace(probe, space);
-    view = viewFromBounds(probe.build().bounds, request.canvas);
+    const probeBounds = (guess: View) => {
+      const probe = new Frontend(doc, { ...request, lineweights: false }, guess, calibration, {
+        ...env,
+        raster: "smooth",
+      });
+      probe.props.extents = true;
+      drawSpace(probe, space);
+      return probe.build().bounds;
+    };
+    const w = ext.x - exn.x;
+    const h = ext.y - exn.y;
+    let guess: View;
+    if (w >= 0 && h >= 0 && w < 1e15 && h < 1e15) {
+      guess = fitWindow(
+        [exn.x, exn.y],
+        [Math.max(ext.x, exn.x + 1e-9), Math.max(ext.y, exn.y + 1e-9)],
+        request.canvas,
+      );
+    } else {
+      // unset header extents (AutoCAD writes EXTMIN 1e20 / EXTMAX -1e20 for empty or never
+      // regenerated drawings): the guess only sets the flattening tolerance, so a very coarse
+      // pass first, then one at the resolution of its bounds
+      const coarse = probeBounds(fitWindow([-1e7, -1e7], [1e7, 1e7], request.canvas));
+      guess = viewFromBounds(coarse, request.canvas);
+    }
+    view = viewFromBounds(probeBounds(guess), request.canvas);
   }
   const fe = new Frontend(doc, request, view, calibration, env);
   drawSpace(fe, space);

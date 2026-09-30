@@ -18,3 +18,4 @@ __pycache__/
 # AutoCAD console crash reports
 ErrorReports/
 research/github/logs/
+.idea/

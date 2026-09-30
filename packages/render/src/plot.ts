@@ -47,23 +47,12 @@ export interface PlotCalibration {
   dpi: number;
   /** Lineweights (in px) at or below this are drawn as 1-px hairlines. */
   hairlineMaxPx: number;
-  /**
-   * Plot-mode tessellation of circular / elliptic arcs: fixed angular step in degrees
-   * (undefined = chord tolerance). AutoCAD's rule is UNVERIFIED (note 08 §10.3: ≈ 6° chords at
-   * r = 600 px).
-   */
-  arcStepDeg?: number;
-  /** Experimental: radial offset (device px) applied to plot-mode arc vertices. */
-  arcRadiusOffsetPx?: number;
 }
 
-/** Defaults until the AutoCAD calibration pins them (note 08 §5.4: raster driver ≈ 100 DPI). */
-// arcStepDeg / arcRadiusOffsetPx are fitted to calibration/raster-curves (UNVERIFIED rule)
+/** The raster driver works at a fixed 100 dpi (note 08 §10.4). Curve rules: raster.ts. */
 export const DEFAULT_CALIBRATION: PlotCalibration = {
   dpi: 100,
   hairlineMaxPx: 1,
-  arcStepDeg: 6,
-  arcRadiusOffsetPx: -0.5,
 };
 
 /**

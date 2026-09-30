@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import random
 from pathlib import Path
 from typing import Any, Callable
 
@@ -699,6 +700,343 @@ def vp_twist() -> None:
         area={"type": "window", "min": [0, 0], "max": [200, 150]},
         outputs=("png", "pdf", "dxf"),
     )
+
+
+# ---------------------------------------------------------------------------------------------
+# Raster-rule probes (note 08 §10.3-10.5): curve tessellation, wide strokes, fill edges, ties.
+# All at 10 px/unit on 2000x1500 unless noted; coordinates carry random sub-pixel fractions so
+# nothing lands on an exact pixel boundary.
+
+
+def _shelf(sizes: list[float], width: float, height: float, gap: float) -> list[tuple[float, float]]:
+    """Shelf-packs square cells of the given sizes (units) into width x height; returns lower-left
+    corners (raises if they do not fit)."""
+    out, x, y, row_h = [], gap, gap, 0.0
+    for s in sizes:
+        if x + s + gap > width:
+            x, y, row_h = gap, y + row_h + gap, 0.0
+        if y + s + gap > height:
+            raise ValueError("cells do not fit")
+        out.append((x, y))
+        x += s + gap
+        row_h = max(row_h, s)
+    return out
+
+
+PROBE_RADII_PX = [0.3, 0.45, 0.6, 0.75, 0.9, 1.05, 1.2, 1.4, 1.6, 1.8, 2.0, 2.25, 2.5, 2.8, 3.1, 3.5, 3.9, 4.4, 4.9,
+                  5.5, 6.1, 6.8, 7.6, 8.5, 9.5, 10.6, 11.8, 13.2, 14.7, 16.4, 18.3, 20.4, 22.8, 25.4, 28.3, 31.6,
+                  35.2, 39.3, 43.8, 48.9, 54.5, 60.8, 67.8]
+
+
+@case
+def probe_circles() -> None:
+    """Circles (lineweight 0) at 43 radii 0.3-68 px, 3 random sub-pixel centres/radius offsets each."""
+    rnd = random.Random(801)
+    doc = new_doc()
+    msp = doc.modelspace()
+    items = []
+    specs = []
+    for r in PROBE_RADII_PX:
+        for _ in range(3):
+            specs.append(r + rnd.uniform(0.0, 0.2) * min(1.0, r))
+    cells = _shelf([2 * r / 10 + 0.8 for r in specs], 200.0, 150.0, 0.4)
+    for (x, y), r in zip(cells, specs):
+        s = 2 * r / 10 + 0.8
+        c = (x + s / 2 + rnd.uniform(-0.05, 0.05), y + s / 2 + rnd.uniform(-0.05, 0.05))
+        msp.add_circle(c, r / 10, dxfattribs={"lineweight": 0})
+        items.append({"c": list(c), "r": r / 10})
+    write(
+        "probe-circles",
+        doc,
+        title="Circle tessellation probes: 129 circles, radii 0.3-68 px",
+        tags=["CIRCLE", "calibration", "T-PL-2"],
+        params={"circles": items},
+        outputs=("png", "pdf"),
+    )
+
+
+@case
+def probe_circles_large() -> None:
+    """Two families of concentric circles, radii 70-740 px (lineweight 0)."""
+    rnd = random.Random(802)
+    doc = new_doc()
+    msp = doc.modelspace()
+    items = []
+    fams = [((52.3417, 74.6183), [7.03 + 3.217 * k for k in range(0, 21)]),
+            ((151.0632, 75.2791), [7.51 + 3.371 * k for k in range(0, 13)])]
+    for c, radii in fams:
+        for r in radii:
+            if c[0] - r < 0.5 or c[0] + r > 199.5 or c[1] - r < 0.5 or c[1] + r > 149.5:
+                continue
+            rr = r + rnd.uniform(0, 0.05)
+            msp.add_circle(c, rr, dxfattribs={"lineweight": 0})
+            items.append({"c": list(c), "r": rr})
+    # a few big circles with their own centres
+    for c, r in [((100.2371, 75.4913), 73.117), ((100.7713, 74.9138), 66.508)]:
+        msp.add_circle(c, r, dxfattribs={"lineweight": 0})
+        items.append({"c": list(c), "r": r})
+    write(
+        "probe-circles-large",
+        doc,
+        title="Large circle tessellation probes (concentric families)",
+        tags=["CIRCLE", "calibration", "T-PL-2"],
+        params={"circles": items},
+        outputs=("png", "pdf"),
+    )
+
+
+@case
+def probe_arcs() -> None:
+    """Arcs (lineweight 0) with random radii 3-150 px, start angles and sweeps."""
+    rnd = random.Random(803)
+    doc = new_doc()
+    msp = doc.modelspace()
+    items = []
+    radii = [3 + 147 * (k / 59) ** 2 + rnd.uniform(0, 0.3) for k in range(60)]
+    cells = _shelf([2 * r / 10 + 0.8 for r in radii], 200.0, 150.0, 0.4)
+    for (x, y), r in zip(cells, radii):
+        s = 2 * r / 10 + 0.8
+        c = (x + s / 2 + rnd.uniform(-0.05, 0.05), y + s / 2 + rnd.uniform(-0.05, 0.05))
+        a0 = rnd.uniform(0, 360)
+        sweep = rnd.choice([rnd.uniform(5, 90), rnd.uniform(90, 350)])
+        msp.add_arc(c, r / 10, a0, a0 + sweep, dxfattribs={"lineweight": 0})
+        items.append({"c": list(c), "r": r / 10, "a0": a0, "a1": (a0 + sweep) % 360, "sweep": sweep})
+    write(
+        "probe-arcs",
+        doc,
+        title="Arc tessellation probes: 60 arcs, radii 3-150 px",
+        tags=["ARC", "calibration", "T-PL-2"],
+        params={"arcs": items},
+        outputs=("png", "pdf"),
+    )
+
+
+@case
+def probe_ellipses() -> None:
+    """Full and partial ellipses with various axis ratios and rotations (lineweight 0)."""
+    rnd = random.Random(804)
+    doc = new_doc()
+    msp = doc.modelspace()
+    items = []
+    majors = [5 + 120 * (k / 29) ** 1.5 + rnd.uniform(0, 0.3) for k in range(30)]
+    cells = _shelf([2 * a / 10 + 0.8 for a in majors], 200.0, 150.0, 0.4)
+    for k, ((x, y), a) in enumerate(zip(cells, majors)):
+        s = 2 * a / 10 + 0.8
+        c = (x + s / 2 + rnd.uniform(-0.05, 0.05), y + s / 2 + rnd.uniform(-0.05, 0.05))
+        rot = rnd.choice([0.0, 90.0, rnd.uniform(0, 180)])
+        ratio = rnd.choice([0.2, 0.5, 0.8, rnd.uniform(0.1, 1.0)])
+        maj = (a / 10 * math.cos(math.radians(rot)), a / 10 * math.sin(math.radians(rot)))
+        if k % 3 == 2:
+            t0 = rnd.uniform(0, 2 * math.pi)
+            t1 = t0 + rnd.uniform(0.5, 5.5)
+        else:
+            t0, t1 = 0.0, 2 * math.pi
+        msp.add_ellipse(c, major_axis=(maj[0], maj[1], 0), ratio=ratio, start_param=t0, end_param=t1, dxfattribs={"lineweight": 0})
+        items.append({"c": list(c), "major": list(maj), "ratio": ratio, "t0": t0, "t1": t1})
+    write(
+        "probe-ellipses",
+        doc,
+        title="Ellipse tessellation probes",
+        tags=["ELLIPSE", "calibration", "T-PL-2"],
+        params={"ellipses": items},
+        outputs=("png", "pdf"),
+    )
+
+
+PROBE_LWS = [40, 50, 60, 70, 90, 100, 120, 140, 158, 200, 211]
+
+
+@case
+def probe_thick() -> None:
+    """Wide strokes: per lineweight 24 lines (every 15 deg + 3.7 deg, 5.5 units long) and 4
+    zero-length lines, random sub-pixel endpoints; one row band per lineweight."""
+    rnd = random.Random(805)
+    doc = new_doc()
+    msp = doc.modelspace()
+    items = []
+    for row, lw in enumerate(PROBE_LWS):
+        y0 = 2 + row * 13.4
+        for k in range(28):
+            cx = 3.5 + k * 7.1
+            cy = y0 + 6.5
+            if k < 24:
+                ang = math.radians(3.7 + 15 * k)
+                L = 2.75
+                p0 = (cx - L * math.cos(ang) + rnd.uniform(0, 0.1), cy - L * math.sin(ang) + rnd.uniform(0, 0.1))
+                p1 = (cx + L * math.cos(ang) + rnd.uniform(0, 0.1), cy + L * math.sin(ang) + rnd.uniform(0, 0.1))
+            else:
+                p0 = (cx + rnd.uniform(0, 0.1), cy + rnd.uniform(0, 0.1))
+                p1 = p0
+            msp.add_line(p0, p1, dxfattribs={"lineweight": lw})
+            items.append({"lw": lw, "p0": list(p0), "p1": list(p1)})
+    write(
+        "probe-thick",
+        doc,
+        title="Wide stroke probes: 11 lineweights x 24 directions + zero-length lines",
+        tags=["LINE", "lineweight", "calibration", "T-PL-3", "T-PL-4"],
+        params={"items": items},
+        outputs=("png", "pdf"),
+    )
+
+
+@case
+def probe_thick_curves() -> None:
+    """Wide circles, arcs and polylines (joins) for w = 2..8 px."""
+    rnd = random.Random(806)
+    doc = new_doc()
+    msp = doc.modelspace()
+    items = []
+    for row, lw in enumerate([50, 70, 100, 120, 158, 211]):
+        y = 12 + row * 23
+        for k, r in enumerate([0.35, 0.8, 1.7, 3.3, 6.1]):
+            c = (6 + k * 16 + rnd.uniform(0, 0.1), y + rnd.uniform(0, 0.1))
+            msp.add_circle(c, r, dxfattribs={"lineweight": lw})
+            items.append({"type": "circle", "lw": lw, "c": list(c), "r": r})
+        c = (95 + rnd.uniform(0, 0.1), y - 5 + rnd.uniform(0, 0.1))
+        a0 = rnd.uniform(0, 360)
+        msp.add_arc(c, 8.3, a0, a0 + 200, dxfattribs={"lineweight": lw})
+        items.append({"type": "arc", "lw": lw, "c": list(c), "r": 8.3, "a0": a0, "a1": a0 + 200})
+        # polyline with corners of 90, 45, 135 and 160 deg
+        x0 = 112 + rnd.uniform(0, 0.1)
+        pts = [(x0, y - 6), (x0 + 12, y - 6), (x0 + 12, y + 6), (x0 + 22, y - 4), (x0 + 30, y + 6), (x0 + 44, y + 2.1), (x0 + 58, y + 6.3)]
+        pts = [(px + rnd.uniform(0, 0.1), py + rnd.uniform(0, 0.1)) for px, py in pts]
+        msp.add_lwpolyline(pts, dxfattribs={"lineweight": lw})
+        items.append({"type": "polyline", "lw": lw, "points": [list(p) for p in pts]})
+    write(
+        "probe-thick-curves",
+        doc,
+        title="Wide circles, arcs and polyline joins",
+        tags=["CIRCLE", "ARC", "LWPOLYLINE", "lineweight", "calibration", "T-PL-4"],
+        params={"items": items},
+        outputs=("png", "pdf"),
+    )
+
+
+@case
+def probe_fills() -> None:
+    """Random SOLID triangles/quads and solid HATCH polygons (convex, concave, with holes)."""
+    rnd = random.Random(807)
+    doc = new_doc()
+    msp = doc.modelspace()
+    items = []
+    k = 0
+    for row in range(6):
+        for col in range(10):
+            cx, cy = 10 + col * 19.5, 12 + row * 22.5
+            kind = ["solid3", "solid4", "hatch3", "hatch4", "hatchN", "hatchHole"][row]
+            if kind in ("solid3", "hatch3"):
+                pts = [(cx + 8 * math.cos(a) + rnd.uniform(-2, 2), cy + 9 * math.sin(a) + rnd.uniform(-2, 2))
+                       for a in (rnd.uniform(0, 2.0), rnd.uniform(2.1, 4.1), rnd.uniform(4.2, 6.2))]
+            elif kind in ("solid4", "hatch4"):
+                a0 = rnd.uniform(0, 1.5)
+                pts = [(cx + 8 * math.cos(a0 + q * 1.5708) + rnd.uniform(-1.5, 1.5), cy + 9 * math.sin(a0 + q * 1.5708) + rnd.uniform(-1.5, 1.5)) for q in range(4)]
+            else:
+                n = 7
+                pts = []
+                for q in range(n):
+                    a = q * 2 * math.pi / n + rnd.uniform(-0.3, 0.3)
+                    rr = rnd.uniform(4, 9) if kind == "hatchN" else rnd.uniform(7, 9)
+                    pts.append((cx + rr * math.cos(a), cy + rr * math.sin(a)))
+            if kind.startswith("solid"):
+                if len(pts) == 3:
+                    msp.add_solid([pts[0], pts[1], pts[2], pts[2]], dxfattribs={"lineweight": 0})
+                else:
+                    msp.add_solid([pts[0], pts[1], pts[3], pts[2]], dxfattribs={"lineweight": 0})
+                items.append({"kind": kind, "paths": [[list(p) for p in pts]]})
+            else:
+                h = msp.add_hatch(dxfattribs={"lineweight": 0})
+                h.set_solid_fill(color=7)
+                h.paths.add_polyline_path(pts, is_closed=True)
+                paths = [[list(p) for p in pts]]
+                if kind == "hatchHole":
+                    hole = [(cx + 3.3 * math.cos(a) + rnd.uniform(-0.4, 0.4), cy + 3.1 * math.sin(a) + rnd.uniform(-0.4, 0.4)) for a in (0.3, 1.9, 3.4, 4.9)]
+                    h.paths.add_polyline_path(hole, is_closed=True)
+                    paths.append([list(p) for p in hole])
+                items.append({"kind": kind, "paths": paths})
+            k += 1
+    write(
+        "probe-fills",
+        doc,
+        title="Fill edge probes: random SOLIDs and solid HATCHes",
+        tags=["SOLID", "HATCH", "calibration", "T-PL-2"],
+        params={"items": items},
+        outputs=("png", "pdf"),
+    )
+
+
+@case
+def probe_line_ties() -> None:
+    """Thin lines whose exact pixel-centre line hits exact half-pixel ties: 8 direction classes x
+    dyadic / non-dyadic slopes, as LINE and as 2-vertex LWPOLYLINE (endpoints at pixel fractions
+    0.3 / 0.6, so the snapped endpoints are unambiguous)."""
+    doc = new_doc()
+    msp = doc.modelspace()
+    slopes = [(1, 2), (1, 4), (3, 4), (3, 8), (5, 8), (1, 6), (5, 6), (1, 10), (3, 10), (7, 10), (5, 14), (5, 12), (7, 18)]
+    items = []
+    k = 0
+    for kind in ("line", "pline"):
+        for num, den in slopes:
+            for sx in (1, -1):
+                for sy in (1, -1):
+                    for major in ("x", "y"):
+                        n = 2 * den * max(1, 12 // den)  # major length in px (several ties)
+                        m = n * num // den
+                        dx, dy = (n, m) if major == "x" else (m, n)
+                        dx, dy = sx * dx, sy * dy
+                        col, row = k % 26, k // 26
+                        k += 1
+                        # cell 76 x 72 px; start pixel chosen so the line stays in its cell
+                        i0 = col * 76 + 6 + max(0, -dx)
+                        j0 = row * 72 + 6 + max(0, -dy)
+                        p0 = ((i0 + 0.3) / 10, (j0 + 0.6) / 10)
+                        p1 = ((i0 + dx + 0.6) / 10, (j0 + dy + 0.3) / 10)
+                        if kind == "line":
+                            msp.add_line(p0, p1, dxfattribs={"lineweight": 0})
+                        else:
+                            msp.add_lwpolyline([p0, p1], dxfattribs={"lineweight": 0})
+                        items.append({"kind": kind, "p0": list(p0), "p1": list(p1), "i0": i0, "j0": j0, "dx": dx, "dy": dy})
+    write(
+        "probe-line-ties",
+        doc,
+        title="Thin-line exact-half ties: 8 directions x dyadic/non-dyadic slopes",
+        tags=["LINE", "LWPOLYLINE", "calibration", "T-PL-2"],
+        params={"items": items},
+    )
+
+
+def _scan_window(name: str, canvas: tuple[int, int], window: tuple[tuple[float, float], tuple[float, float]]) -> None:
+    """Exact-tie scan like _scan, for an arbitrary window: one probe on every integer device
+    coordinate (x in two bands, y in two bands)."""
+    W, H = canvas
+    (x0, y0), (x1, y1) = window
+    sx, sy = (x1 - x0) / W, (y1 - y0) / H
+    doc = new_doc()
+    msp = doc.modelspace()
+    bands = {"x_even": (0.10, 0.20), "x_odd": (0.25, 0.35), "y_even": (0.55, 0.65), "y_odd": (0.75, 0.85)}
+    for k in range(0, W + 1):
+        b0, b1 = bands["x_even" if k % 2 == 0 else "x_odd"]
+        msp.add_line((x0 + k * sx, y0 + b0 * (y1 - y0)), (x0 + k * sx, y0 + b1 * (y1 - y0)), dxfattribs={"lineweight": 0})
+    for k in range(0, H + 1):
+        b0, b1 = bands["y_even" if k % 2 == 0 else "y_odd"]
+        msp.add_line((x0 + b0 * (x1 - x0), y0 + k * sy), (x0 + b1 * (x1 - x0), y0 + k * sy), dxfattribs={"lineweight": 0})
+    write(
+        name,
+        doc,
+        title=f"Exact-tie scan {W}x{H}, window {window}",
+        tags=["LINE", "calibration", "T-PL-1"],
+        params={"bands": bands, "window": [list(window[0]), list(window[1])]},
+        canvas=canvas,
+        window=window,
+    )
+
+
+@case
+def probe_ties() -> None:
+    _scan_window("probe-ties-10ppu", (2000, 1500), ((0.0, 0.0), (200.0, 150.0)))
+    _scan_window("probe-ties-centred", (2000, 1500), ((-125.0, -93.75), (125.0, 93.75)))
+    _scan_window("probe-ties-4ppu", (2000, 1500), ((0.0, 0.0), (500.0, 375.0)))
+    _scan_window("probe-ties-offset", (2000, 1500), ((1000.0, 2000.0), (1250.0, 2187.5)))
+    _scan_window("probe-ties-800-10ppu", (800, 600), ((0.0, 0.0), (80.0, 60.0)))
 
 
 def main() -> None:

@@ -14,12 +14,16 @@ import {
   DashUnits,
   dashPath,
   dilateBySquare,
+  ellipticArc2SemiAxes,
   FillRule,
   flattenPath,
+  type HatchLoop,
+  hatchSolidTriangles,
   LineCap,
   LineJoin,
   Matrix44,
   type Path2,
+  selectHatchLoops,
   strokeDot,
   strokePolyline,
   triangulateFill,
@@ -40,7 +44,21 @@ import {
   viewFromBounds,
 } from "./plot.ts";
 import { droppedOnLoad, type Inherited, PropertyResolver, type Resolved, TOP_LEVEL } from "./props.ts";
-import { bandOffset, linePixels, lineweightPixels, PixelGrid } from "./raster.ts";
+import {
+  arcVertices,
+  fillConvexByEdges,
+  fillPolygon,
+  GS_FILL_FACTOR,
+  GS_STROKE_FACTOR,
+  gsSegmentCount,
+  linePixels,
+  lineweightPixels,
+  PixelGrid,
+  SpanSet,
+  strokeDotPixels,
+  strokeSegmentPolygon,
+  trapezoids,
+} from "./raster.ts";
 import { coverage, plotsTransparency } from "./transparency.ts";
 
 export interface RenderEnv {
@@ -467,7 +485,9 @@ export class Frontend {
       for (const d of res.dashes) this.strokeFlat(d, res.whole, r);
       const dots = res.dots;
       for (let i = 0; i + 2 < dots.length; i += 3) {
-        if (w === 0) this.builder.points([dots[i]!, dots[i + 1]!], color);
+        // plot mode: a dot is a zero-length stroke (note 08 §10.14)
+        if (this.grid) this.rasterStroke(Float64Array.of(dots[i]!, dots[i + 1]!), false, r);
+        else if (w === 0) this.builder.points([dots[i]!, dots[i + 1]!], color);
         else
           this.builder.triangles(
             strokeDot(dots[i]!, dots[i + 1]!, dots[i + 2]!, this.strokeOptions(w)),
@@ -540,83 +560,163 @@ export class Frontend {
       this.builder.points(xy, color);
       return;
     }
-    // snapped centre line (+ half a pixel up/right for even widths), round caps/joins
-    const off = bandOffset(w) * g.pixelSize;
-    const snapped = new Float64Array(points.length);
-    for (let k = 0; k < n; k++) {
-      snapped[k * 2] = g.cx(g.px(points[k * 2]!)) + off;
-      snapped[k * 2 + 1] = g.cy(g.py(points[k * 2 + 1]!)) + off;
-    }
-    const opts = {
-      width: w * g.pixelSize,
-      cap: LineCap.Round,
-      join: LineJoin.Round,
-      tolerance: this.tolerance,
-    };
-    if (color[3] < 255) {
-      // transparent strokes blend segment by segment: joints darken twice (transparency.ts)
-      const count = closed ? n : n - 1;
-      for (let k = 0; k < count; k++) {
-        const b = (k + 1) % n;
-        const seg = [snapped[k * 2]!, snapped[k * 2 + 1]!, snapped[b * 2]!, snapped[b * 2 + 1]!];
-        this.builder.triangles(strokePolyline(Float64Array.from(seg), { ...opts, closed: false }), color);
+    // wide strokes: every segment is its own convex polygon with round caps, so joins are the
+    // union of the caps (note 08 §10.4, §10.14)
+    const count = n === 1 ? 1 : closed ? n : n - 1;
+    const transparent = color[3] < 255;
+    let spans = new SpanSet();
+    for (let k = 0; k < count; k++) {
+      const b = n === 1 ? 0 : (k + 1) % n;
+      const i0 = g.px(points[k * 2]!);
+      const j0 = g.py(points[k * 2 + 1]!);
+      const i1 = g.px(points[b * 2]!);
+      const j1 = g.py(points[b * 2 + 1]!);
+      if (!g.visible(i0 - w, j0 - w, i1 + w, j1 + w) && !g.visible(i1 - w, j1 - w, i0 + w, j0 + w)) continue;
+      const poly = strokeSegmentPolygon(i0, j0, i1, j1, w);
+      if (poly) fillConvexByEdges(poly, spans, g);
+      else strokeDotPixels(i0, j0, w, spans);
+      if (transparent) {
+        // transparent strokes blend segment by segment: joints darken twice (transparency.ts)
+        this.emitSpans(spans, color);
         this.builder.breakBatch();
+        spans = new SpanSet();
       }
-      return;
     }
-    this.builder.triangles(strokePolyline(snapped, { ...opts, closed }), color);
+    this.emitSpans(spans, color);
   }
 
+  /** Emits pixel spans as pixel-aligned rectangles (renderers sample pixel centres). */
+  private emitSpans(spans: SpanSet, color: Rgba): void {
+    if (spans.empty) return;
+    const g = this.grid!;
+    const tri: number[] = [];
+    spans.forEach((j, a, b) => {
+      if (j < 0 || j >= g.height || b < 0 || a >= g.width) return;
+      const x0 = g.ex(Math.max(a, -1));
+      const x1 = g.ex(Math.min(b, g.width) + 1);
+      const y0 = g.ey(j);
+      const y1 = g.ey(j + 1);
+      tri.push(x0, y0, x1, y0, x1, y1, x0, y0, x1, y1, x0, y1);
+    });
+    if (tri.length) this.builder.triangles(tri, color);
+  }
+
+  /**
+   * Fills triangles (target coordinates): in plot mode each triangle is a polygon with snapped
+   * vertices filled with AutoCAD's scanline rule (raster.ts fillPolygon; consistent tie rules make
+   * a triangulation fill exactly like its polygon, note 08 §10.5).
+   */
   fillTriangles(tri: ArrayLike<number>, color: Rgba): void {
     const g = this.grid;
     if (!g) {
       this.builder.triangles(tri, color);
       return;
     }
-    // fill vertices snap to pixel corners; pixel-centre coverage (note 08 §10.5)
-    const out = new Float64Array(tri.length);
-    for (let k = 0; k + 1 < tri.length; k += 2) {
-      out[k] = g.ex(g.px(tri[k]!));
-      out[k + 1] = g.ey(g.py(tri[k + 1]!));
+    const spans = new SpanSet();
+    const ring = [0, 0, 0, 0, 0, 0];
+    for (let k = 0; k + 5 < tri.length; k += 6) {
+      for (let q = 0; q < 3; q++) {
+        ring[q * 2] = g.px(tri[k + q * 2]!);
+        ring[q * 2 + 1] = g.py(tri[k + q * 2 + 1]!);
+      }
+      fillPolygon([ring], true, spans);
     }
-    this.builder.triangles(out, color);
+    this.emitSpans(spans, color);
   }
 
   /** Fills rings (target coordinates) with a fill rule. */
   fillRings(rings: readonly Float64Array[], color: Rgba, fillRule: FillRule = FillRule.NonZero): void {
     if (rings.length === 0) return;
+    const g = this.grid;
+    if (g) {
+      // plot mode: the polygon itself with snapped vertices (SOLID, note 08 §10.5)
+      const snapped = rings.map((r) => {
+        const out: number[] = [];
+        for (let k = 0; k + 1 < r.length; k += 2) out.push(g.px(r[k]!), g.py(r[k + 1]!));
+        return out;
+      });
+      const spans = new SpanSet();
+      fillPolygon(snapped, fillRule === FillRule.EvenOdd, spans);
+      this.emitSpans(spans, color);
+      return;
+    }
     this.fillTriangles(triangulateFill(rings, { fillRule, tolerance: this.tolerance }), color);
   }
 
-  /** Flattens a path with the plot-mode curve rules (see PlotCalibration.arcStepDeg). */
-  flatten(path: Path2): { points: Float64Array; closed: boolean }[] {
-    const step = this.grid ? this.calibration.arcStepDeg : undefined;
-    if (!step) return flattenPath(path, this.tolerance);
+  /**
+   * Fills a solid hatch (flattened loops in target coordinates, hatch style 75): in plot mode
+   * AutoCAD cuts the area into trapezoids at every vertex y and snaps each trapezoid's corners
+   * separately (note 08 §10.5).
+   */
+  fillHatch(loops: readonly HatchLoop[], style: number, color: Rgba): void {
+    const g = this.grid;
+    if (!g) {
+      this.fillTriangles(hatchSolidTriangles(loops, style, { tolerance: this.tolerance }), color);
+      return;
+    }
+    const rings = selectHatchLoops(loops, style).map((i) => loops[i]!.points);
+    const spans = new SpanSet();
+    for (const t of trapezoids(rings, true)) {
+      const q: number[] = [];
+      for (let k = 0; k < 8; k += 2) q.push(g.px(t[k]!), g.py(t[k + 1]!));
+      fillPolygon([q], true, spans);
+    }
+    this.emitSpans(spans, color);
+  }
+
+  /**
+   * Flattens a path. Plot mode tessellates curves like AutoCAD (note 08 §10.13): circular arcs
+   * whose full circle lies on the canvas go to the raster driver as arcs (integer rule,
+   * raster.ts arcVertices); other arcs, elliptic arcs and arcs of filled outlines are tessellated
+   * in the graphics system (raster.ts gsSegmentCount) at their exact points.
+   */
+  flatten(path: Path2, forFill = false): { points: Float64Array; closed: boolean }[] {
+    const g = this.grid;
+    if (!g) return flattenPath(path, this.tolerance);
     const out: { points: Float64Array; closed: boolean }[] = [];
     for (const sp of path.subpaths) {
       const pts: number[] = [];
+      // appends a vertex list; the first one is dropped when it repeats the previous end point
+      const append = (v: ArrayLike<number>) => {
+        let k = 0;
+        const n = pts.length;
+        if (n >= 2 && v.length >= 2 && v[0] === pts[n - 2] && v[1] === pts[n - 1]) k = 2;
+        for (; k < v.length; k++) pts.push(v[k]!);
+      };
       for (const seg of sp.segments) {
-        if (seg.kind === "arc" || seg.kind === "ellipticArc") {
-          const n = Math.max(1, Math.ceil(Math.abs(seg.sweep) / ((step * Math.PI) / 180) - 1e-9));
-          const dr = (this.calibration.arcRadiusOffsetPx ?? 0) * this.pixelSize;
-          for (let k = pts.length === 0 ? 0 : 1; k <= n; k++) {
-            const t = seg.start + (seg.sweep * k) / n;
-            if (seg.kind === "arc")
-              pts.push(
-                seg.center.x + (seg.radius + dr) * Math.cos(t),
-                seg.center.y + (seg.radius + dr) * Math.sin(t),
-              );
-            else
-              pts.push(
-                seg.center.x + seg.u.x * Math.cos(t) + seg.v.x * Math.sin(t),
-                seg.center.y + seg.u.y * Math.cos(t) + seg.v.y * Math.sin(t),
-              );
+        if (seg.kind === "arc") {
+          const r = seg.radius / g.pixelSize;
+          const cu = g.u(seg.center.x);
+          const cv = g.v(seg.center.y);
+          if (!forFill && cu - r >= 0 && cu + r <= g.width && cv - r >= 0 && cv + r <= g.height) {
+            // device pixels; emit their centres, which snap back to the same pixels
+            const v = arcVertices(cu, cv, r, seg.start, seg.sweep);
+            const w: number[] = [];
+            for (let k = 0; k + 1 < v.length; k += 2) w.push(g.cx(v[k]!), g.cy(v[k + 1]!));
+            append(w);
+            continue;
           }
+          const n = gsSegmentCount(r, seg.sweep, forFill ? GS_FILL_FACTOR : GS_STROKE_FACTOR);
+          const w: number[] = [];
+          for (let k = 0; k <= n; k++) {
+            const t = seg.start + (seg.sweep * k) / n;
+            w.push(seg.center.x + seg.radius * Math.cos(t), seg.center.y + seg.radius * Math.sin(t));
+          }
+          append(w);
+        } else if (seg.kind === "ellipticArc") {
+          // uniform parameter steps, exact vertices
+          const n = gsSegmentCount(ellipticArc2SemiAxes(seg)[0] / g.pixelSize, seg.sweep, GS_STROKE_FACTOR);
+          const w: number[] = [];
+          for (let k = 0; k <= n; k++) {
+            const t = seg.start + (seg.sweep * k) / n;
+            const c = Math.cos(t);
+            const sn = Math.sin(t);
+            w.push(seg.center.x + seg.u.x * c + seg.v.x * sn, seg.center.y + seg.u.y * c + seg.v.y * sn);
+          }
+          append(w);
         } else {
           const fl = flattenPath({ subpaths: [{ segments: [seg], closed: false }] }, this.tolerance)[0];
-          if (!fl) continue;
-          const start = pts.length === 0 ? 0 : 2;
-          for (let k = start; k < fl.points.length; k++) pts.push(fl.points[k]!);
+          if (fl) append(fl.points);
         }
       }
       let arr = Float64Array.from(pts);
@@ -631,7 +731,7 @@ export class Frontend {
   /** Fills a path (target coordinates). */
   fillPath(path: Path2, color: Rgba, fillRule: FillRule = FillRule.NonZero): void {
     this.fillRings(
-      this.flatten(path).map((p) => p.points),
+      this.flatten(path, true).map((p) => p.points),
       color,
       fillRule,
     );

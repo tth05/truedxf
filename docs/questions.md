@@ -228,7 +228,7 @@ set the status here to `answered` (or `wontfix`) and add the answer in one line 
 
 - Q-0134: Yes: base, top and two connecting edges (`lines-curves/line-thickness-*`, note 03 §2.6).
 - Q-0130: Negative radius is repaired to 1 on load (DXFOUT 40 = 1), radius 0 is kept (`lines-curves/circle-degenerate-*`, `degenerate-lw-*`, `fileformat/corpus-ezdxf-circle-radius-le-0`).
-- Q-0135: Independent of VIEWRES: CIRCLE/ARC whose circle lies on the canvas plot as n = 2·ceil(|sweep|/π·√Ri + ¼) segments of the integer circle (centre snapped to its pixel centre, radius ceil(r)−1); other arcs are tessellated by the graphics system with ceil(max(32, π√(1.016·r))·sweep/2π) exact segments (`calibration/probe-circles*`, `probe-arcs`, `polylines/bulge-*`, note 08 §10.12).
+- Q-0135: Independent of VIEWRES: CIRCLE/ARC whose circle lies on the canvas plot as n = 2·ceil(|sweep|/π·√Ri + ¼) segments of the integer circle (centre snapped to its pixel centre, radius ceil(r)−1); other arcs are tessellated by the graphics system with ceil(max(32, π√(1.016·r))·sweep/2π) exact segments (`calibration/probe-circles*`, `probe-arcs`, `polylines/bulge-*`, note 08 §10.13).
 - Q-0131: Angles are kept as written; end − start ≥ 360 (0/360, −180/180, 30/450, 0/720) plots a full circle, 350/10 a 20° arc (`lines-curves/arc-normalise-*`).
 
 <a id="polylines"></a>
@@ -294,7 +294,7 @@ set the status here to `answered` (or `wontfix`) and add the answer in one line 
 | Q-0166 | ellipses | [A] Does AutoCAD draw an ELLIPSE with start 0 and end parameter 6.2831855 (> 2π) as a full ellipse rather than a tiny arc? | 11c §9 (normalise spans ≥ 2π, ASSUMPTION); 11c §17 LibreCAD#831 sample | `ellipses/param-2pi-*` | answered |
 | Q-0167 | ellipses | [A] If ELLIPSE 210 is not perpendicular to the major axis 11, does AutoCAD re-orthogonalize (minor = N x M) or reject/repair it? | 03 §3.7 | `ellipses/extrusion-not-perpendicular` | open |
 
-- Q-0181 (ellipses only): PNG and PDF ELLIPSEs are polylines of ceil(max(32, π√(a·f))·sweep/2π) uniform parameter steps from the start parameter at the exact points (a = semi-major axis in device units, f = 1.016 PNG / 1 PDF) (`calibration/probe-ellipses`, note 08 §10.12). SPLINE tessellation still open.
+- Q-0181 (ellipses only): PNG and PDF ELLIPSEs are polylines of ceil(max(32, π√(a·f))·sweep/2π) uniform parameter steps from the start parameter at the exact points (a = semi-major axis in device units, f = 1.016 PNG / 1 PDF) (`calibration/probe-ellipses`, note 08 §10.13). SPLINE tessellation still open.
 - Q-0166: Yes: a parameter span ≥ 2π (0…6.2831855, 0…7) plots the full ellipse (`ellipses/param-2pi-*`, `param-0008`).
 
 <a id="splines"></a>
@@ -480,7 +480,7 @@ set the status here to `answered` (or `wontfix`) and add the answer in one line 
 
 - Q-0232: Yes: fixed 100 dpi on every canvas (`calibration/lineweights-*`, note 08 §10.4).
 - Q-0235: No anti-aliasing anywhere (monochrome plots contain only 000000/FFFFFF) (note 08 §10.6).
-- Q-0236: Neither: a 16.16 fixed-point DDA between the snapped end pixels, slope truncated toward zero (301/301 probe lines, `calibration/raster-lines`, `probe-line-ties`, note 08 §10.3); circles: note 08 §10.12.
+- Q-0236: Neither: a 16.16 fixed-point DDA between the snapped end pixels, slope truncated toward zero (301/301 probe lines, `calibration/raster-lines`, `probe-line-ties`, note 08 §10.3); circles: note 08 §10.13.
 - Q-0246: Yes: an invisible INSERT hides all its content (`blocks/vis-invisible-flag`).
 - Q-0247: LIGHT glyphs never plot, whatever the plot-glyph flag (`misc/light-*`; CAMERA not tested).
 

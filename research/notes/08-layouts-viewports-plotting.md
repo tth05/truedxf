@@ -1133,13 +1133,14 @@ FAFAFA; true-colour white is invisible). Main points 3 and 4 are thereby confirm
 | DPI | Fixed 100 dpi on every canvas (4000×3000 gives the same stroke widths as 2000×1500). |
 | Lineweight → px | `max(1, round(mm × 100/25.4))`, all 24 weights + Default (§10.4). PDF: `round(mm × 600/25.4)` in 1/600 in. |
 | Hairline | Lineweight 0 (and every weight ≤ 0.35 mm, and Default with LWDEFAULT 25) = 1 px. |
-| Caps / joins | Round caps; LWPOLYLINE corners = two LINEs with round caps; PDF `1 J 1 j`. |
-| Thin lines | Endpoints snapped to their pixel, exact line between the pixel centres, nearest pixel on the minor axis, exact halves → end (x-major) / start (y-major): 92/93 lines exact. |
-| Fills | Vertices snapped to pixels; ≈ pixel centre inside; ±1 px edge differences remain (open). |
+| Caps / joins | Round caps; LWPOLYLINE corners = two LINEs with round caps; PDF `1 J 1 j`. Every segment is a convex integer polygon with polygonal round caps (§10.14). |
+| Thin lines | Endpoints snapped to their pixel; 16.16 fixed-point DDA x(y) = x0 + (y−y0)·trunc(dx/dy), round-half-up per row (y-major) / of the inverted line per column (x-major): 301/301 probe lines exact (§10.3). |
+| Fills | Vertices snapped (floor); scanline y = j, edges walked from their lower vertex with a truncated 16.16 slope, filled if x_left < i + ½ ≤ x_right; solid HATCH cut into trapezoids at every vertex y first (§10.5). All SOLIDs and island-free hatches off pixel boundaries exact. |
 | ACI palette | New table (note 06 §3.5): ramps FF/DD/B8/95/72; 7 → 000000; 8 = 808080; 9 = DCDCDC; 250–255 = 545454…FAFAFA. Same in model space, paper space, viewport, PNG and PDF. |
 | True colours | Exact (16/16), **also under monochrome.ctb**. |
 | Determinism | PNG byte-identical; PDF identical except CreationDate/ModDate. |
 | PDF | 1/600 in units; circles/arcs = Béziers; ellipses/splines = integer polylines. |
+| Curves (PNG) | CIRCLE/ARC on the canvas: integer circle (snapped centre, radius ceil(r)−1), n = 2·ceil(sweep/π·√Ri + ¼); ellipses, off-canvas arcs, outlines: ceil(max(32, π√(1.016a))·sweep/2π) exact points (§10.13). |
 | Twist | `paper = vp.center + s·(R_ccw(twist)·p − view_center)` (view centre in DCS). |
 
 ### 10.1 Harness facts
@@ -1200,20 +1201,28 @@ FAFAFA; true-colour white is invisible). Main points 3 and 4 are thereby confirm
 - **Exact ties** (`mapping-scan-*`: one probe on every integer device coordinate): `u = k` lights
   pixel `k` for `k ≤ 1126` and `k − 1` for `k ≥ 1127` on 2000 px; y: switch at 871 of 1500;
   1000 px: 576 (both axes); 800×600: 436 / 333. No simple double-precision formula reproduces
-  this → treat as implementation noise. Window edges: `k = 0` → 0, `k = W` → W−1. At 10 px/unit
+  this → treat as implementation noise. The finer scans `probe-ties-{10ppu,4ppu,centred,offset,800-10ppu}`
+  (2026-09-30) show a structure in device space independent of the window above ~1100 px on a
+  2000 px axis (x: odd k floor / even k−1 in [1100, 1299], all k−1 in [1300, 1499], even k floor /
+  odd k−1 in [1500, 1698], all k−1 above; boundaries at multiples of 100 px = 1 inch) plus window-
+  dependent noise below (10 px/unit: period-5 patterns). 35 double-precision candidate pipelines
+  (mm/inch round trips, NDC, matrix forms) reproduce none of it → not modelled; round window
+  coordinates at 10 px/unit hit it (old calibration cases, palette swatches). Window edges: `k = 0` → 0, `k = W` → W−1. At 10 px/unit
   every multiple of 0.1 unit is an exact tie → generators should offset the window by half a pixel.
 
 ### 10.3 Thin lines, points, curves (T-PL-2)
 
-`raster-lines` (300 lines; 93 without an endpoint on a pixel boundary): "snap both endpoints to
-`(floor u, floor v)`, exact line between the snapped pixel centres, nearest pixel along the minor
-axis, exact halves toward the end point for x-major lines (|dx| ≥ |dy|) and toward the start point
-for y-major lines" matches 92/93 lines; halves toward the lower image index 86/93; integer
-Bresenham 81/93; a sub-pixel DDA on the unsnapped line 4/93. All thin geometry is therefore
-**pixel-snapped first**. POINT (PDMODE 0): one pixel at `(floor u, floor v)`. Circles are
-polygonised: r ≤ 1 px → 1 px, r = 1.5–2 px → 6-px ring, r = 3 px ≈ 16 px; r = 600 px shows ≈ 6°
-chords (sagitta ≈ 0.8 px) and lies 1.3–2.3 px inside the nominal radius. The tessellation rule is
-**not determined**.
+`raster-lines` (300 lines; 93 without an endpoint on a pixel boundary) and `probe-line-ties` (208
+LINE / 2-vertex LWPOLYLINE with exact half-pixel ties: 8 directions × dyadic and non-dyadic
+slopes): both endpoints snap to `(floor u, floor v)`; the line is then represented as
+`x(y) = i0 + (y − j0)·K/2^16`, `K = trunc(dx·2^16/dy)` (toward zero), walked from the start point.
+y-major lines (|dy| ≥ |dx|) take column `floor(x(j) + ½)` in every row, x-major lines take, in every
+column, the row `floor(y*(i) + ½)` of the inverted line `y* = j0 + (i − i0)·2^16/K`. Exact ties
+therefore go toward the start point for non-dyadic y-major slopes, toward the end for non-dyadic
+x-major slopes (dx/dy truncated) and up/right when the slope is exact in binary: **301/301 lines
+exact** (F = 14…24 fraction bits all fit; 16 used). The earlier "halves toward end/start" rule
+was 92/93; integer Bresenham 81/93; a DDA on the unsnapped line 4/93. LWPOLYLINE segments behave
+like LINEs. VERIFIED-BY-ACAD 2026-09-30 (raster.ts `linePixels`). POINT (PDMODE 0): one pixel at `(floor u, floor v)`. Circles: §10.13.
 
 ### 10.4 Lineweights (T-PL-3, T-PL-4)
 
@@ -1236,16 +1245,23 @@ chords (sagitta ≈ 0.8 px) and lies 1.3–2.3 px inside the nominal radius. The
   the lineweight** (1 px at any weight).
 - Diagonal strokes are narrower than a round pen: horizontal run per row for w = 8 at
   10°/30°/45°/60° = 41–42 / 16–17 / 9 / 9–10 px (a round pen gives 46 / 16 / 11.3 / 9.2);
-  w = 6: 28–29 / 10–11 / 9 / 6–7; w = 4: 17 / 7–8 / 5 / 4–5. The wide-line algorithm is **not
-  determined** (probe data: case `thick-probe`, `analyze_thick.py --masks`).
+  w = 6: 28–29 / 10–11 / 9 / 6–7; w = 4: 17 / 7–8 / 5 / 4–5. The wide-line algorithm: §10.14.
 
 ### 10.5 Fills
 
 SOLID / solid HATCH vertices are snapped to pixels (identical pixels for 4 sub-pixel offsets).
-Axis-aligned SOLID rectangles fill exactly `[floor x0, floor x1) × [floor y0, floor y1)`. With
-snapped integer vertices, the scanline at the lower pixel edge and "centre inside (inclusive)",
-15/22 SOLIDs are exact; the rest and all 8 hatch triangles differ by single pixels along steep
-edges. Fills get **no lineweight outline** (hatches/solids with 0.50 and 2.11 mm look like 0).
+Axis-aligned SOLID rectangles fill exactly `[floor x0, floor x1) × [floor y0, floor y1)`.
+**Rule** (VERIFIED-BY-ACAD `raster-fills`, `probe-fills` 2026-09-30): vertices `(floor u, floor v)`;
+the scanline of row j is `y = j` (the pixel's lower edge), crossings over `[ymin, ymax)`; every edge
+is walked from its lower vertex with the slope `trunc(dx·2^16/dy)/2^16`; pixel i is filled when
+`x_left < i + ½ ≤ x_right` (exact dyadic ties: left edges exclude, right edges include). All 20
+random SOLID triangles/quads and all SOLIDs of `raster-fills` off pixel boundaries are exact.
+**Solid HATCH** is first cut into trapezoids at the y of every boundary vertex (exact coordinates,
+all edges of the band, before snapping); each trapezoid's four corners snap separately and fill
+with the rule above — a triangle's long edge kinks at its snapped split point. 40/40 hatches without
+islands exact (triangles, quads, concave 7-gons). With an island the outer edges are split only at
+*some* island vertex levels (a pure trapezoidal map: 0/10, full band split: 1/10 exact, 4–39 px off)
+— open (raster.ts `trapezoids`). Fills get **no lineweight outline** (hatches/solids with 0.50 and 2.11 mm look like 0).
 
 ### 10.6 Raster format
 
@@ -1287,9 +1303,16 @@ group per layer; fills with `b`. A geometry oracle to 1/600 in (0.17 PNG px).
 
 ### 10.11 Still open
 
-Wide-stroke footprint (§10.4), fill edge rule (§10.5), curve tessellation (§10.3), transparency
-(T-PL-6), orientation/upside-down (T-PL-7), page-setup oracle (T-PL-8), Extents plots (T-PL-9),
-text and linetypes. ("Plot paper space first" polarity: answered in §10.12.)
+Raster rules still open (2026-09-30): exact-tie noise (§10.2); hatch trapezoids around islands
+(§10.5); circle-vs-graphics-system decision for arcs near the canvas edge (only "full circle inside
+the canvas" tested) and clipped arcs (`polylines/bulge-0011`, `flat-bulge`); CIRCLEs in a tilted
+OCS (projected ellipses: the GS rule is worse than a chord tolerance, `ocs/circle-tilt-*`); bulge
+arcs next to lines (`polylines/closed-0004`); hatch boundary arcs (`ocs/hatch-z`); SPLINE
+tessellation; wide-stroke edge tie direction (12/288 lines) and 2 px caps (122/136); zero-length
+strokes of other widths (table from 3 widths); the GS factor 1.016 vs 1 for outlines.
+Not raster: orientation/upside-down (T-PL-7), page-setup oracle (T-PL-8), Extents plots (T-PL-9:
+padding of the effective plotting area, note 03 §6.2). ("Plot paper space first" polarity:
+answered in §10.12.)
 
 ### 10.12 Layouts and viewports (layouts suite, 169 cases, 2026-09-30)
 
@@ -1384,6 +1407,55 @@ row 301, 1-px gap) while thick strokes reach the pixel next to the frame (clip-t
   (Q-0318). Dash lengths on paper = pattern × LTSCALE × 48 with PSLTSCALE 1.
 - Lineweights through viewports are absolute paper widths, independent of the viewport scale
   (lineweight-vp-scale).
+
+
+### 10.13 Curve tessellation (PNG)
+
+Cases `probe-circles` (129 circles, r 0.3–68 px, 3 sub-pixel centres each), `probe-circles-large`
+(29, r 70–731 px), `probe-arcs` (60), `probe-ellipses` (30), `raster-curves`, `polylines/bulge-*`;
+VERIFIED-BY-ACAD 2026-09-30, raster.ts `arcVertices`, `arcSegmentCount`, `gsSegmentCount`. The raster
+rules of §10.3–10.5, §10.13 and §10.14 are reproduced by rendering the cases with the CPU
+rasterizer: `node packages/testkit/src/experiment.ts calibration/<case>` prints `exact=0` for
+`probe-circles`, `probe-arcs`, `probe-ellipses`, `probe-line-ties` (probe-thick 15 px, probe-fills
+188 px: the island hatches).
+
+- **CIRCLE / ARC** (and polyline bulge arcs) whose full circle lies inside the canvas go to the
+  raster driver as arcs: centre snapped to its pixel centre `C = (floor u + ½, floor v + ½)`,
+  integer radius `Ri = ceil(r) − 1` (r = device radius; an exact integer r gives r − 1),
+  `n = 2·ceil(|sweep|/π · √Ri + ¼)` segments (full circle `2·ceil(2√Ri + ¼)`: Ri 1→6, 6→12, 49→30,
+  456→86, 599→100), uniform angles from the start angle (0 for circles), vertices
+  `floor(C + Ri·(cos t, sin t))` evaluated in double at absolute device coordinates (an exact
+  −24.5 offset rounds differently at x ≈ 56 and x ≈ 685), segments drawn with the thin-line rule
+  in CCW order. 115/115 + 7/7 uncontaminated circles and 60/60 arcs exact; the result depends only
+  on (pixel, Ri), not on the sub-pixel centre. The PDF driver instead writes Béziers (§10.9).
+- **Graphics-system tessellation** for ELLIPSE (and arcs whose circle leaves the canvas, e.g.
+  `polylines/bulge-0003/-0009/-0010`): `ceil(max(32, π·√(a·f)) · |sweep| / 2π)` segments uniform in
+  the parameter from the start parameter, vertices at the exact points (then snapped like any line
+  vertex); a = semi-major axis in device units; f = 1.016 fits PNG strokes (range 1.0084–1.0254),
+  f = 1 the outlines of wide polylines (`ring-semicircle-w6` exact) and the PDF driver (same rule at
+  600 dpi, 30/30 counts). The minimum 32 applies before the sweep scaling. 30/30 ellipses exact.
+
+### 10.14 Wide strokes (PNG)
+
+Cases `probe-thick` (11 lineweights × 24 directions + zero-length), `thick-probe`,
+`probe-thick-curves`; VERIFIED-BY-ACAD 2026-09-30, raster.ts `strokeSegmentPolygon`,
+`fillConvexByEdges`.
+
+- Each segment (w ≥ 3 px, snapped end pixels P0, P1) is a convex polygon with integer vertices,
+  counter-clockwise: `P0 + o−, P1 + o−`, end cap, `P1 + o+, P0 + o+`, start cap, with
+  `o± = round-half-up(±h·n)`, `h = (w − 1)/2`, n = left unit normal of P1 − P0. The caps are arcs
+  of radius h around P with `max(2, floor(h) + 1)` segments per half circle (w 3–4: 2, 5–6: 3, 8: 4)
+  from +n/−n, vertices `P + round-half-up(h·(cos a, sin a))`. The polygon's edges are drawn with the
+  thin-line rule in polygon order and every row is filled between its leftmost and rightmost edge
+  pixel. This explains the diagonal footprints of §10.4 (w = 8 at 45°: offsets (±2, ∓2) → 9 px
+  runs) and the tabulated cap shapes. Body offsets 281/288, whole strokes 269/288 exact; the rest
+  differ by the tie direction of an edge.
+- w = 2: the thin line plus its copy one pixel up (x-major) or right (y-major); caps of radius ½
+  with 2 segments (122/136 strokes exact).
+- Polylines: every segment separately with both caps (joins = union), as §10.4 found for corners.
+- Zero-length strokes (and linetype dots with a lineweight): fixed footprints relative to the
+  pixel — w 2–4: (−1,0), (0,0), (0,−1); w 5–6: rows +1: −1..0, 0: −2..1, −1: −1..0; w 8: rows ±2:
+  −2..1, ±1: −2..2, 0: −3..2 (all sub-pixel positions identical). POINT stays 1 px.
 
 ---
 

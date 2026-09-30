@@ -18,6 +18,8 @@ What consumers of the references need to know (details: research/notes/08 §10, 
   coordinates are ambiguous — keep fixture geometry off them (offset the window by half a pixel).
 - **Raster:** RGB 8-bit PNG, white background, no anti-aliasing, fixed 100 dpi. Thin geometry is
   snapped to pixels before rasterization. Lineweight px = `max(1, round(mm × 100/25.4))`, round caps.
+  Exact rules for lines, fills, curves and wide strokes: note 08 §10.3–10.5, §10.13, §10.14
+  (implemented in `packages/render/src/raster.ts`).
 - **Colours:** AutoCAD 2027's plot palette (note 06 §3.5), ACI 7 → black, true colours exact —
   also under monochrome.ctb (use ACI colours for monochrome geometry tests).
 - **Statuses** in `<case>.json`: `ok`, `invalid-fixture` (AutoCAD rejected the DXF), `timeout`,

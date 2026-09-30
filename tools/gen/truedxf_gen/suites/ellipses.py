@@ -31,7 +31,7 @@ def build(s: SuiteBuilder) -> None:
     for i, (p0, p1) in enumerate(ranges, 1):
         c = s.case(
             f"param-{i:04d}",
-            f"Elliptical arc ratio 0.5 params {p0:.4f}..{p1:.4f}",
+            f"Elliptical arc ratio 0.5 params {p0:.4f}..{p1:.4f}" + (" (start == end: AutoCAD rejects the file)" if p0 == p1 else ""),
             tags=["ELLIPSE", "parameters"],
             questions=["Q-0165"] if p0 == p1 else [],
             params={"start_param": p0, "end_param": p1},

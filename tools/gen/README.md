@@ -101,6 +101,12 @@ the `*Active` VPORT is centred on the plot window so AutoCAD opens on the featur
 - **Make it visible.** Choose windows so the feature spans a large part of the canvas and has
   several px per unit (typically a 200 × 150 window on 2000 × 1500 px = 10 px/unit). Put a small
   reference mark (cross/point) where it helps to locate things.
+- **Pixel centres.** `c.window*` shift the window by half a device pixel towards −x/−y, so round
+  coordinates hit pixel centres instead of exact pixel-boundary ties (tools/acad calibration
+  advice). Set `c.half_pixel_shift = False` for cases about exact boundaries.
+- **Extra files.** `tools/acad` copies only the DXF into its work dir, so IMAGE/underlay/xref
+  paths must be the absolute paths returned by `c.add_file`; relative-path cases only resolve
+  when AutoCAD opens the fixture in `samples/generated/<suite>/`.
 - **Hairline geometry.** Geometry suites register `layer0_lineweight=0` so entities are drawn at
   the thinnest width (pixel-exact comparisons); appearance suites keep the defaults.
 - **Style tables.** `monochrome.ctb` by default; colour/appearance suites use `acad.ctb`.

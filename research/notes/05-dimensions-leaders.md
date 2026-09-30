@@ -315,7 +315,7 @@ by DIMSCALE (overall scale) when laying out. Imperial values from AutoCAD docs +
 | DIMTP | 47 | real | 0 | | no | plus tolerance |
 | DIMTM | 48 | real | 0 | | no | minus tolerance (sign inverted on display) |
 | DIMFXL | 49 | real | 1.0 | | yes | fixed ext line length (R2007+), ezdxf default 2.5 |
-| DIMJOGANG | 50 | real | 45° | | – | jogged radius transverse angle; header stores **radians** (`$DIMJOGANG=0.785398`, S1/S2); unit of DIMSTYLE code 50 **UNKNOWN**; ezdxf default 90 (**CONFLICT**) |
+| DIMJOGANG | 50 | real | 45° | | – | jogged radius transverse angle; header stores **radians** (`$DIMJOGANG=0.785398`, S1/S2); unit of DIMSTYLE code 50 **UNKNOWN**, corpus evidence says degrees (4833-file corpus 2026-09-30: 237 DIMSTYLE records with 45/90, 6 with radian-like values; header `$DIMJOGANG` always radians); ezdxf default 90 (**CONFLICT**) |
 | DIMTFILL | 69 | int | 0 | | – | 0 none, 1 background color, 2 DIMTFILLCLR (R2007+) |
 | DIMTFILLCLR | 70 (2nd!) | ACI | 0 | | – | |
 | DIMTOL | 71 | bool | 0 | | | turns DIMLIM off |

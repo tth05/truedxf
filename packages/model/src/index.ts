@@ -1,4 +1,5 @@
 export { concatBytes, TagCursor } from "./cursor.ts";
+export * from "./dimstyle.ts";
 export {
   type Block,
   type DxfClass,

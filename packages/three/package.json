@@ -1,0 +1,33 @@
+{
+  "name": "@truedxf/three",
+  "version": "0.0.0",
+  "description": "three.js renderer for the truedxf display list",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "dependencies": {
+    "@truedxf/render": "workspace:*"
+  },
+  "peerDependencies": {
+    "three": ">=0.170.0"
+  },
+  "devDependencies": {
+    "@types/three": "^0.186.0",
+    "three": ">=0.170.0"
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "name": "@truedxf/geometry",
+  "version": "0.0.0",
+  "description": "Geometry kernel: vectors, matrices, OCS, arcs, ellipses, NURBS, flattening, stroking, dashing, hatching, clipping",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "dependencies": {
+    "clipper2-ts": "2.0.1-18"
+  }
+}

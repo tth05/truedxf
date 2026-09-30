@@ -1,0 +1,28 @@
+{
+  "name": "@truedxf/plot",
+  "version": "0.0.0",
+  "description": "Plot settings: CTB/STB plot styles, page setup to plot transform, lineweight to device units",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "dependencies": {
+    "@truedxf/core": "workspace:*",
+    "@truedxf/model": "workspace:*",
+    "fflate": "^0.8.3"
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    "types": []
+  },
+  "include": ["src", "../../types/web-globals.d.ts"],
+  "references": [
+    {
+      "path": "../core"
+    },
+    {
+      "path": "../model"
+    },
+    {
+      "path": "../geometry"
+    },
+    {
+      "path": "../fonts"
+    },
+    {
+      "path": "../text"
+    },
+    {
+      "path": "../plot"
+    }
+  ]
+}

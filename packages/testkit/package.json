@@ -1,0 +1,40 @@
+{
+  "name": "@truedxf/testkit",
+  "version": "0.0.0",
+  "description": "Visual test harness (headless Chromium), image metrics and reports",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "private": true,
+  "dependencies": {
+    "@truedxf/core": "workspace:*",
+    "@truedxf/model": "workspace:*",
+    "@truedxf/render": "workspace:*",
+    "@truedxf/three": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.3",
+    "fast-png": "^8.0.0",
+    "pdfjs-dist": "^6.3.289",
+    "pixelmatch": "^7.2.0",
+    "playwright": "^1.63.0",
+    "ssim.js": "^3.5.0",
+    "three": "^0.186.1",
+    "vite": "^8.3.1"
+  }
+}

@@ -1,4 +1,32 @@
 {
   "files": [],
-  "references": [{ "path": "packages/core" }]
+  "references": [
+    {
+      "path": "packages/core"
+    },
+    {
+      "path": "packages/model"
+    },
+    {
+      "path": "packages/geometry"
+    },
+    {
+      "path": "packages/fonts"
+    },
+    {
+      "path": "packages/text"
+    },
+    {
+      "path": "packages/plot"
+    },
+    {
+      "path": "packages/render"
+    },
+    {
+      "path": "packages/three"
+    },
+    {
+      "path": "packages/testkit"
+    }
+  ]
 }

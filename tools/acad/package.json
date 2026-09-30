@@ -1,0 +1,14 @@
+{
+  "name": "@truedxf/tools-acad",
+  "version": "0.0.0",
+  "private": true,
+  "description": "AutoCAD reference harness: runs accoreconsole.exe to plot generated DXF fixtures to PNG/PDF",
+  "license": "MIT",
+  "type": "module",
+  "dependencies": {
+    "fast-png": "^8.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.3"
+  }
+}

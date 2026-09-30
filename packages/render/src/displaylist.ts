@@ -247,11 +247,6 @@ export class DisplayListBuilder {
     this.flush();
   }
 
-  /** Ends the current batch (the next primitive starts a new one, e.g. per transparent entity). */
-  breakBatch(): void {
-    this.flush();
-  }
-
   /** Adds triangles from a flat [x0,y0,x1,y1,x2,y2,…] array (float64 world coordinates). */
   triangles(xy: ArrayLike<number>, color: Rgba): void {
     const n = xy.length >> 1;

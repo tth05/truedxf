@@ -8,7 +8,10 @@
  * and picking are applied uniformly.
  */
 import {
+  BooleanOp,
+  booleanPolygons,
   DashUnits,
+  dilateBySquare,
   dashPath,
   FillRule,
   flattenPath,
@@ -24,6 +27,7 @@ import type { Block, DxfDocument, Entity, InsertEntity } from "@truedxf/model";
 import { plotAciToRgb } from "./aci.ts";
 import { type DisplayList, DisplayListBuilder, type Rgba } from "./displaylist.ts";
 import { DrawOrder } from "./draworder.ts";
+import { drawSpace, findLayout, layoutAreaView } from "./layout.ts";
 import { LinetypeResolver, type LinetypeSpec } from "./linetype.ts";
 import {
   DEFAULT_CALIBRATION,
@@ -84,9 +88,16 @@ export interface DrawState {
 export type EntityDrawer = (fe: Frontend, e: Entity, st: DrawState) => void;
 export type AttribDrawer = (fe: Frontend, insert: InsertEntity, st: DrawState) => void;
 export type Preparer = (doc: DxfDocument, env: RenderEnv) => Promise<void>;
+/**
+ * Called before a block reference's content is drawn (once per MINSERT cell) with the
+ * reference and the state it is drawn in; returns a function undoing what it set up (clip,
+ * entity filters) after the content, or undefined (XCLIP, draw/xclip.ts).
+ */
+export type BlockClipHook = (fe: Frontend, parent: Entity, st: DrawState) => (() => void) | undefined;
 
 const DRAWERS = new Map<string, EntityDrawer>();
 let attribDrawer: AttribDrawer | undefined;
+let blockClipHook: BlockClipHook | undefined;
 const PREPARERS: Preparer[] = [];
 
 export function registerDrawer(types: string | readonly string[], drawer: EntityDrawer): void {
@@ -95,6 +106,10 @@ export function registerDrawer(types: string | readonly string[], drawer: Entity
 
 export function setAttribDrawer(d: AttribDrawer): void {
   attribDrawer = d;
+}
+
+export function setBlockClipHook(h: BlockClipHook): void {
+  blockClipHook = h;
 }
 
 /** Async preparation before drawing (e.g. loading all fonts a document needs). */
@@ -135,6 +150,13 @@ export class Frontend {
   readonly grid: PixelGrid | undefined;
   /** Plot draw order of block entities (SORTENTSTABLE, draworder.ts). */
   readonly drawOrder: DrawOrder;
+  /**
+   * Entity-level culling while drawing clipped content (front/back clip planes of viewports and
+   * XCLIPs); an entity is skipped when any filter rejects it.
+   */
+  readonly entityFilters: ((e: Entity, st: DrawState) => boolean)[] = [];
+  /** Clip stack (intersected regions, display-list clip indices); see pushClip. */
+  private readonly clipStack: { rings: Float64Array[]; index: number; pointIndex: number }[] = [];
   private readonly pixelScratch: number[] = [];
 
   constructor(
@@ -186,6 +208,7 @@ export class Frontend {
   }
 
   drawEntity(e: Entity, st: DrawState): void {
+    for (const f of this.entityFilters) if (!f(e, st)) return;
     if (e.type === "INSERT") {
       this.drawInsert(e, st);
       return;
@@ -209,11 +232,15 @@ export class Frontend {
       return false;
     }
     const inh = this.props.inherit(parent, st.inh);
+    const m = st.m.multiply(local);
+    const done = blockClipHook?.(this, parent, st);
     this.drawEntities(this.drawOrder.entities(block), {
-      m: st.m.multiply(local),
+      m,
       inh,
       stack: [...st.stack, key],
+      linetypeScale: st.linetypeScale,
     });
+    done?.();
     return true;
   }
 
@@ -230,6 +257,46 @@ export class Frontend {
       if (attribDrawer) attribDrawer(this, e, st);
       else this.note("attrib-text");
     }
+  }
+
+  // ---- clipping ----------------------------------------------------------------------------
+
+  /**
+   * Restricts subsequent output to a region (rings in target coordinates, even-odd), intersected
+   * with the current clip. Renderers clip per pixel centre (three.js stencil, cpu-raster): areas
+   * (fills, widened strokes) keep pixels whose centre is inside, which matches AutoCAD's straight
+   * cut of thick strokes at viewport borders (note 08 §3.6). Single-pixel output of thin lines
+   * uses the region dilated by half a pixel, i.e. a pixel is kept when it touches the region —
+   * the pixels AutoCAD draws for a line clipped geometrically, boundary included (the end pixel
+   * of a clipped line is the one containing the boundary point; lines lying on the boundary stay).
+   */
+  pushClip(rings: readonly Float64Array[]): void {
+    let r = rings.filter((x) => x.length >= 6);
+    const top = this.clipStack[this.clipStack.length - 1];
+    if (top) {
+      r = booleanPolygons(BooleanOp.Intersection, top.rings, r, {
+        tolerance: this.tolerance / 16,
+        subjectFillRule: FillRule.EvenOdd,
+        clipFillRule: FillRule.EvenOdd,
+      }).flatMap((p) => [p.outer, ...p.holes]);
+    }
+    // an empty region hides everything: keep a degenerate ring so the renderer still clips
+    if (r.length === 0) r = [Float64Array.of(0, 0, 0, 0, 0, 0)];
+    const index = this.builder.addClip({ rings: r });
+    let pointIndex = index;
+    if (this.grid) {
+      const d = dilateBySquare(r, this.pixelSize / 2, { tolerance: this.tolerance / 16 });
+      pointIndex = this.builder.addClip({ rings: d.flatMap((p) => [p.outer, ...p.holes]) });
+    }
+    this.clipStack.push({ rings: r, index, pointIndex });
+    this.builder.setClip(index, pointIndex);
+  }
+
+  popClip(): void {
+    this.clipStack.pop();
+    const top = this.clipStack[this.clipStack.length - 1];
+    if (top) this.builder.setClip(top.index, top.pointIndex);
+    else this.builder.setClip(-1);
   }
 
   // ---- output ------------------------------------------------------------------------------
@@ -461,13 +528,6 @@ export class Frontend {
   }
 }
 
-function layoutBlock(doc: DxfDocument, name: string): Block {
-  const k = name.toUpperCase();
-  if (k === "MODEL") return doc.modelSpace;
-  const l = doc.layouts.find((x) => x.name.toUpperCase() === k);
-  return l?.block ?? doc.modelSpace;
-}
-
 /** Renders a plot request to a display list plus the view it must be shown with. */
 export async function renderPlot(
   doc: DxfDocument,
@@ -476,10 +536,12 @@ export async function renderPlot(
 ): Promise<PlotResult> {
   for (const p of PREPARERS) await p(doc, env);
   const calibration = { ...DEFAULT_CALIBRATION, ...env.calibration };
-  const block = layoutBlock(doc, request.layout);
+  const space = findLayout(doc, request.layout);
   let view: View;
   if (request.area.type === "window") {
     view = fitWindow(request.area.min, request.area.max, request.canvas);
+  } else if (request.area.type === "layout" && !space.isModel) {
+    view = layoutAreaView(request);
   } else {
     // extents: a first pass at a coarse resolution finds the drawing bounds
     const ext = doc.header.point("$EXTMAX", { x: 1, y: 1, z: 0 });
@@ -490,10 +552,10 @@ export async function renderPlot(
       request.canvas,
     );
     const probe = new Frontend(doc, request, guess, calibration, env);
-    probe.drawBlock(block);
+    drawSpace(probe, space);
     view = viewFromBounds(probe.build().bounds, request.canvas);
   }
   const fe = new Frontend(doc, request, view, calibration, env);
-  fe.drawBlock(block);
+  drawSpace(fe, space);
   return { displayList: fe.build(), view, unsupported: fe.unsupported };
 }

@@ -25,6 +25,7 @@ import {
   Clipper64,
   FillRule as ClipperFillRule,
   ClipType,
+  Minkowski,
   type Path64,
   type Paths64,
   type PolyPath64,
@@ -150,6 +151,33 @@ function normalizedPaths(
   const out: Paths64 = [];
   c.execute(ClipType.Union, clipperFillRule(rule), out);
   return out;
+}
+
+/**
+ * Minkowski dilation of a region by the axis-aligned square [−h, h]²: every point within
+ * Chebyshev distance h of the region. Used for the "pixel square touches the region" clip test of
+ * single-pixel output (a pixel centre inside the region dilated by half a pixel).
+ */
+export function dilateBySquare(
+  rings: readonly Float64Array[],
+  h: number,
+  opts: GridOptions & { readonly fillRule?: FillRule } = {},
+): PolygonWithHoles[] {
+  const fp = gridFor([rings, [Float64Array.of(-h, -h, h, h)]], opts);
+  const paths = normalizedPaths(fp, rings, opts.fillRule ?? FillRule.EvenOdd);
+  const H = Math.round(h * fp.scale);
+  const square = [
+    { x: -H, y: -H },
+    { x: H, y: -H },
+    { x: H, y: H },
+    { x: -H, y: H },
+  ];
+  const c = new Clipper64();
+  c.addSubject(paths);
+  for (const p of paths) c.addSubject(Minkowski.sum(square, p, true));
+  const tree = new PolyTree64();
+  c.execute(ClipType.Union, ClipperFillRule.NonZero, tree);
+  return treeToPolygons(fp, tree);
 }
 
 /**

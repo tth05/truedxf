@@ -156,7 +156,11 @@ export class DisplayListBuilder {
   private readonly entities: string[] = [];
   private readonly bounds = emptyBounds();
   private kind: PrimitiveKind = PrimitiveKind.Triangles;
+  /** Clip of the open batch. */
   private clip = -1;
+  /** Requested clips: for areas (triangles, lines, images) and for single-pixel points. */
+  private areaClip = -1;
+  private pointClip = -1;
   private originX = 0;
   private originY = 0;
   private pos = new GrowF32();
@@ -198,18 +202,28 @@ export class DisplayListBuilder {
     return this.clips.length - 1;
   }
 
-  setClip(clip: number): void {
-    if (clip !== this.clip) {
-      this.flush();
-      this.clip = clip;
-    }
+  /**
+   * Clips subsequent primitives (-1 = none). `pointClip` (default `clip`) applies to Points
+   * batches: single-pixel output of thin geometry is kept when its pixel touches the region,
+   * which needs the region dilated by half a pixel (Frontend.pushClip).
+   */
+  setClip(clip: number, pointClip = clip): void {
+    this.areaClip = clip;
+    this.pointClip = pointClip;
   }
 
   private ensure(kind: PrimitiveKind, vertices: number, x: number, y: number, image = -1): void {
-    if (kind !== this.kind || image !== this.image || this.vertexCount + vertices > this.maxBatchVertices) {
+    const clip = kind === PrimitiveKind.Points ? this.pointClip : this.areaClip;
+    if (
+      kind !== this.kind ||
+      image !== this.image ||
+      clip !== this.clip ||
+      this.vertexCount + vertices > this.maxBatchVertices
+    ) {
       this.flush();
       this.kind = kind;
       this.image = image;
+      this.clip = clip;
     }
     if (this.vertexCount === 0) {
       this.originX = x;
@@ -226,6 +240,11 @@ export class DisplayListBuilder {
     if (x > b.maxX) b.maxX = x;
     if (y < b.minY) b.minY = y;
     if (y > b.maxY) b.maxY = y;
+  }
+
+  /** Ends the current batch (the next primitive starts a new one, e.g. per transparent entity). */
+  breakBatch(): void {
+    this.flush();
   }
 
   /** Adds triangles from a flat [x0,y0,x1,y1,x2,y2,…] array (float64 world coordinates). */

@@ -22,6 +22,12 @@ export interface PlotRequest {
   /** Plot object lineweights (default true). */
   lineweights?: boolean;
   scale?: "fit" | readonly [number, number];
+  /**
+   * Layouts: answer to -PLOT "Plot paper space first?". false (default, AutoCAD's default answer
+   * for layouts with PLOTSETTINGS 70 bit 512): viewport content first, paper-space entities on
+   * top; true: paper space first, viewport content on top (note 08 §3.10, VERIFIED-BY-ACAD).
+   */
+  paperSpaceFirst?: boolean;
 }
 
 export interface View {

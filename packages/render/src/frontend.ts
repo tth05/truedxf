@@ -23,6 +23,7 @@ import {
 import type { Block, DxfDocument, Entity, InsertEntity } from "@truedxf/model";
 import { plotAciToRgb } from "./aci.ts";
 import { type DisplayList, DisplayListBuilder, type Rgba } from "./displaylist.ts";
+import { DrawOrder } from "./draworder.ts";
 import { LinetypeResolver, type LinetypeSpec } from "./linetype.ts";
 import {
   DEFAULT_CALIBRATION,
@@ -39,6 +40,11 @@ import { bandOffset, linePixels, lineweightPixels, PixelGrid } from "./raster.ts
 export interface RenderEnv {
   /** Font bytes by file or family name (lower-cased); undefined when not available. */
   loadFont?: (name: string) => Promise<Uint8Array | undefined>;
+  /**
+   * Raster image file bytes for an IMAGEDEF path as written in the file (absolute, relative or
+   * bare; the host decides how to search, e.g. relative to the DXF folder); undefined = missing.
+   */
+  loadImage?: (path: string) => Promise<Uint8Array | undefined>;
   calibration?: Partial<PlotCalibration>;
   /**
    * `autocad` (default for plots): emulate AutoCAD's raster plot rules exactly (pixel-snapped
@@ -115,6 +121,8 @@ export class Frontend {
   readonly caches = new Map<string, unknown>();
   /** Device pixel grid when emulating AutoCAD's raster rules. */
   readonly grid: PixelGrid | undefined;
+  /** Plot draw order of block entities (SORTENTSTABLE, draworder.ts). */
+  readonly drawOrder: DrawOrder;
   private readonly pixelScratch: number[] = [];
 
   constructor(
@@ -138,6 +146,7 @@ export class Frontend {
     this.lineweights = request.lineweights ?? true;
     this.fillMode = doc.header.num("$FILLMODE", 1) !== 0;
     this.grid = (env.raster ?? "autocad") === "autocad" ? new PixelGrid(view, request.canvas) : undefined;
+    this.drawOrder = new DrawOrder(doc);
   }
 
   note(what: string): void {
@@ -147,7 +156,11 @@ export class Frontend {
   // ---- traversal ---------------------------------------------------------------------------
 
   drawBlock(block: Block, m: Matrix44 = Matrix44.identity()): void {
-    this.drawEntities(block.entities, { m, inh: TOP_LEVEL, stack: [block.name.toUpperCase()] });
+    this.drawEntities(this.drawOrder.entities(block), {
+      m,
+      inh: TOP_LEVEL,
+      stack: [block.name.toUpperCase()],
+    });
   }
 
   drawEntities(entities: readonly Entity[], st: DrawState): void {
@@ -184,7 +197,11 @@ export class Frontend {
       return false;
     }
     const inh = this.props.inherit(parent, st.inh);
-    this.drawEntities(block.entities, { m: st.m.multiply(local), inh, stack: [...st.stack, key] });
+    this.drawEntities(this.drawOrder.entities(block), {
+      m: st.m.multiply(local),
+      inh,
+      stack: [...st.stack, key],
+    });
     return true;
   }
 

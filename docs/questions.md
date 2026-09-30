@@ -178,7 +178,9 @@ set the status here to `answered` (or `wontfix`) and add the answer in one line 
 | Q-0118 | extents | [U] Do plot 'Extents' of a pattern HATCH use the boundary only, or the pattern line geometry? | 03 §6.2, Test ideas 35 (03:T35) | `extents/probe-hatch-pattern`, `layouts/extents-hatch-pattern` | open |
 | Q-0119 | extents | [A] Do extents for a smoothed MESH use the level-0 control cage vertices or the subdivided surface? | 03 §6.1 | `misc/mesh-box-level0-extents`, `misc/mesh-box-level2-extents` | open |
 | Q-0120 | extents | [U] Do layout extents (Extents plot / LAYOUT 14/15) include viewport frames and the overall viewport? | 08 §8 item 17 (08:T-PL-9) | `misc/layout-extents-viewports` | open |
-| Q-0121 | extents | [T] What does PLOT 'Limits'/'Layout' do with bogus (0,0)-(12,9) paper limits that do not contain the viewports? | 11b §4, Test ideas (11b:19) | `layouts/bogus-limits-layout`, `layouts/bogus-limits-window` | open |
+| Q-0121 | extents | [T] What does PLOT 'Limits'/'Layout' do with bogus (0,0)-(12,9) paper limits that do not contain the viewports? | 11b §4, Test ideas (11b:19) | `layouts/bogus-limits-layout`, `layouts/bogus-limits-window` | answered |
+
+- Q-0121: Plot area Layout ignores LAYOUT limits: the canvas at 1 px per paper unit from paper (0,0); Window plots are unaffected (`layouts/bogus-limits-*`, note 08 §10.12).
 
 <a id="ocs"></a>
 ## OCS / extrusion / thickness (`ocs`)
@@ -426,7 +428,9 @@ set the status here to `answered` (or `wontfix`) and add the answer in one line 
 | Q-0282 | property-resolution | [A] Does AutoCAD PLOT skip entities on a layer with plot flag 290=0, including inside blocks and viewport borders? | 11a §4, §14 (11a:37) | `blocks/vis-insert-layer-noplot`, `blocks/vis-layer0-noplot`, `colors/layer-noplot` | open |
 | Q-0283 | property-resolution | [U] Does PLOT omit entities on layer DEFPOINTS (any case) even when its 290 plot flag is 1 or absent? | 02 §0 item 6, §2.1.1, §6; 06 §7.2; 05 §4.1, §14 (02:T1) | `colors/defpoints-no290`, `colors/defpoints-plot1`, `colors/defpoints-plot0`, `colors/defpoints-lowercase` | open |
 | Q-0284 | property-resolution | [A] Does a locked layer (70 bit 4) plot normally, unaffected by LAYLOCKFADECTL fading? | 02 §2.1.1 (02:T1) | `colors/layer-locked`, `misc/locked-layer`, `misc/locked-layer-hatch` | open |
-| Q-0285 | property-resolution | [A] Does LAYER 70 bit 2 (frozen in new viewports) hide anything in model-space PLOT or existing viewports? | 11b §5 | `layouts/newvpfrozen-model`, `layouts/newvpfrozen-layout` | open |
+| Q-0285 | property-resolution | [A] Does LAYER 70 bit 2 (frozen in new viewports) hide anything in model-space PLOT or existing viewports? | 11b §5 | `layouts/newvpfrozen-model`, `layouts/newvpfrozen-layout` | answered |
+
+- Q-0285: No: LAYER 70 bit 2 has no effect on model plots or existing viewports (`layouts/newvpfrozen-*`).
 
 <a id="draw-order"></a>
 ## Draw order (`draw-order`)
@@ -439,9 +443,13 @@ set the status here to `answered` (or `wontfix`) and add the answer in one line 
 | Q-0289 | draw-order | [T] With a SORTENTSTABLE, does PLOT sort by sort handle (hex int, stable), key unlisted entities by own handle, and draw sort handle 0 last? | 02 §0 item 8, §3.12; 06 §0 item 12, §8.2 (02:T10, 06:D1) | `draworder/sortents-127`, `draworder/sortents-095`, `draworder/sortents-111`, `draworder/sortents-000` (+6 more) | open |
 | Q-0290 | draw-order | [U] Does PLOT honour a block definition's own ACAD_SORTENTS table (sort handles differing from entity handles) when drawing its INSERTs? | 02 §3.12, §6; 06 §8.1, §9 item 10; 07 §3.2 (02:T10, 06:D3) | `draworder/block-file-order`, `draworder/block-sortents` | open |
 | Q-0291 | draw-order | [T] Are ATTRIBs always drawn after all block content (above a solid hatch in the block) in PLOT? | 07 §3.2, §4.2 (07:10) | `attribs/draworder-hatch-in-block`, `attribs/draworder-hatch-after-insert`, `draworder/attrib-after-content`, `draworder/attrib-vs-later-entity` | open |
-| Q-0292 | draw-order | [C] Does 'plot paperspace last' (70 bit 512 / -PLOT 'Plot paper space first?') decide whether PS entities plot over viewport content; does default 70=688 set it? | 06 §8.3, §9 item 10; 08 §3.10, §6.4, §7 item 6, §8 item 9, §2.2 (bit 512); 11a §13 (06:D2, 08:T-VP-8) | `draworder/ps-solid-after-viewport`, `draworder/ps-flags-176`, `draworder/ps-paperspace-first` | open |
-| Q-0293 | draw-order | [U] Does AutoCAD plot viewport model content above or below paper-space entities, and does the VIEWPORT's position in draw order (storage/SORTENTS) matter? | 10 §1.3 (ezdxf draws viewports last); 10 §17 UNKNOWN 9 (10:vp_draworder.dxf) | `draworder/ps-solid-after-viewport`, `draworder/ps-solid-before-viewport`, `draworder/ps-sortents-viewport-top` | open |
-| Q-0294 | draw-order | [U] Does a paper-space WIPEOUT over a viewport hide that viewport's model content when 'paperspace last' is off? | 08 §3.10 (08:T-VP-8) | `layouts/wipeout-over-vp-psfirst-n`, `layouts/wipeout-over-vp-psfirst-y` | open |
+| Q-0292 | draw-order | [C] Does 'plot paperspace last' (70 bit 512 / -PLOT 'Plot paper space first?') decide whether PS entities plot over viewport content; does default 70=688 set it? | 06 §8.3, §9 item 10; 08 §3.10, §6.4, §7 item 6, §8 item 9, §2.2 (bit 512); 11a §13 (06:D2, 08:T-VP-8) | `draworder/ps-solid-after-viewport`, `draworder/ps-flags-176`, `draworder/ps-paperspace-first` | answered |
+| Q-0293 | draw-order | [U] Does AutoCAD plot viewport model content above or below paper-space entities, and does the VIEWPORT's position in draw order (storage/SORTENTS) matter? | 10 §1.3 (ezdxf draws viewports last); 10 §17 UNKNOWN 9 (10:vp_draworder.dxf) | `draworder/ps-solid-after-viewport`, `draworder/ps-solid-before-viewport`, `draworder/ps-sortents-viewport-top` | answered |
+| Q-0294 | draw-order | [U] Does a paper-space WIPEOUT over a viewport hide that viewport's model content when 'paperspace last' is off? | 08 §3.10 (08:T-VP-8) | `layouts/wipeout-over-vp-psfirst-n`, `layouts/wipeout-over-vp-psfirst-y` | answered |
+
+- Q-0292: Yes: "Plot paper space first? No" (default when 70 bit 512 is set, e.g. 688) = viewport content first, paper on top; "Yes" = paper first (`layouts/ps-over-vp-*`, note 08 §10.12).
+- Q-0293: Viewport content is drawn as one group before (default) or after paper space; the VIEWPORT's position in the entity list does not matter; overlapping viewports by creation order (`layouts/ps-over-vp-*`, `vp-overlap-*`).
+- Q-0294: No: a paper-space WIPEOUT never masks viewport content, with either answer (`layouts/wipeout-over-vp-psfirst-*`).
 
 <a id="linetypes"></a>
 ## Linetypes (`linetypes`)
@@ -468,10 +476,10 @@ set the status here to `answered` (or `wontfix`) and add the answer in one line 
 | Q-0312 | linetypes | [U] Does PLOT switch a linetype to continuous when dashes are below the plot resolution, and at what threshold? | 06 §2.6 | `linetypes/dense-48-dashed`, `linetypes/dense-48-dot`, `linetypes/dense-ltscale-*` | open |
 | Q-0313 | linetypes | [U] Does AutoCAD adjust ISO (W100) linetypes automatically by pen width/lineweight, or only via linetype scale? | 06 §2.4 | `linetypes/lw-acadiso02w100`, `linetypes/lw-acadiso07w100`, `linetypes/lw-iso02-scaled` | answered |
 | Q-0314 | linetypes | [T] Is effective linetype scale LTSCALE x CELTSCALE x entity 48 (x INSERT scale), e.g. 48=0.5/LTSCALE 2 == 48=1/LTSCALE 1, and how does PSLTSCALE change it? | 06 §2.5, §7.1; 11b §12, Test ideas (11b:10, 06:L9) | `linetypes/scale-ltscale-*`, `linetypes/scale-equiv-*`, `linetypes/scale-celtscale-*`, `linetypes/scale-bylayer-48` (+16 more) | answered |
-| Q-0315 | linetypes | [C] Is PSLTSCALE=1 'viewport scaling governs' (same paper dash length at 1:1/1:10/1:100), contrary to DXF ref wording, and how do LTSCALE/MSLTSCALE combine? | 01 §7.2, §7.4; 06 §2.5; 08 §0 item 2, §1.5, §3.8; 11a §12, Open conflicts (01:T22, 06:L4, 08:T-VP-7, 11a:23) | `layouts/psltscale-h1-l1`, `layouts/psltscale-h0-l0`, `layouts/psltscale-h1-l0`, `layouts/psltscale-h0-l1` (+3 more) | open |
-| Q-0316 | linetypes | [U] When header $PSLTSCALE and LAYOUT 70 bit 1 disagree, which one does PLOT of that layout use? | 01 §7.2, §10 item 10; 08 §1.5, §3.8, §8 item 10; 11c §10 (PSLTSCALE header plus LAYOUT 70 bit 1), §18 #18 (01:T22, 08:T-VP-7, 10-11c:11c#18) | `layouts/psltscale-h1-l1`, `layouts/psltscale-h0-l0`, `layouts/psltscale-h1-l0`, `layouts/psltscale-h0-l1` (+4 more) | open |
-| Q-0317 | linetypes | [U] Is PSLTSCALE stored per layout, and how does AutoCAD write it to DXF when layouts differ? | 06 §2.5 (06:L4) | `layouts/psltscale-two-layouts-layout1`, `layouts/psltscale-two-layouts-sheet2` | open |
-| Q-0318 | linetypes | [A] Does PLOT apply the file's PSLTSCALE/LTSCALE without a REGENALL (plots regenerate)? | 08 §3.8 (08:T-VP-7) | `layouts/psltscale-h1-l1` | open |
+| Q-0315 | linetypes | [C] Is PSLTSCALE=1 'viewport scaling governs' (same paper dash length at 1:1/1:10/1:100), contrary to DXF ref wording, and how do LTSCALE/MSLTSCALE combine? | 01 §7.2, §7.4; 06 §2.5; 08 §0 item 2, §1.5, §3.8; 11a §12, Open conflicts (01:T22, 06:L4, 08:T-VP-7, 11a:23) | `layouts/psltscale-h1-l1`, `layouts/psltscale-h0-l0`, `layouts/psltscale-h1-l0`, `layouts/psltscale-h0-l1` (+3 more) | answered |
+| Q-0316 | linetypes | [U] When header $PSLTSCALE and LAYOUT 70 bit 1 disagree, which one does PLOT of that layout use? | 01 §7.2, §10 item 10; 08 §1.5, §3.8, §8 item 10; 11c §10 (PSLTSCALE header plus LAYOUT 70 bit 1), §18 #18 (01:T22, 08:T-VP-7, 10-11c:11c#18) | `layouts/psltscale-h1-l1`, `layouts/psltscale-h0-l0`, `layouts/psltscale-h1-l0`, `layouts/psltscale-h0-l1` (+4 more) | answered |
+| Q-0317 | linetypes | [U] Is PSLTSCALE stored per layout, and how does AutoCAD write it to DXF when layouts differ? | 06 §2.5 (06:L4) | `layouts/psltscale-two-layouts-layout1`, `layouts/psltscale-two-layouts-sheet2` | answered |
+| Q-0318 | linetypes | [A] Does PLOT apply the file's PSLTSCALE/LTSCALE without a REGENALL (plots regenerate)? | 08 §3.8 (08:T-VP-7) | `layouts/psltscale-h1-l1` | answered |
 | Q-0319 | linetypes | [A] In a model-tab plot with MSLTSCALE=1, are dash lengths scaled by the annotation scale CANNOSCALE (combined with LTSCALE and entity 48)? | 06 §2.5; 08 §1.5 (MSLTSCALE), §3.8, §5.6 (08:T-VP-7) | plan: linetypes (png) — Model-space DASHED LINE, LTSCALE 2, entity 48=0.5; MSLTSCALE 0/1 with CANNOSCALE 1:1, 1:2, 1:10 | open |
 | Q-0320 | linetypes | [C] Are block-content dashes generated in block coordinates then transformed by INSERT scale (uniform 3, mirrored -1, non-uniform 2,1 stretching by direction)? | 06 §2.5, §7.1, §9 item 2; 07 §2.4, §17 (06:L5, 07:4) | `blocks/linetype-scale-s1`, `blocks/linetype-scale-s3`, `blocks/linetype-scale-mirror`, `blocks/linetype-scale-nonuni-rot45` (+9 more) | answered |
 | Q-0321 | linetypes | [U] Does INSERT group 48 (ltscale) multiply into child entity linetype scales, or is it ignored for block content? | 07 §3.1, §17 (07:4) | `blocks/linetype-insert-ltscale`, `linetypes/byblock-ltscale2`, `linetypes/insert-ltscale-vs-child` | answered |
@@ -484,6 +492,11 @@ set the status here to `answered` (or `wontfix`) and add the answer in one line 
 | Q-0328 | linetypes | [A] How does AutoCAD render complex-linetype shape/text segments whose scale S is 0 or negative? | 11c §10 (segment scale 0 or negative accepted, REPORTED), §17 netDxf#59 test2.dxf | `acad-default-fonts/ltype-fenceline2-scale-zero`, `acad-default-fonts/ltype-fenceline2-scale-negative`, `linetypes/ctext-scale-zero`, `linetypes/ctext-scale-neg` | open |
 | Q-0329 | linetypes | [U] What does PLOT draw for a shape linetype element when the referenced .shx file is missing? | 06 §2.3 | `linetypes/ctext-missing-shx` | open |
 | Q-0330 | linetypes | [A] Does AutoCAD accept 'r'/'g' suffixes (radians/grads) on R=/A=/U= in .lin files? | 06 §2.4 | plan: linetypes (dxfout) — Custom .lin with R=1.5708r and R=100g; -LINETYPE load, DXFOUT and read 50 | open |
+
+- Q-0315: Yes: $PSLTSCALE=1 gives the same paper dash length (pattern × LTSCALE × 48) in 1:1/1:4/1:10 viewports; 0 scales dashes with the viewport (`layouts/psltscale-*`, note 08 §10.12).
+- Q-0316: The header $PSLTSCALE decides for the active layout; LAYOUT 70 bit 1 for the other layouts (`layouts/psltscale-h*-l*`, `psltscale-two-layouts-*`).
+- Q-0317: Per layout: LAYOUT 70 bit 1 (the header mirrors the active layout) (`layouts/psltscale-two-layouts-*`).
+- Q-0318: Yes: PLOT regenerates; no REGENALL needed (`layouts/psltscale-h1-l1`).
 
 Answers (VERIFIED-BY-ACAD, AutoCAD 2027, 2026-09-30):
 - Q-0295: No: an LTYPE with 73=0 (even named DASHED) plots continuous for $MEASUREMENT 0/1/absent; no .lin reload (`linetypes/odd-dashed-empty-meas-*`, note 06 §2.6.1).
@@ -845,10 +858,12 @@ Answers (VERIFIED-BY-ACAD, AutoCAD 2027, 2026-09-30):
 | Q-0617 | blocks | [U] Are XDATA 1010/1011/1012/1013/1041/1042 transformed per spec when a block with them is inserted rotated/mirrored/non-uniform and EXPLODEd? | 01 §6.4 (01:T17) | plan: blocks (dxfout) — block entities carrying all XDATA point/distance codes; INSERT rot 30, sx=-2, sy=1; EXPLODE, DXFOUT | open |
 | Q-0618 | blocks | [C] Is MINSERT column/row spacing (44/45) scaled by 41/42 or only rotated by 50 (in OCS), and is it relative to the block base point? | 07 §2.3, §17; 10 §5 (bjnortier MINSERT, should be verified), §17 CONFLICT MINSERT offsets; 11b §7, Test ideas (07:6, 10:minsert_nonuniform.dxf, 11b:2) | `blocks/minsert-plain`, `blocks/minsert-scaled`, `blocks/minsert-rotated`, `blocks/minsert-rot-scaled` (+2 more) | open |
 | Q-0619 | blocks | [A] Does a MINSERT with spacing 0 and count 3 draw 3 coincident copies (visible as stacked transparency) or one? | 07 §2.3 (07:6) | `blocks/minsert-zero-spacing` | open |
-| Q-0620 | blocks | [A] Does a layer VP-frozen in a paper space viewport hide an INSERT on that layer including nested non-0 content (like global freeze)? | 07 §3.2 (07:8) | `layouts/insert-vpfreeze-l2`, `layouts/insert-vpfreeze-l1` | open |
+| Q-0620 | blocks | [A] Does a layer VP-frozen in a paper space viewport hide an INSERT on that layer including nested non-0 content (like global freeze)? | 07 §3.2 (07:8) | `layouts/insert-vpfreeze-l2`, `layouts/insert-vpfreeze-l1` | answered |
 | Q-0621 | blocks | [A] Does a dynamic block's *U block alone reproduce the plot (visibility baked in via 60=1), or does AutoCAD need AcDbDynamicBlock data to hide states? | 02 §3.22; 11a §13 (02:T16) | `blocks/dynamic-like-u-blocks` | open |
 | Q-0622 | blocks | [U] If an INSERT references a dynamic block definition directly (no *U), which visibility state does AutoCAD plot? | 02 §3.22 (02:T16) | plan: blocks (png) — Hand-written INSERT naming the dynamic block itself with BLOCKVISIBILITYPARAMETER, no AcDbBlockRepresentation | open |
 | Q-0623 | blocks | [U] When a dynamic block definition is edited but its *U### representations are stale, does AutoCAD regenerate them on open or show stored *U content? | 07 §5.3, §17 (07:11) | `misc/dynblock-visibility-as-is`, `misc/dynblock-visibility-definition-edited` | open |
+
+- Q-0620: Yes: a VP-frozen INSERT layer hides the whole reference in that viewport, incl. nested non-0 content; freezing a child layer hides only that child (`layouts/insert-vpfreeze-l1/-l2`).
 
 <a id="xrefs"></a>
 ## Xrefs (`xrefs`)
@@ -865,18 +880,29 @@ Answers (VERIFIED-BY-ACAD, AutoCAD 2027, 2026-09-30):
 
 | ID | topic | question | source | test | status |
 |---|---|---|---|---|---|
-| Q-0628 | xclip | [C] In R2010+ DXF, which $XCLIPFRAME (280) values 0/1/2 plot the XCLIP boundary (docs vs ezdxf: is 1 or 2 displayed+plotted)? | 01 §7.2, §7.4, §10 item 9; 02 §3.6, §3.13, §6; 07 §7.4, §17; 11a §3, §13, Open conflicts (01:T21, 02:T11, 07:13, 11a:38) | `xclip/xclipframe-0`, `xclip/xclipframe-1`, `xclip/xclipframe-2`, `xclip/disabled-frame-1` (+1 more) | open |
-| Q-0629 | xclip | [C] In AC1018/AC1021 DXF ($XCLIPFRAME group 290 bool), does 1 plot the clip frame, and does AutoCAD accept a value of 2? | 02 §3.6; 07 §7.4 (02:T11, 07:13) | `xclip/r2004-xclipframe-1`, `xclip/r2004-xclipframe-2`, `xclip/r2007-xclipframe-1`, `xclip/r2007-xclipframe-2` | open |
-| Q-0630 | xclip | [U] When $XCLIPFRAME and an XCLIPFRAME DICTIONARYVAR disagree, which does AutoCAD use? | 02 §3.6, §6 (02:T11) | `xclip/dictvar-h0-d1`, `xclip/dictvar-h1-d0`, `xclip/dictvar-h2-d1` | open |
-| Q-0631 | xclip | [A] Is the XCLIP frame drawn with the INSERT's resolved color/linetype/lineweight? | 07 §7.4 | `xclip/frame-props-bylayer`, `xclip/frame-props-explicit` | open |
-| Q-0632 | xclip | [A] Does an XCLIP stay fixed to the block when the INSERT is moved/rotated/mirrored/scaled after clipping (clip applied via inverse insert matrix)? | 07 §7.2; 11a §13 (07:13, 11a:38) | `xclip/rect-block`, `xclip/rect-acad`, `xclip/rect-4pt`, `xclip/polygon-penta` (+14 more) | open |
+| Q-0628 | xclip | [C] In R2010+ DXF, which $XCLIPFRAME (280) values 0/1/2 plot the XCLIP boundary (docs vs ezdxf: is 1 or 2 displayed+plotted)? | 01 §7.2, §7.4, §10 item 9; 02 §3.6, §3.13, §6; 07 §7.4, §17; 11a §3, §13, Open conflicts (01:T21, 02:T11, 07:13, 11a:38) | `xclip/xclipframe-0`, `xclip/xclipframe-1`, `xclip/xclipframe-2`, `xclip/disabled-frame-1` (+1 more) | answered |
+| Q-0629 | xclip | [C] In AC1018/AC1021 DXF ($XCLIPFRAME group 290 bool), does 1 plot the clip frame, and does AutoCAD accept a value of 2? | 02 §3.6; 07 §7.4 (02:T11, 07:13) | `xclip/r2004-xclipframe-1`, `xclip/r2004-xclipframe-2`, `xclip/r2007-xclipframe-1`, `xclip/r2007-xclipframe-2` | answered |
+| Q-0630 | xclip | [U] When $XCLIPFRAME and an XCLIPFRAME DICTIONARYVAR disagree, which does AutoCAD use? | 02 §3.6, §6 (02:T11) | `xclip/dictvar-h0-d1`, `xclip/dictvar-h1-d0`, `xclip/dictvar-h2-d1` | answered |
+| Q-0631 | xclip | [A] Is the XCLIP frame drawn with the INSERT's resolved color/linetype/lineweight? | 07 §7.4 | `xclip/frame-props-bylayer`, `xclip/frame-props-explicit` | answered |
+| Q-0632 | xclip | [A] Does an XCLIP stay fixed to the block when the INSERT is moved/rotated/mirrored/scaled after clipping (clip applied via inverse insert matrix)? | 07 §7.2; 11a §13 (07:13, 11a:38) | `xclip/rect-block`, `xclip/rect-acad`, `xclip/rect-4pt`, `xclip/polygon-penta` (+14 more) | answered |
 | Q-0633 | xclip | [U] For inverted XCLIP (2015+), does AutoCAD clip with the stored slit polygon exactly (hairline gap visible) or a true outer-minus-hole region? | 07 §7.3, §17 (07:13) | `xclip/inverted-ezdxf` | open |
-| Q-0634 | xclip | [U] What does the second 3x4 matrix of SPATIAL_FILTER (clip-boundary transform) mean; is it non-identity for XCLIP made in a rotated UCS? | 07 §7.2, §17 (07:13) | `xclip/transform-matrix-rect`, `xclip/transform-matrix-polygon` | open |
-| Q-0635 | xclip | [T] Do nested XCLIPs (clipped INSERT inside a clipped block) each clip in their own space (clip stack intersection)? | 07 §7.2 (07:13) | `xclip/nested`, `xclip/nested-child-only` | open |
-| Q-0636 | xclip | [U] Can a MINSERT be XCLIPped, and if a SPATIAL_FILTER is attached to a MINSERT in DXF, does AutoCAD clip every cell? | 07 §2.3, §17 | `xclip/minsert` | open |
-| Q-0637 | xclip | [A] Are an XCLIPped INSERT's ATTRIBs drawn unclipped? | 07 §7.2 (07:13) | `xclip/attrib-outside` | open |
-| Q-0638 | xclip | [U] What are SPATIAL_FILTER front/back clip (72/73, 40/41) sign conventions along the clip normal? | 07 §7.2, §17 | `xclip/frontback-front`, `xclip/frontback-back`, `xclip/frontback-both` | open |
+| Q-0634 | xclip | [U] What does the second 3x4 matrix of SPATIAL_FILTER (clip-boundary transform) mean; is it non-identity for XCLIP made in a rotated UCS? | 07 §7.2, §17 (07:13) | `xclip/transform-matrix-rect`, `xclip/transform-matrix-polygon` | answered |
+| Q-0635 | xclip | [T] Do nested XCLIPs (clipped INSERT inside a clipped block) each clip in their own space (clip stack intersection)? | 07 §7.2 (07:13) | `xclip/nested`, `xclip/nested-child-only` | answered |
+| Q-0636 | xclip | [U] Can a MINSERT be XCLIPped, and if a SPATIAL_FILTER is attached to a MINSERT in DXF, does AutoCAD clip every cell? | 07 §2.3, §17 | `xclip/minsert` | answered |
+| Q-0637 | xclip | [A] Are an XCLIPped INSERT's ATTRIBs drawn unclipped? | 07 §7.2 (07:13) | `xclip/attrib-outside` | answered |
+| Q-0638 | xclip | [U] What are SPATIAL_FILTER front/back clip (72/73, 40/41) sign conventions along the clip normal? | 07 §7.2, §17 | `xclip/frontback-front`, `xclip/frontback-back`, `xclip/frontback-both` | answered |
 | Q-0639 | xclip | [A] Does AutoCAD reject a SPATIAL_FILTER that writes 40/41 while front/back clipping (72/73) is off, or a malformed inverted-clip XRECORD? | 11a §13, §18 (11a:1, 11a:38) | `fileformat/spatial-filter-disabled-with-40`, `fileformat/spatial-filter-inverted-ezdxf`, `fileformat/spatial-filter-inverted-truncated` | open |
+
+- Q-0628: R2010+ 280: 0 = no frame, 1 = frame plotted, 2 = not plotted (ezdxf docstring wrong) (`xclip/xclipframe-*`, note 07 §7.5).
+- Q-0629: R2004/R2007 290 = 1 plots the frame; a value 2 makes AutoCAD reject the DXF (`xclip/r2004-*`, `r2007-*`).
+- Q-0630: The header wins; a DICTIONARYVAR XCLIPFRAME is ignored (`xclip/dictvar-*`).
+- Q-0631: Yes: INSERT colour/lineweight/linetype, dashes restart per boundary edge (`xclip/frame-props-*`).
+- Q-0632: Yes: block = inverse-insert · boundary, placed with the current INSERT transform; the clip follows later moves/rotations/scales/mirrors (`xclip/after-clip-*`, `rect-*`, `made-on-*`).
+- Q-0634: The 2nd matrix maps the clip-time WCS into the boundary system: block = inverse-insert · second⁻¹ · boundary (`xclip/transform-matrix-*`).
+- Q-0635: Yes: nested clips intersect, each in its own space (`xclip/nested*`).
+- Q-0636: Yes: one region placed with cell (0,0)'s transform clips all cells (`xclip/minsert`).
+- Q-0637: Yes: ATTRIBs are not clipped (`xclip/attrib-outside`).
+- Q-0638: Along the boundary normal: front 40 keeps z ≤ 40, back 41 keeps z ≥ 41; crossing geometry is cut (`xclip/frontback-*`).
 
 <a id="images"></a>
 ## IMAGE (`images`)
@@ -977,44 +1003,70 @@ Answers (VERIFIED-BY-ACAD, AutoCAD 2027, 2026-09-30):
 | ID | topic | question | source | test | status |
 |---|---|---|---|---|---|
 | Q-0703 | layouts | [C] Does AutoCAD open an AC1015 file lacking LAYOUT objects and the ACAD_LAYOUT dictionary (ezdxf docs contradict)? | 01 §3.2, §10 item 7 (01:T2) | `fileformat/r2000-no-layouts` | open |
-| Q-0704 | layouts | [U] Can AutoCAD/accoreconsole open and plot a layout lacking the overall viewport (69=1) or never initialized (70 bits 8192/16384, none_device)? | 08 §2.2 (note), §6.2, §7 item 9, §8 item 13; 11c §11 (overall viewport needed, netDxf#125 DraftSight) (08:T-ACC-3) | `layouts/no-overall`, `layouts/no-overall-initflags`, `layouts/no-overall-none-device`, `layouts/initflags-with-overall` | open |
-| Q-0705 | layouts | [A] Is paper-space (0,0) at the printable-area lower-left plus plot offset 46/47 when plotting with plot type Layout? | 08 §2.5, §5.1 (08:T-VP-11) | `layouts/area-layout-mm`, `layouts/area-window-mm`, `layouts/area-layout-mm-margins-offset`, `layouts/area-window-mm-margins-offset` (+4 more) | open |
+| Q-0704 | layouts | [U] Can AutoCAD/accoreconsole open and plot a layout lacking the overall viewport (69=1) or never initialized (70 bits 8192/16384, none_device)? | 08 §2.2 (note), §6.2, §7 item 9, §8 item 13; 11c §11 (overall viewport needed, netDxf#125 DraftSight) (08:T-ACC-3) | `layouts/no-overall`, `layouts/no-overall-initflags`, `layouts/no-overall-none-device`, `layouts/initflags-with-overall` | answered |
+| Q-0705 | layouts | [A] Is paper-space (0,0) at the printable-area lower-left plus plot offset 46/47 when plotting with plot type Layout? | 08 §2.5, §5.1 (08:T-VP-11) | `layouts/area-layout-mm`, `layouts/area-window-mm`, `layouts/area-layout-mm-margins-offset`, `layouts/area-window-mm-margins-offset` (+4 more) | answered |
 | Q-0706 | layouts | [U] For rotated layouts (73 = 1/2/3), are 44/45 swapped and margins rotated in the direction ezdxf assumes (rot 1: top=right...)? | 08 §2.5, §2.1 (73) (08:T-VP-11) | `layouts/area-layout-rotation-1`, `layouts/area-layout-rotation-2`, `layouts/area-layout-rotation-3` | open |
 | Q-0707 | layouts | [U] In what order does AutoCAD write/show layout tabs when LAYOUT 71 tab orders are equal or non-consecutive (sorted by (71, name)?) | 08 §1.4 | `fileformat/layout-tab-order` | open |
-| Q-0708 | layouts | [T] Do ENTITIES-section entities with 67=1 belong only to the active layout in multi-layout files? | 11b §14, Test ideas (11b:19) | `layouts/multi-plot-layout1`, `layouts/multi-plot-sheet2`, `layouts/multi-plot-sheet3` | open |
+| Q-0708 | layouts | [T] Do ENTITIES-section entities with 67=1 belong only to the active layout in multi-layout files? | 11b §14, Test ideas (11b:19) | `layouts/multi-plot-layout1`, `layouts/multi-plot-sheet2`, `layouts/multi-plot-sheet3` | answered |
+
+- Q-0704: Yes: layouts without an overall viewport, with 70 bits 8192/16384 or none_device open and plot normally (`layouts/no-overall*`, `initflags-with-overall`).
+- Q-0705: Plot area Layout on the raster device: paper (0,0) at the canvas lower-left (offset 0,0), 1 px per paper unit, Fit ignored (`layouts/area-layout-*`, note 08 §10.12).
+- Q-0708: Yes: each layout plots only its own block's entities (`layouts/multi-plot-*`).
 
 <a id="viewports"></a>
 ## Viewports (`viewports`)
 
 | ID | topic | question | source | test | status |
 |---|---|---|---|---|---|
-| Q-0709 | viewports | [U] Does PLOT draw VIEWPORTs with status 68=0 or id 69=0 as normal viewports, and does AutoCAD recompute 68/69 on load? | 08 §3.2, §8 item 7; 11a §14, Open conflicts; 11b §14, Test ideas; 11c §11 (VIEWPORT 68/69 derived, 68 stacking order), §15 item 11, §18 #19 (08:T-VP-1, 08:T-VP-2, 10-11c:11c#19, 11a:39, 11b:19) | `layouts/onoff-flag`, `layouts/status-sweep`, `layouts/status-all-zero`, `layouts/id-zero-minus1` (+5 more) | open |
-| Q-0710 | viewports | [A] Is VIEWPORT 90 bit 0x20000 (off) what stops a viewport plotting (neither frame nor content), independent of 68? | 08 §3.1.1, §3.2, §8 item 7; 11b §14, Test ideas (08:T-VP-1, 11b:19) | `layouts/onoff-flag` | open |
-| Q-0711 | viewports | [T] Does AutoCAD write VIEWPORT 68 = 0 for all viewports of a layout that was not activated before DXFOUT (ezdxf#1014)? | 08 §3.2 (08:T-VP-2) | `layouts/status-all-zero`, `layouts/multi-plot-layout1`, `layouts/multi-plot-sheet2`, `layouts/multi-plot-sheet3` | open |
-| Q-0712 | viewports | [A] Which VIEWPORT is treated as the overall paper-space viewport when 69 = 0/-1 everywhere: the first entity or a structural match? | 08 §3.2, §8 item 8 (08:T-VP-1) | `layouts/id-zero-minus1`, `layouts/ids-all-zero`, `layouts/ids-all-minus1`, `layouts/overall-last` (+1 more) | open |
-| Q-0713 | viewports | [A] Does PLOT draw all viewports when a layout has more than $MAXACTVP (64) viewports? | 01 §7.2 | `layouts/maxactvp-64`, `layouts/maxactvp-2` | open |
-| Q-0714 | viewports | [A] Are overlapping viewports plotted in entity order (later on top) rather than in status (68) order? | 08 §3.2, §3.10, §8 item 9 (08:T-VP-8) | `layouts/ps-over-vp-psfirst-n`, `layouts/ps-over-vp-psfirst-y`, `layouts/vp-overlap-order-ab`, `layouts/vp-overlap-order-ba` (+1 more) | open |
-| Q-0715 | viewports | [A] For a paper-space VIEWPORT on a frozen layer, is the viewport content hidden in PLOT (and on an off layer only the border hidden)? | 02 §2.1.1 | `layouts/vp-on-off-layer`, `layouts/vp-on-frozen-layer` | open |
-| Q-0716 | viewports | [U] Is the VIEWPORT border plotted with its own color/linetype/lineweight, and omitted when its layer is off/frozen/no-plot (290=0)? | 06 §7.2; 08 §3.6, §5.6; 11a §14 (06:R5, 08:T-VP-10, 11a:39) | `layouts/vp-on-off-layer`, `layouts/vp-on-frozen-layer`, `layouts/frame-layer-props`, `layouts/frame-noplot` (+1 more) | open |
-| Q-0717 | viewports | [U] Does PLOTSETTINGS 70 bit 1 (PlotViewportBorders) suppress or enable plotting of VIEWPORT frames? | 08 §2.2 (bit 1), §8 item 11 (08:T-VP-10) | `layouts/frame-plotflag-bit1-0`, `layouts/frame-plotflag-bit1-1` | open |
-| Q-0718 | viewports | [A] Does PLOT honour VIEWPORT frozen layers (331/341) and per-VP layer color/lw/linetype/transparency overrides (layer xdict XRECORDs) only inside that VIEWPORT? | 08 §3.7; 11a §4, §14; 02 §2.1.3 (08:T-VP-9, 11a:39, 02:T3) | `layouts/vpfreeze`, `layouts/vpfreeze-both-globally-off`, `layouts/vpoverride-color-aci`, `layouts/vpoverride-color-rgb` (+6 more) | open |
-| Q-0719 | viewports | [U] Does AutoCAD ignore VIEWPORT group 1 (plot style sheet) when plotting, using only the layout's CTB? | 08 §3.1 (code 1); 06 §6.1 | `layouts/vp-plotstyle-name` | open |
-| Q-0720 | viewports | [C] Does a VIEWPORT twist (51) of +30 deg rotate model content CCW on paper (ezdxf +twist) or CW (mlightcad -twist)? | 08 §0 item 3, §3.1, §3.5, §3.11, §8 item 6 (08:T-VP-4) | `layouts/viewcenter-target-offset-twist30`, `layouts/twist-0`, `layouts/twist-15`, `layouts/twist-30` (+9 more) | open |
-| Q-0721 | viewports | [T] Is VIEWPORT 12 (view center) interpreted in DCS relative to target 17 (and rotated by twist) when PLOT maps model to paper? | 08 §0 item 2, §3.1, §3.5 (08:T-VP-4) | `layouts/viewcenter-target-center`, `layouts/viewcenter-target-offset`, `layouts/viewcenter-target-and-vc-wcs`, `layouts/viewcenter-target-offset-twist30` (+3 more) | open |
-| Q-0722 | viewports | [A] For a non-plan VIEWPORT view direction, are the DCS X/Y axes the arbitrary-axis-algorithm axes of the view direction (then twisted), as PLOT renders them? | 03 §2.1; 08 §3.4, §3.5, §8 item 6 (08:T-VP-6) | `layouts/view3d-top`, `layouts/view3d-top-nonnormalized`, `layouts/view3d-bottom`, `layouts/view3d-se-iso` (+11 more) | open |
-| Q-0723 | viewports | [U] Does a bottom view (VIEWPORT 16 = 0,0,-1) plot with mirrored X (Xd = -1,0,0) or with an extra twist? | 08 §3.4 (08:T-VP-6) | `layouts/view3d-bottom` | open |
-| Q-0724 | viewports | [T] Does AutoCAD normalize a non-normalized VIEWPORT view direction (e.g. 0,0,5) and plot it as a top view? | 08 §3.1 (16/26/36) (08:T-VP-6) | `layouts/view3d-top-nonnormalized`, `layouts/view3d-se-iso-nonnormalized` | open |
+| Q-0709 | viewports | [U] Does PLOT draw VIEWPORTs with status 68=0 or id 69=0 as normal viewports, and does AutoCAD recompute 68/69 on load? | 08 §3.2, §8 item 7; 11a §14, Open conflicts; 11b §14, Test ideas; 11c §11 (VIEWPORT 68/69 derived, 68 stacking order), §15 item 11, §18 #19 (08:T-VP-1, 08:T-VP-2, 10-11c:11c#19, 11a:39, 11b:19) | `layouts/onoff-flag`, `layouts/status-sweep`, `layouts/status-all-zero`, `layouts/id-zero-minus1` (+5 more) | answered |
+| Q-0710 | viewports | [A] Is VIEWPORT 90 bit 0x20000 (off) what stops a viewport plotting (neither frame nor content), independent of 68? | 08 §3.1.1, §3.2, §8 item 7; 11b §14, Test ideas (08:T-VP-1, 11b:19) | `layouts/onoff-flag` | answered |
+| Q-0711 | viewports | [T] Does AutoCAD write VIEWPORT 68 = 0 for all viewports of a layout that was not activated before DXFOUT (ezdxf#1014)? | 08 §3.2 (08:T-VP-2) | `layouts/status-all-zero`, `layouts/multi-plot-layout1`, `layouts/multi-plot-sheet2`, `layouts/multi-plot-sheet3` | answered |
+| Q-0712 | viewports | [A] Which VIEWPORT is treated as the overall paper-space viewport when 69 = 0/-1 everywhere: the first entity or a structural match? | 08 §3.2, §8 item 8 (08:T-VP-1) | `layouts/id-zero-minus1`, `layouts/ids-all-zero`, `layouts/ids-all-minus1`, `layouts/overall-last` (+1 more) | answered |
+| Q-0713 | viewports | [A] Does PLOT draw all viewports when a layout has more than $MAXACTVP (64) viewports? | 01 §7.2 | `layouts/maxactvp-64`, `layouts/maxactvp-2` | answered |
+| Q-0714 | viewports | [A] Are overlapping viewports plotted in entity order (later on top) rather than in status (68) order? | 08 §3.2, §3.10, §8 item 9 (08:T-VP-8) | `layouts/ps-over-vp-psfirst-n`, `layouts/ps-over-vp-psfirst-y`, `layouts/vp-overlap-order-ab`, `layouts/vp-overlap-order-ba` (+1 more) | answered |
+| Q-0715 | viewports | [A] For a paper-space VIEWPORT on a frozen layer, is the viewport content hidden in PLOT (and on an off layer only the border hidden)? | 02 §2.1.1 | `layouts/vp-on-off-layer`, `layouts/vp-on-frozen-layer` | answered |
+| Q-0716 | viewports | [U] Is the VIEWPORT border plotted with its own color/linetype/lineweight, and omitted when its layer is off/frozen/no-plot (290=0)? | 06 §7.2; 08 §3.6, §5.6; 11a §14 (06:R5, 08:T-VP-10, 11a:39) | `layouts/vp-on-off-layer`, `layouts/vp-on-frozen-layer`, `layouts/frame-layer-props`, `layouts/frame-noplot` (+1 more) | answered |
+| Q-0717 | viewports | [U] Does PLOTSETTINGS 70 bit 1 (PlotViewportBorders) suppress or enable plotting of VIEWPORT frames? | 08 §2.2 (bit 1), §8 item 11 (08:T-VP-10) | `layouts/frame-plotflag-bit1-0`, `layouts/frame-plotflag-bit1-1` | answered |
+| Q-0718 | viewports | [A] Does PLOT honour VIEWPORT frozen layers (331/341) and per-VP layer color/lw/linetype/transparency overrides (layer xdict XRECORDs) only inside that VIEWPORT? | 08 §3.7; 11a §4, §14; 02 §2.1.3 (08:T-VP-9, 11a:39, 02:T3) | `layouts/vpfreeze`, `layouts/vpfreeze-both-globally-off`, `layouts/vpoverride-color-aci`, `layouts/vpoverride-color-rgb` (+6 more) | answered |
+| Q-0719 | viewports | [U] Does AutoCAD ignore VIEWPORT group 1 (plot style sheet) when plotting, using only the layout's CTB? | 08 §3.1 (code 1); 06 §6.1 | `layouts/vp-plotstyle-name` | answered |
+| Q-0720 | viewports | [C] Does a VIEWPORT twist (51) of +30 deg rotate model content CCW on paper (ezdxf +twist) or CW (mlightcad -twist)? | 08 §0 item 3, §3.1, §3.5, §3.11, §8 item 6 (08:T-VP-4) | `layouts/viewcenter-target-offset-twist30`, `layouts/twist-0`, `layouts/twist-15`, `layouts/twist-30` (+9 more) | answered |
+| Q-0721 | viewports | [T] Is VIEWPORT 12 (view center) interpreted in DCS relative to target 17 (and rotated by twist) when PLOT maps model to paper? | 08 §0 item 2, §3.1, §3.5 (08:T-VP-4) | `layouts/viewcenter-target-center`, `layouts/viewcenter-target-offset`, `layouts/viewcenter-target-and-vc-wcs`, `layouts/viewcenter-target-offset-twist30` (+3 more) | answered |
+| Q-0722 | viewports | [A] For a non-plan VIEWPORT view direction, are the DCS X/Y axes the arbitrary-axis-algorithm axes of the view direction (then twisted), as PLOT renders them? | 03 §2.1; 08 §3.4, §3.5, §8 item 6 (08:T-VP-6) | `layouts/view3d-top`, `layouts/view3d-top-nonnormalized`, `layouts/view3d-bottom`, `layouts/view3d-se-iso` (+11 more) | answered |
+| Q-0723 | viewports | [U] Does a bottom view (VIEWPORT 16 = 0,0,-1) plot with mirrored X (Xd = -1,0,0) or with an extra twist? | 08 §3.4 (08:T-VP-6) | `layouts/view3d-bottom` | answered |
+| Q-0724 | viewports | [T] Does AutoCAD normalize a non-normalized VIEWPORT view direction (e.g. 0,0,5) and plot it as a top view? | 08 §3.1 (16/26/36) (08:T-VP-6) | `layouts/view3d-top-nonnormalized`, `layouts/view3d-se-iso-nonnormalized` | answered |
 | Q-0725 | viewports | [U] How does PLOT render a perspective VIEWPORT (90 bit 0x1) from lens length 42 and target/direction? | 08 §3.5 | `layouts/view3d-perspective` | open |
-| Q-0726 | viewports | [T] Do VIEWPORT front/back clip planes (43/44, flags 0x2/0x4) cut geometry at depth > front / depth < back from the target? | 08 §3.5 | `layouts/clipplanes-front-back`, `layouts/clipplanes-front-at-eye-back`, `layouts/clipplanes-back-only` | open |
+| Q-0726 | viewports | [T] Do VIEWPORT front/back clip planes (43/44, flags 0x2/0x4) cut geometry at depth > front / depth < back from the target? | 08 §3.5 | `layouts/clipplanes-front-back`, `layouts/clipplanes-front-at-eye-back`, `layouts/clipplanes-back-only` | answered |
 | Q-0727 | viewports | [U] With a multi-tile *ACTIVE VPORT configuration, which tile defines the model view for plot type Display (first entry, $CVPORT, largest)? | 02 §2.4, §6 | plan: layouts (png) — Two *ACTIVE VPORT entries with different centers/heights, first one not the largest; model plot type Display | open |
 | Q-0728 | viewports | [T] For a plan-view *ACTIVE VPORT with twist, does plot type Display use center/height(40)/aspect(41) and fit height or width when aspect differs? | 02 §2.4 (02:T12) | plan: layouts (png) — *ACTIVE center (100,50), height 40, aspect 2, twist 30; model plot type Display on paper of different aspect | open |
 | Q-0729 | viewports | [U] How does plot type Display map *ACTIVE VPORT center 12/22 (DCS), target 17, view direction and twist 51 to the plotted window? | 02 §2.4; 11b §4, Test ideas (02:T12, 11b:17) | plan: layouts (png) — *ACTIVE with direction (1,1,1), target (10,5,0), center (3,2), height 40; plot type Display | open |
-| Q-0730 | viewports | [A] Does a non-rectangular VIEWPORT (90 0x10000, 340 entity) clip content to the entity, is the entity plotted with its own props, and does it clip on a no-plot layer? | 08 §3.6; 11a §14 (08:T-VP-5, 11a:39) | `layouts/clip-polygon`, `layouts/clip-polygon-noplot`, `layouts/clip-polygon-red-lw50`, `layouts/clip-bulge` (+4 more) | open |
-| Q-0731 | viewports | [A] With a non-rectangular clip entity, does PLOT omit the VIEWPORT's own 40/41 rectangle frame? | 08 §3.6, §8 item 11 (08:T-VP-5) | `layouts/clip-polygon-red-lw50`, `layouts/clip-bulge`, `layouts/clip-circle`, `layouts/clip-ellipse` (+1 more) | open |
+| Q-0730 | viewports | [A] Does a non-rectangular VIEWPORT (90 0x10000, 340 entity) clip content to the entity, is the entity plotted with its own props, and does it clip on a no-plot layer? | 08 §3.6; 11a §14 (08:T-VP-5, 11a:39) | `layouts/clip-polygon`, `layouts/clip-polygon-noplot`, `layouts/clip-polygon-red-lw50`, `layouts/clip-bulge` (+4 more) | answered |
+| Q-0731 | viewports | [A] With a non-rectangular clip entity, does PLOT omit the VIEWPORT's own 40/41 rectangle frame? | 08 §3.6, §8 item 11 (08:T-VP-5) | `layouts/clip-polygon-red-lw50`, `layouts/clip-bulge`, `layouts/clip-circle`, `layouts/clip-ellipse` (+1 more) | answered |
 | Q-0732 | viewports | [A] Can a REGION (besides LWPOLYLINE/CIRCLE/ELLIPSE/closed SPLINE) serve as a VIEWPORT clip entity (340) that PLOT honours? | 08 §3.6 (08:T-VP-3) | plan: layouts (png) — Viewport with 90 bit 0x10000 and 340 -> REGION; compare with LWPOLYLINE clip | open |
 | Q-0733 | viewports | [A] After DXFOUT, are VIEWPORT 40/41/10 of a polygonal viewport equal to the bbox of the clip entity? | 08 §3.6 (08:T-VP-5) | `layouts/clip-bbox-mismatch` | open |
-| Q-0734 | viewports | [A] Are thick-lineweight strokes crossing a viewport border cut straight at the border (no round cap)? | 08 §3.6, §8 item 12 (08:T-VP-3) | `layouts/clip-thick-rect`, `layouts/clip-thick-bulge` | open |
-| Q-0735 | viewports | [U] Are SHX/TTF text and pattern/solid hatches crossing a viewport border clipped partially (geometric cut) in PLOT? | 08 §3.6, §8 item 12 (08:T-VP-3) | `layouts/clip-text-hatch-rect`, `layouts/clip-text-hatch-circle`, `layouts/clip-text-hatch-spline` | open |
+| Q-0734 | viewports | [A] Are thick-lineweight strokes crossing a viewport border cut straight at the border (no round cap)? | 08 §3.6, §8 item 12 (08:T-VP-3) | `layouts/clip-thick-rect`, `layouts/clip-thick-bulge` | answered |
+| Q-0735 | viewports | [U] Are SHX/TTF text and pattern/solid hatches crossing a viewport border clipped partially (geometric cut) in PLOT? | 08 §3.6, §8 item 12 (08:T-VP-3) | `layouts/clip-text-hatch-rect`, `layouts/clip-text-hatch-circle`, `layouts/clip-text-hatch-spline` | answered |
+
+- Q-0709: 68 = 0 is off (content not plotted, frame plotted); −1, 1, 2 … plot; AutoCAD rewrites 90 bit 0x20000 from 68 on load (`layouts/status-*`, `onoff-flag` + DXFOUT).
+- Q-0710: No: 90 bit 0x20000 with 68 = 1 plots; 68 is the switch in the active layout (`layouts/onoff-flag`).
+- Q-0711: Yes: DXFOUT writes 68 = 0 and 69 = 0 for all user viewports of non-activated layouts (`layouts/multi-plot-*` DXFOUT).
+- Q-0712: The VIEWPORT with 69 = 1 wherever it is; without one, all are model viewports and AutoCAD creates a new overall viewport (`layouts/ids-*`, `overall-*`).
+- Q-0713: Yes: all viewports plot regardless of $MAXACTVP (`layouts/maxactvp-*`).
+- Q-0714: Neither: the later-created viewport (higher handle/id) is on top, independent of entity order and 68 (`layouts/vp-overlap-*`).
+- Q-0715: No: on an off or frozen layer only the frame disappears; the content plots (`layouts/vp-on-*-layer`).
+- Q-0716: The frame plots in the VIEWPORT colour, always 1 px continuous (lineweight/linetype ignored), omitted on off/frozen/no-plot/Defpoints layers (`layouts/frame-*`, `vp-on-*`).
+- Q-0717: Neither: 70 bit 1 has no effect (`layouts/frame-plotflag-bit1-*`).
+- Q-0718: Yes: 331 frozen layers and colour/lineweight/linetype overrides apply only inside that viewport (`layouts/vpfreeze*`, `vpoverride-*`).
+- Q-0719: Yes: VIEWPORT 1 is ignored (`layouts/vp-plotstyle-name`).
+- Q-0720: CCW (ezdxf sign) (`calibration/vp-twist`, `layouts/twist-*`).
+- Q-0721: Yes: 12 is in the twisted DCS relative to 17 (`layouts/viewcenter-*`).
+- Q-0722: Yes: arbitrary-axis DCS of the view direction, then twist (`layouts/view3d-*`).
+- Q-0723: Mirrored X (Xd = −1,0,0), no extra twist (`layouts/view3d-bottom`).
+- Q-0724: Yes: the direction is normalized (`layouts/view3d-*-nonnormalized`).
+- Q-0726: Depth = direction · (P − target): back (0x4) keeps depth ≥ 44; front (0x2) keeps depth ≤ 43 with 0x10, depth ≤ 0 without (`layouts/clipplanes-*`).
+- Q-0730: Yes: content clipped to the entity, the entity plots with its own properties, and it clips on a no-plot layer too (`layouts/clip-*`).
+- Q-0731: Yes: no rectangle frame for polygonal viewports (`layouts/clip-*`).
+- Q-0734: Yes: cut straight at the border; a stroke lying on a polygon edge vanishes entirely (`layouts/clip-thick-*`).
+- Q-0735: Yes: text and hatches are cut at the border (the per-pixel result matches a geometric cut) (`layouts/clip-text-hatch-*`).
 
 <a id="library"></a>
 ## Library / non-AutoCAD (`library`)

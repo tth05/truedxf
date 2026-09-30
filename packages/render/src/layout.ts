@@ -10,7 +10,7 @@
  *   draws nothing. Without any id 1 every VIEWPORT is a model viewport (layouts/ids-all-zero,
  *   ids-all-minus1, overall-last, overall-first-looks-like-user).
  * - Viewport content is plotted unless status 68 = 0; 90 bit 0x20000 alone does not switch it off
- *   (layouts/onoff-flag, status-sweep, status-all-zero). Frames are plotted for every viewport
+ *   (layouts/onoff-flag, status-sweep, status-all-zero). Inactive layouts: see plottedViewports. Frames are plotted for every viewport
  *   (also with 68 = 0) unless the VIEWPORT's layer is off/frozen/no-plot/Defpoints; the content
  *   is plotted regardless of that layer (layouts/vp-on-off-layer, vp-on-frozen-layer,
  *   frame-noplot, frame-defpoints). PLOTSETTINGS 70 bit 1 has no effect (frame-plotflag-bit1-*).
@@ -86,12 +86,18 @@ function hexKey(h: string): bigint {
   }
 }
 
-/** Model viewports whose content plots, in plot order (ascending handle). */
-export function plottedViewports(entities: readonly Entity[]): ViewportEntity[] {
+/**
+ * Model viewports whose content plots, in plot order (ascending handle). On/off: status 68 = 0 is
+ * "off" in the active layout (AutoCAD rewrites 90 bit 0x20000 from it on load, layouts/onoff-flag
+ * DXFOUT); AutoCAD writes 68 = 0 for every viewport of a layout that was not activated
+ * (layouts/multi-plot-* DXFOUT, ezdxf#1014), so there only 90 bit 0x20000 counts (ASSUMPTION).
+ */
+export function plottedViewports(entities: readonly Entity[], active = true): ViewportEntity[] {
   const overall = overallViewport(entities);
   const out: { vp: ViewportEntity; i: number; k: bigint }[] = [];
   entities.forEach((e, i) => {
-    if (e.type !== "VIEWPORT" || e === overall || e.status === 0) return;
+    if (e.type !== "VIEWPORT" || e === overall) return;
+    if (active ? e.status === 0 : (e.flags & 0x20000) !== 0) return;
     out.push({ vp: e, i, k: hexKey(e.handle) });
   });
   out.sort((a, b) => (a.k < b.k ? -1 : a.k > b.k ? 1 : a.i - b.i));
@@ -132,7 +138,7 @@ export function drawSpace(fe: Frontend, ctx: LayoutContext): void {
   const entities = fe.drawOrder.entities(ctx.block);
   const state: PaperState = { overall: overallViewport(entities) };
   fe.caches.set(PAPER_KEY, state);
-  const viewports = plottedViewports(entities);
+  const viewports = plottedViewports(entities, isActiveLayout(ctx));
   const content = () => {
     if (!hooks) {
       if (viewports.length > 0) fe.note("viewport-content");

@@ -612,6 +612,44 @@ clip all block content (not ATTRIBs) to polygon wcs_pts
 - The frame is drawn with the INSERT's resolved properties (ezdxf) — **ASSUMPTION**.
 - `FRAME` (registry/drawing?) sets IMAGEFRAME, DWFFRAME, PDFFRAME, DGNFRAME, XCLIPFRAME and
   WIPEOUTFRAME at once (acadsharp#681 quoting Autodesk help).
+- **Settled by §7.5:** 0 = no frame, 1 = frame plotted, 2 = not plotted (the ezdxf docstring is
+  wrong).
+
+### 7.5 AutoCAD results (VERIFIED-BY-ACAD, AutoCAD 2027, xclip suite, 2026-09-30)
+
+References `samples/refs/acad2027-R26.0/xclip/*`; implementation `packages/render/src/draw/xclip.ts`.
+
+- **Boundary → block**: `block = inverse_insert (1st matrix) · second⁻¹ · boundary`, the 2nd
+  matrix mapping the clip-time WCS into the boundary system (transform-matrix-rect/-polygon:
+  the boundary given in a system rotated −30° about (40,30) is honoured; identity is the norm).
+  Two points = axis-aligned rectangle in the boundary system. Then the *current* INSERT transform
+  (block → WCS incl. base point) places it, so the clip follows the INSERT when it is moved,
+  rotated, scaled, mirrored or non-uniformly scaled afterwards, for both storage styles
+  (after-clip-*, rect-block = rect-acad, made-on-*, block-coords-*; Q-0632). A repeated closing
+  vertex is harmless (polygon-closed-repeat).
+- **MINSERT**: one region for the whole array, placed with the transform of cell (0,0); the other
+  cells are clipped by that same region, i.e. only what falls inside it shows (minsert, Q-0636).
+- **Nested clips** intersect (each level in its own space) (nested, nested-child-only; Q-0635).
+- **Disabled** (71 = 0): content unclipped, no frame, for any $XCLIPFRAME (disabled-frame-1/-2).
+- **$XCLIPFRAME** (Q-0628, Q-0629, Q-0630): R2018 280: 0 → no frame, **1 → frame plotted**, 2 →
+  not plotted (xclipframe-0/-1/-2). R2004/R2007 290: 1 → plotted; **value 2 makes AutoCAD reject
+  the file** (r2004/r2007-xclipframe-2 invalid-fixture). The header wins over a DICTIONARYVAR
+  XCLIPFRAME (dictvar-h0-d1, -h1-d0, -h2-d1).
+- **Frame properties**: drawn with the INSERT's resolved colour, lineweight and linetype, the
+  linetype restarting on every boundary edge (per-segment dashes) (frame-props-bylayer/-explicit;
+  Q-0631).
+- **ATTRIBs are not clipped** (attrib-outside, Q-0637).
+- **Front/back clip** along the boundary normal (z in the boundary system): front 40 keeps
+  z ≤ 40, back 41 keeps z ≥ 41; a ramp crossing a plane is cut geometrically (frontback-*;
+  Q-0638). truedxf culls whole entities by their point depth range (crossing entities kept).
+- **Boundary edges**: a model line lying exactly on a 2-point rectangle's edge is drawn (rect-block,
+  x = 10 and 60 grid lines), on a polygon edge it is not (rect-4pt with the same rectangle as a
+  4-point polygon: those lines vanish; polygon-concave x = 40). Lines crossing the boundary end in
+  the pixel that contains the boundary point (truedxf: single-pixel output clipped against the
+  region dilated by ½ px; fills and thick strokes by pixel centre).
+- **Inverted clips** written by ezdxf (ACAD_XREC_ROUNDTRIP) are rejected by AutoCAD
+  ("Invalid or incomplete DXF input", inverted-ezdxf; Q-0633/Q-0639 stay open for AutoCAD-written
+  inverted clips).
 
 ---------------------------------------------------------------------------------------------------
 

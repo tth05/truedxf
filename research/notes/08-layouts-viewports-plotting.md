@@ -180,7 +180,7 @@ DWG field order (ODA 20.4.84, libredwg `dwg.spec:5223`) differs, but the semanti
 
 | Bit | Name | Meaning / UI mapping |
 |---|---|---|
-| 1 | PlotViewportBorders | ObjectARX `plotViewportBorders`. No checkbox in the current UI. Whether it suppresses VIEWPORT frames is **UNKNOWN**. The VIEWPORT frame's plottability is normally governed by its layer (mlightcad-viewer#338). |
+| 1 | PlotViewportBorders | ObjectARX `plotViewportBorders`. No checkbox in the current UI. **VERIFIED-BY-ACAD: no effect on plotted frames (§10.12).** The VIEWPORT frame's plottability is normally governed by its layer (mlightcad-viewer#338). |
 | 2 | ShowPlotStyles | "Display plot styles" in the layout (screen only). |
 | 4 | PlotCentered | "Center the plot". |
 | 8 | PlotHidden | "Hide paperspace objects" (HIDE applied to paper-space 3D objects). |
@@ -188,7 +188,7 @@ DWG field order (ODA 20.4.84, libredwg `dwg.spec:5223`) differs, but the semanti
 | 32 | PlotPlotStyles | "Plot with plot styles". |
 | 64 | ScaleLineweights | "Scale lineweights" (layouts only). |
 | 128 | PrintLineweights | "Plot object lineweights". |
-| 512 | DrawViewportsFirst | ObjectARX name. **Presumably** the "Plot paperspace last" checkbox ("Plots model space geometry first. Paper space geometry is usually plotted before model space geometry", Plot dialog help https://help.autodesk.com/cloudhelp/2018/ENU/AutoCAD-LT/files/GUID-264D3513-0D22-4461-82D6-14F391BC5CDE.htm). **CONFLICT/UNKNOWN:** AutoCAD's own default layouts are commonly written with 70 = 688 (= 16+32+128+512, Model: 1712 = 688+1024). That would mean "paperspace last" is on by default, while the UI default appears to be off. mozman in ezdxf#634: "even AutoCAD (TrueView) ignores this flag". Must be tested (test idea T-VP-8). |
+| 512 | DrawViewportsFirst | ObjectARX name. **Presumably** the "Plot paperspace last" checkbox ("Plots model space geometry first. Paper space geometry is usually plotted before model space geometry", Plot dialog help https://help.autodesk.com/cloudhelp/2018/ENU/AutoCAD-LT/files/GUID-264D3513-0D22-4461-82D6-14F391BC5CDE.htm). **CONFLICT/UNKNOWN:** AutoCAD's own default layouts are commonly written with 70 = 688 (= 16+32+128+512, Model: 1712 = 688+1024). That would mean "paperspace last" is on by default, while the UI default appears to be off. mozman in ezdxf#634: "even AutoCAD (TrueView) ignores this flag". Must be tested (test idea T-VP-8). **VERIFIED-BY-ACAD (§10.12): bit 512 set → the -PLOT prompt "Plot paper space first?" defaults to No = viewports first, paper space on top.** |
 | 1024 | ModelType | Set for the Model layout's LAYOUT (ezdxf sets it on export if name == "Model"). |
 | 2048 | UpdatePaper | Internal. |
 | 4096 | ZoomToPaperOnUpdate | Internal. |
@@ -332,6 +332,8 @@ grid; ezdxf `add_new_main_viewport`). The ezdxf doc example shows 819232 (+0x400
   the rest in status order (`ezdxf:src/ezdxf/addons/drawing/frontend.py:1044-1069`).
   **Consequence:** viewports of a layout that was not active in the last AutoCAD session
   (status 0) are *not drawn* by ezdxf. AutoCAD plots them (UNKNOWN, but almost certain).
+- **Answered by AutoCAD in §10.12** (overall = id 1; on/off = 68 in the active layout; plot order
+  by handle). The original proposal was:
 - **Proposal for truedxf (ASSUMPTION, verify with T-VP-1/2):**
   - The overall viewport is the **first VIEWPORT in the layout's entity order** if its id is 1,
     or if its geometry matches the structural fingerprint. Otherwise take the first with id == 1.
@@ -423,6 +425,9 @@ depth  = d·q     (used for front/back clip only)
 - **Is clipping geometric or at pixel level?** In AutoCAD a thick lineweight stroke crossing the
   border is cut at the border edge, not with a round cap (ASSUMPTION). Text and hatches are
   clipped partially. **UNKNOWN**, test T-VP-3.
+- **VERIFIED-BY-ACAD (§10.12):** the frame plots in the VIEWPORT's colour, 1 px, continuous
+  (lineweight/linetype ignored); off/frozen/no-plot/Defpoints layers hide only the frame; polygonal
+  viewports draw no rectangle. The original assumption was:
 - **The VIEWPORT frame itself** (the rectangle or the polygon) is drawn with the VIEWPORT entity's
   layer/color/linetype/lineweight. It is not plotted if that layer is off/frozen/non-plottable.
   Using a no-plot layer "is a common AutoCAD convention precisely so their frames stay off the
@@ -457,8 +462,8 @@ depth  = d·q     (used for front/back clip only)
   with the viewport zoom.
 - ezdxf always behaves as PSLTSCALE = 1: `get_vp_ltype_scale = 1/max(vp_scale, 0.0001)`
   (`pipeline.py:213-218`). ezdxf#1386 (2026) proposes honouring 0.
-- Which PSLTSCALE is used when plotting a non-current layout: LAYOUT 70 bit 1 of *that* layout
-  (ASSUMPTION, 1.5). Model-tab plot: MSLTSCALE × annotation scale (1.5).
+- Which PSLTSCALE is used when plotting a non-current layout: LAYOUT 70 bit 1 of *that* layout;
+  for the active layout the header $PSLTSCALE (**VERIFIED-BY-ACAD §10.12**). Model-tab plot: MSLTSCALE × annotation scale (1.5).
 - AutoCAD needs a REGEN(ALL) after PSLTSCALE changes on screen. Plots regenerate (ASSUMPTION).
 
 ### 3.9 Lineweights in viewports
@@ -476,6 +481,9 @@ depth  = d·q     (used for front/back clip only)
   paperspace last" is set (Plot dialog help). So by default, viewport content is on top of *all*
   paper-space geometry, which matches ezdxf. With "paperspace last", paper space goes on top.
   The mapping of this option to flag 512 and its default is **UNKNOWN** (2.2).
+  **VERIFIED-BY-ACAD (§10.12):** "Plot paper space first? No" = viewports first, paper on top;
+  "Yes" = paper first; overlapping viewports by creation order; paper WIPEOUTs never mask
+  viewport content.
 - Within paper space: SORTENTS/draw-order table (see note on draw order, `SORTENTS` bit 16 =
   "sorts for plotting"). Among several viewports: probably entity/draw order. **UNKNOWN** (T-VP-8).
 - A WIPEOUT in paper space that covers a viewport: does it hide the viewport content when
@@ -1279,9 +1287,103 @@ group per layer; fills with `b`. A geometry oracle to 1/600 in (0.17 PNG px).
 
 ### 10.11 Still open
 
-Wide-stroke footprint (§10.4), fill edge rule (§10.5), curve tessellation (§10.3), "Plot paper
-space first" polarity (T-VP-8), transparency (T-PL-6), orientation/upside-down (T-PL-7), page-setup
-oracle (T-PL-8), Extents plots (T-PL-9), text and linetypes.
+Wide-stroke footprint (§10.4), fill edge rule (§10.5), curve tessellation (§10.3), transparency
+(T-PL-6), orientation/upside-down (T-PL-7), page-setup oracle (T-PL-8), Extents plots (T-PL-9),
+text and linetypes. ("Plot paper space first" polarity: answered in §10.12.)
+
+### 10.12 Layouts and viewports (layouts suite, 169 cases, 2026-09-30)
+
+VERIFIED-BY-ACAD, AutoCAD 2027 through `tools/acad` (`samples/refs/acad2027-R26.0/layouts/*`;
+implementation `packages/render/src/layout.ts`, `draw/viewport.ts`). Case ids in brackets.
+
+**Plot area and paper frame**
+- **Plot area "Layout" on the raster device: 1 device pixel = 1 paper unit** (mm or inch; the
+  `-PLOT` "Fit" answer is ignored), paper-space (0,0) at the lower-left canvas corner with plot
+  offset 0,0; negative paper coordinates (margins + offset 46/47) fall outside. LAYOUT limits,
+  margins and 73 play no role (area-layout-mm/-inch/-*-margins-offset, area-layout-rotation-1..3
+  with the harness' Landscape, bogus-limits-layout, calibration/layout-area-layout). Window plots
+  of layouts use the §10.2 mapping in paper units (area-window-*).
+- Open: in area-window-inch-margins-offset (16×12 in, margins + offset, 125 px/in) paper geometry
+  on the right lands 1–2 px left of the §10.2 prediction (x = 12.8 in → col 1880 instead of 1881),
+  as if the scale were ≈ 124.96 px/in; the mm and plain inch variants are exact.
+
+**Which viewports plot**
+- The **overall viewport is the VIEWPORT with 69 = 1**, wherever it is in the entity list; it
+  draws neither frame nor content (overall-last, overall-first-looks-like-user: a user viewport
+  with id 1 is treated as the overall one and vanishes, the real overall viewport with id 2 is
+  plotted as a model viewport at 1:1). Without any id 1 (ids-all-zero, ids-all-minus1) every
+  VIEWPORT is a model viewport, and DXFOUT shows AutoCAD created a new overall viewport (id 1,
+  90 = 32800) and renumbered the others.
+- **On/off is 68, not 90**: content plots unless 68 = 0 (68 = −1, 1, 2 … all plot); 90 bit
+  0x20000 with 68 = 1 plots (onoff-flag, status-sweep, status-all-zero). On load AutoCAD rewrites
+  90 bit 0x20000 from 68 (DXFOUT of onoff-flag / status-all-zero: 68 = 0 → 90 = 0x20000; 68 = 1
+  with 0x20000 → 90 = 0).
+- **Non-activated layouts are written with 68 = 0 and 69 = 0** for all user viewports (DXFOUT of
+  multi-plot-*; ezdxf#1014 confirmed, Q-0711) while they still plot. truedxf therefore applies
+  "68 = 0 = off" to the active layout (`*Paper_Space`) only and uses 90 bit 0x20000 for the
+  other layouts (ASSUMPTION for AutoCAD-written inactive layouts; the generated inactive layouts
+  had 68 = 2 and plotted, multi-plot-sheet2/-sheet3).
+- All viewports plot beyond $MAXACTVP (maxactvp-2, maxactvp-64).
+- LAYOUT 70 bits 8192/16384 and a missing overall viewport do not matter; such layouts open and
+  plot (no-overall*, initflags-with-overall, Q-0704).
+
+**Frames**
+- Rectangular viewports plot their rectangle (40/41) **in the VIEWPORT's colour, always 1 px and
+  continuous**: the VIEWPORT's lineweight and linetype are ignored (frame-layer-props: layer
+  0.50 mm DASHED and entity 1.00 mm DASHDOT both plot as 1-px solid lines in colours 1 / 3).
+- A VIEWPORT on an off, frozen, no-plot (290 = 0) or Defpoints layer loses only its frame; its
+  **content still plots** (vp-on-off-layer, vp-on-frozen-layer, frame-noplot, frame-defpoints give
+  identical images). Frames also plot for viewports with 68 = 0 (status-all-zero).
+- PLOTSETTINGS 70 bit 1 (PlotViewportBorders) has no effect (frame-plotflag-bit1-0/-1, Q-0717).
+- Non-rectangular viewports (90 bit 0x10000 + 340) draw no rectangle; the clip entity plots as an
+  ordinary paper-space entity with its own properties (clip-polygon-red-lw50, clip-bulge …); the
+  clip entity wins over 10/40/41 (clip-bbox-mismatch).
+
+**Transform** (§3.5 formula, twist CCW): verified for scales 1:10 … 2:1, view centre in DCS with
+target offsets and twist (viewcenter-*, twist-* incl. 180/270/400/−45), and 3D views with the
+arbitrary-axis DCS (view3d-*: top/bottom/front/back/left/right/iso/oblique; bottom = mirrored X,
+non-normalized directions are normalized; Q-0722/0723/0724). Perspective (90 bit 0x1) is not
+implemented (view3d-perspective). VIEWPORT UCS (71/110-112/146) has no effect (ucs-per-viewport).
+
+**Front/back clip planes** (clipplanes-*, model LINEs at z = −50…50, 43 = 20, 44 = −20):
+back clip (0x4) keeps depth ≥ 44; front clip (0x2) keeps depth ≤ 43 only with 0x10 ("front clip
+not at eye"); without 0x10 the front plane is at the target (depth ≤ 0). Depth = view direction ·
+(P − target) (Q-0726).
+
+**Clipping** (note 07 §7.5 has the XCLIP side): thick strokes crossing a viewport border are cut
+straight at the border, no caps outside (clip-thick-rect). A 2.11 mm model line lying exactly on
+a polygonal clip boundary disappears completely (clip-thick-bulge, x = 60), i.e. AutoCAD clips
+the centre line geometrically (boundary-collinear pieces dropped for polygons) and then clips the
+widened stroke to the region. Solid fills in viewports stop one pixel short of the frame on the
+right/top in some cases (ps-over-vp-psfirst-y: frame at col 1600 / row 299, fill to col 1598 /
+row 301, 1-px gap) while thick strokes reach the pixel next to the frame (clip-thick-rect) — open
+(fill edge rule, §10.5). The log's per-viewport "Effective plotting area" (e.g. 1198 × 898 for a
+1200 × 900 px viewport) reflects this inset.
+
+**Draw order**
+- "Plot paper space first? **No**" (the default answer when PLOTSETTINGS 70 bit 512
+  DrawViewportsFirst is set, e.g. 688; "Yes" is the default without it — ps-over-vp-flag512-0/-1
+  logs): all viewport content first, paper-space entities on top. "Yes": paper space first,
+  viewport content on top (ps-over-vp-psfirst-n/-y; Q-0292). The log order "Plotting viewport 2 …
+  Plotting viewport 1" matches (1 = paper space).
+- A paper-space WIPEOUT **never masks viewport content**, also when paper space is plotted last
+  (wipeout-over-vp-psfirst-n/-y, Q-0294).
+- Overlapping viewports: the later-created one (higher handle, higher 69) is on top, independent
+  of entity order and 68 (vp-overlap-order-ab/-ba, vp-overlap-status-swapped; Q-0714).
+
+**Layer state, linetypes, lineweights**
+- VIEWPORT 331 frozen layers hide only in that viewport, also for INSERTs on the layer and for
+  nested non-0 content (vpfreeze, vpfreeze-both-globally-off, insert-vpfreeze-l1/-l2; Q-0620,
+  Q-0718); per-VP layer overrides (colour ACI/RGB, lineweight, linetype) apply only there
+  (vpoverride-*). LAYER 70 bit 2 has no plot effect (newvpfrozen-model/-layout, Q-0285).
+  The VIEWPORT's own plot style sheet (1) is ignored (vp-plotstyle-name, Q-0719).
+- **PSLTSCALE: the header `$PSLTSCALE` decides for the active layout, LAYOUT 70 bit 1 for other
+  layouts**: psltscale-h1-l0 = h1-l1 (paper dash 64-65 px in 1:1, 1:4 and 1:10 strips) and
+  h0-l1 = h0-l0 (dashes scale with the viewport); psltscale-two-layouts: header 1, Sheet2 bit 1 =
+  0 → Sheet2 plots unscaled dashes (Q-0315, Q-0316, Q-0317). PLOT regenerates, no REGENALL needed
+  (Q-0318). Dash lengths on paper = pattern × LTSCALE × 48 with PSLTSCALE 1.
+- Lineweights through viewports are absolute paper widths, independent of the viewport scale
+  (lineweight-vp-scale).
 
 ---
 

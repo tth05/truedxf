@@ -12,6 +12,7 @@ export * from "./bounds.ts";
 export * from "./ellipse.ts";
 export * from "./fit.ts";
 export * from "./flatten.ts";
+export * from "./length.ts";
 export * from "./linalg.ts";
 export * from "./matrix.ts";
 export * from "./nurbs.ts";

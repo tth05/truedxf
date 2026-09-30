@@ -20,8 +20,10 @@ import {
   segmentBounds,
   segmentDerivativeAt,
   segmentEnd,
+  segmentLength,
   segmentPointAt,
   segmentStart,
+  subpathLength,
   TAU,
   toleranceForTransform,
   transformSegment,
@@ -231,5 +233,56 @@ describe("PathBuilder", () => {
     const r = reverseSubpath(p.subpaths[1]!);
     expectPointClose(segmentStart(r.segments[0]!), segmentEnd(p.subpaths[1]!.segments[2]!), 1e-15);
     expect(() => new PathBuilder().lineTo({ x: 0, y: 0 })).toThrow();
+  });
+});
+
+describe("arc length", () => {
+  it("is exact for lines/arcs and matches ellipse / Bézier / NURBS references", () => {
+    expect(segmentLength(lineSegment({ x: 0, y: 0 }, { x: 3, y: 4 }))).toBe(5);
+    expect(segmentLength(arcSegment({ center: { x: 0, y: 0 }, radius: 2, start: 0, sweep: -Math.PI }))).toBe(
+      2 * Math.PI,
+    );
+    // Full ellipse a = 2, b = 1: 9.68844822054767… (complete elliptic integral).
+    const e = ellipticArcSegment({
+      center: { x: 0, y: 0 },
+      u: { x: 2, y: 0 },
+      v: { x: 0, y: 1 },
+      start: 0,
+      sweep: TAU,
+    });
+    expect(segmentLength(e)).toBeCloseTo(9.688448220547675, 12);
+    // Straight cubic with uneven control points: length = chord.
+    expect(
+      segmentLength(cubicSegment({ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 9, y: 0 }, { x: 10, y: 0 })),
+    ).toBeCloseTo(10, 12);
+    // Rational quarter circle as NURBS.
+    const q = new NurbsCurve(
+      2,
+      2,
+      Float64Array.of(1, 0, 1, 1, 0, 1),
+      Float64Array.of(0, 0, 0, 1, 1, 1),
+      Float64Array.of(1, Math.SQRT1_2, 1),
+    );
+    expect(segmentLength(nurbsSegment(q))).toBeCloseTo(Math.PI / 2, 12);
+    expect(
+      subpathLength({
+        segments: [lineSegment({ x: 0, y: 0 }, { x: 1, y: 0 }), lineSegment({ x: 1, y: 0 }, { x: 1, y: 1 })],
+        closed: true,
+      }),
+    ).toBeCloseTo(2 + Math.SQRT2, 15);
+  });
+
+  it("agrees with fine flattening (property)", () => {
+    fc.assert(
+      fc.property(segmentArb, (s) => {
+        const p = flattenSubpath({ segments: [s], closed: false }, 1e-4 * segmentScale(s)).points;
+        let l = 0;
+        for (let i = 2; i < p.length; i += 2) l += Math.hypot(p[i]! - p[i - 2]!, p[i + 1]! - p[i - 1]!);
+        const exact = segmentLength(s);
+        expect(exact).toBeGreaterThanOrEqual(l * (1 - 1e-9) - 1e-12 * segmentScale(s));
+        expect(Math.abs(exact - l)).toBeLessThanOrEqual(1e-3 * Math.max(1, exact));
+      }),
+      { ...FC_RUNS, numRuns: 100 },
+    );
   });
 });

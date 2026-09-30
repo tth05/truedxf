@@ -154,7 +154,7 @@ const viewer = new DxfViewer(viewerHost, {
   loadImage: async (path) => {
     if (!imageBase) return undefined;
     const r = await fetch(imageBase(path));
-    return r.ok ? new Uint8Array(await r.arrayBuffer()) : undefined;
+    return r.status === 200 ? new Uint8Array(await r.arrayBuffer()) : undefined;
   },
 });
 (window as unknown as { viewer: DxfViewer }).viewer = viewer;
@@ -457,6 +457,8 @@ async function showInspector(handle: string | undefined): Promise<void> {
     );
     return;
   }
+  // the worker may still be busy (e.g. a level-of-detail render): show that something happens
+  mount(inspector, head, h("div", { class: "hint" }, `Loading ${handle}…`));
   let e: EntityInfo | undefined;
   try {
     e = await viewer.inspect(handle);
@@ -557,11 +559,11 @@ async function openFixture(c: FixtureCase): Promise<void> {
 async function openCorpus(row: CorpusRow): Promise<void> {
   // corpus names contain '#', '%', spaces…: encode each path segment
   const enc = (p: string) => p.split("/").map(encodeURIComponent).join("/");
-  const dir = enc(row.path.split("/").slice(0, -1).join("/"));
+  const dir = `external/${row.path.split("/").slice(0, -1).join("/")}`;
   await openSource(
     `${API}file/external/${enc(row.path)}`,
     basenameOf(row.path),
-    (p) => `${API}file/external/${dir}/${encodeURIComponent(basenameOf(p))}`,
+    (p) => `${API}near-image?${new URLSearchParams({ dir, path: p })}`,
   );
 }
 
@@ -602,7 +604,9 @@ async function initModes(): Promise<void> {
   } catch {
     // storage unavailable
   }
-  set(saved === "fixtures" || saved === "corpus" ? saved : "viewer");
+  // a ?file= link opens in the viewer; otherwise restore the last mode
+  const fromUrl = new URLSearchParams(location.search).has("file");
+  set(!fromUrl && (saved === "fixtures" || saved === "corpus") ? saved : "viewer");
 }
 
 // ---- start -------------------------------------------------------------------------------------

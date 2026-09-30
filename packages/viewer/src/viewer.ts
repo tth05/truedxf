@@ -115,17 +115,31 @@ interface CurrentList {
   pick: PickIndex;
 }
 
-/** Default font loader: GET `<base><name>`; 404 → missing. Results are cached. */
+/**
+ * Default font loader: GET `<base><name>` (lower-case file name). When `<base>index.json` lists
+ * the available files, only listed files are requested — text styles make the resolver probe
+ * many candidate names, and missing ones must not show up as failed requests. Cached.
+ */
 export function fetchFontLoader(base: string): AssetLoader {
   const cache = new Map<string, Promise<Uint8Array | undefined>>();
   const root = base.endsWith("/") ? base : `${base}/`;
+  let index: Promise<Set<string> | undefined> | undefined;
   return (name) => {
     const key = name.toLowerCase();
     let p = cache.get(key);
     if (!p) {
-      p = fetch(`${root}${encodeURIComponent(key)}`)
-        .then(async (r) => (r.ok ? new Uint8Array(await r.arrayBuffer()) : undefined))
+      index ??= fetch(`${root}index.json`)
+        .then(async (r) =>
+          r.ok ? new Set(((await r.json()) as string[]).map((x) => x.toLowerCase())) : undefined,
+        )
         .catch(() => undefined);
+      p = index.then((known) =>
+        known && !known.has(key)
+          ? undefined
+          : fetch(`${root}${encodeURIComponent(key)}`)
+              .then(async (r) => (r.status === 200 ? new Uint8Array(await r.arrayBuffer()) : undefined))
+              .catch(() => undefined),
+      );
       cache.set(key, p);
     }
     return p;
@@ -696,8 +710,7 @@ export class DxfViewer {
       const b = cur.batches[r.batch];
       if (!b) continue;
       const pos = b.positions.slice(r.first * 2, (r.first + r.count) * 2);
-      const geom = new THREE.BufferGeometry();
-      geom.setAttribute("position", new THREE.BufferAttribute(pos, 2));
+      const geom = geometry2d(pos);
       const common = { color, transparent: true, opacity, depthTest: false, depthWrite: false };
       let obj: THREE.Object3D;
       if (b.kind === Kind.Lines) obj = new THREE.LineSegments(geom, new THREE.LineBasicMaterial(common));
@@ -752,8 +765,7 @@ export class DxfViewer {
     const b = this.measureB ?? this.cursorWorld;
     // positions relative to point a (float32 precision), group positioned at a
     const pts = b ? [0, 0, b[0] - a[0], b[1] - a[1]] : [0, 0];
-    const g = new THREE.BufferGeometry();
-    g.setAttribute("position", new THREE.BufferAttribute(new Float32Array(pts), 2));
+    const g = geometry2d(new Float32Array(pts));
     const common = { color: MEASURE_COLOR, transparent: true, depthTest: false, depthWrite: false };
     const line = new THREE.LineSegments(g, new THREE.LineBasicMaterial(common));
     const dots = new THREE.Points(
@@ -915,11 +927,7 @@ function isDark(c: readonly [number, number, number]): boolean {
 function rectMesh(r: Rect, color: number, opacity: number): THREE.Mesh {
   const w = r.maxX - r.minX;
   const h = r.maxY - r.minY;
-  const g = new THREE.BufferGeometry();
-  g.setAttribute(
-    "position",
-    new THREE.BufferAttribute(new Float32Array([0, 0, w, 0, w, h, 0, 0, w, h, 0, h]), 2),
-  );
+  const g = geometry2d(new Float32Array([0, 0, w, 0, w, h, 0, 0, w, h, 0, h]));
   const m = new THREE.Mesh(
     g,
     new THREE.MeshBasicMaterial({
@@ -934,6 +942,18 @@ function rectMesh(r: Rect, color: number, opacity: number): THREE.Mesh {
   m.position.set(r.minX, r.minY, 0);
   m.frustumCulled = false;
   return m;
+}
+
+/**
+ * Geometry from x, y pairs. three.js computes bounding spheres for sorting transparent objects;
+ * with 2-component positions that gives NaN (and console errors), so a fixed sphere is set
+ * (overlays are at z = 0 and never frustum-culled).
+ */
+function geometry2d(xy: Float32Array): THREE.BufferGeometry {
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.BufferAttribute(xy, 2));
+  g.boundingSphere = new THREE.Sphere(new THREE.Vector3(), Number.POSITIVE_INFINITY);
+  return g;
 }
 
 function disposeChildren(g: THREE.Group): void {

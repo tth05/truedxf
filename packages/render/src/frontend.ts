@@ -237,6 +237,17 @@ export class Frontend {
     edges?: Float64Array;
   }[] = [];
   private readonly pixelScratch: number[] = [];
+  /**
+   * Pick identity for entities without a handle while drawing generated content (dimension /
+   * leader / tolerance geometry parsed from a synthetic document, whose ids are not document
+   * ids): the generating entity (draw/dimension.ts drawGenerated).
+   */
+  pickOwner: string | undefined;
+
+  /** Pick identity of an entity (handle, generating entity, or "#id"). */
+  pickId(e: Entity): string {
+    return e.handle || this.pickOwner || `#${e.id}`;
+  }
 
   constructor(
     doc: DxfDocument,
@@ -314,7 +325,7 @@ export class Frontend {
       this.note(`entity:${e.dxfType}`);
       return;
     }
-    this.builder.beginEntity(e.handle || `#${e.id}`);
+    this.builder.beginEntity(this.pickId(e));
     if (this.transparency && this.grid && this.alpha(this.resolve(e, st)) < 255)
       this.drawTransparent(e, st, drawer);
     else drawer(this, e, st);

@@ -56,6 +56,22 @@ export function drawGenerated(
   parent: Entity,
   st: DrawState,
 ): void {
+  const owner = fe.pickOwner;
+  fe.pickOwner = parent.handle || `#${parent.id}`;
+  try {
+    drawGeneratedContent(fe, block, local, parent, st);
+  } finally {
+    fe.pickOwner = owner;
+  }
+}
+
+function drawGeneratedContent(
+  fe: Frontend,
+  block: Block,
+  local: Matrix44,
+  parent: Entity,
+  st: DrawState,
+): void {
   const fonts = FONTS.get(fe.doc);
   if (!fonts) {
     fe.drawBlockContent(block, local, parent, st);
@@ -75,7 +91,7 @@ export function drawGenerated(
         continue;
       }
       if (!fe.props.isPlotted(e, inh)) continue;
-      fe.builder.beginEntity(e.handle || `#${e.id}`);
+      fe.builder.beginEntity(fe.pickId(e));
       drawLayout(fe, layoutMText(e as MTextEntity, fonts, { dimension: true }), e, sub.m, inh);
       fe.builder.endEntity();
     } catch (err) {

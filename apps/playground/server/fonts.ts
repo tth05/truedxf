@@ -43,6 +43,8 @@ export function indexFonts(dirs: readonly string[]): Map<string, string> {
   return out;
 }
 
+export const FONT_FILE = /\.(shx|ttf|ttc|otf)$/i;
+
 export function fontMiddleware(dirs: () => readonly string[]) {
   let index: Map<string, string> | undefined;
   return (req: IncomingMessage, res: ServerResponse, next: () => void) => {
@@ -50,6 +52,12 @@ export function fontMiddleware(dirs: () => readonly string[]) {
     const m = /^\/fonts\/([^/]+)$/.exec(url);
     if (!m) return next();
     index ??= indexFonts(dirs());
+    if (m[1] === "index.json") {
+      // the font loader asks only for listed files: no 404s for fonts a drawing merely probes
+      res.setHeader("content-type", "application/json");
+      res.end(JSON.stringify([...index.keys()].filter((k) => FONT_FILE.test(k))));
+      return;
+    }
     const name = decodeURIComponent(m[1]!).toLowerCase();
     const hit = index.get(name);
     if (!hit) {

@@ -252,9 +252,14 @@ export function samplePath(rel: string, root = SAMPLES): string | undefined {
 const RASTER = /\.(png|jpe?g|tiff?|bmp|gif|pdf)$/i;
 
 function fixtureImage(suite: string, path: string, root = SAMPLES): string | undefined {
+  if (!/^[\w.-]+$/.test(suite)) return undefined;
+  return nearImage(join(root, "generated", suite), path, root);
+}
+
+/** A raster file referenced by an IMAGEDEF path, looked up relative to `dir` (below samples/). */
+export function nearImage(dir: string, path: string, root = SAMPLES): string | undefined {
   const p = path.replaceAll("\\", "/");
-  if (!RASTER.test(p) || !/^[\w.-]+$/.test(suite)) return undefined;
-  const dir = join(root, "generated", suite);
+  if (!RASTER.test(p)) return undefined;
   for (const t of [
     isAbsolute(p) || /^[a-z]:\//i.test(p) ? undefined : join(dir, p),
     join(dir, basename(p)),
@@ -269,6 +274,15 @@ const MIME: Record<string, string> = {
   ".json": "application/json",
   ".dxf": "application/octet-stream",
 };
+
+/** Images: a missing IMAGEDEF file is expected (drawn as a frame) — 204, not an error. */
+function sendImage(res: ServerResponse, file: string | undefined): void {
+  if (file) send(res, file);
+  else {
+    res.statusCode = 204;
+    res.end();
+  }
+}
 
 function send(res: ServerResponse, file: string): void {
   res.statusCode = 200;
@@ -305,8 +319,12 @@ export function samplesMiddleware(root = SAMPLES) {
         const rest = route.slice(6);
         const cut = rest.indexOf("/");
         const f = cut > 0 ? fixtureImage(rest.slice(0, cut), rest.slice(cut + 1), root) : undefined;
-        if (f) send(res, f);
-        else json(res, { error: "not found" }, 404);
+        sendImage(res, f);
+      } else if (route === "near-image") {
+        // ?dir=<folder below samples/>&path=<IMAGEDEF path>
+        const dir = resolve(root, url.searchParams.get("dir") ?? "");
+        const inside = dir === root || dir.startsWith(root + sep);
+        sendImage(res, inside ? nearImage(dir, url.searchParams.get("path") ?? "", root) : undefined);
       } else json(res, { error: "not found" }, 404);
     } catch (e) {
       json(res, { error: String(e) }, 500);

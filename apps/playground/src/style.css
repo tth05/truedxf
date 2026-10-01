@@ -410,6 +410,31 @@ select {
 .measure-chip.on {
   display: block;
 }
+.layout-notice {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  max-width: 380px;
+  padding: 14px 18px;
+  border-radius: 10px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  text-align: center;
+  display: none;
+  z-index: 3;
+  pointer-events: none;
+}
+.layout-notice.on {
+  display: block;
+}
+.layout-notice b {
+  color: var(--text);
+}
+.layout-notice p {
+  margin: 6px 0 0;
+}
 
 /* ---- right panel ---- */
 .kv {

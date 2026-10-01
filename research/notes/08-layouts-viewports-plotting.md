@@ -1459,6 +1459,21 @@ Cases `probe-thick` (11 lineweights × 24 directions + zero-length), `thick-prob
 
 ---
 
+## 11. Never-activated layouts
+
+A layout created but never activated in AutoCAD has an empty paper-space block (not even the
+overall VIEWPORT, id 1), paper size 0 x 0 and default limits (0,0)-(12,9). Example:
+`Studienleistung-Bebauungsplan.dxf` "Layout2" (local user sample).
+
+- VERIFIED-BY-ACAD user/bebauungsplan-l2, user/bebauungsplan-l2ext (2026-10-01): accoreconsole
+  plots the layout blank (window "layout" and "extents" alike); the log shows "Regenerating
+  layout." and the page setup falls back to the device default (ANSI A for DWG To PDF). DXFOUT
+  keeps the layout untouched: 0 entities, paper 0 x 0. The console never initializes it.
+- The AutoCAD GUI initializes the layout when its tab is first activated (default page setup and,
+  with LAYOUTCREATEVIEWPORT = 1, a viewport showing the model extents). That is editor behaviour,
+  not file content: truedxf renders the layout empty and the viewer marks it as such
+  (`LayoutInfo.empty`). UNVERIFIED: the exact default page/viewport the GUI creates.
+
 ## Sources
 
 Local: `spec` p.150-155 (VIEWPORT), p.176-178 (LAYOUT), p.189-191 (PLOTSETTINGS), header vars

@@ -35,6 +35,12 @@ export interface LayoutInfo {
   paper?: Rect;
   /** Paper-space extents stored in the LAYOUT object (when valid), for layouts without a sheet. */
   extents?: Rect;
+  /**
+   * Paper layout without any entity (not even its overall VIEWPORT): never activated in AutoCAD.
+   * The AutoCAD GUI initializes such a layout on first activation (page setup, default viewport);
+   * the file has nothing to show and accoreconsole plots it blank (note 08 §11).
+   */
+  empty?: boolean;
 }
 
 export interface LayerInfo {
@@ -451,6 +457,7 @@ export function describe(doc: DxfDocument, name: string, byteLength: number, par
         isModel: l.isModel,
         tabOrder: l.tabOrder,
       };
+      if (!l.isModel && l.block.entities.length === 0) info.empty = true;
       const o = l.object;
       if (!l.isModel && o) {
         const ext = {

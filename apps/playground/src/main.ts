@@ -104,6 +104,7 @@ const emptyState = h(
 const busy = h("div", { class: "busy" }, h("span", { class: "spinner" }), h("span", {}, "Loading"));
 const toast = h("div", { class: "toast" });
 const measureChip = h("div", { class: "measure-chip" });
+const layoutNotice = h("div", { class: "layout-notice" });
 const compare = new ComparePanel();
 compare.root.style.display = "none";
 const stage = h(
@@ -114,6 +115,7 @@ const stage = h(
   h("div", { class: "drop" }, "Drop to open"),
   busy,
   measureChip,
+  layoutNotice,
   compare.root,
   toast,
 );
@@ -389,7 +391,26 @@ function renderLayouts(): void {
         },
         icon(l.isModel ? ICONS.model : ICONS.layout),
         h("span", { class: "name" }, l.name),
+        h("span", { class: "meta" }, l.empty ? "empty" : ""),
       ),
+    ),
+  );
+  renderLayoutNotice();
+}
+
+/** Marks a never-initialized layout: the file has no content for it (see LayoutInfo.empty). */
+function renderLayoutNotice(): void {
+  const l = viewer.layouts.find((x) => x.name === viewer.layout);
+  layoutNotice.classList.toggle("on", l?.empty === true);
+  if (!l?.empty) return;
+  mount(
+    layoutNotice,
+    h("b", {}, `Layout "${l.name}" is empty`),
+    h(
+      "p",
+      {},
+      "It was never opened in AutoCAD, so the file stores no viewport or page setup for it. " +
+        "AutoCAD creates a default viewport the first time the tab is activated.",
     ),
   );
 }

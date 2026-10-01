@@ -1147,7 +1147,9 @@ For arcs and ellipses after an arbitrary affine map M: with `U' = M·U, V' = M·
 **VERIFIED-BY-ACAD** via DXFOUT $EXTMIN/$EXTMAX of the Extents probes (AutoCAD 2027, 2026-09-30; `extents/probe-*`,
 Q-0107…Q-0118): extents **include** entities on off, no-plot and Defpoints layers (incl. DIMENSIONs on Defpoints),
 the thickness top of extruded LINEs, the full band of wide polylines, the PDMODE symbol, the SPLINE curve (not its
-control hull) and a pattern HATCH's boundary (not its pattern lines); they **exclude** invisible (60 = 1) entities,
+control hull) and a pattern HATCH's boundary (not its pattern lines — truedxf adds every loop's flattened points
+in the extents pass, render/src/draw/hatch.ts, also for too-dense hatches that plot nothing and, ASSUMPTION, with
+FILLMODE 0; `extents/probe-hatch-pattern` F1 0.001 → 0.16, the rest is the open padding rule below); they **exclude** invisible (60 = 1) entities,
 frozen layers, 3DFACE vertices touched only by invisible edges and lineweight widths. The plotted Extents area is
 slightly larger than $EXTMIN/$EXTMAX (e.g. 20 × 10 extents → "Effective plotting area: 2000.00 wide by 1004.45 high"
 at 99 px/unit instead of 100); that padding rule is open. 2026-10-01 probes (note 08 §10.15,

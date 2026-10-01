@@ -69,4 +69,60 @@ ${squarePath(0, 0, 1, true)}
     expect(b[2]).toBeCloseTo(101, 6);
     expect(b[3]).toBeCloseTo(51, 6);
   });
+
+  it("a too-dense pattern plots nothing but its boundary still spans the extents", async () => {
+    // 1 line every 0.001 on a 200 × 200 square: ~283,000 lines > 100,000 (note 06 §1.6.3)
+    const d = modelDoc({
+      entities: `0 HATCH
+5 A0
+330 1F
+100 AcDbEntity
+8 0
+100 AcDbHatch
+10 0
+20 0
+30 0
+210 0
+220 0
+230 1
+2 _USER
+70 0
+71 0
+${squarePath(0, 0, 100)}
+75 0
+76 0
+52 0
+41 1
+77 0
+78 1
+53 45
+43 0
+44 0
+45 -0.000707106781
+46 0.000707106781
+79 0
+98 0
+0 LINE
+5 A1
+330 1F
+100 AcDbEntity
+8 0
+100 AcDbLine
+10 0
+20 0
+30 0
+11 1
+21 1
+31 0`,
+    });
+    const r = await renderPlot(d, extents, { raster: "smooth" });
+    expect(r.unsupported["hatch-too-dense"]).toBe(1);
+    // only the LINE is drawn
+    const b = inkBounds(r.displayList);
+    expect(b[0]).toBeGreaterThan(-1);
+    expect(b[2]).toBeLessThan(2);
+    // the view spans the hatch boundary
+    expect(r.view.minX).toBeLessThanOrEqual(-100);
+    expect(r.view.maxX).toBeGreaterThanOrEqual(100);
+  });
 });

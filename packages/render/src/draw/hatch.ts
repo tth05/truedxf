@@ -115,6 +115,10 @@ registerDrawer(["HATCH", "MPOLYGON"], (fe, e, st) => {
     if (pts.length >= 6) loops.push({ points: pts, flags: p.flags });
   }
   if (loops.length === 0) return;
+  // The boundary counts for the drawing extents, not the pattern lines, so a pattern hatch (or a
+  // too-dense one that plots nothing) still spans its loops. VERIFIED-BY-ACAD
+  // extents/probe-hatch-pattern (note 03 §6.2). Taken to hold with FILLMODE 0 too (ASSUMPTION).
+  if (fe.props.extents) for (const l of loops) fe.builder.points(l.points, fe.color(r));
   // FILLMODE 0 hides every hatch completely, pattern hatches too, no outline. VERIFIED-BY-ACAD
   // (hatches/solid-fillmode-0 is an ANSI31 hatch; note 06)
   if (!fe.fillMode) return;

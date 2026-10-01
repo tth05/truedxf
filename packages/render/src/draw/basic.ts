@@ -30,6 +30,7 @@ import {
   widePolylineOutline,
 } from "@truedxf/geometry";
 import type {
+  AcadTableEntity,
   ArcEntity,
   CircleEntity,
   EllipseEntity,
@@ -38,6 +39,7 @@ import type {
   InsertEntity,
   LineEntity,
   LwPolylineEntity,
+  Point3,
   PointEntity,
   PolylineEntity,
   RayEntity,
@@ -645,6 +647,27 @@ function drawInfiniteForViewing(
   fe.builder.setUnbounded(false);
 }
 
+/**
+ * Block reference transform (block coordinates → WCS): OCS · T(insert) · R(rotation) · cell ·
+ * S(scale) · T(−base). A zero scale factor is read as 1 (AutoCAD repairs it on load).
+ * VERIFIED-BY-ACAD blocks/zero-scale-x, zero-scale-y
+ */
+function blockReferenceMatrix(
+  r: { insert: Point3; scale: Point3; rotation: number; extrusion: Point3 },
+  base: Point3,
+  cell: Matrix44 = Matrix44.identity(),
+): Matrix44 {
+  const s1 = (v: number) => (v === 0 ? 1 : v);
+  return Matrix44.product(
+    ocsToWcsMatrix(r.extrusion),
+    Matrix44.translation(r.insert.x, r.insert.y, r.insert.z),
+    Matrix44.rotationZ(degToRad(r.rotation)),
+    cell,
+    Matrix44.scaling(s1(r.scale.x), s1(r.scale.y), s1(r.scale.z)),
+    Matrix44.translation(-base.x, -base.y, -base.z),
+  );
+}
+
 registerDrawer("INSERT", (fe, e, st) => {
   const ins = e as InsertEntity;
   const block = fe.doc.getBlock(ins.blockName);
@@ -652,38 +675,27 @@ registerDrawer("INSERT", (fe, e, st) => {
     fe.note("missing-block");
     return;
   }
-  const base = block.basePoint;
-  const ocs = ocsToWcsMatrix(ins.extrusion);
-  const rot = Matrix44.rotationZ(degToRad(ins.rotation));
-  // a zero scale factor is read as 1 (AutoCAD repairs it on load). VERIFIED-BY-ACAD
-  // blocks/zero-scale-x, zero-scale-y
-  const s1 = (v: number) => (v === 0 ? 1 : v);
-  const scale = Matrix44.scaling(s1(ins.scale.x), s1(ins.scale.y), s1(ins.scale.z));
-  const toBase = Matrix44.translation(-base.x, -base.y, -base.z);
   for (let row = 0; row < ins.rowCount; row++) {
     for (let col = 0; col < ins.columnCount; col++) {
       // MINSERT spacing is rotated with the insert, not scaled (note 07 §2; ezdxf/LibreCAD)
       const cell = Matrix44.translation(col * ins.columnSpacing, row * ins.rowSpacing, 0);
-      const local = Matrix44.product(
-        ocs,
-        Matrix44.translation(ins.insert.x, ins.insert.y, ins.insert.z),
-        rot,
-        cell,
-        scale,
-        toBase,
-      );
-      if (!fe.drawBlockContent(block, local, ins, st)) return;
+      if (!fe.drawBlockContent(block, blockReferenceMatrix(ins, block.basePoint, cell), ins, st)) return;
     }
   }
 });
 
-/** ACAD_TABLE: draw the stored anonymous geometry block as is (note 07); DIMENSION: dimension.ts. */
+/**
+ * ACAD_TABLE: the stored `*T` block drawn like an INSERT of it (10, 41–43, 50, 210). AutoCAD
+ * writes the block so that this transform orients the table along its direction 11 (DXFOUT of a
+ * table with 50 = 30: the block content is pre-rotated by −30°; note 07 §13.1, VERIFIED-BY-ACAD
+ * render-probes/table-*). DIMENSION: dimension.ts.
+ */
 registerDrawer("ACAD_TABLE", (fe, e, st) => {
-  const name = (e as Entity & { blockName?: string }).blockName;
-  const block = name ? fe.doc.getBlock(name) : undefined;
+  const t = e as AcadTableEntity;
+  const block = t.blockName ? fe.doc.getBlock(t.blockName) : undefined;
   if (!block) {
     fe.note(`${e.dxfType}-without-block`);
     return;
   }
-  fe.drawBlockContent(block, Matrix44.identity(), e, st);
+  fe.drawBlockContent(block, blockReferenceMatrix(t, block.basePoint), e, st);
 });

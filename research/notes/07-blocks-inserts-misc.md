@@ -1046,9 +1046,19 @@ fill (flag 1): polygon bottom border (forward) + top border (reversed), fill col
 - **Rendering: draw the `*T` anonymous block like an INSERT** (ezdxf `AcadTableBlockContent.
   __virtual_entities__` translates the block content by 10 — "TODO: OCS transformation (extrusion) is
   ignored yet"; r12export converts ACAD_TABLE → INSERT of `*T`). Don't re-layout the table.
-- **UNKNOWN**: whether the `*T` geometry is stored already rotated (direction 11) or whether 50/11
-  must be applied. Safest: apply the full INSERT transform built from 10/41-43/50/210 (defaults
-  identity) and verify with a rotated table.
+- **Transform: the full INSERT transform 10/41-43/50/210** (render/src/draw/basic.ts).
+  VERIFIED-BY-ACAD 2026-10-01, local probes `render-probes/table-*` (the ezdxf `acad_table_simple`
+  table patched; window plot, DXFOUT): AutoCAD **regenerates** the `*T` block on load from the
+  table data (DXFOUT block differs from the input even for an unchanged table) and lays the table
+  out along the direction **11**, ignoring 50: 50 = 30 with 11 = (1,0,0) plots horizontal,
+  11 = (cos 30°, sin 30°) with 50 = 0 plots rotated 30° about 10, both together plot rotated 30°.
+  The block it writes back is pre-rotated so that INSERT(50) of it gives that orientation (50 = 30,
+  11 = x axis → block content at −30°; 50 = 0, 11 at 30° → block content at +30°; both 30° →
+  block content unrotated). So for AutoCAD-written files 10/50/41-43/210 applied to the stored
+  block is exact; a third-party file whose block is not consistent with 50/11 differs (AutoCAD
+  re-lays it out; truedxf does not re-layout tables). 41/42 = 2 on the probe gave a broken
+  regenerated table in AutoCAD (lines scaled, texts not). Corpus: all 58 layout-level tables have
+  50 = 0, 11 = x axis, scale 1 — only the translation mattered (they were drawn at the origin).
 - Table cells may contain blocks (block-type cells) — they appear as INSERTs inside `*T`.
 - TABLESTYLE (NOD `ACAD_TABLESTYLE`): layout parameters — only needed if the `*T` block is missing
   (then AutoCAD would regenerate; truedxf: draw nothing + warn). ezdxf: "todo: implement TABLESTYLE".
@@ -1273,7 +1283,7 @@ Lessons for truedxf:
 - IMAGEFRAME=2 / WIPEOUTFRAME / PDFFRAME storage in DXF; missing-image placeholder; brightness/
   contrast/fade formulas; PLOT resampling of rasters.
 - Whether AutoCAD regenerates stale dynamic block `*U` representations on open.
-- ACAD_TABLE: is rotation baked into `*T`?
+- ACAD_TABLE: is rotation baked into `*T`? Answered in §13.1 (AutoCAD writes it consistent with 50).
 - Proxy graphics: initial traits, nested PUSH_MODELXFORM composition, coordinates inside blocks.
 - MLINE element color BYBLOCK resolution; fill-break polygons.
 - SECTION object plotting; PDF underlay natural size.

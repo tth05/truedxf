@@ -2,6 +2,7 @@ import { flattenPath } from "@truedxf/geometry";
 import { DxfDocument } from "@truedxf/model";
 import { describe, expect, it } from "vitest";
 import { pointSymbol } from "../src/draw/points.ts";
+import { renderPlot } from "../src/index.ts";
 import { PropertyResolver, TOP_LEVEL } from "../src/props.ts";
 import { dxfBytes } from "./helpers.ts";
 
@@ -149,5 +150,108 @@ describe("render PropertyResolver (model resolve.ts adapter)", () => {
   it("takes LWDEFAULT from the plot request", () => {
     expect(new PropertyResolver(doc, undefined, 100).resolve(offLine!, TOP_LEVEL).lineweight).toBe(100);
     expect(props.resolve(offLine!, TOP_LEVEL).lineweight).toBe(25);
+  });
+});
+
+describe("ACAD_TABLE", () => {
+  // *T1 holds one LINE (0,0)-(10,0); the table references it at (100,50) rotated 90°
+  const doc = DxfDocument.load(
+    dxfBytes(`
+0 SECTION
+2 HEADER
+9 $ACADVER
+1 AC1032
+0 ENDSEC
+0 SECTION
+2 TABLES
+0 TABLE
+2 BLOCK_RECORD
+5 1
+70 2
+0 BLOCK_RECORD
+5 1F
+330 1
+100 AcDbSymbolTableRecord
+100 AcDbBlockTableRecord
+2 *Model_Space
+0 BLOCK_RECORD
+5 30
+330 1
+100 AcDbSymbolTableRecord
+100 AcDbBlockTableRecord
+2 *T1
+0 ENDTAB
+0 ENDSEC
+0 SECTION
+2 BLOCKS
+0 BLOCK
+5 31
+330 30
+100 AcDbEntity
+8 0
+100 AcDbBlockBegin
+2 *T1
+70 1
+10 0
+20 0
+30 0
+3 *T1
+0 LINE
+5 32
+330 30
+100 AcDbEntity
+8 0
+100 AcDbLine
+10 0
+20 0
+30 0
+11 10
+21 0
+31 0
+0 ENDBLK
+5 33
+330 30
+100 AcDbEntity
+8 0
+100 AcDbBlockEnd
+0 ENDSEC
+0 SECTION
+2 ENTITIES
+0 ACAD_TABLE
+5 40
+330 1F
+100 AcDbEntity
+8 0
+100 AcDbBlockReference
+2 *T1
+10 100
+20 50
+30 0
+50 90
+100 AcDbTable
+343 30
+0 ENDSEC
+0 SECTION
+2 OBJECTS
+0 ENDSEC
+0 EOF
+`),
+  );
+
+  it("draws the *T block with the block-reference transform (note 07 §13.1)", async () => {
+    const r = await renderPlot(
+      doc,
+      {
+        layout: "Model",
+        area: { type: "window", min: [0, 0], max: [200, 150] },
+        canvas: [200, 150],
+        styleTable: "monochrome.ctb",
+      },
+      { raster: "smooth" },
+    );
+    const b = r.displayList.bounds;
+    expect([b.minX, b.minY, b.maxX, b.maxY].map((v) => Math.round(v * 1e6) / 1e6)).toEqual([
+      100, 50, 100, 60,
+    ]);
   });
 });

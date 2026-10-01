@@ -255,7 +255,7 @@ export function missingFontNotes(fonts: TextFonts): PlotNote[] {
       ? "text in them is not drawn"
       : fallback
         ? `drawn with ${subst}`
-        : `substituted by ${subst} (FONTALT) as in AutoCAD; text in a missing \\f family is not drawn`;
+        : `substituted by ${subst} (FONTALT) as in AutoCAD`;
     notes.push({
       code: "font-missing",
       severity: "warning",

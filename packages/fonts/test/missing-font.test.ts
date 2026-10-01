@@ -35,6 +35,14 @@ describe("FontManager missingFont modes", () => {
     expect(r.substitutions).toEqual([{ reason: "missing-font", requested: "romans.shx", used: "sans.otf" }]);
     const fam = await m.resolveStyle({ family: "Nope" });
     expect(fam.font?.primary.name).toBe("sans.otf");
+    // a TrueType substitute ignores the bigfont, which is still reported when missing
+    const big = await m.resolveStyle({ fontFile: "romans.shx", bigFontFile: "gbcbig.shx" });
+    expect(big.suppressed).toBe(false);
+    expect(big.substitutions.map((s) => s.reason)).toEqual([
+      "missing-font",
+      "bigfont-ignored",
+      "missing-bigfont",
+    ]);
   });
 
   it("missing bigfont: suppressed in autocad mode, drawn (with the fallback bigfont) in fallback mode", async () => {

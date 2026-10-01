@@ -439,6 +439,9 @@ export class FontManager {
       if (primary && primary.kind !== "shx") {
         // A bigfont next to a TTF primary font is ignored (note 04 §4.1 item 5).
         subs.push({ reason: "bigfont-ignored", requested: bigName });
+        // a TrueType fallback for a missing SHX font: still report a bigfont that is missing too
+        if (this.fallbackMode && !(await this.loadFile(baseName(bigName))))
+          subs.push({ reason: "missing-bigfont", requested: bigName });
       } else {
         const bf = await this.resolveFile(bigName, subs, true);
         if (bf instanceof ShxFont && bf.isBigFont) bigFont = bf;

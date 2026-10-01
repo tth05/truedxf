@@ -139,9 +139,9 @@ registerDrawer(["HATCH", "MPOLYGON"], (fe, e, st) => {
   if (lines.length === 0) return;
   const res = hatchPatternLines(loops, style, lines);
   if (res.tooDense) {
-    // UNVERIFIED (note 06 §1.6: HPMAXLINES): too dense patterns are filled solid
+    // more than 100,000 pattern lines: AutoCAD plots nothing, no solid fill. VERIFIED-BY-ACAD
+    // (hatches/dense-count-*, note 06 §1.6.3)
     fe.note("hatch-too-dense");
-    fe.fillHatch(loops, style, color);
     return;
   }
   const seg = res.segments;

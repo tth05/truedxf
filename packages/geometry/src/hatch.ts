@@ -35,10 +35,14 @@
  * which shifts successive lines by v·d (note 06 §1.6.2 step 4). Dashes crossing the boundary
  * are cut at it; dots are kept when inside (boundary inclusive).
  *
- * Limits are counts, never time: if the total number of family lines exceeds `maxLines`
- * (HPMAXLINES, ASSUMPTION default 1,000,000 — note 06 §1.6.3) or the emitted primitives exceed
- * `maxPrimitives`, the result is empty with `tooDense = true`; AutoCAD then shows the hatch as
- * a solid fill (DOC-ish, KB articles) — the caller should fall back to {@link hatchSolidTriangles}.
+ * Limits are counts, never time: if the total number of family lines over all definition lines
+ * exceeds `maxLines` (default 100,000) or the emitted primitives exceed `maxPrimitives`, the
+ * result is empty with `tooDense = true`. AutoCAD then plots **nothing** for the hatch, no solid
+ * fill. VERIFIED-BY-ACAD 2026-10-01 (local hatch-probes/dense-lines-*: ANSI31 with 99,995 lines
+ * plots, 100,001 lines plots nothing; dense-ansi37-*: 2 × 45k lines plot, 2 × 55k nothing, so
+ * it is the total over the families; dense-thin-*: a thin strip with 150k lines is empty too, so
+ * it is the line count, not the area; hatches/dense-count-30000 … 300000 are empty; note 06
+ * §1.6.3). The primitive limit is ours (UNVERIFIED).
  *
  * Gradient fills are out of scope except the {@link HatchGradient} descriptor.
  */
@@ -197,7 +201,7 @@ export function transformHatchPatternLine(line: HatchPatternLine, m: Affine2): H
 export interface HatchPatternOptions extends HatchLoopSelectionOptions {
   /** Default even-odd. */
   readonly fillRule?: FillRule;
-  /** Max family lines over all definition lines (HPMAXLINES). Default 1,000,000. */
+  /** Max family lines over all definition lines. Default 100,000 (note 06 §1.6.3). */
   readonly maxLines?: number;
   /** Max emitted segments + dots. Default 10,000,000. */
   readonly maxPrimitives?: number;
@@ -210,11 +214,11 @@ export interface HatchPatternResult {
   readonly dots: Float64Array;
   /** Number of family lines that were considered. */
   readonly lineCount: number;
-  /** A count limit was exceeded; nothing was emitted (fall back to solid fill). */
+  /** A count limit was exceeded; nothing was emitted (AutoCAD plots nothing then). */
   readonly tooDense: boolean;
 }
 
-export const DEFAULT_HATCH_MAX_LINES = 1_000_000;
+export const DEFAULT_HATCH_MAX_LINES = 100_000;
 export const DEFAULT_HATCH_MAX_PRIMITIVES = 10_000_000;
 
 interface Family {

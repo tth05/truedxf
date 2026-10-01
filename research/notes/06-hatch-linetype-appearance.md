@@ -401,14 +401,23 @@ the boundary" differently — all clip dashes at the boundary (a dash crossing t
   earlier the registry/env variable `MaxHatch` (web: resources.imaginit.com "AutoCAD: Certain
   Hatches do not Plot, Preview, Display properly"; search summary of landfx.com KB 2037 "Hatches are
   Displaying as Solid Rather Than as Patterns": "When the calculated hatch pattern is too dense to
-  display, hatches appear as solid colors"). Default value: ASSUMPTION 1,000,000 (the value users
-  are told to set; not confirmed as default).
+  display, hatches appear as solid colors"). Documented default 1,000,000; PLOT's limit is
+  100,000 lines (below).
 - At creation time AutoCAD may refuse: "hatch scale is too small or its dash length too short".
-- Existing too-dense hatches are **displayed and plotted as solid fill** (DOC-ish, from KB articles).
-  The exact criterion (line count of the whole hatch vs. per view, dash count?) is **UNKNOWN**.
-  Pragmatic rule for truedxf: count the hatch lines (Σ over pattern lines of the k-range); if >
-  HPMAXLINES (1e6) → solid fill with the entity color. Also: if spacing is below one output pixel
-  the result is visually solid anyway (mlightcad does such a density fallback for linetypes).
+- ~~Existing too-dense hatches are displayed and plotted as solid fill~~ (KB articles; on-screen
+  display at best). **PLOT draws nothing** for a too-dense pattern hatch — no lines, no solid
+  fill. **VERIFIED-BY-ACAD 2026-10-01**: hatches/dense-count-30000 … 300000 (ANSI31 scale 0.03,
+  445k … 4.45M lines) plot empty, dense-scale-0p001 (44.5k lines) plots; local probes
+  `hatch-probes/dense-lines-*` (ANSI31, square side varied) plot at 99,995 lines and are empty at
+  100,001, 100,003, 100,010, …, 300k lines; `dense-ansi37-*` (two families) plot at 2 × 45k and
+  are empty at 2 × 55k, so the limit applies to the **total** over all definition lines;
+  `dense-thin-*` (a 40-unit strip with 150k / 300k lines, small area) is empty too, so it is the
+  **line count**, not area or segment count. Implemented criterion: Σ over the definition lines
+  of the family lines crossing the boundary's extent (k-range from the vertices' normal
+  coordinates) > **100,000** → nothing (`DEFAULT_HATCH_MAX_LINES`, geometry/src/hatch.ts).
+  Whether this is HPMAXLINES with a different default or a separate PLOT limit is open. The load
+  log of every probe (also those that plot) says "Drawing contains large dense hatch patterns
+  that can cause instability". The boundary still counts for the extents (note 03 §6.2).
 - ezdxf: 1e-4 absolute spacing threshold + 30 s timeout (config `hatching_timeout`).
 - dxf-viewer: `MAX_HATCH_LINES = 20000` per line family and `MAX_HATCH_SEGMENTS = 20000` dash
   repetitions per line → drops the family (dxf-viewer:src/DxfScene.js:30–34). Not AutoCAD-like.

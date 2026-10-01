@@ -173,6 +173,14 @@ describe("hatch pattern lines", () => {
     const dense = hatchPatternLines([{ points: sq(0, 0, 100), flags: 1 }], 0, [ansi31(1e-4)]);
     expect(dense.tooDense).toBe(true);
     expect(dense.segments.length).toBe(0);
+    // AutoCAD: ≤ 100,000 lines plot, more plot nothing (note 06 §1.6.3)
+    const horiz: HatchPatternLine = { angle: 0, base: { x: 0, y: 0.5 }, offset: { x: 0, y: 1 }, dashes: [] };
+    const atLimit = hatchPatternLines([{ points: sq(0, 0, 100_000), flags: 1 }], 0, [horiz]);
+    expect(atLimit.lineCount).toBe(100_000);
+    expect(atLimit.tooDense).toBe(false);
+    const over = hatchPatternLines([{ points: sq(0, 0, 100_001), flags: 1 }], 0, [horiz]);
+    expect(over.lineCount).toBe(100_001);
+    expect(over.tooDense).toBe(true);
     const zero = hatchPatternLines([{ points: sq(0, 0, 1), flags: 1 }], 0, [
       { angle: 0, base: { x: 0, y: 0.5 }, offset: { x: 1, y: 0 }, dashes: [] },
     ]);

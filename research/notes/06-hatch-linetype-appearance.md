@@ -389,6 +389,12 @@ add-on then falls back to a **solid fill**, frontend.py:612).
    add-on). truedxf should not use randomness (pixel-exact determinism): handle vertex
    intersections properly (count a vertex once if the two adjacent edges are on opposite sides of
    the hatch line, twice/zero times if on the same side).
+   **Boundary edges collinear with a hatch line: AutoCAD draws no pattern line along them**, on
+   either side of the region (the bottom and the top edge of a box alike). VERIFIED-BY-ACAD
+   2026-10-01 (`hatches/collinear-ansi31-diamond`, `collinear-user-edges` exact after the fix).
+   truedxf keeps its half-open crossing rule (a vertex on the line counts as below it) and cuts
+   the t-range of every edge lying on the line (within 1e-9 of the coordinate magnitude) out of
+   the inside intervals (geometry/src/hatch.ts).
 4. Apply the dash pattern to each inside segment (`PatternRenderer.render`): the dash sequence is
    anchored at the line's origin `O + k·v` (so successive lines are shifted by the along-line
    component of v, which is how brick patterns work); for a segment [s,e] compute
@@ -1555,11 +1561,11 @@ VERIFIED-BY-ACAD (draworder suite, AutoCAD 2027, 2026-09-30):
 **Open after the 2026-09-30 AutoCAD pass (rungs 7–8):** linetypes on wide polylines (dashes are
 butt-ended quads at the local width; not implemented, `linetypes/pl-wide-*`); AutoCAD's arc
 tessellation chords determine complex-element rotation on arcs (≤ 1° off here); exact
-too-dense threshold (0.38–0.51 px); gradient mesh/dither emulation, HEMISPHERICAL/CURVED shift;
-MPOLYGON (accoreconsole cannot load its enabler); text-box loops (flag 8), ellipse-edge angle vs
-parameter (`ellipse-edge-param-closed` still 0.78), HATCHBACKGROUNDCOLOR (not drawn yet,
-`bgcolor-*`), dots with lineweight, HPMAXLINES (`dense-count-*` ≥ 30000 lines are very slow in
-our CPU scorer).
+too-dense threshold (0.38–0.51 px); gradient mesh/dither emulation, CURVED shift;
+MPOLYGON (accoreconsole cannot load its enabler); text-box loops (flag 8), HATCHBACKGROUNDCOLOR
+(not drawn yet, `bgcolor-*`), dots with lineweight. Answered 2026-10-01: ellipse-edge angles
+(§1.3.3), too-dense hatches plot nothing above 100,000 lines (§1.6.3), HEMISPHERICAL shift and
+rotation (§1.7.1), collinear edges (§1.6.2).
 
 1. ~~A-type linetype alignment exact formula; circles/ellipses/splines/closed polylines; PLINEGEN runs;
    dots at the ends.~~ ANSWERED §2.6.1 (only the too-dense criterion is open).

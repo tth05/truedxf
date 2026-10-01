@@ -26,9 +26,9 @@
  * deterministic (no random jiggle as in ezdxf):
  * - a vertex where the boundary passes through the line counts once, a vertex where it only
  *   touches counts zero or two times;
- * - an edge collinear with a hatch line contributes no crossing; the line is drawn along it iff
- *   the region lies on the edge's +c side, e.g. along the bottom edge of a box but not the top
- *   edge (AutoCAD's choice UNKNOWN);
+ * - an edge collinear with a hatch line contributes no crossing, and the part of the line on it
+ *   is never drawn, on either side of the region (VERIFIED-BY-ACAD hatches/collinear-*; without
+ *   that cut the +c side would get a line along the edge, e.g. the bottom edge of a box);
  * - line ends are computed from the edge's lower endpoint, so reversing a loop changes nothing.
  * Inside intervals come from even-odd parity (or nonzero winding) along the line; each is
  * dashed with the pattern anchored at the line's own origin `B + k·v` (u = t − (B + k·v)·d),
@@ -295,7 +295,14 @@ interface Edge {
   readonly w: number;
 }
 
-function familyEdges(f: Family, rings: readonly Float64Array[]): Edge[] {
+/** A boundary edge lying on a family line (within `tol`): t-range at line coordinate c. */
+interface OnEdge {
+  readonly c: number;
+  readonly t0: number;
+  readonly t1: number;
+}
+
+function familyEdges(f: Family, rings: readonly Float64Array[], onEdges?: OnEdge[], tol = 0): Edge[] {
   const edges: Edge[] = [];
   for (const r of rings) {
     const n = r.length >> 1;
@@ -312,6 +319,11 @@ function familyEdges(f: Family, rings: readonly Float64Array[]): Edge[] {
       const j = i + 1 === n ? 0 : i + 1;
       const cp = cs[i]!;
       const cq = cs[j]!;
+      if (onEdges && Math.abs(cp - cq) <= tol) {
+        const t0 = Math.min(ts[i]!, ts[j]!);
+        const t1 = Math.max(ts[i]!, ts[j]!);
+        if (t1 > t0) onEdges.push({ c: (cp + cq) / 2, t0, t1 });
+      }
       if (cp === cq) continue; // parallel to the lines: never crosses under the half-open rule
       if (cp < cq) edges.push({ clo: cp, chi: cq, tlo: ts[i]!, thi: ts[j]!, w: 1 });
       else edges.push({ clo: cq, chi: cp, tlo: ts[j]!, thi: ts[i]!, w: -1 });
@@ -319,6 +331,7 @@ function familyEdges(f: Family, rings: readonly Float64Array[]): Edge[] {
   }
   // Stable, deterministic order for the sweep.
   edges.sort((a, b) => a.clo - b.clo || a.chi - b.chi || a.tlo - b.tlo || a.thi - b.thi);
+  onEdges?.sort((a, b) => a.c - b.c || a.t0 - b.t0 || a.t1 - b.t1);
   return edges;
 }
 
@@ -360,9 +373,18 @@ export function hatchPatternLinesInRings(
   const xs: number[] = [];
   const ws: number[] = [];
   const order: number[] = [];
+  // Boundary edges on a hatch line (within a relative 1e-9 of the coordinates) take their part
+  // of the line away: AutoCAD draws no pattern line along a boundary edge, on either side.
+  // VERIFIED-BY-ACAD hatches/collinear-ansi31-diamond, collinear-user-edges (note 06 §1.6.2)
+  let mag = 0;
+  for (const r of rings) for (let i = 0; i < r.length; i++) mag = Math.max(mag, Math.abs(r[i]!));
+  const onTol = mag * 1e-9;
+  const cuts: OnEdge[] = [];
   for (const f of fams) {
     if (!f || f.kMax < f.kMin) continue;
-    const edges = familyEdges(f, rings);
+    const on: OnEdge[] = [];
+    const edges = familyEdges(f, rings, on, onTol);
+    let nextOn = 0;
     let next = 0;
     let active: Edge[] = [];
     const toXY = (t: number, c: number, out: number[]) => out.push(t * f.cx - c * f.sy, t * f.sy + c * f.cx);
@@ -370,7 +392,11 @@ export function hatchPatternLinesInRings(
       const c = f.c0 + k * f.spacing;
       while (next < edges.length && edges[next]!.clo <= c) active.push(edges[next++]!);
       active = active.filter((e) => e.chi > c);
+      while (nextOn < on.length && on[nextOn]!.c < c - onTol) nextOn++;
       if (active.length < 2) continue;
+      cuts.length = 0;
+      for (let q = nextOn; q < on.length && on[q]!.c <= c + onTol; q++) cuts.push(on[q]!);
+      cuts.sort((a, b) => a.t0 - b.t0 || a.t1 - b.t1);
       xs.length = 0;
       ws.length = 0;
       for (const e of active) {
@@ -381,10 +407,36 @@ export function hatchPatternLinesInRings(
       order.length = 0;
       for (let i = 0; i < xs.length; i++) order.push(i);
       order.sort((a, b) => xs[a]! - xs[b]! || ws[a]! - ws[b]!);
-      // Inside intervals along the line.
+      const lineOrigin = f.t0 + k * f.shift;
+      /** Draws [a, b] on line k; false when a count limit is exceeded. */
+      const emit = (a: number, b: number): boolean => {
+        if (!f.pattern) {
+          if (++prims > maxPrim) return false;
+          toXY(a, c, seg);
+          toXY(b, c, seg);
+          return true;
+        }
+        const n = walkPattern(
+          f.pattern,
+          -lineOrigin,
+          a,
+          b,
+          {
+            dash: (u, v) => {
+              toXY(u, c, seg);
+              toXY(v, c, seg);
+            },
+            dot: (u) => toXY(u, c, dots),
+          },
+          maxPrim - prims,
+        );
+        if (n < 0) return false;
+        prims += n;
+        return true;
+      };
+      // Inside intervals along the line, minus the parts on boundary edges.
       let wind = 0;
       let start = 0;
-      const lineOrigin = f.t0 + k * f.shift;
       for (const i of order) {
         const before = evenOdd ? wind & 1 : wind;
         wind += evenOdd ? 1 : ws[i]!;
@@ -393,28 +445,14 @@ export function hatchPatternLinesInRings(
         else if (before !== 0 && after === 0) {
           const end = xs[i]!;
           if (!(end > start)) continue;
-          if (!f.pattern) {
-            if (++prims > maxPrim) return empty(lineCount, true);
-            toXY(start, c, seg);
-            toXY(end, c, seg);
-            continue;
+          let from = start;
+          for (const u of cuts) {
+            if (u.t1 <= from) continue;
+            if (u.t0 >= end) break;
+            if (u.t0 > from && !emit(from, u.t0)) return empty(lineCount, true);
+            from = Math.max(from, u.t1);
           }
-          const n = walkPattern(
-            f.pattern,
-            -lineOrigin,
-            start,
-            end,
-            {
-              dash: (a, b) => {
-                toXY(a, c, seg);
-                toXY(b, c, seg);
-              },
-              dot: (s) => toXY(s, c, dots),
-            },
-            maxPrim - prims,
-          );
-          if (n < 0) return empty(lineCount, true);
-          prims += n;
+          if (end > from && !emit(from, end)) return empty(lineCount, true);
         }
       }
     }

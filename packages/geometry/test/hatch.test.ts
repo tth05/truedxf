@@ -120,12 +120,16 @@ describe("hatch pattern lines", () => {
     ]);
   });
 
-  it("an edge collinear with a hatch line is drawn iff the region lies on its +normal side", () => {
+  it("no pattern line is drawn along a boundary edge (hatches/collinear-user-edges)", () => {
     const horiz: HatchPatternLine = { angle: 0, base: { x: 0, y: 0 }, offset: { x: 0, y: 1 }, dashes: [] };
     const s = segs(hatchPatternLines([{ points: sq(0, 0, 2), flags: 1 }], 0, [horiz]));
-    expect(s).toEqual([
-      [0, 0, 2, 0],
+    expect(s).toEqual([[0, 1, 2, 1]]);
+    // L shape: the line through the inner corner keeps its interior part only
+    const L = Float64Array.of(0, 0, 4, 0, 4, 1, 2, 1, 2, 3, 0, 3);
+    const l = segs(hatchPatternLines([{ points: L, flags: 1 }], 0, [horiz]));
+    expect(l).toEqual([
       [0, 1, 2, 1],
+      [0, 2, 2, 2],
     ]);
   });
 

@@ -70,23 +70,30 @@ class TagBuffer {
   }
 }
 
-/** Parses a group code line: optional blanks, optional sign, digits, optional blanks. NaN if invalid. */
+/**
+ * Parses a group code line: optional blanks, optional sign, digits, optional blanks, then
+ * optionally anything after a blank — AutoCAD reads ` 10   // insertion point x` as code 10
+ * (VERIFIED-BY-ACAD user/text-frame-annotated, note 01 §8.1). NaN if invalid.
+ */
 function parseCode(b: Uint8Array, s: number, e: number): number {
   while (s < e && (b[s] === 32 || b[s] === 9)) s++;
-  while (e > s && (b[e - 1] === 32 || b[e - 1] === 9)) e--;
   if (s >= e) return Number.NaN;
   let neg = false;
   if (b[s] === 45) {
     neg = true;
     s++;
   } else if (b[s] === 43) s++;
-  if (s >= e || e - s > 6) return Number.NaN;
+  let i = s;
   let v = 0;
-  for (let i = s; i < e; i++) {
+  while (i < e) {
     const c = b[i]! - 48;
-    if (c < 0 || c > 9) return Number.NaN;
+    if (c < 0 || c > 9) break;
     v = v * 10 + c;
+    i++;
   }
+  if (i === s || i - s > 6) return Number.NaN;
+  // trailing text is accepted only after a blank (a comment); "10abc" stays invalid
+  if (i < e && b[i] !== 32 && b[i] !== 9) return Number.NaN;
   return neg ? -v : v;
 }
 

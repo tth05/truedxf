@@ -94,6 +94,29 @@ describe("ascii tokenizer", () => {
     expect(store.str(1)).toBe("HEADER");
   });
 
+  it("accepts a comment after a blank on group code lines (AutoCAD does)", () => {
+    const d = new Diagnostics();
+    const store = tokenize(
+      dxf([
+        "  0",
+        "SECTION",
+        "  2   // name",
+        "ENTITIES",
+        " 71\t// attachment",
+        "     1   // top left",
+        "10abc",
+        "x",
+      ]),
+      { diagnostics: d },
+    );
+    expect(store.code(1)).toBe(2);
+    expect(store.str(1)).toBe("ENTITIES");
+    expect(store.code(2)).toBe(71);
+    expect(store.int(2)).toBe(1);
+    // no blank before the trailing text: still an invalid code line
+    expect(d.summary()["invalid-group-code"]).toBe(2); // "10abc" and "x"
+  });
+
   it("strips a UTF-8 BOM", () => {
     const bytes = new Uint8Array([0xef, 0xbb, 0xbf, ...dxf(["  0", "EOF"])]);
     const d = new Diagnostics();

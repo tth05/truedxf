@@ -1252,6 +1252,11 @@ ezdxf.recover.
 **VERIFIED-BY-ACAD** (AutoCAD 2027, 2026-09-30, `fileformat/*`; Q-0004, Q-0006, Q-0007):
 - 999 comments are accepted at the file start, between entities and between `0 SECTION` and its `2 name`
   (`comment-999-*`, all plot normally).
+- Trailing text after a blank on group-code lines and integer value lines is ignored: a user file with
+  ` 10                    // insertion point x` and `     1                    // top left` loads and
+  plots like the clean file (VERIFIED-BY-ACAD 2026-10-01, `user/text-frame-annotated`; AutoCAD reads the
+  code like `strtol`). truedxf accepts a code line "digits + blank + anything"; "10abc" stays invalid
+  (untested in AutoCAD). Float values already use `strtod` semantics.
 - Entity type names: in an R12 file lower-case types (`line`, `circle`, `text`) load and plot
   (`lowercase-entities-r12`); in an AC1032 file lower-case or space-padded types (`LINE `) load without error
   but the entities are **dropped** (nothing plots, `lowercase-entities-r2018`, `trailing-space-types-r2018`).

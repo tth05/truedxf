@@ -501,7 +501,9 @@ as `{\H0.7x;\S1/2;}` (ezdxf:examples_dxf/mtext_complex_inline_codes.dxf) — the
   `/` and `#` at **full size** with a horizontal bar, bar at v − 0.8·fs + 0.3·H, and its PDF renderer uses
   other constants. BricsCAD and TrueView 2022 render the same stacks visibly differently (ezdxf#524).
   No thread gives AutoCAD numbers → **top-priority test** (fractions appear in every dimension with
-  inch units/tolerances).
+  inch units/tolerances). **Answered by AutoCAD 2027 plots**: §11 "Stacks" (simplex) and "Stacks
+  with TrueType" (VERIFIED-BY-ACAD 2026-10-01) — parts at the current height, placed by ink box;
+  the ezdxf / dxf-viewer / mlightcad geometry above does not match.
 - Real AutoCAD strings: `\S5^6;` (caret without space), `{\H0.7x;\S1/2;}`, `\H1.42857x;` after a stack
   to restore (1/0.7) (ezdxf#889).
 
@@ -1465,8 +1467,36 @@ MTEXT (§3)
   `#`: upper part at the start on baseline hs, lower part on the baseline starting hs/3 after the
   upper part's ink right; the slash is a 2·hs long line at 55° centred at (upper ink right + hs/6,
   hs); advance = lower start + lower advance. No divider (`\S12;`): the text raised by hs/3.
-  Stack ink pushes the line down like any ink (mtext/stack-*). With TrueType the horizontal
-  centring differs slightly (text-lato/mtext-stacks, details UNVERIFIED).
+  Stack ink pushes the line down like any ink (mtext/stack-*). These simplex constants are the
+  special case of the TrueType rule below (simplex digits: ink height = hs, side bearings ≈ 0);
+  truedxf keeps them for SHX fonts.
+- **Stacks with TrueType** — VERIFIED-BY-ACAD 2026-10-01 (Liberation Sans: mtext/stack-frac-*,
+  -tol-*, -diag-*, -no-divider, -second-divider, -escaped-semicolon, -space-after-slash; Lato:
+  text-lato/mtext-stacks; the reference PDFs give the exact pen positions, matched to ~1 font
+  unit; supersedes the "details UNVERIFIED" remark). Every part is placed by its **ink box**:
+  - horizontal: side bearings are removed. `^`: both inks start at the stack start. `/`: both
+    parts are centred by ink width on the larger ink width W; the bar runs from the stack start
+    over W. `#`: the upper ink starts at the stack start, the lower ink hs/3 after the upper ink's
+    right edge (PDF: 399.8 of 400 units). No divider: the ink starts at the stack start.
+    A part that starts with a space keeps it (its box starts at the pen; `\S1/ 2;` — AutoCAD's
+    bar is still ~19 font units longer than pen-to-ink-right there, unexplained).
+  - advance = the stack's ink width + **the side bearing of the font's "0"** (Liberation Sans 80,
+    Lato 60 font units; both fonts have lsb = rsb for "0"; PDF stack advance minus ink width =
+    68.1 units = 80/2048 em in Liberation, 25.2 = 60/2000 em in Lato, for `/`, `^`, `#`, no
+    divider and 1- or 3-digit parts alike). Not proportional to hs across fonts (0.057 hs vs
+    0.042 hs).
+  - vertical (`/`, `^`): lower part on the baseline; upper baseline = the lower part's **ink
+    height** (top − bottom, overshoots included) + hs/3 (frac-bare 270 px = 203 + 67; second
+    divider: the "/" in "2/3" lifts it to 280); bar at the lower ink height + hs/6. `#`: upper
+    baseline = the lower ink height; the slash is centred at (upper ink right + hs/6, upper
+    baseline). No divider: raised by hs/3.
+  - the stack's height for the line (ascent push) = upper baseline + the upper part's ink height
+    (top − bottom): a descender in the upper part raises the line although no ink is there
+    (stack-escaped-semicolon "1;2": 40 px gap above "1"; tol-signs "+0.1": 3 px from the "0"
+    overshoot).
+  - open: `\A1`/`\A2` align normal text against the stack's full height (stack-baseline-a1/a2,
+    stack-in-wrap); the line after a stack line sits hs/3 higher than the at-least gap predicts
+    (mtext/chunk-stack, one sample).
 - `\S5^6;` is **not** a tolerance stack: `^6` is a caret code (→ "?"), giving the no-divider stack
   "5?" (mtext/stack-caret-nospace) — the §3.6.3 assumption from ezdxf#889 is wrong; `\S1^ 2;` is a
   stack.

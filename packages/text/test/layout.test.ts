@@ -339,3 +339,46 @@ describe.skipIf(!hasLato)("TrueType text runs (Lato)", () => {
     expect(layoutMText(mtext({ text: "ab" }), fonts).runs).toBeUndefined();
   });
 });
+
+// TrueType stacks are placed by ink box (VERIFIED-BY-ACAD 2026-10-01 text-lato/mtext-stacks: the
+// PDF pen positions match to ~1 unit; note 04 §11). Lato: A.yMax 1433, "1" ink 164..1018,
+// "2" ink 94..1050 × 0..1449, X advance 1298, "0" side bearing 60.
+describe.skipIf(!hasLato)("TrueType stacks (Lato)", () => {
+  const s = 10 / 1433;
+  const lay = async (t: string) => {
+    const fonts = await testFonts([style("S", "LatoWeb-Regular.ttf")]);
+    const l = layoutMText(mtext({ text: t, height: 10, attachment: 7 }), fonts);
+    const g = l.glyphs.map((x) => ({ x: x.matrix.e, y: x.matrix.f }));
+    const start = g[0]!.x + 1298 * s; // pen after the first "X"
+    return { l, g, start, y0: g[0]!.y };
+  };
+  it("centres a fraction on the larger ink width above the lower part's ink height", async () => {
+    const { l, g, start, y0 } = await lay("X\\S1/2;X");
+    expect(g[1]!.x).toBeCloseTo(start + ((956 - 854) / 2 - 164) * s, 9); // "1"
+    expect(g[1]!.y - y0).toBeCloseTo(1449 * s + 10 / 3, 9);
+    expect(g[2]!.x).toBeCloseTo(start - 94 * s, 9); // "2": ink at the stack start
+    expect(g[2]!.y - y0).toBeCloseTo(0, 9);
+    const bar = l.lines.find((d) => d.kind === "stack-bar")!;
+    expect(bar.x0).toBeCloseTo(start, 9);
+    expect(bar.x1).toBeCloseTo(start + 956 * s, 9);
+    expect(bar.y0 - y0).toBeCloseTo(1449 * s + 10 / 6, 9);
+    expect(g[3]!.x).toBeCloseTo(start + (956 + 60) * s, 9); // advance: ink width + "0" bearing
+  });
+  it("left-aligns tolerance parts by ink", async () => {
+    const { g, start } = await lay("X\\S1^ 2;X");
+    expect(g[1]!.x).toBeCloseTo(start - 164 * s, 9);
+    expect(g[2]!.x).toBeCloseTo(start - 94 * s, 9);
+    expect(g[3]!.x).toBeCloseTo(start + (956 + 60) * s, 9);
+  });
+  it("places a diagonal stack's lower part h/3 after the upper ink", async () => {
+    const { l, g, start, y0 } = await lay("X\\S1#2;X");
+    expect(g[1]!.x).toBeCloseTo(start - 164 * s, 9);
+    expect(g[1]!.y - y0).toBeCloseTo(1449 * s, 9); // upper baseline = lower ink height
+    const lower = start + 854 * s + 10 / 3;
+    expect(g[2]!.x).toBeCloseTo(lower - 94 * s, 9);
+    expect(g[3]!.x).toBeCloseTo(lower + (956 + 60) * s, 9);
+    const sl = l.lines.find((d) => d.kind === "stack-bar")!;
+    expect((sl.x0 + sl.x1) / 2).toBeCloseTo(start + 854 * s + 10 / 6, 9);
+    expect((sl.y0 + sl.y1) / 2 - y0).toBeCloseTo(1449 * s, 9);
+  });
+});

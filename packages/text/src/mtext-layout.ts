@@ -16,8 +16,8 @@
  * - style width factor and oblique are the initial `\W`/`\Q` (ezdxf#1351, VERIFIED TrueView).
  * - columns, per-column vertical attachment, text frame and background mask: note 04 §3.7.1
  *   (VERIFIED-BY-ACAD user/columns-all, user/text-frame*, text-probes/mtx-*).
- * UNVERIFIED (to calibrate against PLOT references): the stack geometry with TrueType fonts,
- * decoration offsets.
+ * - stacks: SHX and TrueType geometry VERIFIED-BY-ACAD (note 04 §11, `stack()` below).
+ * UNVERIFIED (to calibrate against PLOT references): decoration offsets.
  */
 import type { Bounds, StyleFont } from "@truedxf/fonts";
 import { Affine2, Matrix44, ocsToWcsMatrix, type Vec3, wcsToOcsMatrix } from "@truedxf/geometry";
@@ -729,16 +729,31 @@ class Engine {
   }
 
   /**
-   * Stack geometry, measured in AutoCAD 2027 plots with simplex.shx (suite mtext/stack-*,
-   * VERIFIED-BY-ACAD 2026-09-30; hs = the current char height, parts are drawn at hs — the usual
-   * 70 % comes from an explicit \H0.7x;):
-   * - "/" and "^": lower part on the baseline, upper part's baseline at 4/3·hs; "/" draws a bar at
-   *   7/6·hs from the stack start to the widest part's ink right edge; "/" centres the parts on
-   *   the bar by ink width, "^" left-aligns them; advance = the larger part advance;
-   * - "#": upper part at the start on baseline hs, lower part on the baseline starting h/3 after
-   *   the upper part's ink right edge; a 2·hs long slash at 55° centred at (upper ink right + hs/6,
-   *   hs); advance = lower start + lower advance;
-   * - no divider: the text raised by hs/3.
+   * Stack geometry (hs = the current char height; parts are drawn at hs — the usual 70 % comes
+   * from an explicit \H0.7x;). VERIFIED-BY-ACAD 2026-09-30 with simplex.shx (mtext/stack-*) and
+   * 2026-10-01 with TrueType fonts (Liberation Sans: mtext/stack-*, Lato: text-lato/mtext-stacks;
+   * note 04 §11):
+   *
+   * TrueType — every part is placed by its ink box (side bearings removed):
+   * - "/" and "^": lower part on the baseline; upper part's baseline at the lower part's ink
+   *   height (top − bottom) + hs/3; "/" draws a bar at the lower ink height + hs/6 from the
+   *   stack start over the larger ink width and centres both parts on it by ink width, "^"
+   *   puts both inks at the stack start;
+   * - "#": upper ink at the stack start on a baseline at the lower part's ink height, lower ink
+   *   hs/3 after the upper ink's right edge, a 2·hs long slash at 55° centred at (upper ink
+   *   right + hs/6, upper baseline);
+   * - no divider: the ink at the stack start, raised by hs/3;
+   * - advance = the stack's ink width + the side bearing of the font's "0" (Liberation Sans 80,
+   *   Lato 60 font units — the PDF pen positions match to < 1 unit);
+   * - a part that starts with a space keeps it: its box starts at the pen (mtext/stack-space-after-slash,
+   *   still ~19 font units narrower than AutoCAD's bar there);
+   * - the stack's height for the line (ascent push, \A) = upper baseline + the upper part's ink
+   *   height (top − bottom): a descender in the upper part raises it (mtext/stack-escaped-semicolon).
+   *
+   * SHX (simplex.shx) — the same rules with pen boxes, which is what they reduce to for simplex
+   * digits (ink height = hs, small side bearings): upper baseline 4/3·hs, bar 7/6·hs ending at
+   * the widest part's ink right edge, "/" centring by ink right edge, "#" upper baseline hs;
+   * advance = the larger part advance ("#": lower start + lower advance); no divider: raised hs/3.
    */
   private stack(
     ctx: MTextContext,
@@ -757,7 +772,7 @@ class Engine {
         if (g.ink) ink.add(g.ink, pen, 0);
         pen += g.adv;
       }
-      return { gs, xs, adv: pen, inkRight: ink.empty ? pen : ink.xMax };
+      return { gs, xs, adv: pen, ink, inkRight: ink.empty ? pen : ink.xMax };
     };
     const up = run(upper);
     const lo = run(lower);
@@ -769,8 +784,49 @@ class Engine {
         parts.push({ m: g.m, x: dx + r.xs[k]!, y, h: g.h, w: g.w, tanOb: tan });
       });
     };
+    const slash = (cx: number, cy: number) => {
+      const dx = Math.cos(55 * DEG) * h;
+      const dy = Math.sin(55 * DEG) * h;
+      bars.push({ x0: cx - dx, y0: cy - dy, x1: cx + dx, y1: cy + dy });
+    };
     let adv: number;
-    if (kind === "") {
+    let top: number | undefined;
+    if (this.fontOf(ctx).primary.kind === "ttf") {
+      // ink boxes; a part without ink keeps its pen box
+      const box = (r: ReturnType<typeof run>) =>
+        r.ink.empty
+          ? { x0: 0, x1: r.adv, y0: 0, y1: 0 }
+          : { x0: r.gs[0]?.ink ? r.ink.xMin : 0, x1: r.ink.xMax, y0: r.ink.yMin, y1: r.ink.yMax };
+      const ub = box(up);
+      const lb = box(lo);
+      const uw = ub.x1 - ub.x0;
+      const lw = lb.x1 - lb.x0;
+      const lowerH = lo.ink.empty ? h : lb.y1 - lb.y0;
+      const zero = measureGlyph(this.fontOf(ctx), 0x30);
+      const gap = zero.ink ? (zero.advance - zero.ink.xMax) * h * (ctx.widthFactor || 1) : 0;
+      let yU: number;
+      if (kind === "") {
+        yU = h / 3;
+        add(up, -ub.x0, yU);
+        adv = uw + gap;
+      } else if (kind === "#") {
+        yU = lowerH;
+        const lx = uw + h / 3;
+        add(up, -ub.x0, yU);
+        add(lo, lx - lb.x0, 0);
+        slash(uw + h / 6, yU);
+        adv = lx + lw + gap;
+      } else {
+        yU = lowerH + h / 3;
+        const width = Math.max(uw, lw);
+        const center = kind === "/";
+        add(up, (center ? (width - uw) / 2 : 0) - ub.x0, yU);
+        add(lo, (center ? (width - lw) / 2 : 0) - lb.x0, 0);
+        if (center) bars.push({ x0: 0, y0: lowerH + h / 6, x1: width, y1: lowerH + h / 6 });
+        adv = width + gap;
+      }
+      if (!up.ink.empty) top = yU + (ub.y1 - ub.y0);
+    } else if (kind === "") {
       // no divider: the text raised by hs/3 (VERIFIED-BY-ACAD mtext/stack-no-divider)
       add(up, 0, h / 3);
       adv = up.adv;
@@ -778,10 +834,7 @@ class Engine {
       const lx = up.inkRight + h / 3;
       add(up, 0, h);
       add(lo, lx, 0);
-      const cx = up.inkRight + h / 6;
-      const dx = Math.cos(55 * DEG) * h;
-      const dy = Math.sin(55 * DEG) * h;
-      bars.push({ x0: cx - dx, y0: h - dy, x1: cx + dx, y1: h + dy });
+      slash(up.inkRight + h / 6, h);
       adv = lx + lo.adv;
     } else {
       const width = Math.max(up.inkRight, lo.inkRight);
@@ -803,6 +856,7 @@ class Engine {
     }
     for (const b of bars)
       ink.add({ xMin: b.x0, xMax: b.x1, yMin: Math.min(b.y0, b.y1), yMax: Math.max(b.y0, b.y1) }, 0, 0);
+    if (top !== undefined && !ink.empty) ink.yMax = Math.max(ink.yMax, top);
     return { k: "stack", ctx, parts, bars, adv, ink: ink.empty ? undefined : ink, h };
   }
 

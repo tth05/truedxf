@@ -525,8 +525,13 @@ MPOLYGON codes inside the HATCH table.)
   → MPOLYGON renders **all** paths (ezdxf frontend `draw_mpolygon_entity` "MPOLYGON does not support
   hatch styles, all paths are rendered"). Fill rule even-odd.
 - Polyline path tag order 73 before 72; no 97/330 source objects.
-- `73` boundary annotation flag, `11` offset vector (applied to all paths by ezdxf; meaning
-  uncertain), `99` number of degenerate loops.
+- `73` boundary annotation flag, `11` offset vector, `99` number of degenerate loops.
+  The **offset vector translates the stored paths**: AutoCAD Map writes some polygons around
+  (0, 0) with their position in 11 (corpus ezdxf discussion-411 `mpolygons_*.dxf`: 23 entities
+  with 11 = 0 and vertices near (−85.28, 35.05), two with vertices within ±0.001 of the origin
+  and 11 = (−85.28, 35.048)); ezdxf applies it to all paths too. truedxf translates the OCS
+  plane by it (paths and, ASSUMPTION, pattern lines; only 210 = 0,0,1 seen). Not verifiable with
+  accoreconsole (§1.3.5).
 - `78` must be present (0) even with no pattern.
 - **Boundary is drawn** as lines in the entity color/linetype/lineweight; the fill uses 63
   (or the gradient color 1). Pattern lines use the entity color (ezdxf `draw_mpolygon_entity`).

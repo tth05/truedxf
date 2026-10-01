@@ -4,7 +4,7 @@
  * clipped to the loops. Gradients: gradient.ts.
  */
 import {
-  type Affine2,
+  Affine2,
   arcSpanDeg,
   buildSplineCurve,
   bulgePolylineToSubpath,
@@ -103,7 +103,12 @@ registerDrawer(["HATCH", "MPOLYGON"], (fe, e, st) => {
   if (h.extrusion.x === 0 && h.extrusion.y === 0 && h.extrusion.z === 0) return;
   const r = fe.resolve(h, st);
   // OCS plane (with elevation) → target
-  const plane = st.m.multiply(ocsToWcsMatrix(h.extrusion)).planeToAffine2(h.elevation);
+  let plane = st.m.multiply(ocsToWcsMatrix(h.extrusion)).planeToAffine2(h.elevation);
+  // MPOLYGON 11 offset vector translates the stored paths (and, ASSUMPTION, the pattern): AutoCAD
+  // Map writes polygons around (0, 0) with their position in 11 (corpus ezdxf discussion-411
+  // mpolygons_*.dxf, note 06 §1.12). Taken as OCS like the vertices (only 210 = 0,0,1 seen).
+  if (h.type === "MPOLYGON" && (h.offsetVector.x !== 0 || h.offsetVector.y !== 0))
+    plane = plane.multiply(Affine2.translation(h.offsetVector.x, h.offsetVector.y));
   const loops: HatchLoop[] = [];
   for (const p of h.paths) {
     const pts = loopPoints(fe, p, plane);

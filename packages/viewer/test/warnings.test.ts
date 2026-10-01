@@ -172,17 +172,35 @@ describe("viewer warnings", () => {
     ];
     const light = await core.render(params());
     expect(color(light.list)).toEqual([0, 0, 0]);
-    expect(light.warnings).toEqual([]);
+    // the flip is reported (info): original colour and its layer
+    expect(light.warnings).toEqual([
+      {
+        code: ViewerWarningCode.ColorsAdjusted,
+        severity: "info",
+        message: expect.stringContaining("drawn in black for contrast"),
+        layout: "Model",
+        items: ["#FFFFFF (layer 0)"],
+        count: 1,
+      },
+    ]);
     // near-white too
     const near = load(drawing([{ name: "0", trueColor: 0xfafbfc }], [line("A1", "0")]));
     expect(color((await near.render(params())).list)).toEqual([0, 0, 0]);
     // and near-black on a dark background
     const dark = load(drawing([{ name: "0", trueColor: 0x030301 }], [line("A1", "0")]));
-    expect(color((await dark.render(params({ background: [33, 40, 48] }))).list)).toEqual([255, 255, 255]);
+    const darkRender = await dark.render(params({ background: [33, 40, 48] }));
+    expect(color(darkRender.list)).toEqual([255, 255, 255]);
+    expect(darkRender.warnings[0]?.message).toContain("drawn in white for contrast");
+    expect(darkRender.warnings[0]?.items).toEqual(["#030301 (layer 0)"]);
     // a light colour that is not white keeps its RGB
     const grey = load(drawing([{ name: "0", trueColor: 0xe0e0e0 }], [line("A1", "0")]));
-    expect(color((await grey.render(params())).list)).toEqual([0xe0, 0xe0, 0xe0]);
-    // plot emulation keeps the true colour: white on white paper, flagged as invisible
+    const greyRender = await grey.render(params());
+    expect(color(greyRender.list)).toEqual([0xe0, 0xe0, 0xe0]);
+    expect(greyRender.warnings).toEqual([]);
+    // ACI 255 (palette white) flips too, reported as an ACI colour
+    const aci = load(drawing([{ name: "W", color: 255 }], [line("A1", "W")]));
+    expect((await aci.render(params())).warnings[0]?.items).toEqual(["ACI 255 (layer W)"]);
+    // plot emulation keeps the true colour (no note): white on white paper, flagged as invisible
     const plot = await core.render(params({ raster: "autocad", visibility: "plot" }));
     expect(codes(plot.warnings)).toEqual([ViewerWarningCode.ContentInvisible]);
   });

@@ -54,7 +54,8 @@ const info = await viewer.inspect(handle); // type, raw/resolved properties, raw
   `nothing-visible` (entities on visible layers drew nothing), `content-invisible` (everything
   is in the background colour), and render notes passed through from `PlotResult.notes`, e.g.
   `font-missing` / `bigfont-missing` (`items` = font names; the text is drawn with
-  `fallbackFont`). `DocumentInfo.warnings` holds the document-level ones, `RenderResult` /
+  `fallbackFont`) and `colors-adjusted` (info: near-white / near-black colours drawn in black /
+  white for contrast; `items` = `"#FFFFFF (layer 0)"`, `"ACI 255 (layer W)"`). `DocumentInfo.warnings` holds the document-level ones, `RenderResult` /
   `RenderStats.warnings` those of a render.
 
 Events: `load`, `layout`, `render` (stats and timings), `select`, `hover`, `cursor` (world

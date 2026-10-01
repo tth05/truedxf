@@ -112,7 +112,6 @@ const busy = h("div", { class: "busy" }, h("span", { class: "spinner" }), h("spa
 const toast = h("div", { class: "toast" });
 const measureChip = h("div", { class: "measure-chip" });
 const layoutNotice = h("div", { class: "layout-notice" });
-const warnChip = h("div", { class: "warn-chip" });
 const compare = new ComparePanel();
 compare.root.style.display = "none";
 const stage = h(
@@ -124,7 +123,6 @@ const stage = h(
   busy,
   measureChip,
   layoutNotice,
-  warnChip,
   compare.root,
   toast,
 );
@@ -212,7 +210,6 @@ viewer.on("load", (d) => {
 viewer.on("layout", () => renderLayouts());
 viewer.on("warnings", () => {
   renderLayoutNotice();
-  renderWarnChip();
   renderDiagnostics();
 });
 viewer.on("render", (r) => {
@@ -466,36 +463,6 @@ function renderLayoutNotice(): void {
     h("b", {}, EMPTY_TITLES[w.code]),
     h("p", {}, w.message),
     actions.length ? h("div", { class: "notice-actions" }, actions) : null,
-  );
-}
-
-/** Warnings that do not empty the view but change what it shows (missing fonts, …). */
-let chipDismissed = "";
-function renderWarnChip(): void {
-  const ws = viewer.warnings.filter((w) => w.severity === "warning" && !EMPTY_TITLES[w.code]);
-  const key = JSON.stringify(ws.map((w) => [w.code, w.items]));
-  const on = ws.length > 0 && key !== chipDismissed;
-  warnChip.classList.toggle("on", on);
-  if (!on) return;
-  mount(
-    warnChip,
-    h(
-      "div",
-      { class: "warn-list" },
-      ws.map((w) => h("div", { title: w.items?.join(", ") ?? "" }, w.message)),
-    ),
-    h(
-      "button",
-      {
-        class: "link",
-        title: "Dismiss",
-        onclick: () => {
-          chipDismissed = key;
-          warnChip.classList.remove("on");
-        },
-      },
-      "×",
-    ),
   );
 }
 

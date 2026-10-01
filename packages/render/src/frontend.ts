@@ -231,6 +231,8 @@ export class Frontend {
   readonly linetypes: LinetypeResolver;
   readonly calibration: PlotCalibration;
   readonly unsupported: Record<string, number> = {};
+  /** Colours flipped for contrast by color() (interactive display): "#RRGGBB" / "ACI n" → layers. */
+  readonly contrastFlips = new Map<string, Set<string>>();
   readonly monochrome: boolean;
   readonly lineweights: boolean;
   readonly fillMode: boolean;
@@ -484,11 +486,40 @@ export class Frontend {
     if (!this.grid && this.env.background) {
       const bg = this.env.background;
       const [red, g, b] = r.rgb;
-      if (bg[0] + bg[1] + bg[2] < 384) {
-        if (Math.max(red, g, b) <= NEAR_EXTREME) return [255, 255, 255, a];
-      } else if (Math.min(red, g, b) >= 255 - NEAR_EXTREME) return [0, 0, 0, a];
+      const dark = bg[0] + bg[1] + bg[2] < 384;
+      if (dark ? Math.max(red, g, b) <= NEAR_EXTREME : Math.min(red, g, b) >= 255 - NEAR_EXTREME) {
+        const key =
+          r.trueColor === undefined
+            ? `ACI ${r.aci}`
+            : `#${(r.trueColor & 0xffffff).toString(16).padStart(6, "0").toUpperCase()}`;
+        let layers = this.contrastFlips.get(key);
+        if (!layers) this.contrastFlips.set(key, (layers = new Set()));
+        layers.add(r.layer);
+        return dark ? [255, 255, 255, a] : [0, 0, 0, a];
+      }
     }
     return [r.rgb[0], r.rgb[1], r.rgb[2], a];
+  }
+
+  /** The user-facing note for colours color() flipped for contrast, if any. */
+  contrastNote(): PlotNote | undefined {
+    if (this.contrastFlips.size === 0) return undefined;
+    const items = [...this.contrastFlips]
+      .map(([c, layers]) => `${c} (layer${layers.size === 1 ? "" : "s"} ${[...layers].sort().join(", ")})`)
+      .sort();
+    const n = this.contrastFlips.size;
+    const dark = (this.env.background ?? [255, 255, 255]).reduce((x, y) => x + y, 0) < 384;
+    return {
+      code: "colors-adjusted",
+      severity: "info",
+      message:
+        `${n} colour${n === 1 ? "" : "s"} too close to the background ${n === 1 ? "was" : "were"} ` +
+        `drawn in ${dark ? "white" : "black"} for contrast (plots keep them): ` +
+        items.slice(0, 4).join("; ") +
+        (items.length > 4 ? `; and ${items.length - 4} more` : ""),
+      count: n,
+      items,
+    };
   }
 
   /** Plotted lineweight in device pixels (≥ 1). */
@@ -860,6 +891,8 @@ export async function renderPlot(
   }
   const fe = new Frontend(doc, request, view, calibration, env);
   drawSpace(fe, space);
+  const contrast = fe.contrastNote();
+  if (contrast) notes.push(contrast);
   return { displayList: fe.build(), view, unsupported: fe.unsupported, ...(notes.length ? { notes } : {}) };
 }
 

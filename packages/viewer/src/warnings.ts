@@ -26,6 +26,11 @@ export const ViewerWarningCode = {
   FontMissing: "font-missing",
   /** Big fonts not found (render note, @truedxf/render). */
   BigFontMissing: "bigfont-missing",
+  /**
+   * Colours too close to the background were drawn in black / white for contrast (render note,
+   * info; viewing mode only — plots keep them). `items`: "#RRGGBB" / "ACI n" with their layers.
+   */
+  ColorsAdjusted: "colors-adjusted",
 } as const;
 export type ViewerWarningCode = (typeof ViewerWarningCode)[keyof typeof ViewerWarningCode];
 

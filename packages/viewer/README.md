@@ -9,6 +9,7 @@ import { DxfViewer } from "@truedxf/viewer";
 const viewer = new DxfViewer(document.getElementById("view")!, {
   background: "dark",        // "dark" | "light" | [r, g, b]; ACI 7 contrasts with it
   fontBaseUrl: "fonts/",     // default font loader: GET fonts/<file name, lower-case>
+  fallbackFont: ["simplex.shx", "arial.ttf"], // for text whose font is missing (optional)
 });
 await viewer.load(file);      // Uint8Array | ArrayBuffer | File/Blob | URL string
 viewer.on("select", ({ handle }) => console.log(handle));
@@ -44,8 +45,20 @@ const info = await viewer.inspect(handle); // type, raw/resolved properties, raw
 - **Memory.** `DisplayListRenderer({ releaseArrays: true })` drops vertex colours / UVs after GPU
   upload; the viewer keeps only positions (for picking and highlighting).
 
+- **Warnings.** `viewer.warnings` (and the `warnings` event) explain an empty or odd-looking
+  view: `ViewerWarning { code, severity: "info" | "warning", message, layout?, items?, count? }`
+  with stable codes (`ViewerWarningCode`): `layout-empty` (no entities in the layout; `items`
+  lists layouts with content), `layers-hidden` (every layer with content is off / frozen /
+  hidden by a toggle), `layers-no-plot` (every content layer has 290 = 0: document info, since
+  the viewer still shows such layers; a render cause with `visibility: "plot"`),
+  `nothing-visible` (entities on visible layers drew nothing), `content-invisible` (everything
+  is in the background colour), and render notes passed through from `PlotResult.notes`, e.g.
+  `font-missing` / `bigfont-missing` (`items` = font names; the text is drawn with
+  `fallbackFont`). `DocumentInfo.warnings` holds the document-level ones, `RenderResult` /
+  `RenderStats.warnings` those of a render.
+
 Events: `load`, `layout`, `render` (stats and timings), `select`, `hover`, `cursor` (world
-coordinates), `view`, `busy`, `measure`, `error`.
+coordinates), `view`, `busy`, `measure`, `warnings`, `error`.
 
 ## Notes and limits
 
@@ -55,5 +68,6 @@ coordinates), `view`, `busy`, `measure`, `error`.
   `@truedxf/viewer/worker`.
 - The frontend tessellates the whole drawing for every list (no view culling yet), so a LOD
   step costs about as much as the first render.
-- Pure black / white true colours contrast with the background like ACI 7 in the viewer (a
-  display choice; plots are unaffected).
+- Near-white colours on a light background and near-black ones on a dark background (within 8
+  of pure white / black, true colours and ACI 255) contrast with it like ACI 7 in the viewer —
+  e.g. QCAD's layer 0 with 420 = 0xFFFFFF. A display choice; plots are unaffected.

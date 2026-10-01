@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { loadDxf } from "@truedxf/model";
 import { describe, expect, it } from "vitest";
 import { type RenderParams, ViewerCore } from "../src/protocol.ts";
@@ -218,5 +220,74 @@ describe("viewer warnings", () => {
         count: 2,
       },
     ]);
+  });
+});
+
+describe("missing fonts", () => {
+  const assets = join(import.meta.dirname, "..", "..", "fonts", "assets");
+  // only "fb.shx" exists: the style's romans.shx and every default fallback are missing
+  const loadFont = async (name: string) =>
+    name.toLowerCase() === "fb.shx"
+      ? new Uint8Array(readFileSync(join(assets, "truedxf-test-uni.shx")))
+      : undefined;
+  const bytes = dxf(`
+0 SECTION
+2 HEADER
+9 $ACADVER
+1 AC1032
+0 ENDSEC
+0 SECTION
+2 TABLES
+0 TABLE
+2 BLOCK_RECORD
+5 1
+70 1
+0 BLOCK_RECORD
+5 1F
+330 1
+100 AcDbSymbolTableRecord
+100 AcDbBlockTableRecord
+2 *Model_Space
+0 ENDTAB
+0 TABLE
+2 STYLE
+0 STYLE
+2 Standard
+70 0
+40 0
+41 1
+50 0
+71 0
+42 2.5
+3 romans.shx
+4
+0 ENDTAB
+0 ENDSEC
+0 SECTION
+2 ENTITIES
+0 TEXT
+5 T1
+330 1F
+100 AcDbEntity
+8 0
+100 AcDbText
+10 0
+20 0
+30 0
+40 5
+1 AB
+7 Standard
+0 ENDSEC
+0 EOF
+`);
+
+  it("draws text with the fallback font and reports the missing font", async () => {
+    const core = new ViewerCore(loadFont, none);
+    core.load(bytes, "fonts.dxf");
+    const r = await core.render(params({ fallbackFont: ["nope.ttf", "fb.shx"] }));
+    expect(r.list.batches.length).toBeGreaterThan(0);
+    const w = r.warnings.find((x) => x.code === ViewerWarningCode.FontMissing);
+    expect(w).toMatchObject({ severity: "warning", layout: "Model" });
+    expect(w?.items).toContain("romans.shx");
   });
 });

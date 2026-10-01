@@ -159,9 +159,12 @@ mount(app, topbar, main, statusbar);
 
 /** Where IMAGEDEF paths of the current file resolve (fixtures / corpus files via the samples API). */
 let imageBase: ((path: string) => string) | undefined;
+/** `?fallbackFont=a.shx,b.ttf`: fonts for text whose font is missing (default: the viewer's). */
+const fallbackFont = new URLSearchParams(location.search).get("fallbackFont")?.split(",").filter(Boolean);
 const viewer = new DxfViewer(viewerHost, {
   background: "dark",
   fontBaseUrl: "fonts/",
+  ...(fallbackFont?.length ? { fallbackFont } : {}),
   loadImage: async (path) => {
     if (!imageBase) return undefined;
     const r = await fetch(imageBase(path));

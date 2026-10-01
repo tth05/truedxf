@@ -24,7 +24,7 @@ import {
 } from "@truedxf/render";
 import { buildPickData, type PickData } from "./pick.ts";
 import type { Rect } from "./view.ts";
-import { documentWarnings, type RenderNote, renderWarnings, type ViewerWarning } from "./warnings.ts";
+import { documentWarnings, renderWarnings, type ViewerWarning } from "./warnings.ts";
 
 // ---- public data shapes ------------------------------------------------------------------------
 
@@ -96,6 +96,14 @@ export interface RenderParams {
   scale?: PlotRequest["scale"];
   sysvars?: PlotRequest["sysvars"];
   paperSpaceFirst?: boolean;
+  /**
+   * Font file(s) for text whose font is missing, tried in order (viewing mode draws such text
+   * with the fallback; plot emulation substitutes FONTALT like AutoCAD). Default: the render
+   * layer's list (simplex.shx, txt.shx, arial.ttf, LiberationSans-Regular.ttf).
+   */
+  fallbackFont?: string | readonly string[];
+  /** Big font for missing big fonts (default: none). */
+  fallbackBigFont?: string;
 }
 
 export interface RenderResult {
@@ -256,6 +264,14 @@ export class ViewerCore {
         rasterEntities: p.rasterEntities === false ? "omit" : "draw",
         visibility: p.visibility ?? "display",
         ...(p.dpi ? { calibration: { dpi: p.dpi } } : {}),
+        ...(p.fallbackFont !== undefined || p.fallbackBigFont !== undefined
+          ? {
+              text: {
+                ...(p.fallbackFont !== undefined ? { fallbackFont: p.fallbackFont } : {}),
+                ...(p.fallbackBigFont !== undefined ? { fallbackBigFont: p.fallbackBigFont } : {}),
+              },
+            }
+          : {}),
       },
     );
     const t1 = performance.now();
@@ -273,7 +289,7 @@ export class ViewerCore {
         visibility: p.visibility ?? "display",
         list: res.displayList,
         unsupported: res.unsupported,
-        notes: (res as { notes?: readonly RenderNote[] }).notes,
+        notes: res.notes,
       }),
       ms: { frontend: t1 - t0, pick: t2 - t1 },
     };

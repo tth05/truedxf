@@ -63,6 +63,14 @@ export interface DxfViewerOptions {
   hover?: boolean;
   /** preserveDrawingBuffer (tests reading pixels). */
   preserveDrawingBuffer?: boolean;
+  /**
+   * Font file(s) (names as the font loader serves them) for text whose font is missing, tried in
+   * order; default: the render layer's list (simplex.shx, txt.shx, arial.ttf,
+   * LiberationSans-Regular.ttf). Missing fonts are reported as `font-missing` warnings.
+   */
+  fallbackFont?: string | readonly string[];
+  /** Big font (.shx) for missing big fonts (default: none). */
+  fallbackBigFont?: string;
 }
 
 export type Tool = "select" | "measure";
@@ -558,6 +566,10 @@ export class DxfViewer {
       lineweights: this.lineweights,
       raster: "smooth" as const,
       dpi: 100 * this.dpr,
+      ...(this.options.fallbackFont !== undefined ? { fallbackFont: this.options.fallbackFont } : {}),
+      ...(this.options.fallbackBigFont !== undefined
+        ? { fallbackBigFont: this.options.fallbackBigFont }
+        : {}),
     };
     if (this.fitPending || !this.view) {
       // Paper layouts fit their sheet. Not the display-list extents: those include model-space

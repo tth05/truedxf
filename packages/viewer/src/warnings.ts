@@ -4,7 +4,7 @@
  * `DxfViewer.warnings` and its `warnings` event): codes are stable, messages are for people.
  */
 import type { Block, DxfDocument, Entity, InsertEntity } from "@truedxf/model";
-import type { DisplayList } from "@truedxf/render";
+import type { DisplayList, PlotNote } from "@truedxf/render";
 
 /** Stable warning codes. Render notes (e.g. from the text layer) keep their own codes. */
 export const ViewerWarningCode = {
@@ -43,18 +43,9 @@ export interface ViewerWarning {
   count?: number;
 }
 
-/** A note of the render frontend (`PlotResult.notes`, same shape as @truedxf/render's PlotNote). */
-export interface RenderNote {
-  code: string;
-  message: string;
-  severity?: "info" | "warning";
-  count?: number;
-  items?: string[];
-}
-
 const MAX_ITEMS = 50;
 /** A colour within this distance (per channel) of the background cannot be told apart from it. */
-const INVISIBLE_DISTANCE = 24;
+const INVISIBLE_DISTANCE = 16;
 
 function nameList(names: readonly string[], max = 5): string {
   const shown = names.slice(0, max).join(", ");
@@ -127,7 +118,8 @@ export interface RenderWarningInput {
   visibility: "display" | "plot";
   list: Pick<DisplayList, "batches" | "background">;
   unsupported: Readonly<Record<string, number>>;
-  notes?: readonly RenderNote[] | undefined;
+  /** Render notes (`PlotResult.notes`, e.g. missing fonts), passed through as warnings. */
+  notes?: readonly PlotNote[] | undefined;
 }
 
 /** Warnings for one render of a layout: why the output is empty or invisible, plus render notes. */

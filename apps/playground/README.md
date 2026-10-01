@@ -22,7 +22,13 @@ pnpm playground:build      # static build in apps/playground/dist
   background, lineweights on/off.
 - Status bar: file, entity count, parse / render / upload times, first frame, batches and
   vertices, backend (worker or main thread), cursor world coordinates. The Diagnostics panel lists
-  what the renderer could not draw (`unsupported` counts), model diagnostics and entity types.
+  the viewer warnings (`viewer.warnings`), what the renderer could not draw (`unsupported`
+  counts), model diagnostics and entity types.
+- **Warnings**: when nothing shows (empty layout, all content layers off / frozen / hidden,
+  everything in the background colour, …) a notice in the stage says why, with an action (show
+  all layers, open the layout with content, switch the background). Missing fonts and similar
+  render notes appear in a dismissable chip; `?fallbackFont=a.shx,b.ttf` sets the fonts used for
+  text whose font is missing.
 
 ## Fonts
 

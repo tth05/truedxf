@@ -106,6 +106,20 @@ export interface PlotResult {
   view: View;
   /** Counts of things the frontend could not render (entity types, features). */
   unsupported: Record<string, number>;
+  /** Diagnostics for the user (e.g. missing fonts); absent when there are none. */
+  notes?: PlotNote[];
+}
+
+/** A user-facing diagnostic of a render, e.g. `{ code: "font-missing", items: ["txt.shx"] }`. */
+export interface PlotNote {
+  /** Stable machine-readable id ("font-missing", "bigfont-missing", …). */
+  code: string;
+  message: string;
+  severity?: "info" | "warning";
+  /** How many things are affected (e.g. text styles / inline fonts). */
+  count?: number;
+  /** The names concerned (e.g. missing font files or families). */
+  items?: string[];
 }
 
 export interface DrawState {
@@ -132,7 +146,8 @@ export type ComplexElementDrawer = (
   r: Resolved,
   st: DrawState,
 ) => void;
-export type Preparer = (doc: DxfDocument, env: RenderEnv) => Promise<void>;
+/** Async preparation before drawing; may return user-facing notes for the PlotResult. */
+export type Preparer = (doc: DxfDocument, env: RenderEnv) => Promise<void | readonly PlotNote[]>;
 /**
  * Called before a block reference's content is drawn (once per MINSERT cell) with the
  * reference and the state it is drawn in; returns a function undoing what it set up (clip,
@@ -798,7 +813,8 @@ export async function renderPlot(
   request: PlotRequest,
   env: RenderEnv = {},
 ): Promise<PlotResult> {
-  for (const p of PREPARERS) await p(doc, env);
+  const notes: PlotNote[] = [];
+  for (const p of PREPARERS) notes.push(...((await p(doc, env)) ?? []));
   const calibration = { ...DEFAULT_CALIBRATION, ...env.calibration };
   const space = findLayout(doc, request.layout);
   let view: View;
@@ -840,7 +856,7 @@ export async function renderPlot(
   }
   const fe = new Frontend(doc, request, view, calibration, env);
   drawSpace(fe, space);
-  return { displayList: fe.build(), view, unsupported: fe.unsupported };
+  return { displayList: fe.build(), view, unsupported: fe.unsupported, ...(notes.length ? { notes } : {}) };
 }
 
 function concatEdges(prev: Float64Array | undefined, rings: readonly Float64Array[]): Float64Array {

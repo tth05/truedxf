@@ -116,7 +116,7 @@ default, FILLMODE for pattern hatches, extents edge tolerance.
       full-advance box; does the `%%nnn` buffer persist across strings.
 - [ ] Probe: code page and height of non-AutoCAD bigfonts (hztxt.shx, the most common after
       gbcbig); inline `\F…,bigfont` with a missing bigfont; move the font-probes generator
-      (scratchpad) into tools/gen.
+      (a one-off script, not in the repo) into tools/gen.
 - [ ] MLINE: end-cap colours from the second element; element linetypes continuous across
       vertices (10).
 - [ ] Linetyped circles that plot continuous use the graphics-system tessellation (f = 1.0)

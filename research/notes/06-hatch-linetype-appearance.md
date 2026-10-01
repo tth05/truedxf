@@ -857,19 +857,14 @@ s = LTSCALE (header $LTSCALE, default 1)
 
 ### 2.6 How AutoCAD applies the pattern ("A-type alignment")
 
-Autodesk documentation (help "About Simple Custom Linetypes", fetched):
+Autodesk documentation (help "About Simple Custom Linetypes", paraphrased): the alignment field
+controls how the pattern is fitted at the ends of lines, arcs and circles. With A alignment the
+dash-dot sequence of each line is adjusted so the line both starts and ends with a dash, at least
+half a first dash long; the first and last dashes are lengthened when needed. A line too short for
+one full sequence is drawn continuous. Arcs are adjusted so dashes fall on the endpoints; circles
+and other closed objects get a pattern adjusted to look reasonable.
 
-> "The alignment field specifies the action for pattern alignment at the ends of individual lines,
-> circles, and arcs."
-> "The program adjusts the dash-dot sequence on an individual line so that dashes and line endpoints
-> coincide. The pattern fits the line so that at least half of the first dash begins and ends the
-> line." "If necessary, the first and last dashes are lengthened."
-> "If a line is too short to hold even one dash-dot sequence, a continuous line between the
-> endpoints is drawn."
-> "For arcs, the pattern is adjusted so that dashes are drawn at the endpoints. For circles and
-> other objects without endpoints, the dash-dot sequence is adjusted to provide a reasonable display."
-
-(**DOC**, one quote here from Autodesk; the rest paraphrased.) mlightcad implemented the
+(**DOC**, paraphrased from Autodesk help.) mlightcad implemented the
 "too short → continuous" rule and calls it matching AutoCAD (mlightcad pr-668). No library
 implements the end alignment:
 - ezdxf: pattern starts with the first element at the start of each primitive, continues across
@@ -1010,7 +1005,7 @@ ezdxf maps invalid layer ACI to 7 (properties.py `_true_layer_color`).
 
 ### 3.3 ACI 1–255 → RGB: CONFLICT (measure!)
 
-Seven tables were extracted and compared (script in scratchpad; sources:
+Seven tables were extracted and compared (with a throwaway script, not kept; sources:
 ezdxf:colors.py `DXF_DEFAULT_COLORS` / `DXF_DEFAULT_PAPERSPACE_COLORS`, netDxf:AciColor.cs
 `indexRgb`, ACadSharp:Color.cs `_indexRgb`, dxf-viewer:src/parser/AutoCadColorIndex.js,
 mlightcad-realdwg-web:packages/common/src/AcCmColorUtil.ts, libdxfrw:src/drw_objects.h `dxfColors`,
@@ -1044,12 +1039,11 @@ Two families:
   color setting", i.e. captured from the screen with background 33,40,48; the ezdxf tables contain
   obviously background-adjusted anomalies (109 = 135817, 250 = 000000, 255 = B3B3B3 in "paperspace").
 
-Explanation: AutoCAD uses **two RGB sets per ACI depending on the background**: "If the background
-color is set to black, the RGB color used will be slightly lighter, and for all other background
-colors, a slightly darker RGB color is used" … "to increase the contrast" (jtbworld blog 2008
+Explanation: AutoCAD uses **two RGB sets per ACI depending on the background**: slightly lighter
+RGB on a black background, slightly darker on any other, for contrast (jtbworld blog 2008
 "ACI to RGB color inconsistency", citing Autodesk TS1074647), and grays 8, 9, 250–255 are adjusted
-for visibility ("with a white background, color index 250 shows as RGB 0,0,0, with black background
-51,51,51" — Autodesk forum "Default Index Colors?", via search summary). So the "light" table is
+for visibility (ACI 250 shows as 0,0,0 on white and 51,51,51 on black — Autodesk forum "Default
+Index Colors?", via search summary). So the "light" table is
 the classic/black-background set; the "dark" table is the non-black-background set.
 
 What PLOT uses (with a CTB "use object color" pen) is **UNKNOWN**. Hypotheses: (a) the canonical

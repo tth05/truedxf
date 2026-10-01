@@ -22,12 +22,12 @@ SHAPES = {"TRACK1": 130, "ZIG": 131, "BOX": 132, "CIRC1": 133, "BAT": 134, "AMZI
 
 # acad.lin shape linetypes x25.4 (acadiso.lin style); shape given by number for ezdxf's compiler
 SHAPE_LTYPES = {
-    "FENCELINE1": ("Fenceline circle ----0-----0----0-----0----0-----0--", "A,6.35,-2.54,[133,ltypeshp.shx,x=-2.54,s=2.54],-2.54,25.4", 36.83),
-    "FENCELINE2": ("Fenceline square ----[]-----[]----[]-----[]----[]---", "A,6.35,-2.54,[132,ltypeshp.shx,x=-2.54,s=2.54],-2.54,25.4", 36.83),
-    "TRACKS": ("Tracks -|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-", "A,3.81,[130,ltypeshp.shx,s=6.35],3.81", 7.62),
-    "BATTING": ("Batting SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS",
+    "FENCELINE1": ("truedxf fence, circles", "A,6.35,-2.54,[133,ltypeshp.shx,x=-2.54,s=2.54],-2.54,25.4", 36.83),
+    "FENCELINE2": ("truedxf fence, squares", "A,6.35,-2.54,[132,ltypeshp.shx,x=-2.54,s=2.54],-2.54,25.4", 36.83),
+    "TRACKS": ("truedxf tracks", "A,3.81,[130,ltypeshp.shx,s=6.35],3.81", 7.62),
+    "BATTING": ("truedxf batting",
                 "A,0.0001,-2.54,[134,ltypeshp.shx,x=-2.54,s=2.54],-5.08,[134,ltypeshp.shx,r=180,x=2.54,s=2.54],-2.54", 10.1601),
-    "ZIGZAG": ("Zig zag /\\/\\/\\/\\/\\/\\/\\/\\/\\/\\/\\/\\/\\/\\/\\/\\/\\/\\/\\/\\/\\",
+    "ZIGZAG": ("truedxf zigzag",
                "A,0.0001,-5.08,[131,ltypeshp.shx,x=-5.08,s=5.08],-10.16,[131,ltypeshp.shx,r=180,x=5.08,s=5.08],-5.08", 20.3201),
 }
 

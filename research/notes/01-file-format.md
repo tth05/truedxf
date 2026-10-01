@@ -289,10 +289,9 @@ Use `parseFloat` plus a regex check, or a hand-written scanner.
     (lrd#1314 item 4).
   - **Parser rule:** impose **no** line-length limit (libredwg-produced files have longer lines;
     tolerate them).
-- **Caret encoding of control characters** (spec:L10373 "ASCII Control Characters in DXF Files"):
-  "SAVEAS handles ASCII control characters in text strings by expanding the character into a caret
-  (^) followed by the appropriate letter … If the text itself contains a caret character, it is
-  expanded to caret, space". So:
+- **Caret encoding of control characters** (spec:L10373 "ASCII Control Characters in DXF Files",
+  paraphrased): on save, a control character in a string is written as a caret plus the matching
+  letter, and a literal caret is written as caret + space. So:
   - `^@`=0x00, `^A`…`^Z` = 0x01…0x1A, `^[`=0x1B, `^\`=0x1C, `^]`=0x1D, `^^`=0x1E, `^_`=0x1F,
     **`^ ` = literal `^`** (ixm:DxfReader.cs `TransformControlCharacter`).
   - Common: `^J` (LF, a line break in TEXT/GEODATA/ATTRIB), `^M^J` (CRLF), `^I` (TAB)
@@ -1244,7 +1243,7 @@ Notable absences: `$DRAGVS` (the spec lists it; not written when NULL, lrd `HEAD
 7. Build the Drawing, then run the Auditor (fixes references, handles, invalid values).
 
 ezdxf's philosophy: the normal `readfile` expects valid files; everything messy goes through
-`recover` (ezdxf#1403: "Ezdxf has a special module ezdxf.recover to read crappy DXF files";
+`recover` (ezdxf#1403: the maintainer points to `ezdxf.recover` for reading broken DXF files;
 ezdxf-notes:"Load Documents.md"). **truedxf:** one parser with a strictness flag. Strict mode
 mirrors AutoCAD's acceptance (useful to predict "AutoCAD would refuse"), lenient mode mirrors
 ezdxf.recover.

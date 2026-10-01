@@ -1,4 +1,4 @@
-"""Dev-only: print ezdxf reference values that are pasted into packages/geometry/test/*.test.ts.
+"""Dev-only: print ezdxf reference values as JSON for packages/geometry/test/fixtures/ezdxf-reference.json.
 
 Run with the generator venv:  tools/gen/.venv/Scripts/python packages/geometry/scripts/ezdxf_reference.py
 Tests never call Python; re-run this only when adding reference cases.

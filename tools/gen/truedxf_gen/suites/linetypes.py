@@ -858,7 +858,7 @@ def odd_ltype_cases(s: SuiteBuilder) -> None:
         )
         if meas is None:
             del c.doc.header["$MEASUREMENT"]
-        raw_ltype(c, "DASHED", 0.0, [], desc="Dashed __ __ __ __ __ __ __ __ __ __ __ __ __ _")
+        raw_ltype(c, "DASHED", 0.0, [], desc="truedxf dashed")
         lines_and_circle(c, "DASHED")
     odd = [
         ("leading-gap", 19.05, [-6.35, 12.7], "pattern starts with a gap (-6.35, 12.7), non-standard"),

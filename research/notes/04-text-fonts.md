@@ -82,15 +82,14 @@ Unknown (72,73) combinations fall back to LEFT.
 
 ### 1.3 Which point is used
 
-- Spec (p.145): "If group 72 and/or 73 values are nonzero then the first alignment point values are
-  ignored and AutoCAD calculates new values based on the second alignment point and the length and
-  height of the text string itself (after applying the text style). If the 72 and 73 values are zero
-  or missing, then the second alignment point is meaningless."
+- Spec (p.145, paraphrased): when 72 or 73 is nonzero, AutoCAD ignores the first alignment point
+  and recomputes it from the second alignment point plus the string's length and height under the
+  text style; when both are zero or absent, the second alignment point has no meaning.
 - ezdxf `Text.get_placement()` (text.py:270): LEFT → 10; FIT/ALIGNED → text runs from 10 to 11;
   everything else → **11 is the real alignment point** (falls back to 10 if 11 is missing).
-- ezdxf notes ("Notes on Rendering DXF Content.md", M. Broadway): "The anchor of single line TEXT
-  entities (and ATTRIB entities) is *always* the left-baseline regardless of what alignment parameters
-  are stored in the DXF. Those are for re-adjusting the anchor when the text is edited."
+- ezdxf notes ("Notes on Rendering DXF Content.md", M. Broadway, paraphrased): TEXT and ATTRIB are
+  *always* anchored at the left baseline (10) whatever alignment is stored; the alignment values only
+  matter when the text is edited.
   **CONFLICT** with the spec — resolved by later evidence:
   - ezdxf#688, ezdxf#1258, ezdxf#1075: when an ODA DXF→DWG conversion keeps a stale 10, **AutoCAD draws
     the text at the stale 10** until the entity is edited/moved (VERIFIED AutoCAD, TrueView 2024,
@@ -114,7 +113,7 @@ Unknown (72,73) combinations fall back to LEFT.
 
 Method: in files saved by a CAD application, 10 is the application's own recomputation, so
 `(11 − 10)` rotated into the text frame and divided by h exposes the alignment metrics. I scanned all
-3045 DXF files under `research/repos` (script in the session scratchpad, not in the repo) and grouped by
+3045 DXF files under `research/repos` (with a one-off script, not in the repo) and grouped by
 producer: files with `$FINGERPRINTGUID` in braces are AutoCAD-style (**"ACAD"**; QCAD writes the same
 style and its files were excluded), e.g. `three-dxf/sample/data/demo.dxf` maintver 197, `ezdxf/examples_dxf/text.dxf` maintver
 155 = mbway's AutoCAD stress test from ezdxf PR #280, `dxf-json/sample/A_000217.dxf`,
@@ -753,11 +752,11 @@ local probes `text-probes/mtx-*` (PDF geometry measured relative to a cross at t
 
 ## 4. Fonts
 
-**Provenance of the VERIFIED-BY-ACAD font facts in this section:** a helper agent found **AutoCAD 2027**
-(`C:\Program Files\Autodesk\AutoCAD 2027`, ACADVER 26.0) installed on the research machine and ran
+**Provenance of the VERIFIED-BY-ACAD font facts in this section:** measured with **AutoCAD 2027**
+(`C:\Program Files\Autodesk\AutoCAD 2027`, ACADVER 26.0) on the research machine, running
 `accoreconsole.exe` headless with AutoLISP (`entmake` STYLE/TEXT at h = 10, read back with
-`(textbox …)`). These are TEXTBOX/core-console results, **not PLOT output**. Scripts and raw outputs
-were in the session scratchpad (`probe.lsp`, `mkscr.py`, `acad_out*.txt`), which may not persist — the
+`(textbox …)`). These are TEXTBOX/core-console results, **not PLOT output**. The probe scripts and
+raw outputs (`probe.lsp`, `mkscr.py`, `acad_out*.txt`) were temporary and are not in the repo — the
 numbers that matter are repeated here. Where these contradict older conclusions they win.
 
 ### 4.1 STYLE table and font selection
@@ -1567,7 +1566,7 @@ MTEXT (§3)
     measures it up to its advance, not its ink (mtext/stack-caret-side-by-side: next pen = box pen
     + 1536 units + the "0" side bearing).
   - MTEXT with an SHX font: a character missing from the font and from every TrueType fallback
-    draws nothing (fonts agent, font-probes/bigcp-mtext: 한 with txt + gbcbig).
+    draws nothing (font probes, font-probes/bigcp-mtext: 한 with txt + gbcbig).
 - `%%nnn` digits go into a **3-character buffer that keeps the previous code's tail**:
   `[%%9][%%09][%%009][%%65]` draws boxes for 9, 9, 9 and then U+0293 (659) for `%%65`
   (text/nnn-short, PDF ToUnicode 0255 → 0293, 2026-10-01). Whether the buffer survives across

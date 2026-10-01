@@ -826,10 +826,9 @@ Object in NOD `ACAD_IMAGE_VARS`: 90 version, **70 frame** (0 no frame, 1 frame),
   (ezdxf `set_masking_area`). → Use the same `wcs(x,y)` formula as IMAGE with w=h=1.
 - Rendering: fill the boundary polygon with the **current background color** (PLOT: paper color,
   usually white), in draw order, masking everything drawn earlier (ezdxf frontend.py:672-677;
-  mlightcad-viewer#671 describes the AutoCAD behavior: "The wipeout area shows the current background
-  colour… Everything created before the wipeout… is hidden… Draw order follows creation order, or
-  SORTENTS when present"). ezdxf#205 (mbway): pastes a background rectangle and hides the background
-  grid too.
+  mlightcad-viewer#671 describes the AutoCAD behavior: the wipeout is filled with the current
+  background colour and hides everything drawn before it, in creation order or SORTENTS order).
+  ezdxf#205 (mbway): pastes a background rectangle and hides the background grid too.
 - Wipeouts inside blocks mask earlier entities of the same block *and* whatever was drawn before the
   INSERT (block content is drawn in place). **ASSUMPTION** (ezdxf#205: "wipeout entities can wipe out
   entities within the same block if they are below in the draw order").

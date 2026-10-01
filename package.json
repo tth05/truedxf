@@ -18,7 +18,7 @@
     "test:visual": "node --disable-warning=ExperimentalWarning packages/testkit/src/visual.ts",
     "playground": "pnpm --filter @truedxf/playground dev",
     "playground:build": "pnpm --filter @truedxf/playground build",
-    "playground:deploy": "pnpm --filter @truedxf/playground deploy",
+    "playground:deploy": "pnpm --filter @truedxf/playground run deploy:pages",
     "perf:viewer": "node --disable-warning=ExperimentalWarning apps/playground/scripts/perf.ts"
   },
   "devDependencies": {

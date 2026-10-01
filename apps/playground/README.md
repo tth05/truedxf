@@ -88,7 +88,7 @@ One-time setup and checks:
 ```bash
 pnpm --filter @truedxf/playground exec wrangler login
 pnpm --filter @truedxf/playground exec wrangler pages project create truedxf --production-branch master
-pnpm --filter @truedxf/playground preview:public   # public build with _headers on http://localhost:8788
+pnpm --filter @truedxf/playground run preview:public   # public build with _headers on http://localhost:8788
 ```
 
 Deploys from `master` go to production, other branches to preview URLs. For search, verify the

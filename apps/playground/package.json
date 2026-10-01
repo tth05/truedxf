@@ -11,7 +11,7 @@
     "preview": "vite preview",
     "build:public": "vite build --mode public",
     "preview:public": "vite build --mode public && wrangler pages dev dist",
-    "deploy": "vite build --mode public && wrangler pages deploy dist --project-name truedxf",
+    "deploy:pages": "vite build --mode public && wrangler pages deploy dist --project-name truedxf",
     "site-images": "node --disable-warning=ExperimentalWarning scripts/site-images.ts"
   },
   "dependencies": {

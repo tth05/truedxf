@@ -838,33 +838,27 @@ async function showInspector(handle: string | undefined): Promise<void> {
 // ---- errors ------------------------------------------------------------------------------------
 
 /**
- * "Report a problem" opens a GitHub issue prefilled with what helps reproducing it: build,
- * browser and the drawing's version / entity types / what was not rendered. No file name.
+ * "Report a problem" opens the repository's issue form (.github/ISSUE_TEMPLATE/rendering.yml)
+ * with its Environment field filled in: build, browser and the drawing's version / entity types
+ * / what was not rendered. No file name.
  */
 function updateReportLink(): void {
-  const lines = [
-    "**What is drawn wrong** (a screenshot helps; attach the DXF, zipped, if you are allowed to share it):",
-    "",
-    "",
-    "---",
-    `- truedxf: ${__BUILD__.commit} (${__BUILD__.date})`,
-    `- Browser: ${navigator.userAgent}`,
-  ];
+  const lines = [`truedxf: ${__BUILD__.commit} (${__BUILD__.date})`, `Browser: ${navigator.userAgent}`];
   if (info) {
     lines.push(
-      `- Drawing: ${info.acadver}, ${info.format}, ${fmtBytes(info.byteLength)}, ${info.entityCount} entities`,
+      `Drawing: ${info.acadver}, ${info.format}, ${fmtBytes(info.byteLength)}, ${info.entityCount} entities`,
     );
     const types = Object.entries(info.entityTypes).sort((a, b) => b[1] - a[1]);
-    lines.push(`- Entity types: ${types.map(([k, n]) => `${k} ${n}`).join(", ")}`);
+    lines.push(`Entity types: ${types.map(([k, n]) => `${k} ${n}`).join(", ")}`);
     const un = Object.entries(lastRender?.unsupported ?? {});
-    if (un.length) lines.push(`- Not rendered: ${un.map(([k, n]) => `${k} ${n}`).join(", ")}`);
+    if (un.length) lines.push(`Not rendered: ${un.map(([k, n]) => `${k} ${n}`).join(", ")}`);
     const codes = [...new Set(viewer.warnings.map((w) => w.code))];
-    if (codes.length) lines.push(`- Viewer warnings: ${codes.join(", ")}`);
+    if (codes.length) lines.push(`Viewer warnings: ${codes.join(", ")}`);
   }
   // GitHub rejects very long URLs: cut the tail (the long lists come last)
-  let body = lines.join("\n");
-  if (body.length > 4000) body = `${body.slice(0, 4000)}…`;
-  const q = new URLSearchParams({ title: "Rendering problem: ", body });
+  let environment = lines.join("\n");
+  if (environment.length > 4000) environment = `${environment.slice(0, 4000)}…`;
+  const q = new URLSearchParams({ template: "rendering.yml", title: "Rendering problem: ", environment });
   reportLink.setAttribute("href", `${__BUILD__.repo}/issues/new?${q}`);
 }
 

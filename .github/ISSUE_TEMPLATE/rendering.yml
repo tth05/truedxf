@@ -1,0 +1,31 @@
+name: Rendering or parsing problem
+description: A drawing that truedxf draws differently from AutoCAD, or fails to open.
+labels: ["bug"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What is wrong
+      description: What you see, and what AutoCAD (or the program that wrote the file) shows instead.
+    validations:
+      required: true
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots
+      description: truedxf and, if you can, AutoCAD (a plot or a screenshot). Paste or drag images here.
+  - type: textarea
+    id: sample
+    attributes:
+      label: Sample file
+      description: >
+        Attach the DXF (zip it; GitHub does not accept .dxf). Only attach files you are allowed to share:
+        they become public. A small file that still shows the problem is best.
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: >
+        The viewer's "Report a problem" link fills this in. Otherwise: truedxf version or commit, browser,
+        and the DXF version / producing program if you know them.
+      render: text

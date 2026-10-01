@@ -5,6 +5,7 @@
  *
  * Resolution rules are @truedxf/fonts' `FontManager.resolveStyle` (AutoCAD 2027, note 04 §4.1).
  */
+import { getDecoder } from "@truedxf/core";
 import {
   type Font,
   type FontManager,
@@ -222,7 +223,7 @@ function encoderFor(encoding: string): Map<number, number> {
   m = new Map();
   let dec: TextDecoder | undefined;
   try {
-    dec = new TextDecoder(key);
+    dec = getDecoder(key); // table-backed windows-1252 where the runtime's is wrong (core)
   } catch {
     dec = undefined;
   }
@@ -268,6 +269,10 @@ export function glyphCode(font: StyleFont, ch: CharForCode, encoding: string): n
     if (ch.symbol === "diameter" && p instanceof ShxFont && p.hasGlyph(0x2205)) return 0x2205;
     return ch.cp;
   }
+  // a TrueType font without U+2205 (Liberation Sans) draws U+2205 as its own U+00D8, not from a
+  // fallback font (VERIFIED-BY-ACAD dimensions/type-diameter-nb: AutoCAD's block text holds U+2205;
+  // text/fallback-diameter-*; note 04 §4.5)
+  if (ch.cp === 0x2205 && p instanceof TtfFont && !p.hasGlyph(0x2205) && p.hasGlyph(0xd8)) return 0xd8;
   if (ch.numeric || !shape || ch.cp < 0x80) return ch.cp;
   return encoderFor(encoding).get(ch.cp) ?? 0x3f;
 }

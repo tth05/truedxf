@@ -142,6 +142,13 @@ describe.skipIf(!hasSimplex)("MTEXT extents vs AutoCAD's stored 42/43 (note 04 ย
     expect(mtextExtents(mtext({ text: " abc\\Pabcd", height: 20, width: 60 }), fonts).lines).toBe(3);
     expect(mtextExtents(mtext({ text: "abcabcabc x", height: 20, width: 60 }), fonts).lines).toBe(2);
   });
+  it("keeps a word whose ink fits even when its advance overshoots the width", async () => {
+    const fonts = await testFonts([style("S", "truedxf-test.shx")]);
+    // "H H" at h = 10: the second H's ink ends at 22.5, its advance at 23.33 (note 04 ยง3.6.2)
+    const lines = (width: number) => mtextExtents(mtext({ text: "H H", width }), fonts).lines;
+    expect(lines(23)).toBe(1);
+    expect(lines(22.4)).toBe(2);
+  });
 });
 
 describe("MTEXT layout", () => {

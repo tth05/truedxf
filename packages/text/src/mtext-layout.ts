@@ -10,7 +10,8 @@
  * - "exact" (73 = 2): constant pitch 5/3·h·f, box bottom = last baseline − h/3 (one sample, UNVERIFIED);
  * - extents: width = max over lines of inkRight − max(0, inkLeft) (whitespace-only lines: their
  *   pen width), height = top … last baseline + min(0, last line's ink bottom);
- * - word wrap at spaces only; a word longer than the width spills; leading spaces count;
+ * - word wrap at spaces only; a word fits when its ink (not its advance) ends within the width
+ *   (note 04 §3.6.2); a word longer than the width spills; leading spaces count;
  * - default tab stops every 4 × h (VERIFIED-BY-ACAD); `\pt` stops in multiples of h;
  * - style width factor and oblique are the initial `\W`/`\Q` (ezdxf#1351, VERIFIED TrueView).
  * - columns, per-column vertical attachment, text frame and background mask: note 04 §3.7.1
@@ -849,13 +850,18 @@ class Engine {
       // a word: consecutive glyph / stack / nbsp items
       let j = k;
       let wordAdv = 0;
+      let wordInk = 0;
       while (j < items.length) {
         const w = items[j]!;
         if ((w.k === "space" && !w.nbsp) || w.k === "tab") break;
+        const ink = w.k === "glyph" || w.k === "stack" ? w.ink : undefined;
+        wordInk = ink ? wordAdv + ink.xMax : wordInk;
         wordAdv += w.adv;
         j++;
       }
-      if (wrap > 0 && ln.items.length > 0 && ln.pen + wordAdv > lineW(ln) + 1e-9) {
+      // the word fits when its ink ends inside the width; its advance may overshoot
+      // (VERIFIED-BY-ACAD mtext/chunk-*, note 04 §3.6.2)
+      if (wrap > 0 && ln.items.length > 0 && ln.pen + wordInk > lineW(ln) + 1e-9) {
         this.finishLine(ln);
         out.push(ln);
         ln = this.newLine(p, false);

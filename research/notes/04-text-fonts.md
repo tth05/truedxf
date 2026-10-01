@@ -621,6 +621,9 @@ frame width is 41 when set). Verify placement with PLOT.
   single blank line at the start"; a too-long single word is not broken and spills; "Placing a space
   before this word will create an empty line and push the word onto the next line"; a wrap directly
   followed by \P gives one break only; trailing spaces ignored for alignment except first line.
+  **Fit test** (VERIFIED-BY-ACAD mtext/chunk-*, 2026-10-01, Arial h = 3/4, 41 = 190): a word stays
+  on the line when its **ink** right edge is within 41; its advance may overshoot ("…erat, sed
+  diam" ends at ink 189.75, advance 190.35, and stays). Testing the advance wrapped one word early.
   CJK: AutoCAD wraps **between characters** of CJK runs (ezdxf#1389 wontfix; dxf-viewer implements CJK
   break opportunities + kinsoku). Widths < h exist (one CJK char per line). 41 can be absurd
   (2,318,597, ezdxf#1078) — don't use it for bounding boxes.

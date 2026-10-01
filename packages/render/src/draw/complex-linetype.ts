@@ -26,7 +26,6 @@ interface ComplexResources {
 }
 
 const RESOURCES = new WeakMap<DxfDocument, ComplexResources>();
-const TRUETYPE = /\.(ttf|ttc|otf)$/i;
 
 function complexElements(doc: DxfDocument): LinetypeElement[] {
   const out: LinetypeElement[] = [];
@@ -60,11 +59,9 @@ registerPreparer(async (doc, env) => {
     }
     shapes.set(h, font);
   }
-  // Linetype text cannot use TrueType fonts: AutoCAD draws it with FONTALT (simplex.shx) even
-  // when the STYLE's TTF is installed and TEXT entities use it. VERIFIED-BY-ACAD (linetypes/ctext-*)
-  const textFonts = needText
-    ? await prepareTextFonts(doc, env.loadFont, { ...env.text, unavailableFonts: TRUETYPE })
-    : undefined;
+  // Linetype text uses the STYLE's font like TEXT, TrueType included; FONTALT only stands in for
+  // a missing file. VERIFIED-BY-ACAD 2026-10-01 (linetypes/ctext-*, note 06 §2.3)
+  const textFonts = needText ? await prepareTextFonts(doc, env.loadFont, env.text) : undefined;
   RESOURCES.set(doc, { shapes, styles, textFonts });
 });
 
@@ -133,13 +130,7 @@ function drawText(
     fe.note("complex-linetype-text-unavailable");
     return;
   }
-  // Text height = |S| × the STYLE's fixed height when that is set, else |S|; S = 0 counts as 1
-  // (in linetype scale units) and S < 0 turns the text by 180° about its insertion point.
-  // VERIFIED-BY-ACAD (linetypes/ctext-height-*, ctext-scale-zero, ctext-scale-neg)
-  const S = p.element.scale === 0 ? data.scale : p.element.scale;
-  const height = Math.abs(S) * (style.fixedHeight > 0 ? style.fixedHeight : 1);
-  const turn = S < 0 ? Math.PI : 0;
-  const input = (x: number, y: number, angle: number) => ({
+  const input = (x: number, y: number, angle: number, height: number) => ({
     text: el.text!,
     insert: { x, y, z: 0 },
     alignPoint: undefined,
@@ -153,13 +144,45 @@ function drawText(
     valign: 0,
     extrusion: { x: 0, y: 0, z: 1 },
   });
+  const fixed = style.fixedHeight > 0 ? style.fixedHeight : 1;
+  const upright = p.element.rotationMode === ComplexRotation.Upright;
+  if (fonts.style(style.name).font?.primary.kind === "ttf") {
+    // TrueType: height = |S| × the STYLE's fixed height (else |S|); S < 0 draws like |S|, S = 0
+    // draws nothing. U= elements turn (U angle, and 180° when upside down) about the centre of
+    // the font cell box of the unturned text, not about the gap middle dash.ts flips around.
+    // VERIFIED-BY-ACAD 2026-10-01 (linetypes/ctext-height-*, ctext-scale-neg, ctext-scale-zero,
+    // ctext-orient-u-*, ctext-hotwatersupply-shapes; note 06 §2.3)
+    const S = p.element.scale;
+    if (S === 0) return;
+    const height = Math.abs(S) * fixed;
+    let x = p.anchorX;
+    let y = p.anchorY;
+    if (upright) {
+      const local = layoutText(input(0, 0, 0, height), fonts);
+      const box = cellBox(local) ?? glyphBox(local);
+      if (box) {
+        const cx = (box[0] + box[2]) / 2;
+        const cy = (box[1] + box[3]) / 2;
+        const t = p.tangentAngle;
+        x += Math.cos(t) * cx - Math.sin(t) * cy - (Math.cos(p.angle) * cx - Math.sin(p.angle) * cy);
+        y += Math.sin(t) * cx + Math.cos(t) * cy - (Math.sin(p.angle) * cx + Math.cos(p.angle) * cy);
+      }
+    }
+    drawLayout(fe, layoutText(input(x, y, p.angle, height), fonts), e, IDENTITY, st.inh);
+    return;
+  }
+  // SHX (also FONTALT standing in for a missing TrueType file): S = 0 counts as 1 (in linetype
+  // scale units), S < 0 turns the text by 180° about its insertion point, an upside-down U=
+  // element is flipped about the gap middle (dash.ts) and a U angle turns it about the centre of
+  // its glyph ink box. VERIFIED-BY-ACAD with simplex.shx substituted for the STYLE's TTF
+  // (linetypes/ctext-scale-*, ctext-orient-u-30-0, references before 2026-10-01; note 06 §2.3)
+  const S = p.element.scale === 0 ? data.scale : p.element.scale;
+  const height = Math.abs(S) * fixed;
+  const turn = S < 0 ? Math.PI : 0;
   let { x, y } = p;
   const rot = p.element.rotation;
-  if (p.element.rotationMode === ComplexRotation.Upright && rot !== 0) {
-    // U= turns the text about the centre of its glyph box: it stays centred where the text with
-    // rotation 0 would be (R= turns about the insertion point). VERIFIED-BY-ACAD
-    // (linetypes/ctext-orient-u-30-0 vs ctext-orient-r-30-0)
-    const box = glyphBox(layoutText(input(0, 0, 0), fonts));
+  if (upright && rot !== 0) {
+    const box = glyphBox(layoutText(input(0, 0, 0, height), fonts));
     if (box) {
       const cx = (box[0] + box[2]) / 2;
       const cy = (box[1] + box[3]) / 2;
@@ -168,7 +191,27 @@ function drawText(
       y += Math.sin(t) * cx + Math.cos(t) * cy - (Math.sin(p.angle) * cx + Math.cos(p.angle) * cy);
     }
   }
-  drawLayout(fe, layoutText(input(x, y, p.angle + turn), fonts), e, IDENTITY, st.inh);
+  drawLayout(fe, layoutText(input(x, y, p.angle + turn, height), fonts), e, IDENTITY, st.inh);
+}
+
+/**
+ * TrueType font cell box [xmin, ymin, xmax, ymax] of a layout in its plane: pen start … advance
+ * end × baseline − descender … baseline + ascender (`TextLayout.extents`, note 04 §13).
+ */
+function cellBox(layout: TextLayout): [number, number, number, number] | undefined {
+  const q = layout.extents;
+  if (!q || q.length < 2) return undefined;
+  let x0 = Number.POSITIVE_INFINITY;
+  let y0 = Number.POSITIVE_INFINITY;
+  let x1 = Number.NEGATIVE_INFINITY;
+  let y1 = Number.NEGATIVE_INFINITY;
+  for (let k = 0; k + 1 < q.length; k += 2) {
+    x0 = Math.min(x0, q[k]!);
+    x1 = Math.max(x1, q[k]!);
+    y0 = Math.min(y0, q[k + 1]!);
+    y1 = Math.max(y1, q[k + 1]!);
+  }
+  return [x0, y0, x1, y1];
 }
 
 /** Glyph ink box [xmin, ymin, xmax, ymax] of a layout in its plane. */

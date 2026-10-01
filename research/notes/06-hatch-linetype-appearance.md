@@ -687,19 +687,30 @@ Cases `linetypes/ctext-*`, `fit-gasline`, `fit-hotwatersupply`, `pl-gasline-*`,
   mirrors through the origin; S = 0 collapses the shape along the line and keeps 1 drawing unit
   across it (`ltype-fenceline2-scale-zero|negative`); a missing .shx draws nothing
   (`ctext-missing-shx`). A pattern without gaps (TRACKS: dashes + shapes) is not continuous.
-- **Text**: height = |S| × the STYLE's fixed height when that is set, else |S|
-  (`ctext-height-*`); S = 0 → 1 × linetype scale, S < 0 → text turned by 180° about its insertion
-  (`ctext-scale-*`). Linetype text **cannot use TrueType**: a TTF style (installed, used by TEXT
-  entities in the same plot) is drawn with FONTALT (simplex.shx) — matched to F1(r=1) ≥ 0.98.
+- **Text** (VERIFIED-BY-ACAD 2026-10-01, references regenerated with the Liberation fonts visible
+  to AutoCAD): linetype text uses the STYLE's font like TEXT, **TrueType included** (filled
+  LiberationSans glyphs in `ctext-*`, `fit-gasline`, `pl-gasline-*`,
+  `fileformat/ltype-text-gas-line-*`, `corpus-gdal-linetypes`); FONTALT only stands in for a
+  missing font file. Height = |S| × the STYLE's fixed height when that is set, else |S|
+  (`ctext-height-*`). With a TrueType font, S < 0 draws exactly like |S| (no turn,
+  `ctext-scale-neg`) and S = 0 draws **no text** at all (`ctext-scale-zero`; the dashes stay).
 - **Upright (U=)**: the flip is decided by the **line direction alone** (not direction + rotation)
   and only when it points left (cos < 0; exactly vertical up or down never flips;
   `ctext-orient-u-*`), and in the entity's **own block coordinates**: texts of a mirrored or
   rotated (180°, 150°) INSERT are drawn upside down, unflipped (`ctext-insert-mirror`,
-  `ctext-insert-rotate`). A flipped element is turned by 180° about the middle of the pen-up span
-  (gap) around its anchor — on a straight line exactly where a reversed line would put it; on
-  circles it stays in its own slot (`ctext-gasline-shapes`). A rotated U= element (U=30) turns
-  about the centre of its glyph box, R= about the insertion point (`ctext-orient-u-30-0` vs
-  `ctext-orient-r-30-0`).
+  `ctext-insert-rotate`). TrueType text turns — by the U angle and, when upside down, by 180° —
+  about the centre of the **font cell box** of the unturned text (pen start … advance end ×
+  baseline − descender … baseline + ascender, note 04 §13), so it stays in its own slot on lines
+  and circles (VERIFIED-BY-ACAD 2026-10-01: `ctext-orient-u-0-0|30-0|357-8`,
+  `ctext-hotwatersupply-shapes`; the glyph ink box misses `ctext-hotwatersupply-shapes`); R= turns
+  about the insertion point (`ctext-orient-r-*`).
+- *Superseded (simplex era, before 2026-10-01)*: the references of 2026-09-30 were plotted while
+  AutoCAD could not see the Liberation fonts, so every TTF style was drawn with FONTALT
+  (simplex.shx). From them we had concluded "linetype text cannot use TrueType", "S = 0 → height
+  1 × linetype scale", "S < 0 → text turned by 180° about its insertion", "a flipped U= element
+  turns about the middle of the gap" and "U=30 turns about the centre of the glyph ink box". These
+  hold for SHX text only (what AutoCAD did with simplex substituted) and are kept for SHX fonts in
+  `complex-linetype.ts` / dash.ts; whether a genuine SHX STYLE behaves the same is unverified.
 - Short units (L < P) are continuous without elements, like simple linetypes.
 
 ### 2.4 .lin file format

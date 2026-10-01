@@ -290,6 +290,9 @@ describe("dots, complex elements, limits", () => {
     expect(p.x).toBeCloseTo(9.15, 12);
     expect(p.y).toBeCloseTo(-0.05, 12);
     expect(p.flipped).toBe(true);
+    // the anchor before the flip stays available (TrueType text turns about its own cell box)
+    expect(p.anchorX).toBeCloseTo(9.4, 12);
+    expect(p.anchorY).toBeCloseTo(0.05, 12);
     expect(Math.cos(p.angle)).toBeCloseTo(1, 12);
     expect(seen.length).toBe(r.placements.length);
     // the caller decides "upside down" in the entity's own coordinates (mirrored INSERT)

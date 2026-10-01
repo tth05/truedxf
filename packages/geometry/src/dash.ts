@@ -411,6 +411,12 @@ export interface ComplexPlacement {
   /** Anchor after X/Y offsets (note 06 §2.3: end of the carrying element + X along, Y left). */
   readonly x: number;
   readonly y: number;
+  /**
+   * Anchor before the upright flip (= x, y unless `flipped`). TrueType text turns about its own
+   * cell box instead of the gap middle (note 06 §2.3), so its drawer starts from here.
+   */
+  readonly anchorX: number;
+  readonly anchorY: number;
   /** Final element rotation (radians), after the rotation mode. */
   readonly angle: number;
   /** Line direction at the anchor (radians). */
@@ -729,11 +735,15 @@ export function dashMeasured(
     let y = a.y + st * el.offsetX + ct * el.offsetY;
     let angle = t + el.rotation;
     let flipped = false;
+    const anchorX = x;
+    const anchorY = y;
     if (el.rotationMode === ComplexRotation.Absolute) angle = el.rotation;
     else if (el.rotationMode === ComplexRotation.Upright && (options.upsideDown ?? upsideDown)(t)) {
       // An upright element that would read upside down is turned by 180° about the middle of the
       // pen-up span around its anchor: on a straight line that is exactly where a reversed line
-      // puts it. VERIFIED-BY-ACAD (linetypes/ctext-orient-u-*, ctext-gasline-shapes circle)
+      // puts it. VERIFIED-BY-ACAD for SHX text (simplex.shx standing in for a TTF: linetypes/
+      // ctext-orient-u-*, ctext-gasline-shapes circle, references before 2026-10-01); TrueType
+      // text turns about its cell box centre instead (complex-linetype.ts, note 06 §2.3)
       const [g0, g1] = gapAround(merged, c.s, total, m.closed);
       const q = frame(((((g0 + g1) / 2) % total) + total) % total);
       x = 2 * q.x - x;
@@ -744,6 +754,8 @@ export function dashMeasured(
     const p: ComplexPlacement = {
       x,
       y,
+      anchorX,
+      anchorY,
       angle,
       tangentAngle: t,
       flipped,

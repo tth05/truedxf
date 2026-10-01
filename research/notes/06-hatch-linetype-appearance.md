@@ -203,12 +203,15 @@ x-axis of the edge's local frame), traversed clockwise. For the *fill* the trave
 not matter (even-odd), but it matters for chaining edges and for finding gaps.
 For ellipse edges the same complement rule is applied (ezdxf#175 "also valid for ellipse edges").
 
-**Ellipse edge angles — angle or parameter? CONFLICT/UNKNOWN.** ezdxf treats 50/51 as *geometric
-angles* in degrees and converts them to ellipse parameters with `angle_to_param(ratio, a)`
-(ezdxf:entities/boundary_paths.py `EllipseEdge.start_param`, while its own comment says
-"start param, not a real angle"); netDxf also treats them as angles (it copies ELLIPSE-entity
-angles into them, `netDxf/Entities/HatchBoundaryPath.cs` `Ellipse(EntityObject)`). ELLIPSE entities
-use parameters (41/42, radians). Needs a test (§Test ideas H3).
+**Ellipse edge angles are geometric angles** (degrees, in the ellipse's own frame, after the
+ccw = 0 complement): parameter = atan2(sin a / ratio, cos a), kept in the same turn so 0 … 360
+stays a full ellipse. **VERIFIED-BY-ACAD 2026-10-01** (`hatches/ellipse-edge-angle-closed`,
+`ellipse-edge-param-closed`, `ellipse-edge-rotated-partial`: F1(r=1) 0.71/0.78/0.89 with 50/51
+as parameters → 0.998/0.999/1.000 as angles; Q-0352). ezdxf converts them the same way with
+`angle_to_param(ratio, a)` (ezdxf:entities/boundary_paths.py `EllipseEdge.start_param`, although
+its own comment says "start param, not a real angle"); netDxf also treats them as angles
+(`netDxf/Entities/HatchBoundaryPath.cs` `Ellipse(EntityObject)`). ELLIPSE entities use
+parameters (41/42, radians).
 
 **Full circle / full ellipse:** `50=0, 51=360` (or any pair with span 360). Keep 360; 0..0 breaks
 AutoCAD (acadsharp#1025). ACadSharp preserves −180..180 style spans (acadsharp pr-1237).

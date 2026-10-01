@@ -42,11 +42,20 @@ function edgeSegment(edge: HatchEdge): PathSegment[] {
       return [{ kind: "arc", center: edge.center, radius: edge.radius, start: degToRad(b), sweep: -span }];
     }
     case "ellipse": {
-      // angles are treated as ellipse parameters like ezdxf (UNVERIFIED, note 06 §1.3.3)
+      // 50/51 are geometric angles in the ellipse frame, parameter = atan2(sin a / ratio, cos a)
+      // like ezdxf (note 06 §1.3.3); kept in the angle's turn so 0…360 stays a full ellipse
       const u = edge.majorAxis;
       const v = { x: -u.y * edge.ratio, y: u.x * edge.ratio };
-      const a = edge.ccw ? edge.startAngle : 360 - edge.endAngle;
-      const b = edge.ccw ? edge.endAngle : 360 - edge.startAngle;
+      const toParam = (deg: number) => {
+        if (!(edge.ratio > 0)) return deg;
+        const r = degToRad(deg);
+        const p = Math.atan2(Math.sin(r) / edge.ratio, Math.cos(r));
+        let d = p - r;
+        d -= 2 * Math.PI * Math.round(d / (2 * Math.PI));
+        return deg + (d * 180) / Math.PI;
+      };
+      const a = toParam(edge.ccw ? edge.startAngle : 360 - edge.endAngle);
+      const b = toParam(edge.ccw ? edge.endAngle : 360 - edge.startAngle);
       const span = degToRad(arcSpanDeg(a, b));
       return [
         edge.ccw

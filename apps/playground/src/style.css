@@ -276,9 +276,16 @@ body.resizing {
 .section.grow {
   flex: 1;
 }
-/* panels never get squeezed or dragged below this (resize.ts MIN_SECTION) */
+/* panels never get squeezed or dragged below this (resize.ts MIN_SECTION) and never draw
+   over each other */
 .sidebar .section {
   min-height: 56px;
+  overflow: hidden;
+  background: var(--panel);
+}
+/* a small inspector scrolls as a whole */
+.sidebar .section.inspector {
+  overflow-y: auto;
 }
 .section-head {
   display: flex;
@@ -562,6 +569,10 @@ body.resizing .viewer {
   overflow: auto;
   padding: 0 12px 12px;
   min-height: 0;
+}
+/* inside a small inspector the tag list keeps a usable height (the inspector scrolls) */
+.inspector .tags {
+  min-height: 120px;
 }
 .tags table {
   border-collapse: collapse;

@@ -204,7 +204,7 @@ const stage = h(
   toast,
 );
 
-const inspector = h("div", { class: "section grow" });
+const inspector = h("div", { class: "section grow inspector" });
 let filesPanel: FilesPanel;
 const diagnostics = h("div", { class: "list", style: "padding: 0 0 10px" });
 const rightPanel = h(

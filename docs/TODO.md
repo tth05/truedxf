@@ -208,6 +208,7 @@ default, FILLMODE for pattern hatches, extents edge tolerance.
       fall back to Liberation Sans).
 - [ ] Public site: long-tail pages (e.g. "open DXF without AutoCAD", DXF → PNG / PDF export once
       plotting to a file exists in the viewer); a small licence-clean demo drawing to try.
+- [ ] Public site launch: remove the Basic Auth gate (`apps/playground/functions/_middleware.ts`).
 - [ ] Public site: privacy policy / legal notice (Datenschutzerklärung, Impressum) before launch;
       custom domain (then set `SITE_URL`).
 

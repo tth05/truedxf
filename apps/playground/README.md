@@ -91,6 +91,12 @@ pnpm --filter @truedxf/playground exec wrangler pages project create truedxf --p
 pnpm --filter @truedxf/playground run preview:public   # public build with _headers on http://localhost:8788
 ```
 
+**Pre-launch gate:** [functions/_middleware.ts](functions/_middleware.ts) (a Pages Function
+wrangler uploads with the site) answers every request with HTTP Basic Auth (user `truedxf`,
+password `truedxf`, also for preview URLs and `preview:public`). Delete it and redeploy to go
+public, then also delete older deployments made while it was in place only if you want their
+URLs gone.
+
 Deploys from `master` go to production, other branches to preview URLs. For search, verify the
 domain in Google Search Console (a DNS record in Cloudflare) and submit `sitemap.xml`.
 

@@ -13,7 +13,8 @@ describe("visible bounds", () => {
     b.polyline([-5000, 110, 5000, 110], black);
     b.setClip(-1);
     const list = b.build();
-    expect(list.bounds.minX).toBe(-5000);
+    // the builder clips bounds too now (note 08 §10.16); visibleBounds must agree
+    expect(list.bounds.minX).toBe(0);
     expect(visibleBounds(list)).toEqual({ minX: 0, minY: 0, maxX: 120, maxY: 110 });
     expect(visibleBounds(new DisplayListBuilder(1).build())).toBeUndefined();
   });

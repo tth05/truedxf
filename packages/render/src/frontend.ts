@@ -570,6 +570,9 @@ export class Frontend {
     // A pattern whose period is below half a device pixel plots continuous (dash count does not
     // matter). VERIFIED-BY-ACAD (note 06 §2.6.1; linetypes/dense-*: 0.38 px continuous, 0.51 px dashed)
     if (lt && lt.period < DENSE_LINETYPE_PERIOD_PX * this.pixelSize) lt = undefined;
+    // a zero-length path plots like continuous: a dot with the lineweight footprint
+    // (VERIFIED-BY-ACAD lines-curves/zero-line-lw*-dashed = zero-line-lw*-cont)
+    if (lt && isZeroLength(path)) lt = undefined;
     if (!lt) {
       for (const pl of this.flatten(path)) this.strokeFlat(pl.points, pl.closed, r);
       return;
@@ -894,6 +897,20 @@ export async function renderPlot(
   const contrast = fe.contrastNote();
   if (contrast) notes.push(contrast);
   return { displayList: fe.build(), view, unsupported: fe.unsupported, ...(notes.length ? { notes } : {}) };
+}
+
+/** Whether every segment of a path is a single point (zero-length LINE, zero-radius arc). */
+function isZeroLength(path: Path2): boolean {
+  for (const sp of path.subpaths) {
+    for (const seg of sp.segments) {
+      if (seg.kind === "line") {
+        if (seg.p0.x !== seg.p1.x || seg.p0.y !== seg.p1.y) return false;
+      } else if (seg.kind === "arc") {
+        if (seg.radius !== 0 && seg.sweep !== 0) return false;
+      } else return false;
+    }
+  }
+  return true;
 }
 
 function concatEdges(prev: Float64Array | undefined, rings: readonly Float64Array[]): Float64Array {

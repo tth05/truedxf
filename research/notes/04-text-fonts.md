@@ -1531,3 +1531,42 @@ ATTRIB / ATTDEF (§2)
   extents-plotted drawing with text (`user/studienleistung` F1(r=1) 0.41 → 0.97).
 - A comment after a blank on a group-code line (` 71   // attachment point`) is ignored by AutoCAD
   (`user/text-frame-annotated`; note 01 §8.1).
+
+## 14. TrueType glyph positions in raster plots (VERIFIED-BY-ACAD 2026-10-01, text-probes/ttf-*)
+
+AutoCAD's **raster** plot driver (PNG) does not place TrueType glyphs at the exact pen positions;
+the PDF does (its `Tj` glyph origins are the hmtx advances within 0.12 pt over 95 characters, so
+the database layout is exact and this is a device-side effect). Probes: rows of one repeated glyph
+(`ttf-adv-text-h{3,4,10}`, `ttf-adv-mtext-*`), two-glyph runs (`ttf-pair-h*`, `ttf-tall-h*`, the
+tall/short pairs give an unambiguous run boundary), sentences (`ttf-bow-h*`) and alignments
+(`ttf-align-h3`), Liberation Sans, plot at 10 px/unit.
+
+Rule for one string of N characters (spaces included) with exact device advances aᵢ (px):
+
+1. every character advances ⌊aᵢ⌋ px;
+2. E = ⌊Σ aᵢ⌋ − Σ ⌊aᵢ⌋ missing pixels (all N advances, the last one included);
+3. P = ⌊(N − 1) / E⌋; gap i (between characters i and i + 1) gets +1 px when i mod P = 0 and
+   i / P < E, i.e. one extra pixel every P gaps **from the start**, until E are used;
+4. the first character keeps its exact position.
+
+Measured step patterns: `n` h=3 (24.25 px) → 25 24 24 24 …; `m` h=3 (36.32) → 37 36 36 …; `s` h=4
+(29.07, E = 3 over 50 gaps) → +1 at gaps 0, 16, 32; `r` h=3 (14.52, E = 53 over 102 gaps, P = 1) →
+53 × 15 px then 49 × 14 px. When E is about half the gaps or more (P = 1) the extra pixels
+pile up at the start of the line, so mid-line glyphs drift right by up to ~10 px at h = 3 (cap
+height 30 px) and come back by the end: the "drift" in mtext/chunk-* (F1(r=1) 0.83 → 1.00).
+Rounding E with round() instead of floor() is wrong in 4 of the 9 single-glyph rows.
+
+- The same rule holds for TEXT and MTEXT and for MTEXT attachments 1/2/3, `\pqc` and TEXT
+  center/right alignment (ttf-align-h3).
+- Strings: a TEXT line; an MTEXT line segment with one font, height, width factor, tracking,
+  oblique, colour and underline/overline/strike (a `\C` change splits: mtext/color-truecolor);
+  tabs, stacks and fallback-font glyphs end a string; spaces at the end of a wrapped MTEXT line
+  are not part of it (mtext/wrap-width-0005).
+- Separate TEXT entities at the exact word positions plot at the exact positions (each string
+  starts exactly).
+- Implemented in render `pixelRunShifts` (plot emulation only; the viewer keeps exact positions).
+
+Open: column MTEXT with a centred attachment (text-probes/mtx-cols-dynauto-mc, -dynman-bc) plots
+closer to the exact positions than this rule predicts, while the same text in columns with
+attachment 1 follows it. The split rules at tabs and fallback fonts are inferred from scores,
+not probed.

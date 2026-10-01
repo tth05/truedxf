@@ -42,6 +42,7 @@ import {
   layoutText,
   TextFonts,
   type TextLayout,
+  type TextRun,
 } from "@truedxf/text";
 import { aciToRgb } from "./aci.ts";
 import type { Rgba } from "./displaylist.ts";
@@ -418,6 +419,45 @@ function resolveColor(fe: Frontend, r: Resolved, c: BackgroundColor, inh: Inheri
   return fe.color(overrideResolved(fe, r, c, inh));
 }
 
+/**
+ * AutoCAD's raster plot driver places the glyphs of a TrueType string on whole device pixels
+ * (note 04 §14, VERIFIED-BY-ACAD text-probes/ttf-*): every character advances floor(advance px);
+ * the E = floor(Σ advance) − Σ floor(advance) missing pixels go one each to every P-th gap from
+ * the first, P = floor(gaps / E). The first glyph keeps its exact position, so lines drift up to
+ * a few pixels and come back at the end. Returns per character the shift in plane units.
+ */
+export function pixelRunShifts(
+  run: TextRun,
+  toTarget: Affine2,
+  pixelSize: number,
+): { x: number; y: number }[] | undefined {
+  const d = toTarget.applyVector({ x: run.dirX, y: run.dirY });
+  const k = Math.hypot(d.x, d.y) / pixelSize; // device px per plane unit along the baseline
+  const n = run.advances.length;
+  if (!(k > 0) || n < 2) return undefined;
+  const px = run.advances.map((a) => a * k);
+  const floors = px.map((a) => Math.floor(a + 1e-9));
+  let total = 0;
+  let floorSum = 0;
+  for (let i = 0; i < n; i++) {
+    total += px[i]!;
+    floorSum += floors[i]!;
+  }
+  const extra = Math.floor(total + 1e-9) - floorSum;
+  const gaps = n - 1;
+  const period = extra > 0 ? Math.floor(gaps / extra) : 0;
+  const out: { x: number; y: number }[] = [];
+  let exact = 0;
+  let snapped = 0;
+  for (let i = 0; i < n; i++) {
+    const s = (snapped - exact) / k;
+    out.push({ x: s * run.dirX, y: s * run.dirY });
+    exact += px[i]!;
+    snapped += floors[i]! + (period > 0 && i % period === 0 && i / period < extra ? 1 : 0);
+  }
+  return out;
+}
+
 /** Emits a text layout: backgrounds, glyphs, decoration lines. */
 export function drawLayout(fe: Frontend, layout: TextLayout, e: Entity, m: Matrix44, inh: Inherited): void {
   for (const n of layout.notes) fe.note(n);
@@ -447,8 +487,13 @@ export function drawLayout(fe: Frontend, layout: TextLayout, e: Entity, m: Matri
   }
   const colored = (c: ColorOverride | undefined): Resolved => overrideResolved(fe, r, c, inh);
   const baseColor = fe.color(r);
+  const shifts =
+    fe.grid && layout.runs
+      ? layout.runs.map((run) => pixelRunShifts(run, toTarget, fe.pixelSize))
+      : undefined;
   for (const g of layout.glyphs) {
-    const t = toTarget.multiply(g.matrix);
+    const sh = g.run && shifts?.[g.run.run]?.[g.run.index];
+    const t = toTarget.multiply(sh ? Affine2.translation(sh.x, sh.y).multiply(g.matrix) : g.matrix);
     const sigma = t.singularValues()[0];
     if (!(sigma > 0)) continue;
     const tolFu = tol / sigma;

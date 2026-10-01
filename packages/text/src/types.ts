@@ -23,6 +23,22 @@ export interface GlyphPlacement {
   /** Font units → plane. Includes height, width factor, oblique, mirroring and rotation. */
   readonly matrix: Affine2;
   readonly color: ColorOverride | undefined;
+  /** TrueType glyphs: index into `TextLayout.runs` and character index within that run. */
+  readonly run?: { readonly run: number; readonly index: number };
+}
+
+/**
+ * A TrueType text run: the characters AutoCAD hands to the raster plot driver as one string
+ * (a TEXT line; an MTEXT line segment with one font, height and width). The driver places its
+ * glyphs on whole device pixels (note 04 §14); renderers that emulate the plot use the exact
+ * advances below to do the same.
+ */
+export interface TextRun {
+  /** Unit baseline direction in the text plane. */
+  readonly dirX: number;
+  readonly dirY: number;
+  /** Pen advance of every character, spaces included, in plane units along the baseline. */
+  readonly advances: readonly number[];
 }
 
 export type DecorationKind = "underline" | "overline" | "strike" | "stack-bar" | "frame";
@@ -58,6 +74,8 @@ export interface TextLayout {
    * baseline − descender … baseline + ascender), not the ink (note 04 §13).
    */
   readonly extents?: readonly number[];
+  /** TrueType text runs referenced by `GlyphPlacement.run`. */
+  readonly runs?: readonly TextRun[];
   /** Things the layout could not honour (unsupported features, missing glyphs), for diagnostics. */
   readonly notes: readonly string[];
 }

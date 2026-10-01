@@ -310,3 +310,32 @@ describe.skipIf(!hasLato)("TTF union box (Lato, VERIFIED-BY-ACAD via DXFOUT)", (
     expect(fonts.style("S").font?.primary.kind).toBe("ttf");
   });
 });
+
+// TrueType runs for the raster plot's whole-pixel advances (note 04 §14)
+describe.skipIf(!hasLato)("TrueType text runs (Lato)", () => {
+  it("makes a TEXT line one run with every character's advance", async () => {
+    const fonts = await testFonts([style("S", "LatoWeb-Regular.ttf")]);
+    const l = layoutText(text({ text: "ab c", height: 10 }), fonts);
+    expect(l.runs).toHaveLength(1);
+    expect(l.runs![0]!.advances).toHaveLength(4);
+    expect(l.glyphs.map((g) => g.run?.index)).toEqual([0, 1, 3]);
+  });
+  it("ends MTEXT runs at colour changes and tabs, without trailing spaces", async () => {
+    const fonts = await testFonts([style("S", "LatoWeb-Regular.ttf")]);
+    const l = layoutMText(mtext({ text: "ab{\\C1;cd}^Ief ", height: 10 }), fonts);
+    expect(l.runs!.map((r) => r.advances.length)).toEqual([2, 2, 2]);
+    expect(l.glyphs.map((g) => `${g.run?.run}.${g.run?.index}`)).toEqual([
+      "0.0",
+      "0.1",
+      "1.0",
+      "1.1",
+      "2.0",
+      "2.1",
+    ]);
+  });
+  it("has no runs for SHX text", async () => {
+    const fonts = await testFonts([style("S", "truedxf-test.shx")]);
+    expect(layoutText(text({ text: "ab" }), fonts).runs).toBeUndefined();
+    expect(layoutMText(mtext({ text: "ab" }), fonts).runs).toBeUndefined();
+  });
+});

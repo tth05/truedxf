@@ -39,6 +39,7 @@ import type {
   DecorationLine,
   GlyphPlacement,
   TextLayout,
+  TextRun,
 } from "./types.ts";
 
 /** Baseline pitch in cap heights (note 04 §3.6.2, VERIFIED-BY-ACAD). */
@@ -344,6 +345,7 @@ export function layoutMText(
   const glyphs: GlyphPlacement[] = [];
   const decor: DecorationLine[] = [];
   const extents: number[] = [];
+  const runs: TextRun[] = [];
   for (const ln of lines) {
     const dy = rowShift(colContent[ln.column]!);
     const base = place.multiply(Affine2.translation(ln.x + ln.column * colStep, ln.baseline + dy));
@@ -363,7 +365,7 @@ export function layoutMText(
     }
     if (options.quickText) {
       if (ln.hasInk) decor.push(...quickBox(base, ln.ext0, ln.ext1, 0, ln.capMax));
-    } else engine.emitLine(ln, base, glyphs, decor);
+    } else engine.emitLine(ln, base, glyphs, decor, runs);
   }
 
   // ---- background mask and text frame (note 04 §3.1, §3.7.1; VERIFIED-BY-ACAD
@@ -423,7 +425,15 @@ export function layoutMText(
     }
   }
   const plane = ins.z !== 0 ? ocs.multiply(Matrix44.translation(0, 0, ins.z)) : ocs;
-  return { plane, backgrounds, glyphs, lines: decor, notes, ...(extents.length ? { extents } : {}) };
+  return {
+    plane,
+    backgrounds,
+    glyphs,
+    lines: decor,
+    notes,
+    ...(extents.length ? { extents } : {}),
+    ...(runs.length ? { runs } : {}),
+  };
 }
 
 /** Measured MTEXT extents (42/43 model of note 04 §3.6.1), for tests and oracles. */
@@ -982,8 +992,72 @@ class Engine {
     ln.ext1 += shift;
   }
 
-  emitLine(ln: Line, base: Affine2, glyphs: GlyphPlacement[], decor: DecorationLine[]): void {
-    for (const pi of ln.items) {
+  /**
+   * TrueType runs of a line (note 04 §14): consecutive glyphs and spaces with one font, height,
+   * width, tracking and oblique; tabs, stacks and SHX glyphs end a run. Returns the run slot of
+   * every line item.
+   */
+  private textRuns(ln: Line, base: Affine2, runs: TextRun[]): ({ run: number; index: number } | undefined)[] {
+    const slots: ({ run: number; index: number } | undefined)[] = new Array(ln.items.length).fill(undefined);
+    let start = -1;
+    let ttf = false;
+    let font: unknown;
+    const flush = (end: number) => {
+      // spaces at the end of a run (the break of a wrapped line) are not part of the string
+      while (start >= 0 && end > start && ln.items[end - 1]!.item.k === "space") end--;
+      if (start >= 0 && ttf && end > start) {
+        const run = runs.length;
+        const advances: number[] = [];
+        for (let q = start; q < end; q++) {
+          slots[q] = { run, index: q - start };
+          advances.push(ln.items[q]!.adv);
+        }
+        runs.push({ dirX: base.a, dirY: base.b, advances });
+      }
+      start = -1;
+      ttf = false;
+      font = undefined;
+    };
+    const same = (a: MTextContext, b: MTextContext) =>
+      a.font === b.font &&
+      a.color === b.color &&
+      a.underline === b.underline &&
+      a.overline === b.overline &&
+      a.strike === b.strike &&
+      a.height === b.height &&
+      a.widthFactor === b.widthFactor &&
+      a.tracking === b.tracking &&
+      a.oblique === b.oblique;
+    ln.items.forEach((pi, q) => {
+      const it = pi.item;
+      const resolved = it.k === "glyph" ? it.m.resolved?.font : undefined;
+      if ((it.k !== "glyph" && it.k !== "space") || resolved?.kind === "shx") {
+        flush(q);
+        return;
+      }
+      // a glyph from another (fallback) font is drawn as a string of its own
+      if (start >= 0 && (!same(ln.items[start]!.item.ctx, it.ctx) || (resolved && font && resolved !== font)))
+        flush(q);
+      if (start < 0) start = q;
+      if (resolved) {
+        font = resolved;
+        ttf = true;
+      }
+    });
+    flush(ln.items.length);
+    return slots;
+  }
+
+  emitLine(
+    ln: Line,
+    base: Affine2,
+    glyphs: GlyphPlacement[],
+    decor: DecorationLine[],
+    runs: TextRun[],
+  ): void {
+    const slots = this.textRuns(ln, base, runs);
+    for (let q = 0; q < ln.items.length; q++) {
+      const pi = ln.items[q]!;
       const it = pi.item;
       if (it.k === "glyph") {
         const r = it.m.resolved;
@@ -991,11 +1065,13 @@ class Engine {
         const s = r.scale;
         const tan = Math.tan(it.ctx.oblique * DEG);
         const dy = this.alignShift(it, ln.capMax);
+        const slot = slots[q];
         glyphs.push({
           glyph: r.glyph,
           font: r.font,
           matrix: base.multiply(new Affine2(s * it.h * it.w, 0, s * it.h * tan, s * it.h, pi.x, dy)),
           color: it.ctx.color,
+          ...(slot ? { run: slot } : {}),
         });
       } else if (it.k === "stack") {
         const dy = this.alignShift(it, ln.capMax);

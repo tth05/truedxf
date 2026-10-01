@@ -32,7 +32,7 @@ import { Affine2, Matrix44, ocsToWcsMatrix, type Vec3 } from "@truedxf/geometry"
 import { glyphCode, type TextFontSource } from "./fonts.ts";
 import { decorationOffsets, InkBox, type MeasuredGlyph, measureGlyph } from "./glyphs.ts";
 import { decodeTextString, type TextChar } from "./specials.ts";
-import type { DecorationLine, GlyphPlacement, TextLayout } from "./types.ts";
+import type { DecorationLine, GlyphPlacement, TextLayout, TextRun } from "./types.ts";
 
 /** The TEXT/ATTRIB/ATTDEF fields the layout needs (structurally compatible with @truedxf/model). */
 export interface TextInput {
@@ -275,19 +275,43 @@ export function layoutText(e: TextInput, fonts: TextFontSource, options: TextLay
       notes,
     };
   }
+  const style = fonts.style(e.style);
+  // a TrueType line is one string for the raster plot driver (note 04 §14)
+  const len = Math.hypot(frame.a, frame.b);
+  const ttfRun = style.font?.kind === "ttf" && len > 0;
+  // glyphs from a fallback font are a string of their own
+  const runs: TextRun[] = [];
+  const slots: { run: number; index: number }[] = [];
+  if (ttfRun) {
+    let font: unknown;
+    let advances: number[] = [];
+    const flush = () => {
+      if (advances.length) runs.push({ dirX: frame.a / len, dirY: frame.b / len, advances });
+      advances = [];
+    };
+    for (const g of line.glyphs) {
+      const f = g.m.resolved?.font;
+      if (f && font && f !== font) flush();
+      if (f) font = f;
+      slots.push({ run: runs.length, index: advances.length });
+      advances.push(g.m.advance * len);
+    }
+    flush();
+  }
   const glyphs: GlyphPlacement[] = [];
-  for (const g of line.glyphs) {
+  line.glyphs.forEach((g, q) => {
     const r = g.m.resolved;
-    if (!r?.glyph.bounds) continue;
+    if (!r?.glyph.bounds) return;
     const s = r.scale;
+    const slot = slots[q];
     glyphs.push({
       glyph: r.glyph,
       font: r.font,
       matrix: frame.multiply(new Affine2(s, 0, 0, s, g.pen, g.penY)),
       color: undefined,
+      ...(slot && r.font.kind === "ttf" ? { run: slot } : {}),
     });
-  }
-  const style = fonts.style(e.style);
+  });
   const fontDeco = style.font ? decorationOffsets(style.font) : TEXT_DECORATION;
   // SHX decoration lines start 0.15 h left of the characters, TTF ones at the pen (VERIFIED-BY-ACAD)
   const shift = style.font?.kind === "ttf" ? 0 : TEXT_DECORATION.shift;
@@ -310,7 +334,15 @@ export function layoutText(e: TextInput, fonts: TextFontSource, options: TextLay
       extents.push(q.x, q.y);
     }
   }
-  return { plane, backgrounds: [], glyphs, lines, notes, ...(extents ? { extents } : {}) };
+  return {
+    plane,
+    backgrounds: [],
+    glyphs,
+    lines,
+    notes,
+    ...(extents ? { extents } : {}),
+    ...(runs.length ? { runs } : {}),
+  };
 }
 
 /** A quick-text rectangle ($QTEXTMODE) in frame units, as four decoration lines. */

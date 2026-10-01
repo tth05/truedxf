@@ -167,4 +167,13 @@ describe("fills (§10.5)", () => {
     expect(q.length).toBe(2);
     expect(q[0]![5]).toBe(3.5);
   });
+
+  it("hatch trapezoids also split where edges cross (hatches/selfint-bowtie)", () => {
+    // bow tie (0,0) (10,10) (10,0) (0,10): the diagonals cross at y = 5
+    const q = trapezoids([Float64Array.of(0, 0, 10, 10, 10, 0, 0, 10)], true);
+    const area = q.reduce((s, t) => s + ((t[2]! - t[0]! + t[4]! - t[6]!) / 2) * (t[5]! - t[1]!), 0);
+    expect(area).toBeCloseTo(50, 9);
+    expect(q.every((t) => t[2]! >= t[0]! && t[4]! >= t[6]!)).toBe(true);
+    expect(q.map((t) => t[1])).toContain(5);
+  });
 });

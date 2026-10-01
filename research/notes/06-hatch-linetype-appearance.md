@@ -253,6 +253,11 @@ Cases `hatches/edges-*`, `poly-open-*`, `one-loop-two-rects`, `nested-*`, `solid
   `edges-reversed-one`, `edges-open-3-edges`); gaps of 1e-6 … 1 unit are simply bridged
   (`edges-gap-*`); one path with two separate rectangles is one self-intersecting polygon
   (`one-loop-two-rects`). ezdxf's gap closing / chaining is therefore wrong for plots.
+  Self-intersecting loops fill even-odd like any other: the solid-fill trapezoid decomposition
+  (note 08 §10.5) must also cut at every edge–edge crossing y, otherwise edges that cross inside a
+  slab pair up wrongly (`selfint-bowtie`, `selfint-pentagram`, `selfint-pentagram-flag65`,
+  `edges-shuffled`, `one-loop-two-rects` exact after that fix, 2026-10-01; render/src/raster.ts
+  `trapezoids`).
 - A polyline path with 73 = 0 has n − 1 segments, so its **last vertex is dropped**
   (`poly-open-u-shape`: a U of 4 vertices fills the triangle of the first three).
 - Styles 1 (outer) and 2 (ignore) with no loop flagged external (92 bit 1) plot **nothing** — no

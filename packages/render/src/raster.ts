@@ -468,9 +468,29 @@ export function trapezoids(rings: readonly ArrayLike<number>[], evenOdd: boolean
       edges.push(ay < by ? { ax, ay, bx, by, dir: 1 } : { ax: bx, ay: by, bx: ax, by: ay, dir: -1 });
     }
   }
+  const xAt = (e: Edge, y: number) => e.ax + ((e.bx - e.ax) * (y - e.ay)) / (e.by - e.ay);
+  // Self-intersecting loops: edges that cross inside a slab would swap order and pair up wrong
+  // (extra triangles), so every edge–edge crossing y is a slab level too. VERIFIED-BY-ACAD
+  // hatches/selfint-bowtie, selfint-pentagram, edges-shuffled, one-loop-two-rects (note 06 §1.5)
+  edges.sort((a, b) => a.ay - b.ay);
+  for (let i = 0; i < edges.length; i++) {
+    const e = edges[i]!;
+    for (let j = i + 1; j < edges.length; j++) {
+      const f = edges[j]!;
+      if (f.ay >= e.by) break;
+      const lo = f.ay;
+      const hi = Math.min(e.by, f.by);
+      if (!(hi > lo)) continue;
+      const d0 = xAt(e, lo) - xAt(f, lo);
+      const d1 = xAt(e, hi) - xAt(f, hi);
+      if ((d0 < 0 && d1 > 0) || (d0 > 0 && d1 < 0)) {
+        const y = lo + ((hi - lo) * d0) / (d0 - d1);
+        if (y > lo && y < hi) ys.push(y);
+      }
+    }
+  }
   ys.sort((a, b) => a - b);
   const levels = ys.filter((y, k) => k === 0 || y !== ys[k - 1]);
-  const xAt = (e: Edge, y: number) => e.ax + ((e.bx - e.ax) * (y - e.ay)) / (e.by - e.ay);
   const out: number[][] = [];
   for (let q = 0; q + 1 < levels.length; q++) {
     const y0 = levels[q]!;

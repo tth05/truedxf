@@ -84,7 +84,7 @@ export function resizableSidebars(main: HTMLElement, left: HTMLElement, right: H
   ] as const) {
     const handle = document.createElement("div");
     handle.className = `col-resize ${side}`;
-    handle.title = "Drag to resize — double-click to reset";
+    handle.title = "Drag to resize, double-click to reset";
     main.append(handle);
     let w0 = 0;
     drag(
@@ -107,57 +107,85 @@ export function resizableSidebars(main: HTMLElement, left: HTMLElement, right: H
   }
 }
 
+/** Smallest height a panel can be dragged or squeezed to (CSS .section min-height). */
+const MIN_SECTION = 56;
+
 /**
- * Makes the `.section` children of `container` vertically resizable: a handle between two
- * sections resizes the one that does not grow (the growing section takes the rest). `key`
- * names the container in the saved sizes; sections are identified by their position.
- * The container's children may change later (mode switches): handles are re-created.
+ * Makes the `.section` children of `container` vertically resizable. A handle next to the
+ * growing section resizes the other section of the pair (the growing one takes what is left);
+ * a handle between two fixed sections trades height between them. No section gets smaller
+ * than MIN_SECTION. `key`
+ * names the container in the saved sizes; sections are identified by their position. The
+ * container's children may change later (mode switches): handles are re-created.
  */
 export function resizableSections(container: HTMLElement, key: string): void {
   const sections = () =>
     [...container.children].filter((c): c is HTMLElement => c.classList.contains("section"));
+  // fixed sections may shrink below their size when the window gets small (never below the
+  // CSS min-height), so they cannot cover each other
+  const fix = (s: HTMLElement, px: number) => {
+    s.style.flex = `0 1 ${px}px`;
+    s.style.maxHeight = "none";
+  };
   const setup = () => {
     for (const old of container.querySelectorAll(":scope > .row-resize")) old.remove();
     const list = sections();
     list.forEach((s, i) => {
       s.dataset.maxHeight ??= s.style.maxHeight;
       const saved = sizes[`${key}.${i}`];
-      if (saved && !s.classList.contains("grow")) {
-        s.style.flex = `0 0 ${saved}px`;
-        s.style.maxHeight = "none";
-      }
+      if (saved && !s.classList.contains("grow")) fix(s, saved);
     });
+    const grows = (el: HTMLElement) => el.classList.contains("grow");
     for (let i = 0; i + 1 < list.length; i++) {
       const above = list[i]!;
       const below = list[i + 1]!;
-      // resize the fixed one of the pair; with two fixed sections, the upper one
-      const target = above.classList.contains("grow") ? below : above;
-      const index = list.indexOf(target);
-      const sign = target === above ? 1 : -1;
       const handle = document.createElement("div");
       handle.className = "row-resize";
-      handle.title = "Drag to resize — double-click to reset";
+      handle.title = "Drag to resize, double-click to reset";
       below.before(handle);
-      let h0 = 0;
-      let total = 0;
+      // next to the growing section: resize the other one (the growing one absorbs the change);
+      // between two fixed sections: trade height between the two, like a splitter
+      const pair = !grows(above) && !grows(below);
+      const target = grows(below) ? above : below;
+      const sign = target === above ? 1 : -1;
+      let a0 = 0;
+      let b0 = 0;
+      let max = 0;
       drag(
         handle,
         () => {
-          h0 = target.getBoundingClientRect().height;
-          total = container.getBoundingClientRect().height;
+          a0 = above.getBoundingClientRect().height;
+          b0 = below.getBoundingClientRect().height;
+          // the space the other sections leave: their current heights (fixed ones) or the
+          // minimum (growing ones), plus the handles
+          let others = 0;
+          for (const o of list)
+            if (o !== target) others += grows(o) ? MIN_SECTION : o.getBoundingClientRect().height;
+          for (const hd of container.querySelectorAll(":scope > .row-resize"))
+            others += hd.getBoundingClientRect().height;
+          max = Math.max(MIN_SECTION, container.getBoundingClientRect().height - others);
         },
         (_dx, dy) => {
-          const hgt = clamp(h0 + sign * dy, 40, Math.max(60, total - 80));
-          target.style.flex = `0 0 ${hgt}px`;
-          target.style.maxHeight = "none";
-          sizes[`${key}.${index}`] = Math.round(hgt);
+          if (pair) {
+            const a = clamp(a0 + dy, MIN_SECTION, a0 + b0 - MIN_SECTION);
+            fix(above, a);
+            fix(below, a0 + b0 - a);
+            sizes[`${key}.${i}`] = Math.round(a);
+            sizes[`${key}.${i + 1}`] = Math.round(a0 + b0 - a);
+            return;
+          }
+          const hgt = clamp((target === above ? a0 : b0) + sign * dy, MIN_SECTION, max);
+          fix(target, hgt);
+          sizes[`${key}.${list.indexOf(target)}`] = Math.round(hgt);
         },
         save,
       );
       handle.addEventListener("dblclick", () => {
-        delete sizes[`${key}.${index}`];
-        target.style.flex = "";
-        target.style.maxHeight = target.dataset.maxHeight ?? "";
+        for (const el of pair ? [above, below] : [target]) {
+          delete sizes[`${key}.${list.indexOf(el)}`];
+          el.style.flex = "";
+          el.style.maxHeight = el.dataset.maxHeight ?? "";
+        }
         save();
       });
     }

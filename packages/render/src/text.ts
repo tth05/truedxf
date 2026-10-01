@@ -259,7 +259,7 @@ export function missingFontNotes(fonts: TextFonts): PlotNote[] {
     notes.push({
       code: "font-missing",
       severity: "warning",
-      message: `Fonts not found: ${r.fonts.join(", ")} — ${how}`,
+      message: `Fonts not found: ${r.fonts.join(", ")}; ${how}`,
       count: r.fontUsers,
       items: [...r.fonts],
     });
@@ -273,7 +273,7 @@ export function missingFontNotes(fonts: TextFonts): PlotNote[] {
     notes.push({
       code: "bigfont-missing",
       severity: "warning",
-      message: `Big fonts not found: ${r.bigFonts.join(", ")} — ${how}`,
+      message: `Big fonts not found: ${r.bigFonts.join(", ")}; ${how}`,
       count: r.bigFontUsers,
       items: [...r.bigFonts],
     });

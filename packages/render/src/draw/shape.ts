@@ -54,7 +54,7 @@ function missingShapeFileNotes(doc: DxfDocument, files: readonly ShxFont[], miss
     {
       code: "shapefile-missing",
       severity: "warning",
-      message: `Shape files not found: ${missing.join(", ")} — ${count} shape${count === 1 ? " is" : "s are"} not drawn`,
+      message: `Shape files not found: ${missing.join(", ")}; ${count} shape${count === 1 ? " is" : "s are"} not drawn`,
       count,
       items: missing,
     },

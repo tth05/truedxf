@@ -56,7 +56,7 @@ export interface DxfViewerOptions {
    */
   fontBaseUrl?: string;
   /**
-   * Custom font loader (file or family name, lower-case) — replaces the fetch loader. Asked
+   * Custom font loader (file or family name, lower-case); replaces the fetch loader. Asked
    * after the viewer's files (addFiles).
    */
   loadFont?: AssetLoader;
@@ -67,7 +67,7 @@ export interface DxfViewerOptions {
   loadImage?: AssetLoader;
   /**
    * For drawings opened from a URL (`load(url)`): fetch image files next to it when neither the
-   * viewer's files nor `loadImage` have them — the IMAGEDEF path resolved against the drawing
+   * viewer's files nor `loadImage` have them: the IMAGEDEF path resolved against the drawing
    * URL when it is relative, then its base name in the drawing's folder. Default true.
    */
   resolveRelativeToDrawing?: boolean;
@@ -177,7 +177,7 @@ interface CurrentList {
 
 /**
  * Default font loader: GET `<base><name>` (lower-case file name). When `<base>index.json` lists
- * the available files, only listed files are requested — text styles make the resolver probe
+ * the available files, only listed files are requested; text styles make the resolver probe
  * many candidate names, and missing ones must not show up as failed requests. Cached.
  */
 export function fetchFontLoader(base: string): AssetLoader {
@@ -367,8 +367,8 @@ export class DxfViewer {
 
   /**
    * Names of files the current drawing needs but the viewer could not find (fonts, big fonts,
-   * images, shape files: the `items` of the MISSING_FILE_CODES warnings, as written in the file
-   * — font names may be family names). Add them with addFiles; the view re-renders.
+   * images, shape files: the `items` of the MISSING_FILE_CODES warnings, as written in the file;
+   * font names may be family names). Add them with addFiles; the view re-renders.
    */
   get missingFiles(): string[] {
     const out = new Set<string>();

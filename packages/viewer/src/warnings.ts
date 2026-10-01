@@ -35,14 +35,14 @@ export const ViewerWarningCode = {
   ShapeFileMissing: "shapefile-missing",
   /**
    * Colours too close to the background were drawn in black / white for contrast (render note,
-   * info; viewing mode only — plots keep them). `items`: "#RRGGBB" / "ACI n" with their layers.
+   * info; viewing mode only; plots keep them). `items`: "#RRGGBB" / "ACI n" with their layers.
    */
   ColorsAdjusted: "colors-adjusted",
 } as const;
 export type ViewerWarningCode = (typeof ViewerWarningCode)[keyof typeof ViewerWarningCode];
 
 /**
- * Warnings whose `items` name files the viewer could not find — add them with
+ * Warnings whose `items` name files the viewer could not find; add them with
  * `DxfViewer.addFiles` (see DxfViewer.missingFiles).
  */
 export const MISSING_FILE_CODES: readonly string[] = [
@@ -108,7 +108,7 @@ function contentLayers(doc: DxfDocument, roots: readonly Block[]): Map<string, s
 
 /**
  * Document-level warnings (at load): facts about the file that the viewer's display does not
- * show — every layer with content is set not to plot.
+ * show: every layer with content is set not to plot.
  */
 export function documentWarnings(doc: DxfDocument): ViewerWarning[] {
   const roots = [doc.modelSpace, ...doc.layouts.filter((l) => !l.isModel).map((l) => l.block)];

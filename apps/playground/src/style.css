@@ -276,6 +276,10 @@ body.resizing {
 .section.grow {
   flex: 1;
 }
+/* panels never get squeezed or dragged below this (resize.ts MIN_SECTION) */
+.sidebar .section {
+  min-height: 56px;
+}
 .section-head {
   display: flex;
   align-items: center;
@@ -871,6 +875,9 @@ body.resizing .viewer {
 }
 .files .item.static {
   cursor: default;
+}
+.files .item.transient .name {
+  font-style: italic;
 }
 .files .item .icon-16 {
   color: var(--muted);

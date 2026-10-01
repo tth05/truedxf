@@ -543,7 +543,7 @@ export function describe(doc: DxfDocument, name: string, byteLength: number, par
           size = [w, h];
           sheet = { minX: -ml, minY: -mb, maxX: w - ml, maxY: h - mb };
         }
-        // Layout limits are the sheet as AutoCAD shows it (margins / offset included) — unless
+        // Layout limits are the sheet as AutoCAD shows it (margins / offset included), unless
         // they do not match the paper size (e.g. Revit's (0,0)-(12,9) on an A3 sheet).
         const lim = { minX: o.limitsMin.x, minY: o.limitsMin.y, maxX: o.limitsMax.x, maxY: o.limitsMax.y };
         const lw = lim.maxX - lim.minX;

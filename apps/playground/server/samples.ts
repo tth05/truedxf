@@ -1,6 +1,6 @@
 /**
  * Dev-server API over the local samples/ folder (docs/PLAN.md §7.6: samples stay local and may be
- * absent — every endpoint then answers with empty data). Only files below samples/ are served.
+ * absent: every endpoint then answers with empty data). Only files below samples/ are served.
  *
  *   GET /api/samples/status                → { available, refs, suites: [{ name, cases, score, grades }], corpus }
  *   GET /api/samples/suite/<suite>         → { cases: [{ id, name, title, tags, plot, ref, score }] }
@@ -312,7 +312,7 @@ const MIME: Record<string, string> = {
   ".dxf": "application/octet-stream",
 };
 
-/** Images: a missing IMAGEDEF file is expected (drawn as a frame) — 204, not an error. */
+/** Images: a missing IMAGEDEF file is expected (drawn as a frame): 204, not an error. */
 function sendImage(res: ServerResponse, file: string | undefined): void {
   if (file) send(res, file);
   else {

@@ -105,7 +105,7 @@ function openButton(): HTMLElement {
       {
         class: "btn primary",
         onclick: () => fileInput.click(),
-        title: "Open a DXF with its fonts, shape files and images — or add files to the open drawing",
+        title: "Open a DXF with its fonts, shape files and images, or add files to the open drawing",
       },
       icon(ICONS.open),
       "Open",
@@ -169,7 +169,7 @@ const emptyState = h(
     h(
       "p",
       {},
-      "Drop a .dxf file — together with its fonts, shape files and images, or their whole folder — " +
+      "Drop a .dxf file together with its fonts, shape files and images (or their whole folder) " +
         "anywhere, or choose them. Everything runs locally in your browser.",
     ),
     h(
@@ -283,9 +283,11 @@ const metrics: LoadMetrics[] = [];
 
 viewer.on("load", (d) => {
   info = d;
+  if (filesPanel.current === undefined && filesPanel.urlDrawing) filesPanel.urlDrawing.size = d.byteLength;
+  filesPanel.render();
   emptyState.style.display = "none";
   fileName.textContent = d.name;
-  document.title = `${d.name} — truedxf`;
+  document.title = `${d.name} · truedxf`;
   status.file.innerHTML = "";
   status.file.append(h("b", {}, d.name), ` · ${d.acadver} · ${d.format} · ${fmtBytes(d.byteLength)}`);
   status.entities.textContent = `${fmtNum(d.entityCount)} entities`;
@@ -369,6 +371,13 @@ export async function openSource(
   beginOpen(typeof src === "string" ? src : undefined, images);
   filesPanel.current =
     typeof src === "string" ? undefined : viewer.files.find((f) => f.name === src.name)?.path;
+  if (typeof src === "string")
+    filesPanel.urlDrawing = {
+      name: name ?? basenameOf(decodeURIComponent(src.split("?")[0]!)),
+      url: src,
+      reopen: () => void openSource(src, name, images),
+    };
+  filesPanel.render();
   try {
     await viewer.load(src, name);
   } catch {
@@ -386,7 +395,7 @@ async function openLocal(files: FileInput[]): Promise<void> {
   const drawings = files.filter((f) => isDrawing(f.name));
   if (drawings.length === 0) {
     viewer.addFiles(files);
-    if (!info) showError("No .dxf drawing among the files — they were added for the next drawing.");
+    if (!info) showError("No .dxf drawing among the files; they were added for the next drawing.");
     return;
   }
   if (drawings.length === 1) {
@@ -651,7 +660,7 @@ function renderLayers(): void {
         "div",
         {
           class: `item${on ? "" : " off"}`,
-          title: `${l.name}${flags.length ? ` (${flags.join(", ")} in file)` : ""} — click: toggle, Alt+click: isolate`,
+          title: `${l.name}${flags.length ? ` (${flags.join(", ")} in file)` : ""}. Click: toggle, Alt+click: isolate`,
           onclick: toggle,
         },
         box,
@@ -812,7 +821,9 @@ function hideError(): void {
 
 // ---- modes: viewer / fixtures / corpus (dev server with local samples only) -------------------------
 
-const basenameOf = (p: string) => p.replaceAll("\\", "/").split("/").pop() ?? p;
+function basenameOf(p: string): string {
+  return p.replaceAll("\\", "/").split("/").pop() ?? p;
+}
 
 async function openFixture(c: FixtureCase): Promise<void> {
   const suite = c.id.split("/")[0]!;
@@ -821,6 +832,8 @@ async function openFixture(c: FixtureCase): Promise<void> {
     `${c.name}.dxf`,
     (p) => `${API}image/${suite}/${encodeURIComponent(p)}`,
   );
+  // reopening it from the Files panel shows the AutoCAD comparison again
+  if (filesPanel.urlDrawing) filesPanel.urlDrawing.reopen = () => void openFixture(c);
   if (!c.plot) {
     compare.root.style.display = "none";
     return;

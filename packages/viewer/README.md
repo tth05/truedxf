@@ -25,7 +25,7 @@ const info = await viewer.inspect(handle); // type, raw/resolved properties, raw
   workers are unavailable (or `worker: false`) the same `ViewerCore` runs on the main thread,
   loaded lazily so the main bundle stays small (three.js + viewer). `@truedxf/viewer/core`
   exports `ViewerCore` / `serveWorker` for Node and custom workers.
-  Font and image requests from the worker are answered on the main thread — from the
+  Font and image requests from the worker are answered on the main thread: from the
   additional files first (see below), then by the configured loaders (`loadFont`,
   `loadImage`), so any loader works.
 - **Navigation.** Wheel zoom at the cursor, drag pan (left or middle button), touch pinch/pan,
@@ -64,7 +64,7 @@ coordinates), `view`, `busy`, `measure`, `warnings`, `files`, `error`.
 
 ## Additional files (fonts, shape files, images)
 
-A DXF file does not contain its fonts, shape files or raster images; it names them — often by a
+A DXF file does not contain its fonts, shape files or raster images; it names them, often by a
 path of the machine that wrote it (`C:\Program Files\Autodesk\AutoCAD 2027\Fonts\txt.shx`,
 `..\images\photo.jpg`, `\\server\share\logo.png`) or by a bare name (`txt`, `romans`). A browser
 can never open those paths, so the viewer keeps a store of **additional files** that you hand it
@@ -79,7 +79,7 @@ await viewer.openDrawing(drawings[1].path);
 // add resources to the open drawing later: it re-renders, warnings update
 viewer.addFiles(moreFiles);                          // File objects …
 viewer.addFiles([{ name: "romans.shx", data: bytes }]); // … or { name, data: Uint8Array | Blob, path? }
-viewer.missingFiles;   // ["textstyle1", "C:\\images\\photo.jpg"] — what the drawing still lacks
+viewer.missingFiles;   // ["textstyle1", "C:\\images\\photo.jpg"]: what the drawing still lacks
 viewer.files;          // [{ name, path, size, kind: "drawing" | "font" | "image" | "other" }]
 viewer.findFile("C:\\any\\dir\\TXT.SHX", "font");    // which stored file a name resolves to
 viewer.removeFile("fonts/txt.shx");                  // by path, or every file with a name
@@ -114,9 +114,9 @@ viewer.clearFiles();
     the files) wins if it names one exactly; otherwise the file whose path shares the **most
     trailing folders** with the request (`…\AutoCAD 2027\Fonts\txt.shx` prefers
     `acad/AutoCAD 2027/Fonts/txt.shx` over `old/txt.shx`), then the one closest to the drawing's
-    folder, then the shallower path, then the path in code-unit order — deterministic.
+    folder, then the shallower path, then the path in code-unit order (deterministic).
 - **Folders.** Paths come from `File.webkitRelativePath` (an `<input type="file"
-  webkitdirectory>` — Chromium, Firefox and Safari support it) or from `{ path }` (e.g. a dropped
+  webkitdirectory>`, which Chromium, Firefox and Safari support) or from `{ path }` (e.g. a dropped
   folder read with `DataTransferItem.webkitGetAsEntry()`, using the entries' `fullPath`; see
   `apps/playground/src/files.ts`). They only serve to tell same-named files apart.
 - **Adding files later.** Every change of the files bumps a generation that is passed to the
@@ -129,7 +129,7 @@ viewer.clearFiles();
   `bigfont-missing`, `image-missing` (IMAGEDEF paths of IMAGE entities whose file was not found)
   and `shapefile-missing` (shape files a SHAPE needs) with the names in `items`;
   `viewer.missingFiles` collects those items (`MISSING_FILE_CODES`). Names are as the drawing
-  writes them — font names may be style font names without extension or family names.
+  writes them: font names may be style font names without extension or family names.
 - **Memory / worker.** The files stay on the main thread; the worker requests one file at a time
   (the existing font / image request messages) and gets a copy of its bytes. Nothing is copied
   into the worker up front.
@@ -149,5 +149,5 @@ viewer.clearFiles();
 - The frontend tessellates the whole drawing for every list (no view culling yet), so a LOD
   step costs about as much as the first render.
 - Near-white colours on a light background and near-black ones on a dark background (within 8
-  of pure white / black, true colours and ACI 255) contrast with it like ACI 7 in the viewer —
+  of pure white / black, true colours and ACI 255) contrast with it like ACI 7 in the viewer,
   e.g. QCAD's layer 0 with 420 = 0xFFFFFF. A display choice; plots are unaffected.

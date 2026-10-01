@@ -9,8 +9,8 @@ pnpm playground:build      # static build in apps/playground/dist
 
 - **Modes** (only when the local `samples/` folder exists): **Viewer**, **Fixtures** (suite /
   case browser with scores from `samples/reports/scoreboard/*.log` and
-  `samples/out/visual/results.json`; compare our plot-mode render — raster `autocad`, the case's
-  plot request — with `samples/refs/acad2027-*/<suite>/<case>.png` side by side, as onion skin or
+  `samples/out/visual/results.json`; compare our plot-mode render (raster `autocad`, the case's
+  plot request) with `samples/refs/acad2027-*/<suite>/<case>.png` side by side, as onion skin or
   as a diff: red = only AutoCAD, blue = only truedxf, grey = both) and **Corpus** (search
   `samples/external/manifest.jsonl` by path / title, entity type, version, producer).
 - **Open** a DXF with the button, `Ctrl+O`, drag and drop, or `?file=<url>` (in dev, local
@@ -21,7 +21,7 @@ pnpm playground:build      # static build in apps/playground/dist
   **folder** (the arrow next to Open → "Open folder…"; `webkitdirectory`), or drop several files
   or a folder (read recursively). Files selected without a drawing are added to the open one,
   which re-renders (also the "add them" link next to missing files). With several drawings you
-  choose one; the others stay in the **Files** panel (right), click one to switch. Files are matched by name only — the folders written in the DXF
+  choose one; the others stay in the **Files** panel (right), click one to switch. Files are matched by name only: the folders written in the DXF
   (`C:\…\Fonts\txt.shx`, `..\images\a.png`) do not matter, and `txt` finds `txt.shx`. The panel
   lists what the drawing is still **missing** (fonts, big fonts, images, shape files); the
   Diagnostics panel has the full warnings. Drawings opened with `?file=<url>` also find images

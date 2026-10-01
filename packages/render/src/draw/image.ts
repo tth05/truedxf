@@ -121,7 +121,7 @@ function missingImageNotes(doc: DxfDocument, defs: readonly ImageDefObject[]): P
     {
       code: "image-missing",
       severity: "warning",
-      message: `Image files not found: ${items.join(", ")} — only the image frame and file name are drawn`,
+      message: `Image files not found: ${items.join(", ")} ; only the image frame and file name are drawn`,
       count,
       items,
     },

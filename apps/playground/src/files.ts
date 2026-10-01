@@ -67,6 +67,14 @@ async function readEntries(roots: FileSystemEntry[]): Promise<FileInput[]> {
   return out;
 }
 
+/** The last drawing opened from a URL (?file=, a fixture, the corpus): listed in italics. */
+export interface UrlDrawing {
+  name: string;
+  url: string;
+  size?: number;
+  reopen(): void;
+}
+
 export interface FilesPanelActions {
   addFiles(): void;
   openDrawing(file: ViewerFile): void;
@@ -81,6 +89,8 @@ export class FilesPanel {
   private readonly actions: FilesPanelActions;
   /** Path of the open drawing when it came from the files. */
   current: string | undefined;
+  /** The last drawing opened from a URL; stays listed until another URL drawing replaces it. */
+  urlDrawing: UrlDrawing | undefined;
 
   constructor(viewer: DxfViewer, actions: FilesPanelActions) {
     this.viewer = viewer;
@@ -108,12 +118,33 @@ export class FilesPanel {
         : null,
     );
     const rows: HTMLElement[] = [];
+    // the last drawing opened from a URL (?file=, a fixture, the corpus) is not one of the files:
+    // list it anyway, in italics, so the panel shows every drawing you can go back to
+    const u = this.urlDrawing;
+    if (u) {
+      const open = this.current === undefined && this.viewer.document !== undefined;
+      rows.push(
+        h(
+          "div",
+          {
+            class: `item transient${open ? " active" : ""}`,
+            title: `${u.url}: opened from a URL (link, fixture or corpus), not one of your files${open ? "" : "; click to open"}`,
+            onclick: () => {
+              if (!open) u.reopen();
+            },
+          },
+          h("span", { class: "icon-16" }, icon(ICONS.file)),
+          h("span", { class: "name" }, u.name),
+          h("span", { class: "meta" }, u.size !== undefined ? fmtBytes(u.size) : ""),
+        ),
+      );
+    }
     if (missing.length) {
       rows.push(
         h(
           "div",
           { class: "diag-sub" },
-          `Missing (${missing.length}) — `,
+          `Missing (${missing.length}): `,
           h("button", { class: "link inline", onclick: () => this.actions.addFiles() }, "add them"),
         ),
       );
@@ -123,7 +154,7 @@ export class FilesPanel {
             "div",
             {
               class: "item missing",
-              title: `${name}: not found — add a file with this name`,
+              title: `${name}: not found. Add a file with this name`,
               onclick: () => this.actions.addFiles(),
             },
             h("span", { class: "n" }, "!"),
@@ -145,7 +176,7 @@ export class FilesPanel {
             "div",
             {
               class: `item${drawing && f.path === this.current ? " active" : ""}${drawing ? "" : " static"}`,
-              title: drawing ? `${f.path} — click to open` : f.path,
+              title: drawing ? `${f.path}: click to open` : f.path,
               ...(drawing ? { onclick: () => this.actions.openDrawing(f) } : {}),
             },
             h(
@@ -200,7 +231,7 @@ export function pickDrawing(
       h(
         "div",
         { class: "picker-card" },
-        h("b", {}, `${drawings.length} drawings — open which one?`),
+        h("b", {}, `${drawings.length} drawings. Open which one?`),
         h("p", {}, "The other files stay available; switch drawings in the Files panel."),
         h(
           "div",

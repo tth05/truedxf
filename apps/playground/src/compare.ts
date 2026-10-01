@@ -1,6 +1,6 @@
 /**
  * Fixture compare view: our plot-mode render (raster "autocad", the case's plot request) vs the
- * AutoCAD reference PNG — side by side, onion skin, or diff (red = only AutoCAD, blue = only
+ * AutoCAD reference PNG: side by side, onion skin, or diff (red = only AutoCAD, blue = only
  * truedxf, grey = both).
  */
 import { DisplayListRenderer } from "@truedxf/three";

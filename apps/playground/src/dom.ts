@@ -49,14 +49,14 @@ export const ICONS = {
   measure: P('<path d="M3 17L17 3l4 4L7 21z"/><path d="M7 13l2 2M10 10l2 2M13 7l2 2"/>'),
   moon: P('<path d="M21 13A9 9 0 1 1 11 3a7 7 0 0 0 10 10z"/>'),
   sun: P(
-    '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+    '<circle cx="12" cy="12" r="3.5"/><path d="M18 12h2.5M16.2 16.2l1.8 1.8M12 18v2.5M7.8 16.2L6 18M6 12H3.5M7.8 7.8L6 6M12 6V3.5M16.2 7.8L18 6"/>',
   ),
   weight: P(
     '<path d="M4 6h16" stroke-width="1"/><path d="M4 12h16" stroke-width="2.2"/><path d="M4 18h16" stroke-width="3.6"/>',
   ),
-  eye: P('<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>'),
+  eye: P('<path d="M2.5 12Q12 1.5 21.5 12Q12 22.5 2.5 12z"/><circle cx="12" cy="12" r="3"/>'),
   eyeOff: P(
-    '<path d="M3 3l18 18"/><path d="M10.6 5.1A10 10 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.2 4.2M6.6 6.6A17 17 0 0 0 2 12s3.5 7 10 7a9.8 9.8 0 0 0 5.4-1.6"/>',
+    '<path d="M2.5 12Q12 1.5 21.5 12Q12 22.5 2.5 12z"/><circle cx="12" cy="12" r="3"/><path d="M4 20L20 4"/>',
   ),
   file: P('<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/>'),
   layout: P('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/>'),
@@ -71,6 +71,6 @@ export const ICONS = {
   caret: P('<path d="M6 9l6 6 6-6"/>'),
   font: P('<path d="M5 7V5h14v2M12 5v14M9 19h6"/>'),
   help: P(
-    '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.6M12 17h.01"/>',
+    '<circle cx="12" cy="12" r="9"/><path d="M9 9.5Q9 6.5 12 6.5T15 9.5Q15 11 12 12.5V14.5M12 17.5v.01"/>',
   ),
 };

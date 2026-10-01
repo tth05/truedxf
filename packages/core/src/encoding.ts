@@ -81,11 +81,45 @@ export function isUtf8Version(acadver: string | undefined): boolean {
 
 const decoders = new Map<string, TextDecoder>();
 
+/** windows-1252 0x80–0x9F (WHATWG; the five undefined bytes map to the C1 controls). */
+const CP1252_HIGH =
+  "€\u0081‚ƒ„…†‡ˆ‰Š‹Œ\u008DŽ\u008F" +
+  "\u0090‘’“”•–—˜™š›œ\u009DžŸ";
+
+/**
+ * windows-1252 from a table. Node (23.10) decodes the WHATWG labels windows-1252 / iso-8859-1 /
+ * latin1 as ISO-8859-1, turning € “ Š … into C1 controls; browsers are correct.
+ */
+class Windows1252Decoder implements TextDecoder {
+  readonly encoding = "windows-1252";
+  readonly fatal = false;
+  decode(input?: ArrayBufferView | ArrayBuffer): string {
+    if (!input) return "";
+    const b =
+      input instanceof ArrayBuffer
+        ? new Uint8Array(input)
+        : new Uint8Array(input.buffer, input.byteOffset, input.byteLength);
+    let out = "";
+    for (let i = 0; i < b.length; i += 4096) {
+      const end = Math.min(b.length, i + 4096);
+      const codes: number[] = [];
+      for (let k = i; k < end; k++) {
+        const c = b[k]!;
+        codes.push(c >= 0x80 && c < 0xa0 ? CP1252_HIGH.charCodeAt(c - 0x80) : c);
+      }
+      out += String.fromCharCode(...codes);
+    }
+    return out;
+  }
+}
+
 export function getDecoder(encoding: string, fatal = false): TextDecoder {
   const key = fatal ? `${encoding}!` : encoding;
   let d = decoders.get(key);
   if (!d) {
     d = new TextDecoder(encoding, { fatal, ignoreBOM: true });
+    // windows-1252 has no invalid bytes, so `fatal` does not matter for the table decoder
+    if (d.encoding === "windows-1252" && d.decode(Uint8Array.of(0x80)) !== "€") d = new Windows1252Decoder();
     decoders.set(key, d);
   }
   return d;

@@ -75,7 +75,15 @@ export function fitWindow(
 
 export function viewFromBounds(b: Bounds, canvas: readonly [number, number]): View {
   if (!(b.maxX >= b.minX && b.maxY >= b.minY)) return fitWindow([0, 0], [canvas[0], canvas[1]], canvas);
-  return fitWindow([b.minX, b.minY], [b.maxX, b.maxY], canvas);
+  const v = fitWindow([b.minX, b.minY], [b.maxX, b.maxY], canvas);
+  // The axis that sets the scale spans exactly the bounds: centre ± half-size can miss the bounds
+  // by an ulp, which moves geometry on the extents edge just outside the canvas (t = 0 must map
+  // to pixel 0, note 08 §10; fileformat/corpus-ezdxf-3dface lost its bottom edge line).
+  const dx = b.maxX - b.minX;
+  const dy = b.maxY - b.minY;
+  if (dx > 0 && dx / canvas[0] >= dy / canvas[1]) return { ...v, minX: b.minX, maxX: b.maxX };
+  if (dy > 0 && dy / canvas[1] >= dx / canvas[0]) return { ...v, minY: b.minY, maxY: b.maxY };
+  return v;
 }
 
 /** World units per device pixel for a view on a canvas. */

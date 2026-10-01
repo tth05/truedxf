@@ -1460,6 +1460,38 @@ Cases `probe-thick` (11 lineweights × 24 directions + zero-length), `thick-prob
   pixel — w 2–4: (−1,0), (0,0), (0,−1); w 5–6: rows +1: −1..0, 0: −2..1, −1: −1..0; w 8: rows ±2:
   −2..1, ±1: −2..2, 0: −3..2 (all sub-pixel positions identical). POINT stays 1 px.
 
+### 10.15 Extents plots: the plotted window is not $EXTMIN/$EXTMAX (T-PL-9, open)
+
+VERIFIED-BY-ACAD 2026-10-01 with a local probe suite `extents-probes` (103 cases, model space,
+2000×1500 unless noted: a 20×10 LWPOLYLINE with 80 interior "ruler" LINEs at golden-ratio
+positions, so the mapping `u = (x − x0)·kx`, `v = (y − y0)·ky` of every case is fitted to
+±0.001 units by linear programming on the pixel columns/rows; generator and fit scripts were kept
+outside the repo). The plot window AutoCAD uses for "Extents" is $EXTMIN/$EXTMAX (DXFOUT, exact)
+grown outward by up to a few hundredths to tenths of a unit, so an "exact extents" window is
+0.1–1.5 % too large in scale for typical files (fileformat corpus, `extents/probe-*`, `layouts/extents-*`):
+- **Excluded entities play no role** (r20-alone = r20-inv-far = r20-inv-near = r20-inv-vfar,
+  identical PNGs). The earlier impression that the padding came with invisible/frozen geometry was
+  a coincidence of the shared fixture VPORT.
+- **It depends on the drawing's *Active VPORT** (height and centre) and on where the extents sit
+  relative to it: with VPORT height 1000 the window edges sit on a grid anchored at the view centre
+  (accoreconsole re-centres the view for its 1882×1066 device, AR 1.765478…, keeping the left edge:
+  DXFOUT centre x = c − h·ar/2 + h·1.765478/2). Shifting the 20×10 rectangle in 0.025 steps
+  (`e-ox00…12`) moves the left edge in steps of 0.1347 = h·1.765478·5/(2·32768) and the right edge
+  on the same grid (floor/ceil); with height 3000 (`g-x*`, `g-y*`) x steps 0.4041 and y steps
+  0.2290 (= h·5/(2·32768) within 0.05 %), i.e. **equal steps of 5/32768 of the half-view in
+  normalised view coordinates** — the shape of a 16-bit "virtual screen" spanning ±5 views.
+  A geometry edge exactly on a y grid line still moves one step out (`g-y00`).
+- That model does **not** hold for other view heights: height 300 (`h-x00…15`, steps of 0.003)
+  gives grid points 0.047 apart and right edges that depend on the left one; heights 1, 10, 30, 100
+  pad by 0.01–0.03; heights 10 000 and 100 000 pad by ≤ 0.001 (no visible grid, `i-x*`).
+- The mapping is not uniform: kx/ky = 1.0002–1.002 (e.g. `e-ox00` kx 98.984, ky 98.943), and the
+  "Effective plotting area" height is not window height × kx.
+Not implemented (truedxf plots the exact extents); a rule needs the virtual-screen size as a
+function of view and extents. Fixed instead: the axis that sets the Fit scale now spans the
+extents exactly (`viewFromBounds`), so geometry on the extents edge maps to pixel 0
+(`fileformat/corpus-ezdxf-3dface` 0.983 → 1.000, `corpus-ezdxf-dimension-in-nested-blocks`
+0.958 → 0.999; before, centre − half-size missed minY by an ulp).
+
 ---
 
 ## 11. Never-activated layouts

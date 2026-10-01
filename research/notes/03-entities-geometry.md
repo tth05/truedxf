@@ -1150,7 +1150,10 @@ the thickness top of extruded LINEs, the full band of wide polylines, the PDMODE
 control hull) and a pattern HATCH's boundary (not its pattern lines); they **exclude** invisible (60 = 1) entities,
 frozen layers, 3DFACE vertices touched only by invisible edges and lineweight widths. The plotted Extents area is
 slightly larger than $EXTMIN/$EXTMAX (e.g. 20 × 10 extents → "Effective plotting area: 2000.00 wide by 1004.45 high"
-at 99 px/unit instead of 100); that padding rule is open (note 08 §10).
+at 99 px/unit instead of 100); that padding rule is open. 2026-10-01 probes (note 08 §10.15,
+local suite `extents-probes`): it does not depend on excluded entities but on the *Active VPORT
+and the extents' position in it — edges move outward to a grid of 5/32768 half-views for view
+height 1000/3000, other rules for other heights; not implemented.
 
 **Text (VERIFIED-BY-ACAD 2026-10-01)**: TrueType TEXT and MTEXT count with their **font cell box**, not the
 ink: per line [pen start, advance end] × [baseline − hhea descender, baseline + hhea ascender]

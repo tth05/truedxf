@@ -34,14 +34,28 @@ import type {
 } from "@truedxf/model";
 import { dictionaryVariables } from "@truedxf/model";
 import type { RasterImage, Rgba } from "../displaylist.ts";
-import { type DrawState, type Frontend, registerDrawer, registerPreparer } from "../frontend.ts";
+import {
+  type DrawState,
+  type Frontend,
+  type PlotNote,
+  type RenderEnv,
+  registerDrawer,
+  registerPreparer,
+} from "../frontend.ts";
 import { type DecodedRaster, decodeRaster } from "../image-decode.ts";
 
 const SHOW = 1;
 const TRANSPARENCY = 8;
 
-/** Decoded files per document and IMAGEDEF handle (null = missing / undecodable). */
-const DECODED = new WeakMap<DxfDocument, Map<string, DecodedRaster | null>>();
+/**
+ * Decoded files per document and IMAGEDEF handle (null = missing / undecodable), valid for one
+ * image loader: a host that can supply more files later (the viewer's file store) passes a new
+ * loader function, and the files are looked up again.
+ */
+const DECODED = new WeakMap<
+  DxfDocument,
+  { loader: RenderEnv["loadImage"]; map: Map<string, DecodedRaster | null> }
+>();
 /** Adjusted rasters per document and (IMAGEDEF, adjustments) key. */
 const ADJUSTED = new WeakMap<DxfDocument, Map<string, RasterImage>>();
 
@@ -56,23 +70,63 @@ function imagesPlot(doc: DxfDocument, mode: "draw" | "omit" | undefined): boolea
 
 registerPreparer(async (doc, env) => {
   if (!imagesPlot(doc, env.rasterEntities) || !env.loadImage) return;
-  let map = DECODED.get(doc);
-  if (!map) DECODED.set(doc, (map = new Map()));
-  for (const o of doc.objects) {
-    if (o.type !== "IMAGEDEF" || map.has(o.handle)) continue;
-    const def = o as ImageDefObject;
-    let r: DecodedRaster | null = null;
-    if (def.fileName) {
-      try {
-        const bytes = await env.loadImage(def.fileName);
-        r = (bytes && decodeRaster(bytes)) || null;
-      } catch {
-        r = null;
-      }
-    }
-    map.set(o.handle, r);
+  let cache = DECODED.get(doc);
+  if (!cache || cache.loader !== env.loadImage) {
+    cache = { loader: env.loadImage, map: new Map() };
+    DECODED.set(doc, cache);
+    ADJUSTED.delete(doc);
   }
+  const map = cache.map;
+  const missing: ImageDefObject[] = [];
+  for (const o of doc.objects) {
+    if (o.type !== "IMAGEDEF") continue;
+    const def = o as ImageDefObject;
+    if (!map.has(o.handle)) {
+      let r: DecodedRaster | null = null;
+      if (def.fileName) {
+        try {
+          const bytes = await env.loadImage(def.fileName);
+          r = (bytes && decodeRaster(bytes)) || null;
+        } catch {
+          r = null;
+        }
+      }
+      map.set(o.handle, r);
+    }
+    if (map.get(o.handle) === null && def.fileName && def.loaded !== false) missing.push(def);
+  }
+  return missing.length ? missingImageNotes(doc, missing) : undefined;
 });
+
+/**
+ * `image-missing` note (PlotResult.notes): image files that IMAGE entities need but the loader
+ * could not supply (or decode), with the IMAGEDEF paths as written in `items`. Unreferenced and
+ * unloaded IMAGEDEFs do not count.
+ */
+function missingImageNotes(doc: DxfDocument, defs: readonly ImageDefObject[]): PlotNote[] {
+  const wanted = new Map(defs.map((d) => [d.handle.toUpperCase(), d]));
+  const files = new Set<string>();
+  let count = 0;
+  for (const b of new Set([doc.modelSpace, ...doc.blocks]))
+    for (const e of b.entities) {
+      if (e.type !== "IMAGE") continue;
+      const def = wanted.get(((e as ImageEntity).imageDefHandle ?? "").toUpperCase());
+      if (!def) continue;
+      count++;
+      files.add(def.fileName);
+    }
+  if (files.size === 0) return [];
+  const items = [...files];
+  return [
+    {
+      code: "image-missing",
+      severity: "warning",
+      message: `Image files not found: ${items.join(", ")} — only the image frame and file name are drawn`,
+      count,
+      items,
+    },
+  ];
+}
 
 /** Pixel-space point → WCS (note 07 §8.1). */
 function pixelToWcs(e: RasterImageProps, x: number, y: number) {
@@ -272,7 +326,7 @@ registerDrawer("IMAGE", (fe, ent, st) => {
   const def = e.imageDefHandle
     ? (fe.doc.getObject(e.imageDefHandle) as ImageDefObject | undefined)
     : undefined;
-  const src = e.imageDefHandle ? DECODED.get(fe.doc)?.get(e.imageDefHandle) : undefined;
+  const src = e.imageDefHandle ? DECODED.get(fe.doc)?.map.get(e.imageDefHandle) : undefined;
   const r = fe.resolve(e, st);
   if (src && def?.loaded !== false && (e.displayFlags & SHOW) !== 0) {
     const img = adjust(fe, e.imageDefHandle!, src, e, fe.color(r));

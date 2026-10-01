@@ -119,4 +119,22 @@ describe("IMAGE", () => {
     expect(count(unknown)).toBeGreaterThan(0);
     expect(count(withText)).toBeGreaterThan(count(unknown));
   });
+
+  it("reports missing image files as an image-missing note with the IMAGEDEF paths", async () => {
+    const doc = modelDoc({ entities: image, objects: imagedef });
+    const r = await renderPlot(doc, request, { loadImage: async () => undefined, raster: "smooth" });
+    const note = r.notes?.find((n) => n.code === "image-missing");
+    expect(note?.items).toEqual(["C:\\img\\two.png"]);
+    expect(note?.count).toBe(1);
+    // the same loader keeps its (missing) result; a new loader looks the file up again
+    const found = await renderPlot(doc, request, { loadImage: async () => png, raster: "smooth" });
+    expect(found.notes?.some((n) => n.code === "image-missing") ?? false).toBe(false);
+    expect(found.displayList.batches.some((x) => x.kind === PrimitiveKind.Image)).toBe(true);
+  });
+
+  it("does not report unreferenced IMAGEDEFs", async () => {
+    const doc = modelDoc({ entities: "", objects: imagedef });
+    const r = await renderPlot(doc, request, { loadImage: async () => undefined, raster: "smooth" });
+    expect(r.notes?.some((n) => n.code === "image-missing") ?? false).toBe(false);
+  });
 });

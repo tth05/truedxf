@@ -14,7 +14,7 @@
 import { flattenStrokes, type ShxFont, type StrokeGlyph } from "@truedxf/fonts";
 import { Affine2, Matrix44, ocsToWcsMatrix } from "@truedxf/geometry";
 import type { DxfDocument, ShapeEntity } from "@truedxf/model";
-import { registerDrawer, registerPreparer } from "../frontend.ts";
+import { type PlotNote, registerDrawer, registerPreparer } from "../frontend.ts";
 import { loadShapeFile } from "./complex-linetype.ts";
 
 /** Loaded shape files of a document, in STYLE table order (missing files left out). */
@@ -28,15 +28,38 @@ function hasShapes(doc: DxfDocument): boolean {
 registerPreparer(async (doc, env) => {
   if (!hasShapes(doc)) return;
   const files: ShxFont[] = [];
+  const missing: string[] = [];
   const seen = new Set<string>();
   for (const s of doc.tables.styles) {
     if (!s.isShapeFile || !s.font || seen.has(s.font.toLowerCase())) continue;
     seen.add(s.font.toLowerCase());
     const f = await loadShapeFile(env, s);
     if (f) files.push(f);
+    else missing.push(s.font);
   }
   FILES.set(doc, files);
+  return env.loadFont && missing.length ? missingShapeFileNotes(doc, files, missing) : undefined;
 });
+
+/**
+ * `shapefile-missing` note (PlotResult.notes): shape files of flag-1 STYLEs that could not be
+ * loaded, reported when some SHAPE entity's name is in none of the loaded files (`count`).
+ */
+function missingShapeFileNotes(doc: DxfDocument, files: readonly ShxFont[], missing: string[]): PlotNote[] {
+  let count = 0;
+  for (const b of doc.blocks)
+    for (const e of b.entities) if (e.type === "SHAPE" && !find(files, (e as ShapeEntity).name)) count++;
+  if (count === 0) return [];
+  return [
+    {
+      code: "shapefile-missing",
+      severity: "warning",
+      message: `Shape files not found: ${missing.join(", ")} — ${count} shape${count === 1 ? " is" : "s are"} not drawn`,
+      count,
+      items: missing,
+    },
+  ];
+}
 
 function find(files: readonly ShxFont[], name: string): { font: ShxFont; glyph: StrokeGlyph } | undefined {
   for (const font of files) {

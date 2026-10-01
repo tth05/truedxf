@@ -17,7 +17,7 @@ import {
   type UnderlayDefinitionObject,
   type UnderlayEntity,
 } from "@truedxf/model";
-import { registerDrawer, registerPreparer } from "../frontend.ts";
+import { type RenderEnv, registerDrawer, registerPreparer } from "../frontend.ts";
 
 // HELIX carries its geometry as a SPLINE (note 03 §3.13)
 registerDrawer("HELIX", (fe, ent, st) => {
@@ -75,11 +75,16 @@ registerDrawer("OLE2FRAME", (fe, ent, st) => {
 // PDFFRAME comes from the DICTIONARYVAR (1 or absent: frame, 0 / 2: none, pdfframe-dictvar-*);
 // the frame is the page rectangle (MediaBox), or the clip boundary when clipping.
 const PAGE = new WeakMap<DxfDocument, Map<string, { w: number; h: number } | null>>();
+const PAGE_LOADER = new WeakMap<DxfDocument, RenderEnv["loadImage"]>();
 
 registerPreparer(async (doc, env) => {
   if (!env.loadImage) return;
-  let map = PAGE.get(doc);
-  if (!map) PAGE.set(doc, (map = new Map()));
+  // valid for one loader: a new loader (files added in a viewer) looks the files up again
+  let map = PAGE_LOADER.get(doc) === env.loadImage ? PAGE.get(doc) : undefined;
+  if (!map) {
+    PAGE.set(doc, (map = new Map()));
+    PAGE_LOADER.set(doc, env.loadImage);
+  }
   for (const o of doc.objects) {
     if (o.type !== "PDFDEFINITION" || map.has(o.handle)) continue;
     const def = o as UnderlayDefinitionObject;

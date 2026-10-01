@@ -144,4 +144,15 @@ describe("SHAPE entities (note 07 §14)", () => {
     const { v } = await vertices(doc("10 0\n20 0\n30 0\n40 1\n2 TDX_BOX", "D:\\elsewhere\\TRUEDXF-LT.SHX"));
     expect(has(v, 1, 1)).toBe(true);
   });
+
+  it("reports a missing shape file as a shapefile-missing note", async () => {
+    const shape = "10 0\n20 0\n30 0\n40 2\n2 TDX_BOX";
+    const env = { loadFont, raster: "smooth" as const };
+    const r = await renderPlot(doc(shape, "C:\\x\\missing.shx"), request, env);
+    const note = r.notes?.find((n) => n.code === "shapefile-missing");
+    expect(note?.items).toEqual(["C:\\x\\missing.shx"]);
+    expect(note?.count).toBe(1);
+    const ok = await renderPlot(doc(shape), request, env);
+    expect(ok.notes?.some((n) => n.code === "shapefile-missing") ?? false).toBe(false);
+  });
 });

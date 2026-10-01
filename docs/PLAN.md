@@ -20,36 +20,38 @@ update it when decisions change.
 | 5 Feature ladder | Done except rung 15 (CTB/STB plot styles: `@truedxf/plot` is still a placeholder) and the ezdxf baseline score (Phase 3.5) |
 | 6–8 | Not started |
 
-**Scoreboard** (CPU scorer = same pixels as the browser renderer in plot mode; `--hide-fonts
-^liberation`, see below): **3 486 cases with references, 3 128 (90 %) at F1(r=1) ≥ 0.99,
-1 282 (37 %) pixel-exact.**
+**Scoreboard** (2026-10-01, CPU scorer = same pixels as the browser renderer in plot mode,
+against the references re-plotted with the real fonts): **3 583 cases with references, 2 932
+(82 %) at F1(r=1) ≥ 0.99, 878 (25 %) pixel-exact.** The earlier 3 128 / 1 282 were scored
+against simplex.shx substitution plots; most of the drop is TrueType text (dimensions, leaders,
+fileformat, mtext, linetypes with text), see docs/TODO.md.
 
 | Suite | Cases | Exact | F1(r=1) ≥ 0.99 | | Suite | Cases | Exact | F1(r=1) ≥ 0.99 |
 |---|---:|---:|---:|---|---|---:|---:|---:|
-| calibration | 38 | 5 | 38 | | linetypes | 230 | 79 | 215 |
-| lines-curves | 119 | 78 | 114 | | hatches | 280 | 125 | 224 |
-| ocs | 91 | 50 | 81 | | text | 294 | 0 | 284 |
+| calibration | 38 | 5 | 38 | | linetypes | 230 | 64 | 186 |
+| lines-curves | 119 | 74 | 114 | | hatches | 279 | 123 | 223 |
+| ocs | 91 | 34 | 80 | | text | 294 | 8 | 260 |
 | polylines | 99 | 51 | 98 | | text-lato | 23 | 0 | 17 |
-| points | 155 | 115 | 153 | | mtext | 250 | 1 | 204 |
-| ellipses | 51 | 22 | 51 | | attribs | 65 | 1 | 64 |
-| splines | 59 | 0 | 57 | | acad-default-fonts | 14 | 1 | 7 |
-| solids | 43 | 38 | 43 | | dimensions | 366 | 146 | 348 |
-| colors | 44 | 30 | 44 | | leaders | 128 | 80 | 105 |
-| lineweights | 64 | 16 | 64 | | layouts | 169 | 7 | 155 |
-| blocks | 88 | 49 | 82 | | xclip | 44 | 0 | 36 |
-| transparency | 23 | 3 | 21 | | images | 174 | 137 | 156 |
-| draworder | 34 | 33 | 34 | | mline | 54 | 16 | 40 |
-| misc | 45 | 21 | 40 | | extents | 18 | 0 | 7 |
-| mixed | 37 | 0 | 29 | | fileformat | 387 | 178 | 317 |
+| points | 155 | 115 | 153 | | mtext | 250 | 1 | 138 |
+| ellipses | 51 | 22 | 51 | | attribs | 65 | 3 | 64 |
+| splines | 59 | 0 | 57 | | acad-default-fonts | 113 | 38 | 66 |
+| solids | 43 | 38 | 43 | | dimensions | 366 | 1 | 323 |
+| colors | 44 | 10 | 44 | | leaders | 128 | 26 | 85 |
+| lineweights | 64 | 7 | 60 | | layouts | 169 | 7 | 155 |
+| blocks | 88 | 42 | 82 | | xclip | 44 | 0 | 36 |
+| transparency | 23 | 2 | 21 | | images | 174 | 137 | 156 |
+| draworder | 34 | 26 | 34 | | mline | 54 | 16 | 40 |
+| misc | 45 | 20 | 40 | | extents | 18 | 0 | 9 |
+| mixed | 37 | 0 | 28 | | fileformat | 386 | 8 | 231 |
 
-Reproduce: `node packages/testkit/src/cpu-suite.ts <suite> --quiet --hide-fonts "^liberation"`.
+Reproduce: `node packages/testkit/src/cpu-suite.ts <suite> --quiet --json
+samples/reports/scoreboard/<suite>.json > samples/reports/scoreboard/<suite>.log` (the playground's
+Fixtures view reads these reports).
 
 **Known limitations / next steps** (the full list of open todos is [docs/TODO.md](TODO.md); AutoCAD
 questions are in docs/questions.md):
-- **Fonts:** the Liberation TTFs were installed during the AutoCAD session, so the references of
-  text/mtext/attribs/… were plotted with AutoCAD's simplex.shx substitution. After a Windows
-  log-off/on, re-run `node tools/acad/src/run.ts --suite <s> --force` for text-bearing suites and
-  score without `--hide-fonts`.
+- **Fonts:** references are now plotted with the real TrueType fonts; TrueType text layout and
+  rasterization is the largest remaining gap (exact matches dropped from 1 282 to 878).
 - **accoreconsole limits:** IMAGE/WIPEOUT never plot in the console (implemented, unverified);
   MPOLYGON needs `AcMPolygonObj26.dbx` loaded by the harness; proxy fixtures are rejected on load.
 - **Raster:** exact-tie noise at pixel boundaries (not modelled), spline tessellation, hatch

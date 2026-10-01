@@ -10,8 +10,12 @@ Tick items off (or delete them) when done.
       (started 2026-10-01; before, most suites were plotted with simplex.shx substitution), then
       re-score without `--hide-fonts` and update the scoreboard in PLAN.md.
 - [x] `fileformat` suite harness failures (crash reports locked a worker directory; fixed in the runner).
-- [ ] Re-score all suites against the regenerated (real-font) references: MTEXT drops from
-      204/250 to 138/250 at F1(r=1) ≥ 0.99 — TrueType MTEXT layout/metrics need work.
+- [x] Re-score all suites against the regenerated (real-font) references (2026-10-01, PLAN.md
+      scoreboard; reports in samples/reports/scoreboard/*.json list every case).
+- [ ] TrueType text against the real-font references: compared with the simplex-substituted
+      plots, F1(r=1) ≥ 0.99 fell for mtext (204 → 138), fileformat (317 → 231), text (284 → 260),
+      dimensions (348 → 323), leaders (105 → 85), linetypes (215 → 186); pixel-exact fell most in
+      dimensions (146 → 1), fileformat (178 → 8) and leaders (80 → 26).
 - [ ] Remove the Liberation workaround from scripts/docs once references are regenerated
       (`--hide-fonts ^liberation`, harness `text.unavailableFonts`).
 - [ ] Verify IMAGE / WIPEOUT against full AutoCAD (`acad.exe`) plots — accoreconsole never plots

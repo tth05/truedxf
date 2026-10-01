@@ -221,7 +221,7 @@ export function satWireframe(lines: readonly string[] | SatRecord[]): {
   const at = (i: number) => (i >= 0 && i < recs.length ? recs[i] : undefined);
   const point = (vi: number): Vec3 | undefined => {
     const v = at(vi);
-    if (!isVertex(v?.type)) return undefined;
+    if (!v || !isVertex(v.type)) return undefined;
     for (const t of v.tokens) {
       const p = at(ref(t));
       if (p?.type === "point") {

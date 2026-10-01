@@ -316,3 +316,34 @@ describe("renderPlot of a layout", () => {
     expect(b[0]!.clip).toBe(-1);
   });
 });
+
+describe("extents of a layout", () => {
+  it("counts viewport content only within the viewport (note 08 §10.16)", async () => {
+    // a model line far wider than the viewport, a short paper-space line below it
+    const doc = paperDoc({
+      model: line("40", "1F", [-1000, 0], [1000, 0]),
+      paper: [
+        OVERALL,
+        viewport({
+          handle: "31",
+          id: 2,
+          center: [100, 75],
+          size: [40, 30],
+          viewCenter: [0, 0],
+          viewHeight: 30,
+        }),
+        line("41", "20", [95, 10], [105, 10], true),
+      ].join("\n"),
+    });
+    const r = await renderPlot(doc, {
+      layout: "Layout1",
+      area: { type: "extents" },
+      canvas: [200, 150],
+      styleTable: "monochrome.ctb",
+    });
+    // frame 80..120 x 60..90 plus the paper line at y 10: height-limited, 80 units tall
+    expect(r.view.maxY - r.view.minY).toBeCloseTo(80, 6);
+    expect(r.displayList.bounds.minX).toBeGreaterThanOrEqual(80 - 1e-9);
+    expect(r.displayList.bounds.maxX).toBeLessThanOrEqual(120 + 1e-9);
+  });
+});

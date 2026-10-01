@@ -74,6 +74,10 @@ export interface DisplayList {
   readonly pixelSize: number;
   /** Background colour RGB (plot paper is white). */
   readonly background: readonly [number, number, number];
+  /**
+   * Bounds of the bounded geometry; clipped primitives count only within their clip region's
+   * bounding box (clipped viewport content does not widen a layout's extents, note 08 §10.16).
+   */
   readonly bounds: Bounds;
   readonly batches: readonly Batch[];
   readonly clips: readonly ClipRegion[];
@@ -154,6 +158,8 @@ export class DisplayListBuilder {
   background: [number, number, number] = [255, 255, 255];
   private readonly batches: Batch[] = [];
   private readonly clips: ClipRegion[] = [];
+  /** Bounding box of each clip region (bounds of clipped primitives are limited to it). */
+  private readonly clipBoxes: Bounds[] = [];
   private readonly images: RasterImage[] = [];
   private readonly imageIds = new Map<RasterImage, number>();
   private image = -1;
@@ -204,6 +210,18 @@ export class DisplayListBuilder {
 
   addClip(region: ClipRegion): number {
     this.clips.push(region);
+    const box = emptyBounds();
+    for (const ring of region.rings) {
+      for (let i = 0; i + 1 < ring.length; i += 2) {
+        const x = ring[i]!;
+        const y = ring[i + 1]!;
+        if (x < box.minX) box.minX = x;
+        if (x > box.maxX) box.maxX = x;
+        if (y < box.minY) box.minY = y;
+        if (y > box.maxY) box.maxY = y;
+      }
+    }
+    this.clipBoxes.push(box);
     return this.clips.length - 1;
   }
 
@@ -249,12 +267,40 @@ export class DisplayListBuilder {
     this.pos.push2(x - this.originX, y - this.originY);
     this.col.push4(c[0], c[1], c[2], c[3]);
     this.vertexCount++;
+  }
+
+  /**
+   * Adds the bounding box of one primitive (vertices `first` … `first + count − 1` of `xy`) to the
+   * bounds, limited to the bounding box of the open batch's clip region; a primitive entirely
+   * outside it does not count.
+   */
+  private addBounds(xy: ArrayLike<number>, first: number, count: number): void {
     if (this.unbounded) return;
+    let minX = Number.POSITIVE_INFINITY;
+    let minY = Number.POSITIVE_INFINITY;
+    let maxX = Number.NEGATIVE_INFINITY;
+    let maxY = Number.NEGATIVE_INFINITY;
+    for (let k = first; k < first + count; k++) {
+      const x = xy[k * 2]!;
+      const y = xy[k * 2 + 1]!;
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    }
+    const c = this.clip >= 0 ? this.clipBoxes[this.clip] : undefined;
+    if (c) {
+      if (minX < c.minX) minX = c.minX;
+      if (minY < c.minY) minY = c.minY;
+      if (maxX > c.maxX) maxX = c.maxX;
+      if (maxY > c.maxY) maxY = c.maxY;
+      if (minX > maxX || minY > maxY) return;
+    }
     const b = this.bounds;
-    if (x < b.minX) b.minX = x;
-    if (x > b.maxX) b.maxX = x;
-    if (y < b.minY) b.minY = y;
-    if (y > b.maxY) b.maxY = y;
+    if (minX < b.minX) b.minX = minX;
+    if (maxX > b.maxX) b.maxX = maxX;
+    if (minY < b.minY) b.minY = minY;
+    if (maxY > b.maxY) b.maxY = maxY;
   }
 
   /** Ends the current batch (the next primitive starts a new one, e.g. per transparent entity). */
@@ -269,6 +315,7 @@ export class DisplayListBuilder {
     this.ensure(PrimitiveKind.Triangles, n - (n % 3), xy[0]!, xy[1]!);
     for (let i = 0; i + 2 < n; i += 3) {
       for (let k = 0; k < 3; k++) this.vertex(xy[(i + k) * 2]!, xy[(i + k) * 2 + 1]!, color);
+      this.addBounds(xy, i, 3);
     }
   }
 
@@ -280,6 +327,7 @@ export class DisplayListBuilder {
     for (let i = 0; i + 1 < n; i++) {
       this.vertex(xy[i * 2]!, xy[i * 2 + 1]!, color);
       this.vertex(xy[i * 2 + 2]!, xy[i * 2 + 3]!, color);
+      this.addBounds(xy, i, 2);
     }
     if (closed && n > 2) {
       this.vertex(xy[(n - 1) * 2]!, xy[(n - 1) * 2 + 1]!, color);
@@ -306,6 +354,7 @@ export class DisplayListBuilder {
         this.vertex(xy[(i + k) * 2]!, xy[(i + k) * 2 + 1]!, color);
         this.uv.push2(uv[(i + k) * 2]!, uv[(i + k) * 2 + 1]!);
       }
+      this.addBounds(xy, i, 3);
     }
   }
 
@@ -314,7 +363,10 @@ export class DisplayListBuilder {
     const n = xy.length >> 1;
     if (n < 1) return;
     this.ensure(PrimitiveKind.Points, n, xy[0]!, xy[1]!);
-    for (let i = 0; i < n; i++) this.vertex(xy[i * 2]!, xy[i * 2 + 1]!, color);
+    for (let i = 0; i < n; i++) {
+      this.vertex(xy[i * 2]!, xy[i * 2 + 1]!, color);
+      this.addBounds(xy, i, 1);
+    }
   }
 
   private flush(): void {

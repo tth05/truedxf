@@ -1497,6 +1497,24 @@ extents exactly (`viewFromBounds`), so geometry on the extents edge maps to pixe
 (`fileformat/corpus-ezdxf-3dface` 0.983 → 1.000, `corpus-ezdxf-dimension-in-nested-blocks`
 0.958 → 0.999; before, centre − half-size missed minY by an ulp).
 
+### 10.16 Layout extents: viewport frames count, clipped content does not (Q-0120)
+
+VERIFIED-BY-ACAD `misc/layout-extents-viewports` (2026-10-01 scoreboard reference): a 180 × 130
+viewport frame with model content inside it and the overall viewport (220 × 165) plot Extents
+with "Effective plotting area 508.00 wide by 366.89 high" — the aspect of the frame (180/130), so
+the frame of a model viewport counts and the overall viewport does not. Model content seen
+through a viewport is clipped to it, so it can never widen the extents beyond the clip region.
+The LAYOUT object's stored extents (14/15) agree: in the corpus they match the paper-space
+entities plus viewport frames (e.g. `netDxf issue-317 0909_021.dxf` "Main": 2.95…35.05 ×
+0.08…23.86), never the model content behind the viewports.
+
+truedxf: display-list bounds limit every clipped primitive to its clip region's bounding box
+(displaylist.ts; also XCLIPped block content), so the extents probe of a layout is paper space
+plus frames. Before, the unclipped model content made ~75 corpus layouts plot as a dot.
+`fileformat/corpus-ezdxf-xclip` (model space, XCLIP) went 0.31 → 0.88 with the same change.
+UNVERIFIED: whether AutoCAD's model-space extents also clip XCLIPped references exactly (we
+use the clip's bounding box).
+
 ---
 
 ## 11. Never-activated layouts

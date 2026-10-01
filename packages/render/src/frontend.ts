@@ -147,6 +147,7 @@ export type ComplexElementDrawer = (
   st: DrawState,
 ) => void;
 /** Async preparation before drawing; may return user-facing notes for the PlotResult. */
+// biome-ignore lint/suspicious/noConfusingVoidType: existing preparers are `async () => {}` (Promise<void>)
 export type Preparer = (doc: DxfDocument, env: RenderEnv) => Promise<void | readonly PlotNote[]>;
 /**
  * Called before a block reference's content is drawn (once per MINSERT cell) with the

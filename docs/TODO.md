@@ -15,7 +15,16 @@ Tick items off (or delete them) when done.
 - [ ] TrueType text against the real-font references: compared with the simplex-substituted
       plots, F1(r=1) ≥ 0.99 fell for mtext (204 → 138), fileformat (317 → 231), text (284 → 260),
       dimensions (348 → 323), leaders (105 → 85), linetypes (215 → 186); pixel-exact fell most in
-      dimensions (146 → 1), fileformat (178 → 8) and leaders (80 → 26).
+      dimensions (146 → 1), fileformat (178 → 8) and leaders (80 → 26). 2026-10-01: the raster
+      driver's whole-pixel glyph advances (note 04 §14) recovered most of it (mtext 138 → 175,
+      fileformat 231 → 313, leaders 85 → 107); what is left is mostly glyph rasterization.
+- [ ] TrueType raster positions, open cases (note 04 §14): column MTEXT with a centred
+      attachment (text-probes/mtx-cols-dynauto-mc, -dynman-bc) does not follow the whole-pixel
+      rule; string splits at tabs and fallback fonts are inferred, not probed.
+- [ ] MTEXT positions off before the pixel rule: text after a tab sits a few px right of
+      AutoCAD's (mtext/para-indent-*), the second line of a wrapped `\L` paragraph is 7 px right
+      (mtext/code-underline-wrap), the CJK fallback font differs from AutoCAD's
+      (text/escape-malformed-*, text/fallback-cjk-*).
 - [ ] Remove the Liberation workaround from scripts/docs once references are regenerated
       (`--hide-fonts ^liberation`, harness `text.unavailableFonts`).
 - [ ] Verify IMAGE / WIPEOUT against full AutoCAD (`acad.exe`) plots — accoreconsole never plots
@@ -101,3 +110,19 @@ Tick items off (or delete them) when done.
       not overlap.
 - [ ] WebGPU renderer trial (PLAN Phase 7.1).
 
+## 3D wireframe views (model space)
+
+Sample: `samples/external/files/github/LibreDWG__libredwg/issue-1071/18440454_Waschbecken2_extracted/Waschbecken-2018.dxf`
+(13 `3DSOLID`s with SAB data in ACDSDATA; AutoCAD opens it in an isometric view).
+
+- [ ] Model space through a view direction: apply the `*ACTIVE` VPORT view direction, target and
+      twist like `viewportMatrix` (render/src/draw/viewport.ts), so files open in their saved view
+      (resolves Q-0729). Viewer: view presets (Top, Front, Left, Right, Back, Bottom, SW/SE/NE/NW
+      Iso); each change re-runs the frontend (no free orbit).
+- [ ] ACIS curved edges: flatten `intcurve` and other non-line, non-ellipse edges from their
+      stored B-spline approximation instead of drawing the chord (render/src/draw/acis.ts,
+      `acis-curve` note).
+- [ ] ACIS isolines on curved faces (ISOLINES): cylinders, cones, spheres, tori, then spline
+      faces. Placement still to be verified with AutoCAD (Q-0187).
+- [ ] Verify against AutoCAD: plot Waschbecken-2018 in its saved iso view (2D wireframe) via
+      tools/acad and add it as a local `user/` fixture.

@@ -7,18 +7,20 @@
  * | LINEAR | x′ across the rotated extent, t ∈ [0, 1] | t |
  * | CYLINDER | same | sin(π t) |
  * | SPHERICAL | distance d from the box centre, R = half the larger box side | cos(π/2 · min(1, d/R)) |
- * | HEMISPHERICAL | d from a centre H/2 below the box bottom, R = the larger side | cos(π/2 · min(1, d/R)) |
+ * | HEMISPHERICAL | d from a centre S/2 below the box centre, R = S = max(rotated width, unrotated height) | cos(π/2 · min(1, d/R)) |
  * | CURVED | s = w − 0.1125·q², w = 0 at the top edge, q = x′ / half width | sin(π/2 · clamp(s)) |
  * | INV… | as above | 1 − f |
  *
  * 461 ≠ 0 ("not centred"): 1D types move their middle to t = 0.3125 and stretch the second half
- * to 0.703; radial types move the centre by (−R/2, +R/2) (up and left). Colours are interpolated
+ * to 0.703; SPHERICAL moves the centre by (−R/2, +R/2) (up and left), HEMISPHERICAL by −R/2
+ * along the rotated x axis. Colours are interpolated
  * per channel in sRGB between the two stored 421 colours (the tint 462 is not re-applied).
  * VERIFIED-BY-ACAD (2026-09-30) for rotation 0 on `hatches/gradient-*`: LINEAR/CYLINDER/SPHERICAL
  * profiles, projected-extent normalisation at 45°, sRGB interpolation, stored second colour,
  * spherical shift. APPROXIMATIONS: AutoCAD Gouraud-shades its own triangle mesh with an ordered
  * dither, so values deviate by a few levels, rotated gradients (30°) are slightly bent, and the
- * HEMISPHERICAL / CURVED fits (and their shifted variants) are empirical.
+ * HEMISPHERICAL (VERIFIED-BY-ACAD to ≤ 3.7 levels incl. shifted and rotated) and CURVED fits
+ * are empirical.
  *
  * The fill is emitted as constant-colour bands (one per rounded colour) clipped to the hatch
  * region, so it works in every renderer and at every resolution.
@@ -74,6 +76,8 @@ function makeField(
   shifted: boolean,
   box: { x0: number; y0: number; x1: number; y1: number },
   tol: number,
+  /** Height of the target-aligned (unrotated) bounding box. */
+  unrotatedHeight: number,
 ): Field {
   const inv = name.startsWith("INV");
   const base = inv ? name.slice(3) : name;
@@ -89,13 +93,19 @@ function makeField(
     let R = Math.max(W, H) / 2;
     let ox = cx;
     let oy = cy;
-    if (base === "HEMISPHERICAL") {
-      R = Math.max(W, H);
-      oy = box.y0 - H / 2;
-    }
     if (shifted) {
       ox -= R / 2;
       oy += R / 2;
+    }
+    if (base === "HEMISPHERICAL") {
+      // size S = max(extent along the rotated x axis, unrotated height H₀); centre (0, −S/2) from
+      // the box centre (the frame origin) in the rotated frame, R = S; shifted moves the centre
+      // by −S/2 along the rotated x axis only. Empirical fit, VERIFIED-BY-ACAD 2026-10-01 to
+      // mean |Δ| ≤ 3.7 levels: hatches/gradient-{inv,}hemispherical-shift{0,1}-a{0,45} and local
+      // hatch-probes/hemi-{tall,wide,square}-shift{0,1}-a{0,30} (note 06 §1.7.1)
+      R = Math.max(W, unrotatedHeight);
+      ox = shifted ? -R / 2 : 0;
+      oy = -R / 2;
     }
     let dmax = 0;
     for (const [x, y] of [
@@ -210,7 +220,7 @@ export function fillGradient(fe: Frontend, rings: readonly Float64Array[], g: Ha
       box.y1 = Math.max(box.y1, r[i + 1]!);
     }
   if (!(box.x1 > box.x0 && box.y1 > box.y0)) return;
-  const field = makeField(g.name.toUpperCase() || "LINEAR", g.shift !== 0, box, fe.tolerance);
+  const field = makeField(g.name.toUpperCase() || "LINEAR", g.shift !== 0, box, fe.tolerance, by1 - by0);
   const colorAt = (q: number): Rgba => {
     const f = field.f(q);
     return [

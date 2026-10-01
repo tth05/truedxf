@@ -482,9 +482,19 @@ Cases `hatches/gradient-*` (160×80 and 180×45 rectangles); implementation
 - 461 is effectively boolean (0.5 plots like 1). Shifted SPHERICAL moves the centre by
   (−R/2, +R/2) — exact to one level; shifted 1D types put the middle at t ≈ 0.3125 and stretch
   the rest to ≈ 0.703 (empirical).
-- HEMISPHERICAL ≈ radial cos law with the centre H/2 below the box bottom and R = the larger
-  side; CURVED ≈ sin(π/2·(w − 0.1125 q²)) with w = 0 at the top edge (empirical fits, shifted
-  variants not modelled).
+- HEMISPHERICAL (and INV…) = radial cos law f = cos(π/2·min(1, d/R)) with **S = max(extent of
+  the region along the rotated x axis, unrotated (target-aligned) height H₀)**, R = S, centre
+  at (0, −S/2) from the box centre in the frame rotated by 460; shifted (461 ≠ 0) moves the
+  centre by −S/2 along the rotated x axis only (not up, unlike SPHERICAL). VERIFIED-BY-ACAD
+  2026-10-01, empirical fit: mean |Δ| ≤ 3.7 levels on `hatches/gradient-{inv,}hemispherical-
+  shift{0,1}-a{0,45}` (160 × 80) and local probes `hatch-probes/hemi-{tall,wide,square}-
+  shift{0,1}-a{0,30}` (60 × 110, 180 × 40, 100 × 100). The rotated-box variant (S = max of both
+  rotated extents) fails the tall box at 30° (S fits 108–115, not 125); S from the unrotated box
+  alone fails the square at 30° (fits 134–136 = the rotated width). The mixed rule is odd, but
+  it is what the 20 cases support. Before (centre from the rotated box, shift (−R/2, +R/2)) the
+  shift0-a45 and shift1-a0 cases were wrong-colour gross failures (F1 ≈ 0).
+- CURVED ≈ sin(π/2·(w − 0.1125 q²)) with w = 0 at the top edge (empirical fit, shifted variants
+  not modelled).
 - AutoCAD Gouraud-shades its own triangle mesh with an ordered dither (iso-lines step by 1 px
   every 40 rows in a 160-row cycle), so pixel exactness is out of reach; rotated gradients at 30°
   fit a plane at 33–35° (mesh artefact), 45° is exact.

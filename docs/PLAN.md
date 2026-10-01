@@ -21,29 +21,30 @@ update it when decisions change.
 | 6–8 | Not started |
 
 **Scoreboard** (2026-10-01, CPU scorer = same pixels as the browser renderer in plot mode,
-against the references re-plotted with the real fonts): **3 583 cases with references, 3 088
-(86 %) at F1(r=1) ≥ 0.99, 885 (25 %) pixel-exact.** The earlier 3 128 / 1 282 were scored
+against the references re-plotted with the real fonts): **3 583 cases with references, 3 199
+(89 %) at F1(r=1) ≥ 0.99, 887 (25 %) pixel-exact.** The earlier 3 128 / 1 282 were scored
 against simplex.shx substitution plots; most of the drop is TrueType text (dimensions, leaders,
 fileformat, mtext, linetypes with text); the raster driver's whole-pixel glyph advances
-(research/notes/04 §14) recovered 156 cases. See docs/TODO.md.
+(research/notes/04 §14) recovered 156 cases, the failure triage of 2026-10-01 another 111
+(backlog in docs/TODO.md).
 
 | Suite | Cases | Exact | F1(r=1) ≥ 0.99 | | Suite | Cases | Exact | F1(r=1) ≥ 0.99 |
 |---|---:|---:|---:|---|---|---:|---:|---:|
-| calibration | 38 | 5 | 38 | | linetypes | 230 | 64 | 186 |
-| lines-curves | 119 | 74 | 114 | | hatches | 279 | 123 | 223 |
-| ocs | 91 | 34 | 80 | | text | 294 | 15 | 266 |
-| polylines | 99 | 51 | 98 | | text-lato | 23 | 0 | 18 |
-| points | 155 | 115 | 153 | | mtext | 250 | 1 | 175 |
+| calibration | 38 | 5 | 38 | | linetypes | 230 | 65 | 216 |
+| lines-curves | 119 | 74 | 114 | | hatches | 279 | 124 | 224 |
+| ocs | 91 | 34 | 80 | | text | 294 | 15 | 270 |
+| polylines | 99 | 51 | 98 | | text-lato | 23 | 0 | 19 |
+| points | 155 | 115 | 153 | | mtext | 250 | 1 | 195 |
 | ellipses | 51 | 22 | 51 | | attribs | 65 | 3 | 64 |
-| splines | 59 | 0 | 57 | | acad-default-fonts | 113 | 38 | 66 |
-| solids | 43 | 38 | 43 | | dimensions | 366 | 1 | 324 |
-| colors | 44 | 10 | 44 | | leaders | 128 | 26 | 107 |
+| splines | 59 | 0 | 56 | | acad-default-fonts | 113 | 38 | 68 |
+| solids | 43 | 38 | 43 | | dimensions | 366 | 1 | 362 |
+| colors | 44 | 10 | 44 | | leaders | 128 | 26 | 111 |
 | lineweights | 64 | 7 | 64 | | layouts | 169 | 7 | 155 |
 | blocks | 88 | 42 | 82 | | xclip | 44 | 0 | 36 |
 | transparency | 23 | 2 | 21 | | images | 174 | 137 | 156 |
 | draworder | 34 | 26 | 34 | | mline | 54 | 16 | 40 |
 | misc | 45 | 20 | 40 | | extents | 18 | 0 | 9 |
-| mixed | 37 | 0 | 31 | | fileformat | 386 | 8 | 313 |
+| mixed | 37 | 0 | 32 | | fileformat | 386 | 8 | 324 |
 
 Reproduce: `node packages/testkit/src/cpu-suite.ts <suite> --quiet --json
 samples/reports/scoreboard/<suite>.json > samples/reports/scoreboard/<suite>.log` (the playground's

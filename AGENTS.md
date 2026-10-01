@@ -82,6 +82,7 @@ Run all three (typecheck, test, lint) before committing.
 
 ## Git
 
-- Remote: `origin` = <https://github.com/tth05/truedxf> (private until release). Commit
-  locally; push only when the user asks. Small, focused commits with imperative subject lines.
+- Remote: `origin` = <https://github.com/tth05/truedxf> (private until release). Pushing
+  is fine at any time; deploying the site needs the user's go-ahead. Small, focused commits
+  with imperative subject lines.
 - Never commit `samples/`, `research/repos`, `research/github/raw`, `research/spec/*.pdf|txt`.

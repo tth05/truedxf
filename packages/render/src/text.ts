@@ -46,7 +46,13 @@ import {
 } from "@truedxf/text";
 import { aciToRgb } from "./aci.ts";
 import type { Rgba } from "./displaylist.ts";
-import { type Frontend, registerDrawer, registerPreparer, setAttribDrawer } from "./frontend.ts";
+import {
+  type Frontend,
+  type PlotNote,
+  registerDrawer,
+  registerPreparer,
+  setAttribDrawer,
+} from "./frontend.ts";
 import type { Inherited, Resolved } from "./props.ts";
 
 /** Text options of a render environment. */
@@ -60,6 +66,22 @@ export interface TextRenderOptions {
   fontAlt?: string;
   /** Fallback TTFs for glyphs missing from a TTF (which ones AutoCAD uses is UNKNOWN, note 04 §4.5). */
   glyphFallbacks?: readonly string[];
+  /**
+   * Text whose font, bigfont or MTEXT `\f`/`\F` font cannot be loaded:
+   * - `"autocad"`: AutoCAD 2027's plot behaviour — FONTALT for style fonts and `\F` files, a
+   *   missing bigfont suppresses the text, an unknown `\f` family draws nothing (note 04 §4.1).
+   * - `"fallback"`: always draw it — with {@link fallbackFont} / {@link fallbackBigFont}.
+   * Default: `"fallback"` when `RenderEnv.raster` is `"smooth"` (viewers), else `"autocad"`.
+   * Either way the PlotResult gets `font-missing` / `bigfont-missing` notes.
+   */
+  missingFont?: "autocad" | "fallback";
+  /**
+   * `"fallback"` mode: font files for missing fonts, the first that loads wins. Default:
+   * [FONTALT, "simplex.shx", "txt.shx", "arial.ttf", "LiberationSans-Regular.ttf"].
+   */
+  fallbackFont?: string | readonly string[];
+  /** `"fallback"` mode: bigfont for missing bigfonts (default none: drawn without a bigfont). */
+  fallbackBigFont?: string;
 }
 
 declare module "./frontend.ts" {
@@ -136,6 +158,12 @@ function providerFor(load: LoadFont, hide: RegExp | undefined): FontProvider {
 
 const managers = new WeakMap<LoadFont, Map<string, FontManager>>();
 
+/** Default `fallbackFont` list after FONTALT (TextRenderOptions). */
+const FALLBACK_FONTS = ["simplex.shx", "txt.shx", "arial.ttf", "LiberationSans-Regular.ttf"];
+
+/** Text style names referenced by a document's text entities (for missing-font notes). */
+const USED_STYLES = new WeakMap<TextFonts, Set<string>>();
+
 /** Resolves every text style and MTEXT inline font of a document. */
 export async function prepareTextFonts(
   doc: DxfDocument,
@@ -145,7 +173,22 @@ export async function prepareTextFonts(
   if (!loadFont) return undefined;
   const fontAlt = options.fontAlt ?? "simplex.shx";
   const glyphFallbacks = options.glyphFallbacks ?? ["arial.ttf", "seguisym.ttf", "simsun.ttc"];
-  const key = `${fontAlt}|${glyphFallbacks.join(",")}|${options.unavailableFonts?.source ?? ""}`;
+  const missingFont = options.missingFont ?? "autocad";
+  const fb = options.fallbackFont;
+  // an explicit list comes first; FONTALT stays the last resort
+  const fallbackFonts = [
+    ...new Set(
+      fb === undefined ? [fontAlt, ...FALLBACK_FONTS] : [...(typeof fb === "string" ? [fb] : fb), fontAlt],
+    ),
+  ];
+  const fallbackBigFont = options.fallbackBigFont;
+  const key = [
+    fontAlt,
+    glyphFallbacks.join(","),
+    options.unavailableFonts?.source ?? "",
+    missingFont,
+    missingFont === "fallback" ? `${fallbackFonts.join(",")}|${fallbackBigFont ?? ""}` : "",
+  ].join("|");
   let byKey = managers.get(loadFont);
   if (!byKey) {
     byKey = new Map();
@@ -156,6 +199,9 @@ export async function prepareTextFonts(
     manager = new FontManager(providerFor(loadFont, options.unavailableFonts), {
       fontAlt,
       glyphFallbacks: [...glyphFallbacks],
+      missingFont,
+      fallbackFonts,
+      ...(fallbackBigFont ? { fallbackBigFont } : {}),
     });
     byKey.set(key, manager);
   }
@@ -163,18 +209,26 @@ export async function prepareTextFonts(
   const styles = [...doc.tables.styles].filter((s) => !s.isShapeFile);
   const fonts = new TextFonts(manager, styles, encoding);
   const inline = new Map<string, InlineFontSpec>();
+  const used = new Set<string>();
   const scan = (text: string) => {
     if (text.indexOf("\\f") < 0 && text.indexOf("\\F") < 0) return;
     for (const f of inlineFonts(text)) inline.set(`${f.name}|${f.bold}|${f.italic}`, f);
   };
   const scanAttrib = (a: AttribEntity) => {
+    used.add(a.style);
     if (!a.isMultiline) return;
     const m = parseEmbeddedMText(a.record);
-    if (m) scan(m.text);
+    if (m) {
+      used.add(m.style);
+      scan(m.text);
+    }
   };
   const visit = (entities: readonly Entity[]) => {
     for (const e of entities) {
-      if (e.type === "MTEXT") scan((e as MTextEntity).text);
+      if (e.type === "MTEXT") {
+        used.add((e as MTextEntity).style);
+        scan((e as MTextEntity).text);
+      } else if (e.type === "TEXT") used.add((e as TextEntity).style);
       else if (e.type === "ATTDEF") scanAttrib(e as AttribEntity);
       else if (e.type === "INSERT") for (const a of (e as InsertEntity).attribs) scanAttrib(a);
     }
@@ -182,14 +236,60 @@ export async function prepareTextFonts(
   for (const b of doc.blocks) visit(b.entities);
   visit(doc.modelSpace.entities);
   await fonts.prepare(inline.values());
+  USED_STYLES.set(fonts, used);
   return fonts;
+}
+
+/**
+ * User-facing notes about fonts the document's text needs but the font loader could not supply
+ * (PlotResult.notes): `font-missing` (style fonts, XDATA families, MTEXT `\f`/`\F` fonts) and
+ * `bigfont-missing`, with the missing names in `items`.
+ */
+export function missingFontNotes(fonts: TextFonts): PlotNote[] {
+  const r = fonts.missingFonts(USED_STYLES.get(fonts) ?? []);
+  const fallback = fonts.manager.options.missingFont === "fallback";
+  const notes: PlotNote[] = [];
+  if (r.fonts.length) {
+    const subst = r.substitutes.length ? r.substitutes.join(", ") : undefined;
+    const how = !subst
+      ? "text in them is not drawn"
+      : fallback
+        ? `drawn with ${subst}`
+        : `substituted by ${subst} (FONTALT) as in AutoCAD; text in a missing \\f family is not drawn`;
+    notes.push({
+      code: "font-missing",
+      severity: "warning",
+      message: `Fonts not found: ${r.fonts.join(", ")} — ${how}`,
+      count: r.fontUsers,
+      items: [...r.fonts],
+    });
+  }
+  if (r.bigFonts.length) {
+    const how = fallback
+      ? r.bigSubstitutes.length
+        ? `drawn with ${r.bigSubstitutes.join(", ")}`
+        : "text is drawn without them"
+      : "text using them is not drawn, as in AutoCAD plots";
+    notes.push({
+      code: "bigfont-missing",
+      severity: "warning",
+      message: `Big fonts not found: ${r.bigFonts.join(", ")} — ${how}`,
+      count: r.bigFontUsers,
+      items: [...r.bigFonts],
+    });
+  }
+  return notes;
 }
 
 /** Prepared fonts per document (set by the preparer, read by the drawers). */
 const PREPARED = new WeakMap<DxfDocument, TextFonts | undefined>();
 
 registerPreparer(async (doc, env) => {
-  PREPARED.set(doc, await prepareTextFonts(doc, env.loadFont, env.text));
+  // viewers (smooth raster) draw text with missing fonts; plots follow AutoCAD
+  const missingFont = env.text?.missingFont ?? (env.raster === "smooth" ? "fallback" : "autocad");
+  const fonts = await prepareTextFonts(doc, env.loadFont, { ...env.text, missingFont });
+  PREPARED.set(doc, fonts);
+  return fonts ? missingFontNotes(fonts) : undefined;
 });
 
 // ---- glyph geometry caches ---------------------------------------------------------------------

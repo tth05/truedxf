@@ -12,7 +12,7 @@ import {
   type FontSubstitution,
   type ResolvedGlyph,
   ShxFont,
-  type StyleFont,
+  StyleFont,
   TtfFont,
 } from "@truedxf/fonts";
 import type { SpecialSymbol } from "./specials.ts";
@@ -79,6 +79,43 @@ function looksLikeFile(name: string): boolean {
   return /\.(shx|ttf|ttc|otf)$/i.test(name.trim());
 }
 
+/** A font without glyphs: text in it draws nothing and takes no space. */
+const NO_GLYPHS: Font = {
+  kind: "ttf",
+  name: "",
+  capHeight: 1,
+  ascent: 1,
+  descent: 0,
+  unitsPerEm: 1,
+  scaleForHeight: (h) => h,
+  hasGlyph: () => false,
+  glyph: () => undefined,
+};
+
+/** Substitution reasons that mean "this font could not be loaded". */
+const MISSING_REASONS = new Set(["missing-font", "unknown-family", "full-path", "fontalt-missing"]);
+
+/** Fonts a document's text needs but which could not be loaded ({@link TextFonts.missingFonts}). */
+export interface MissingFontReport {
+  /** Primary and inline fonts (file or family names as written; FONTALT when it is missing too). */
+  readonly fonts: readonly string[];
+  /** Bigfonts. */
+  readonly bigFonts: readonly string[];
+  /** Number of text styles / inline fonts with a missing font or bigfont. */
+  readonly fontUsers: number;
+  readonly bigFontUsers: number;
+  /** Fonts drawn instead (file names). */
+  readonly substitutes: readonly string[];
+  /** Bigfonts drawn instead. */
+  readonly bigSubstitutes: readonly string[];
+}
+
+function sortedUnique(names: Iterable<string>): string[] {
+  const m = new Map<string, string>();
+  for (const n of names) if (n !== "" && !m.has(n.toLowerCase())) m.set(n.toLowerCase(), n);
+  return [...m.values()].sort((a, b) => (a.toLowerCase() < b.toLowerCase() ? -1 : 1));
+}
+
 /**
  * Prepared fonts of one document: STYLE entries and inline fonts, resolved through a FontManager.
  */
@@ -88,6 +125,7 @@ export class TextFonts implements TextFontSource {
   private readonly specs = new Map<string, TextStyleSpec>();
   private readonly styles = new Map<string, ResolvedTextStyle>();
   private readonly inline = new Map<string, StyleFont | undefined>();
+  private readonly inlineSubs = new Map<string, readonly FontSubstitution[]>();
   private fontAltStyle: ResolvedTextStyle | undefined;
   private readonly fallbackNames: readonly string[];
   private fallbacks: Font[] | undefined;
@@ -163,11 +201,16 @@ export class TextFonts implements TextFontSource {
     for (const spec of inlineSpecs) {
       const key = inlineFontKey(spec);
       if (this.inline.has(key)) continue;
-      this.inline.set(key, await this.resolveInline(spec));
+      const subs: FontSubstitution[] = [];
+      this.inline.set(key, await this.resolveInline(spec, subs));
+      this.inlineSubs.set(key, subs);
     }
   }
 
-  private async resolveInline(spec: InlineFontSpec): Promise<StyleFont | undefined> {
+  private async resolveInline(
+    spec: InlineFontSpec,
+    subs: FontSubstitution[],
+  ): Promise<StyleFont | undefined> {
     let name = spec.name.trim();
     if (name === "") return undefined;
     let big = "";
@@ -186,13 +229,71 @@ export class TextFonts implements TextFontSource {
           fontFile: name,
           bigFontFile: big,
         });
-    if (!r.font) return undefined;
     // Unknown family names try the name as a file (`\Ftxt;`, `\fromans;`) before FONTALT.
     if (!looksLikeFile(name) && r.substitutions.some((s) => s.reason === "unknown-family")) {
       const f = await this.manager.resolveStyle({ fontFile: name, bigFontFile: big });
-      if (f.font && !f.substitutions.some((s) => s.reason === "missing-font")) return f.font;
+      if (f.font && !f.substitutions.some((s) => s.reason === "missing-font")) {
+        subs.push(...f.substitutions);
+        return f.font;
+      }
+      subs.push(...r.substitutions.filter((s) => s.reason !== "fontalt-missing"));
+      // AutoCAD draws nothing for text in an unknown `\f` family (VERIFIED-BY-ACAD
+      // acad-default-fonts/mtext-f-missing); viewers draw it with the fallback font
+      if (this.manager.options.missingFont !== "fallback") return new StyleFont(NO_GLYPHS);
+      return r.font;
     }
+    subs.push(...r.substitutions);
+    if (!r.font) return undefined;
     return r.suppressed ? undefined : r.font;
+  }
+
+  /**
+   * Missing fonts of the given styles (names as entities reference them; unknown names resolve
+   * like {@link style}) and of every prepared inline font.
+   */
+  missingFonts(styleNames: Iterable<string>): MissingFontReport {
+    const fonts: string[] = [];
+    const bigFonts: string[] = [];
+    const substitutes: string[] = [];
+    const bigSubstitutes: string[] = [];
+    let fontUsers = 0;
+    let bigFontUsers = 0;
+    const visit = (subs: readonly FontSubstitution[]) => {
+      let f = false;
+      let b = false;
+      for (const s of subs) {
+        if (MISSING_REASONS.has(s.reason)) {
+          f = true;
+          fonts.push(s.requested);
+          if (s.used && s.reason !== "fontalt-missing") substitutes.push(s.used);
+        } else if (s.reason === "missing-bigfont") {
+          b = true;
+          bigFonts.push(s.requested);
+          if (s.used) bigSubstitutes.push(s.used);
+        }
+      }
+      if (f) fontUsers++;
+      if (b) bigFontUsers++;
+    };
+    const seen = new Set<ResolvedTextStyle>();
+    for (const n of styleNames) {
+      const st = this.style(n);
+      if (seen.has(st)) continue;
+      seen.add(st);
+      visit(st.substitutions);
+    }
+    for (const subs of this.inlineSubs.values()) visit(subs);
+    // a missing FONTALT replaced by nothing: no substitute to name
+    return {
+      fonts: sortedUnique(fonts),
+      bigFonts: sortedUnique(bigFonts),
+      fontUsers,
+      bigFontUsers,
+      substitutes: sortedUnique(
+        substitutes.filter((u) => !fonts.some((f) => f.toLowerCase() === u.toLowerCase())),
+      ),
+      bigSubstitutes: sortedUnique(bigSubstitutes),
+    };
   }
 
   style(name: string): ResolvedTextStyle {

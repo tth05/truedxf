@@ -52,8 +52,24 @@ export interface FontManagerOptions {
   glyphFallbacks?: readonly string[];
   /** Missing bigfont: "suppress" (default; the core console drew nothing, note 04 §4.1 item 5) or "ignore". */
   missingBigFont?: "suppress" | "ignore";
-  /** AutoCAD 2027 did not resolve absolute paths in group 3 (→ FONTALT). `true` uses the base name. */
+  /**
+   * Paths in group 3/4: AutoCAD 2027 drew `C:\nope\txt.shx` with txt.shx (base name) but not
+   * `C:\Windows\Fonts\arial.ttf` (→ FONTALT); `true` uses the base name for TrueType paths too
+   * (always so in `missingFont: "fallback"` mode).
+   */
   resolveFullPaths?: boolean;
+  /**
+   * What a font that cannot be loaded turns into (note 04 §4.1):
+   * - `"autocad"` (default): AutoCAD 2027's plot behaviour — FONTALT for primary fonts, a missing
+   *   bigfont suppresses the text (`missingBigFont`).
+   * - `"fallback"` (viewers): the text is always drawn — missing primary fonts use the first
+   *   loadable of `fallbackFonts`, missing bigfonts `fallbackBigFont` or none.
+   */
+  missingFont?: "autocad" | "fallback";
+  /** `"fallback"` mode: substitutes for missing primary fonts, in order (default: FONTALT). */
+  fallbackFonts?: readonly string[];
+  /** `"fallback"` mode: bigfont for missing bigfonts (default: none — drawn without bigfont). */
+  fallbackBigFont?: string;
   /** Bigfont glyph scale: by the bigfont's own `above` (default) or the primary font's. UNKNOWN in AutoCAD. */
   bigFontScale?: "own" | "primary";
   /** Options for every SHX font (pen rounding etc.). */
@@ -358,27 +374,58 @@ export class FontManager {
     return this.fallbackFonts;
   }
 
+  private get fallbackMode(): boolean {
+    return this.options.missingFont === "fallback";
+  }
+
+  /** The font for an unresolved primary font: FONTALT, or the fallback list in fallback mode. */
   private async fontAlt(subs: FontSubstitution[]): Promise<Font | undefined> {
     const alt = this.options.fontAlt ?? "simplex.shx";
-    const f = await this.loadFile(alt);
-    if (f) return f;
+    const names = this.fallbackMode ? (this.options.fallbackFonts ?? [alt]) : [alt];
+    for (const n of names) {
+      const f = await this.loadFile(n);
+      if (f) return f;
+    }
     const last = this.options.lastResort;
     subs.push({ reason: "fontalt-missing", requested: alt, ...(last ? { used: last.name } : {}) });
     return last;
   }
 
+  /** The name of the font {@link fontAlt} returns (for substitution records). */
+  private async altName(): Promise<string> {
+    const alt = this.options.fontAlt ?? "simplex.shx";
+    if (!this.fallbackMode) return alt;
+    for (const n of this.options.fallbackFonts ?? [alt]) if (await this.loadFile(n)) return n;
+    return this.options.lastResort?.name ?? alt;
+  }
+
+  /**
+   * A TrueType group-3 file of the requested family: hosts that cannot look families up (the
+   * render layer serves files by name) still find `comic.ttf` for XDATA "Comic Sans MS".
+   */
+  private async familyFromFile(fontFile: string | undefined, family: string): Promise<TtfFont | undefined> {
+    const file = baseName(cleanName(fontFile ?? ""));
+    if (!/\.(ttf|ttc|otf)$/i.test(file)) return undefined;
+    const f = await this.loadFile(file);
+    if (!(f instanceof TtfFont)) return undefined;
+    const want = family.toLowerCase();
+    const n = f.names;
+    return [n.family, n.typographicFamily, n.fullName].some((x) => x?.toLowerCase() === want) ? f : undefined;
+  }
+
   /** Resolves a STYLE's fonts like AutoCAD 2027 (note 04 §4.1 "Resolution precedence"). */
   async resolveStyle(spec: StyleFontSpec): Promise<ResolvedStyle> {
     const subs: FontSubstitution[] = [];
-    const altName = this.options.fontAlt ?? "simplex.shx";
     let primary: Font | undefined;
     const family = spec.family?.trim() ?? "";
     if (family !== "") {
       // 1. A non-empty XDATA family wins over group 3, even if group 3 is an SHX.
       const flags = spec.flags ?? 0;
-      primary = await this.findFamily(family, (flags & (1 << 25)) !== 0, (flags & (1 << 24)) !== 0);
+      primary =
+        (await this.findFamily(family, (flags & (1 << 25)) !== 0, (flags & (1 << 24)) !== 0)) ??
+        (await this.familyFromFile(spec.fontFile, family));
       if (!primary) {
-        subs.push({ reason: "unknown-family", requested: family, used: altName });
+        subs.push({ reason: "unknown-family", requested: family, used: await this.altName() });
         primary = await this.fontAlt(subs);
       }
     } else {
@@ -396,7 +443,16 @@ export class FontManager {
         const bf = await this.resolveFile(bigName, subs, true);
         if (bf instanceof ShxFont && bf.isBigFont) bigFont = bf;
         else if (bf) subs.push({ reason: "not-a-bigfont", requested: bigName });
-        else if ((this.options.missingBigFont ?? "suppress") === "suppress") suppressed = true;
+        else if (this.fallbackMode) {
+          // viewers draw the text anyway: with the fallback bigfont when it loads
+          const name = this.options.fallbackBigFont;
+          const fb = name ? await this.loadFile(name) : undefined;
+          if (fb instanceof ShxFont && fb.isBigFont) {
+            bigFont = fb;
+            const last = subs[subs.length - 1];
+            if (last?.reason === "missing-bigfont") last.used = fb.name;
+          }
+        } else if ((this.options.missingBigFont ?? "suppress") === "suppress") suppressed = true;
       }
     }
 
@@ -412,19 +468,21 @@ export class FontManager {
     isBig: boolean,
   ): Promise<Font | undefined> {
     let name = cleanName(raw);
-    const altName = this.options.fontAlt ?? "simplex.shx";
     const fail = async (reason: SubstitutionReason, requested: string): Promise<Font | undefined> => {
       if (isBig) {
         subs.push({ reason: "missing-bigfont", requested });
         return undefined;
       }
-      subs.push({ reason, requested, used: altName });
+      subs.push({ reason, requested, used: await this.altName() });
       return this.fontAlt(subs);
     };
     if (name === "") return fail("empty-font", raw);
     if (/[\\/]|^[A-Za-z]:/.test(name)) {
-      // AutoCAD 2027: `C:\Windows\Fonts\arial.ttf` in group 3 did NOT resolve (→ FONTALT).
-      if (!this.options.resolveFullPaths) return fail("full-path", name);
+      // AutoCAD 2027 resolves an SHX path by its base name (`C:\nope\txt.shx` → txt.shx,
+      // VERIFIED-BY-ACAD acad-default-fonts/font-name-txt-path) but not a TrueType path
+      // (`C:\Windows\Fonts\arial.ttf` → FONTALT, note 04 §4.1 item 3).
+      const ttf = /\.(ttf|ttc|otf)$/i.test(name);
+      if (ttf && !this.options.resolveFullPaths && !this.fallbackMode) return fail("full-path", name);
       name = baseName(name);
     }
     const m = this.mapped(name);

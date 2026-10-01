@@ -87,21 +87,23 @@ describe("FontManager.resolveStyle (AutoCAD 2027 rules, note 04 §4.1)", () => {
     expect(italicOnly.font?.primary.capHeight).toBe(700);
   });
 
-  it("unknown family, missing file, empty group 3 and full paths fall back to FONTALT", async () => {
+  it("unknown family, missing file, empty group 3 and TrueType paths fall back to FONTALT", async () => {
     const m = new FontManager(provider());
     for (const spec of [
       { family: "Nope" },
       { fontFile: "missing.shx" },
       { fontFile: "" },
-      { fontFile: "C:\\fonts\\txt.shx" },
+      { fontFile: "C:\\fonts\\fam.otf" },
     ]) {
       const r = await m.resolveStyle(spec);
       expect(r.font?.primary.name, JSON.stringify(spec)).toBe("simplex.shx");
       expect(r.substitutions[0]?.used).toBe("simplex.shx");
     }
+    // SHX paths resolve by base name (VERIFIED-BY-ACAD font-name-txt-path)
+    expect((await m.resolveStyle({ fontFile: "C:\\nope\\txt.shx" })).font?.primary.name).toBe("txt.shx");
     const withPaths = new FontManager(provider(), { resolveFullPaths: true });
-    expect((await withPaths.resolveStyle({ fontFile: "C:\\fonts\\txt.shx" })).font?.primary.name).toBe(
-      "txt.shx",
+    expect((await withPaths.resolveStyle({ fontFile: "C:\\fonts\\fam.otf" })).font?.primary.name).toBe(
+      "fam.otf",
     );
     expect((await m.resolveStyle({ fontFile: '"txt"' })).font?.primary.name).toBe("txt.shx");
   });

@@ -410,6 +410,15 @@ export class DxfViewer {
     this.filesChanged();
   }
 
+  /**
+   * Looks every font and image up again and re-renders: call it when `loadFont` / `loadImage`
+   * start returning other files (e.g. the user chose a fonts folder the loader reads from).
+   */
+  reloadAssets(): void {
+    this.store.touch();
+    if (this.info) this.requestList(0);
+  }
+
   /** The additional file a requested name (e.g. an IMAGEDEF path) resolves to, if any. */
   findFile(request: string, kind?: AssetKind): ViewerFile | undefined {
     return this.store.find(request, kind);

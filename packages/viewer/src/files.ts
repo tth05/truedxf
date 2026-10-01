@@ -213,6 +213,11 @@ export class FileStore {
     this.gen++;
   }
 
+  /** Bumps the generation without a change of the files (the host's loaders changed). */
+  touch(): void {
+    this.gen++;
+  }
+
   /**
    * Sets the open drawing's path in the store (undefined: not from the store): relative paths
    * resolve against its folder, and same-named files closer to it win.

@@ -94,6 +94,8 @@ viewer.clearFiles();
   `removeFile`, `clearFiles`, `files`, `findFile`, `missingFiles` and the `files` event complete
   it. Opening another drawing keeps the files (resources are often shared); call `clearFiles()`
   to start over. `File`s are kept as they are and read only when the renderer asks for them.
+  `reloadAssets()` looks every font and image up again when your `loadFont` / `loadImage`
+  start returning other files (e.g. after the user picked a fonts folder they read from).
 - **Lookup order** for every font (`.shx` / `.ttf` / `.ttc` / `.otf`, big fonts, the shape files
   of SHAPEs and complex linetypes) and every image (IMAGEDEF, PDF underlay) request:
   1. the additional files;

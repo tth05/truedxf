@@ -27,12 +27,30 @@ export const ViewerWarningCode = {
   /** Big fonts not found (render note, @truedxf/render). */
   BigFontMissing: "bigfont-missing",
   /**
+   * Image files of IMAGE entities not found (render note): only their frame and path are drawn.
+   * `items`: the IMAGEDEF paths as written in the file.
+   */
+  ImageMissing: "image-missing",
+  /** Shape files (STYLE flag 1) not found while a SHAPE needs one (render note); `items`: file names. */
+  ShapeFileMissing: "shapefile-missing",
+  /**
    * Colours too close to the background were drawn in black / white for contrast (render note,
    * info; viewing mode only — plots keep them). `items`: "#RRGGBB" / "ACI n" with their layers.
    */
   ColorsAdjusted: "colors-adjusted",
 } as const;
 export type ViewerWarningCode = (typeof ViewerWarningCode)[keyof typeof ViewerWarningCode];
+
+/**
+ * Warnings whose `items` name files the viewer could not find — add them with
+ * `DxfViewer.addFiles` (see DxfViewer.missingFiles).
+ */
+export const MISSING_FILE_CODES: readonly string[] = [
+  ViewerWarningCode.FontMissing,
+  ViewerWarningCode.BigFontMissing,
+  ViewerWarningCode.ImageMissing,
+  ViewerWarningCode.ShapeFileMissing,
+];
 
 export interface ViewerWarning {
   /** A ViewerWarningCode, or the code of a render note the viewer does not know. */

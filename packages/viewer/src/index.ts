@@ -3,6 +3,7 @@
  * ("@truedxf/viewer/worker") and is importable for Node / custom hosts from "@truedxf/viewer/core".
  */
 export { type Backend, LocalBackend, WorkerBackend } from "./backend.ts";
+export * from "./files.ts";
 export * from "./lod.ts";
 export * from "./pick.ts";
 export type {

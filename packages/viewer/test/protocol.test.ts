@@ -82,6 +82,13 @@ describe("ViewerCore (worker backend logic)", () => {
     expect(responseTransfer({ entityCount: 1 })).toEqual([]);
   });
 
+  it("copies image pixels instead of transferring them (the renderer caches them)", async () => {
+    const r = await core.render(params());
+    const pixels = new Uint8Array(16);
+    const withImage = { ...r, list: { ...r.list, images: [{ width: 2, height: 2, pixels }] } };
+    expect(responseTransfer(withImage)).not.toContain(pixels.buffer);
+  });
+
   it("survives a structured clone with transfer (the worker message)", async () => {
     const r = await core.render(params());
     const copy: RenderResult = structuredClone(r, { transfer: responseTransfer(r) });

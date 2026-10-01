@@ -12,6 +12,14 @@ import type { Batch } from "@truedxf/render";
 import { DisplayListRenderer } from "@truedxf/three";
 import * as THREE from "three";
 import { type Backend, LocalBackend, WorkerBackend } from "./backend.ts";
+import {
+  type AssetKind,
+  chooseDrawing,
+  type FileInput,
+  FileStore,
+  relativeUrls,
+  type ViewerFile,
+} from "./files.ts";
 import { type LodOptions, needsRetessellation, targetPixelSize } from "./lod.ts";
 import { Kind, type PickBatch, PickIndex } from "./pick.ts";
 import type {
@@ -35,19 +43,34 @@ import {
   worldToScreen,
   zoomAt,
 } from "./view.ts";
-import type { ViewerWarning } from "./warnings.ts";
+import { MISSING_FILE_CODES, type ViewerWarning } from "./warnings.ts";
 
 export type Background = "dark" | "light" | readonly [number, number, number];
 
 export interface DxfViewerOptions {
   /** Background: "dark" (default), "light" or RGB. ACI 7 contrasts with it. */
   background?: Background;
-  /** Base URL fonts are fetched from by the default font loader (default "fonts/"). */
+  /**
+   * Base URL fonts are fetched from by the default font loader (default "fonts/"). Fonts are
+   * looked up in the viewer's files (addFiles) first.
+   */
   fontBaseUrl?: string;
-  /** Custom font loader (file or family name, lower-case) — replaces the fetch loader. */
+  /**
+   * Custom font loader (file or family name, lower-case) — replaces the fetch loader. Asked
+   * after the viewer's files (addFiles).
+   */
   loadFont?: AssetLoader;
-  /** Raster image loader for IMAGEDEF paths (default: none, images are missing). */
+  /**
+   * Raster image loader for IMAGEDEF / underlay paths as written in the file (default: none).
+   * Asked after the viewer's files (addFiles), before `resolveRelativeToDrawing`.
+   */
   loadImage?: AssetLoader;
+  /**
+   * For drawings opened from a URL (`load(url)`): fetch image files next to it when neither the
+   * viewer's files nor `loadImage` have them — the IMAGEDEF path resolved against the drawing
+   * URL when it is relative, then its base name in the drawing's folder. Default true.
+   */
+  resolveRelativeToDrawing?: boolean;
   /** Web Worker backend: true (default), false (main thread) or a factory. */
   worker?: boolean | (() => Worker);
   /** Show lineweights (default true). */
@@ -112,6 +135,27 @@ export interface ViewerEvents {
    * render; see DxfViewer.warnings). Emitted after load and after renders that change them.
    */
   warnings: readonly ViewerWarning[];
+  /** The viewer's additional files changed (addFiles, removeFile, clearFiles, openFiles). */
+  files: readonly ViewerFile[];
+}
+
+/** Result of DxfViewer.openFiles. */
+export interface OpenFilesResult {
+  /** The drawings (.dxf) among the given files, in input order. */
+  drawings: ViewerFile[];
+  /** The drawing that was opened, if any. */
+  opened: ViewerFile | undefined;
+  /** The opened drawing's document info. */
+  document: DocumentInfo | undefined;
+}
+
+export interface OpenFilesOptions {
+  /**
+   * Which drawing to open: a name or path (loose matching like resources), or `false` to only
+   * add the files (e.g. to let the user choose among several drawings first). Default: the
+   * first drawing among the given files.
+   */
+  drawing?: string | false;
 }
 
 const BACKGROUNDS = {
@@ -169,6 +213,10 @@ export class DxfViewer {
   private readonly options: DxfViewerOptions;
   private readonly loadFont: AssetLoader;
   private readonly loadImage: AssetLoader;
+  private readonly store = new FileStore();
+  /** Absolute URL of the open drawing when it was loaded from a URL (resolveRelativeToDrawing). */
+  private drawingUrl: string | undefined;
+  private readonly nearDrawing = new Map<string, Promise<Uint8Array | undefined>>();
   private backend: Backend;
   private readonly listeners = new Map<keyof ViewerEvents, Set<(v: never) => void>>();
 
@@ -215,8 +263,16 @@ export class DxfViewer {
     this.options = options;
     this.background = resolveBackground(options.background ?? "dark");
     this.lineweights = options.lineweights ?? true;
-    this.loadFont = options.loadFont ?? fetchFontLoader(options.fontBaseUrl ?? "fonts/");
-    this.loadImage = options.loadImage ?? (async () => undefined);
+    // Every asset request: the viewer's files, then the configured loader (then, for images, the
+    // drawing's URL folder). These identities stay fixed; the backend makes fresh ones per file
+    // store generation (RenderParams.assets) because the renderer caches per loader identity.
+    const userFont = options.loadFont ?? fetchFontLoader(options.fontBaseUrl ?? "fonts/");
+    const userImage = options.loadImage;
+    this.loadFont = async (name) => (await this.store.read(name, "font")) ?? (await tryLoad(userFont, name));
+    this.loadImage = async (name) =>
+      (await this.store.read(name, "image")) ??
+      (userImage ? await tryLoad(userImage, name) : undefined) ??
+      (await this.loadNearDrawing(name));
     this.backend = this.createBackend();
 
     if (getComputedStyle(container).position === "static") container.style.position = "relative";
@@ -309,24 +365,145 @@ export class DxfViewer {
     return [...(this.info?.warnings ?? []), ...this.renderWarnings];
   }
 
-  /** Loads a DXF (ASCII or binary) from bytes, a File/Blob or a URL. */
+  /**
+   * Names of files the current drawing needs but the viewer could not find (fonts, big fonts,
+   * images, shape files: the `items` of the MISSING_FILE_CODES warnings, as written in the file
+   * — font names may be family names). Add them with addFiles; the view re-renders.
+   */
+  get missingFiles(): string[] {
+    const out = new Set<string>();
+    for (const w of this.warnings)
+      if (MISSING_FILE_CODES.includes(w.code)) for (const i of w.items ?? []) out.add(i);
+    return [...out];
+  }
+
+  // ---- additional files ---------------------------------------------------------------------
+
+  /** The additional files (fonts, shape files, images, drawings), by path. */
+  get files(): readonly ViewerFile[] {
+    return this.store.list();
+  }
+
+  /**
+   * Adds files the drawing references (fonts, .shx shape files / big fonts, images, …). Asset
+   * requests look here first, by file name (loose matching, see the README / files.ts); a
+   * `File`'s `webkitRelativePath` (folder picks) is its path. Files are read when requested.
+   * A drawing that is open re-renders, so warnings such as `font-missing` update.
+   */
+  addFiles(files: Iterable<File | FileInput>): ViewerFile[] {
+    const added = this.store.add(files);
+    if (added.length) this.filesChanged();
+    return added;
+  }
+
+  /** Removes a file by path, or every file with that name. Returns whether any was removed. */
+  removeFile(nameOrPath: string): boolean {
+    const n = this.store.remove(nameOrPath);
+    if (n) this.filesChanged();
+    return n > 0;
+  }
+
+  /** Removes every additional file. */
+  clearFiles(): void {
+    if (this.store.size === 0) return;
+    this.store.clear();
+    this.filesChanged();
+  }
+
+  /** The additional file a requested name (e.g. an IMAGEDEF path) resolves to, if any. */
+  findFile(request: string, kind?: AssetKind): ViewerFile | undefined {
+    return this.store.find(request, kind);
+  }
+
+  /**
+   * Opens a drawing together with its resources: every file is added (drawings too, so that
+   * openDrawing can switch between them), and the drawing chosen by `options.drawing` (default:
+   * the first .dxf among `files`) is opened. Without a drawing among the files (and no
+   * `options.drawing`), the open drawing re-renders with the new files.
+   */
+  async openFiles(
+    files: Iterable<File | FileInput>,
+    options: OpenFilesOptions = {},
+  ): Promise<OpenFilesResult> {
+    const added = this.store.add(files);
+    const drawings = added.filter((f) => f.kind === "drawing");
+    const opened = chooseDrawing(this.store, added, options.drawing);
+    if (added.length) this.emit("files", this.store.list());
+    if (typeof options.drawing === "string" && !opened)
+      throw new Error(`${options.drawing}: no such drawing among the files`);
+    if (!opened) {
+      if (added.length && this.info) this.requestList(0);
+      return { drawings, opened, document: undefined };
+    }
+    const document = await this.openDrawing(opened.path);
+    return { drawings, opened, document };
+  }
+
+  /** Opens a drawing that is among the additional files (by path or name). */
+  async openDrawing(nameOrPath: string): Promise<DocumentInfo> {
+    const file = this.store.find(nameOrPath, "drawing");
+    const data = this.store.data(nameOrPath, "drawing");
+    if (!file || !data) throw new Error(`${nameOrPath}: no such drawing among the files`);
+    return this.loadFrom(data, file.name, file.path);
+  }
+
+  private filesChanged(): void {
+    this.emit("files", this.store.list());
+    // the new store generation (contentKey) makes the backend look every asset up again
+    if (this.info) this.requestList(0);
+  }
+
+  private async loadNearDrawing(name: string): Promise<Uint8Array | undefined> {
+    const base = this.drawingUrl;
+    if (!base || this.options.resolveRelativeToDrawing === false) return undefined;
+    for (const url of relativeUrls(base, name)) {
+      let p = this.nearDrawing.get(url);
+      if (!p) {
+        p = fetch(url)
+          .then(async (r) => (r.status === 200 ? new Uint8Array(await r.arrayBuffer()) : undefined))
+          .catch(() => undefined);
+        this.nearDrawing.set(url, p);
+      }
+      const bytes = await p;
+      if (bytes) return bytes;
+    }
+    return undefined;
+  }
+
+  /**
+   * Loads a DXF (ASCII or binary) from bytes, a File/Blob or a URL. The additional files stay
+   * (see addFiles / openFiles); a File that is among them resolves relative paths from its folder.
+   */
   async load(source: Uint8Array | ArrayBuffer | Blob | URL | string, name?: string): Promise<DocumentInfo> {
+    const isBlob = typeof Blob !== "undefined" && source instanceof Blob;
+    return this.loadFrom(source, name, isBlob ? this.store.pathOf(source) : undefined);
+  }
+
+  private async loadFrom(
+    source: Uint8Array | ArrayBuffer | Blob | URL | string,
+    name: string | undefined,
+    storePath: string | undefined,
+  ): Promise<DocumentInfo> {
     this.emit("busy", { busy: true, what: "Loading" });
     try {
       let bytes: Uint8Array;
       let label = name;
+      let url: string | undefined;
       if (source instanceof Uint8Array) bytes = source;
       else if (source instanceof ArrayBuffer) bytes = new Uint8Array(source);
       else if (typeof Blob !== "undefined" && source instanceof Blob) {
         bytes = new Uint8Array(await source.arrayBuffer());
         label ??= (source as File).name;
       } else {
-        const url = String(source);
+        url = String(source);
         const r = await fetch(url);
         if (!r.ok) throw new Error(`${url}: HTTP ${r.status}`);
         bytes = new Uint8Array(await r.arrayBuffer());
         label ??= decodeURIComponent(url.split(/[\\/]/).pop() ?? url);
       }
+      this.drawingUrl = url === undefined ? undefined : absoluteUrl(url);
+      this.nearDrawing.clear();
+      this.store.setDrawing(storePath);
       const info = await this.callLoad(bytes, label ?? "drawing.dxf");
       this.info = info;
       this.docGen++;
@@ -475,7 +652,7 @@ export class DxfViewer {
    * `raster: "autocad"` for comparisons) without changing what the viewer shows.
    */
   renderList(params: RenderParams): Promise<RenderResult> {
-    return this.backend.call({ type: "render", params });
+    return this.backend.call({ type: "render", params: { assets: this.store.generation, ...params } });
   }
 
   /** Renders a frame now (normally scheduled automatically). */
@@ -528,6 +705,7 @@ export class DxfViewer {
       this.renderBackground(),
       [...this.layerToggles].sort(),
       this.lineweights,
+      this.store.generation,
     ]);
   }
 
@@ -566,6 +744,7 @@ export class DxfViewer {
       lineweights: this.lineweights,
       raster: "smooth" as const,
       dpi: 100 * this.dpr,
+      assets: this.store.generation,
       ...(this.options.fallbackFont !== undefined ? { fallbackFont: this.options.fallbackFont } : {}),
       ...(this.options.fallbackBigFont !== undefined
         ? { fallbackBigFont: this.options.fallbackBigFont }
@@ -963,6 +1142,22 @@ export class DxfViewer {
     this.canvas.style.cursor = this.tool === "measure" ? "crosshair" : handle ? "pointer" : "";
     this.emit("hover", { handle });
     this.requestFrame();
+  }
+}
+
+async function tryLoad(load: AssetLoader, name: string): Promise<Uint8Array | undefined> {
+  try {
+    return await load(name);
+  } catch {
+    return undefined;
+  }
+}
+
+function absoluteUrl(url: string): string | undefined {
+  try {
+    return new URL(url, typeof location !== "undefined" ? location.href : undefined).href;
+  } catch {
+    return undefined;
   }
 }
 

@@ -104,6 +104,11 @@ export interface RenderParams {
   fallbackFont?: string | readonly string[];
   /** Big font for missing big fonts (default: none). */
   fallbackBigFont?: string;
+  /**
+   * Asset generation (DxfViewer: its file store's generation). When it differs from the previous
+   * render's, the core drops its font and image caches, so files added since are looked up.
+   */
+  assets?: number;
 }
 
 export interface RenderResult {
@@ -193,7 +198,11 @@ export type FromWorker =
 export function responseTransfer(value: unknown): ArrayBuffer[] {
   const v = value as Partial<RenderResult> | undefined;
   if (!v?.list || !v.pick) return [];
-  const out = transferables(v.list);
+  // Image pixels stay in the renderer's per-document raster cache (draw/image.ts) and are reused
+  // by later renders: transferring them would detach the cache ("ArrayBuffer is already
+  // detached" on the next render), so they are copied (structured clone) instead.
+  const images = new Set<ArrayBufferLike>(v.list.images.map((im) => im.pixels.buffer));
+  const out = transferables(v.list).filter((b) => !images.has(b));
   if (v.pick.index) out.push(v.pick.index);
   out.push(v.pick.items.buffer as ArrayBuffer);
   return [...new Set(out)];
@@ -208,11 +217,19 @@ export class ViewerCore {
   private byId: Map<number, Entity> | undefined;
   private byHandle: Map<string, Entity> | undefined;
   private ownerBlock: Map<Entity, string> | undefined;
-  /** Stable loader identities: the text layer caches fonts per loader function. */
-  private readonly loadFont: AssetLoader;
-  private readonly loadImage: AssetLoader;
+  private readonly baseFont: AssetLoader;
+  private readonly baseImage: AssetLoader;
+  /**
+   * Loader identities passed to the renderer: the text layer caches fonts and the image drawer
+   * decoded files per loader function, so these stay stable until the asset generation changes.
+   */
+  private loadFont: AssetLoader;
+  private loadImage: AssetLoader;
+  private assets = 0;
 
   constructor(loadFont: AssetLoader, loadImage: AssetLoader) {
+    this.baseFont = loadFont;
+    this.baseImage = loadImage;
     this.loadFont = loadFont;
     this.loadImage = loadImage;
   }
@@ -241,6 +258,12 @@ export class ViewerCore {
 
   async render(p: RenderParams): Promise<RenderResult> {
     const doc = this.requireDoc();
+    if (p.assets !== undefined && p.assets !== this.assets) {
+      // new identities: every font and image is requested again (files were added / removed)
+      this.assets = p.assets;
+      this.loadFont = (name) => this.baseFont(name);
+      this.loadImage = (name) => this.baseImage(name);
+    }
     const t0 = performance.now();
     const toggles = new Map(Object.entries(p.layers).map(([k, v]) => [k.toUpperCase(), v]));
     const res = await renderPlot(

@@ -111,16 +111,18 @@ export function resizableSidebars(main: HTMLElement, left: HTMLElement, right: H
 const MIN_SECTION = 56;
 
 /**
- * Makes the `.section` children of `container` vertically resizable. A handle next to the
- * growing section resizes the other section of the pair (the growing one takes what is left);
- * a handle between two fixed sections trades height between them. No section gets smaller
- * than MIN_SECTION. `key`
- * names the container in the saved sizes; sections are identified by their position. The
- * container's children may change later (mode switches): handles are re-created.
+ * Makes the `.section` children of `container` vertically resizable. Dragging the handle
+ * between two sections pushes: moving it up shrinks the sections above it, the nearest first,
+ * each down to MIN_SECTION, and the section right below grows by the same amount (moving it
+ * down works the other way round). A section at its minimum keeps its size and is pushed along.
+ * The growing section (`.grow`) takes whatever height is left. `key` names the container in
+ * the saved sizes; sections are identified by their position. The container's children may
+ * change later (mode switches): handles are re-created.
  */
 export function resizableSections(container: HTMLElement, key: string): void {
   const sections = () =>
     [...container.children].filter((c): c is HTMLElement => c.classList.contains("section"));
+  const grows = (el: HTMLElement) => el.classList.contains("grow");
   // fixed sections may shrink below their size when the window gets small (never below the
   // CSS min-height), so they cannot cover each other
   const fix = (s: HTMLElement, px: number) => {
@@ -133,55 +135,44 @@ export function resizableSections(container: HTMLElement, key: string): void {
     list.forEach((s, i) => {
       s.dataset.maxHeight ??= s.style.maxHeight;
       const saved = sizes[`${key}.${i}`];
-      if (saved && !s.classList.contains("grow")) fix(s, saved);
+      if (saved && !grows(s)) fix(s, saved);
     });
-    const grows = (el: HTMLElement) => el.classList.contains("grow");
     for (let i = 0; i + 1 < list.length; i++) {
-      const above = list[i]!;
-      const below = list[i + 1]!;
       const handle = document.createElement("div");
       handle.className = "row-resize";
       handle.title = "Drag to resize, double-click to reset";
-      below.before(handle);
-      // next to the growing section: resize the other one (the growing one absorbs the change);
-      // between two fixed sections: trade height between the two, like a splitter
-      const pair = !grows(above) && !grows(below);
-      const target = grows(below) ? above : below;
-      const sign = target === above ? 1 : -1;
-      let a0 = 0;
-      let b0 = 0;
-      let max = 0;
+      list[i + 1]!.before(handle);
+      let h0: number[] = [];
       drag(
         handle,
         () => {
-          a0 = above.getBoundingClientRect().height;
-          b0 = below.getBoundingClientRect().height;
-          // the space the other sections leave: their current heights (fixed ones) or the
-          // minimum (growing ones), plus the handles
-          let others = 0;
-          for (const o of list)
-            if (o !== target) others += grows(o) ? MIN_SECTION : o.getBoundingClientRect().height;
-          for (const hd of container.querySelectorAll(":scope > .row-resize"))
-            others += hd.getBoundingClientRect().height;
-          max = Math.max(MIN_SECTION, container.getBoundingClientRect().height - others);
+          h0 = list.map((s) => s.getBoundingClientRect().height);
         },
         (_dx, dy) => {
-          if (pair) {
-            const a = clamp(a0 + dy, MIN_SECTION, a0 + b0 - MIN_SECTION);
-            fix(above, a);
-            fix(below, a0 + b0 - a);
-            sizes[`${key}.${i}`] = Math.round(a);
-            sizes[`${key}.${i + 1}`] = Math.round(a0 + b0 - a);
-            return;
+          const h = [...h0];
+          // the sections on the side the handle moves towards give way, nearest first
+          const up = dy < 0;
+          const want = Math.abs(dy);
+          let taken = 0;
+          for (let j = up ? i : i + 1; up ? j >= 0 : j < list.length; j += up ? -1 : 1) {
+            const t = Math.min(Math.max(0, h[j]! - MIN_SECTION), want - taken);
+            h[j]! -= t;
+            taken += t;
+            if (taken >= want) break;
           }
-          const hgt = clamp((target === above ? a0 : b0) + sign * dy, MIN_SECTION, max);
-          fix(target, hgt);
-          sizes[`${key}.${list.indexOf(target)}`] = Math.round(hgt);
+          h[up ? i + 1 : i]! += taken;
+          list.forEach((s, j) => {
+            if (grows(s)) return;
+            fix(s, h[j]!);
+            sizes[`${key}.${j}`] = Math.round(h[j]!);
+          });
         },
         save,
       );
+      // reset the two sections next to the handle
       handle.addEventListener("dblclick", () => {
-        for (const el of pair ? [above, below] : [target]) {
+        for (const el of [list[i]!, list[i + 1]!]) {
+          if (grows(el)) continue;
           delete sizes[`${key}.${list.indexOf(el)}`];
           el.style.flex = "";
           el.style.maxHeight = el.dataset.maxHeight ?? "";

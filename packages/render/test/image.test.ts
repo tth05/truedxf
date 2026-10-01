@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { encode } from "fast-png";
 import { describe, expect, it } from "vitest";
 import { decodeRaster } from "../src/image-decode.ts";
@@ -93,5 +95,28 @@ describe("IMAGE", () => {
     const doc = modelDoc({ entities: image, objects: imagedef });
     const r = await renderPlot(doc, request, { loadImage: async () => png, rasterEntities: "omit" });
     expect(r.displayList.batches.length).toBe(0);
+  });
+
+  it("is plotted with rasterEntities = omit in R2000 files (note 07 §8.5)", async () => {
+    const doc = modelDoc({ entities: image, objects: imagedef });
+    Object.defineProperty(doc, "acadver", { value: "AC1015" });
+    const r = await renderPlot(doc, request, { loadImage: async () => png, rasterEntities: "omit" });
+    expect(r.displayList.batches.some((x) => x.kind === PrimitiveKind.Image)).toBe(true);
+  });
+
+  it("draws the frame and the file path of a missing image file", async () => {
+    const doc = modelDoc({ entities: image, objects: imagedef });
+    const ASSETS = join(import.meta.dirname, "../../fonts/assets");
+    const env = {
+      loadFont: async (name: string) => new Uint8Array(readFileSync(join(ASSETS, name))),
+      text: { missingFont: "fallback" as const, fallbackFont: "truedxf-test.shx" },
+      raster: "smooth" as const,
+    };
+    const withText = await renderPlot(doc, request, { ...env, loadImage: async () => undefined });
+    const unknown = await renderPlot(modelDoc({ entities: image, objects: imagedef }), request, env);
+    // the path text adds geometry beyond the frame (the loader-less render only has the frame)
+    const count = (r: typeof unknown) => r.displayList.batches.reduce((n, b) => n + b.positions.length, 0);
+    expect(count(unknown)).toBeGreaterThan(0);
+    expect(count(withText)).toBeGreaterThan(count(unknown));
   });
 });

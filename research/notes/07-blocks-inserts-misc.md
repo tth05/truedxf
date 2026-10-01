@@ -760,7 +760,8 @@ Object in NOD `ACAD_IMAGE_VARS`: 90 version, **70 frame** (0 no frame, 1 frame),
 
 - Flag 1 off, or IMAGEDEF 280=0 (unloaded), or file missing: AutoCAD shows only the frame (and,
   for missing files, **UNKNOWN** — ezdxf draws the filename centered at 75% of the image width,
-  frontend.py:771-797, "only an approximation"). What PLOT does for a missing image: **UNKNOWN**.
+  frontend.py:771-797, "only an approximation"). PLOT of a missing image: frame + path text,
+  §8.5 (VERIFIED-BY-ACAD).
 - Brightness/contrast/fade: exact formulas **UNKNOWN**. ezdxf (pr#999, compared against an AutoCAD
   reference document): contrast via PIL `ImageEnhance.Contrast(c/50)`; fade = blend towards the
   **background color** by `fade/100` (so model/paper space differ); brightness = blend towards white
@@ -785,11 +786,28 @@ Object in NOD `ACAD_IMAGE_VARS`: 90 version, **70 frame** (0 no frame, 1 frame),
 
 ### 8.5 What the reference harness shows (VERIFIED-BY-ACAD, accoreconsole 2027, 2026-09-30)
 
-- **accoreconsole plots no IMAGE and no WIPEOUT at all**: no bitmap, no frame (even with
-  IMAGEFRAME 1 / WIPEOUTFRAME 1, colour 1, 0.70 mm), no masking; every IMAGE case in `images/*`
-  and every `images/wipeout*` case plots only its vector context. On DXFOUT both entities get an
+- **accoreconsole plots no IMAGE and no WIPEOUT of an R2004+ file**: no bitmap, no frame (even
+  with IMAGEFRAME 1 / WIPEOUTFRAME 1, colour 1, 0.70 mm), no masking; every IMAGE case in
+  `images/*` and every `images/wipeout*` case (all AC1032) plots only its vector context.
+- **It does plot them in R2000 and older files** (VERIFIED-BY-ACAD 2026-10-01, local probes
+  `render-probes/imgver-*`, `imgtrig-*`, `imgmiss-*`, `imgfound-basic-r2000`, `wipeout-r2000`):
+  `images/missing-abs` re-saved by ezdxf as AC1015 plots, as AC1018/1021/1024/1027 nothing;
+  header/CLASS/flag/path/proxy-graphics variations change nothing. R2000 plots the bitmap (visibly
+  smoothed, bilinear-like resampling, not reproduced: `imgfound-basic-r2000` F1 0.66), the frame,
+  and the WIPEOUT mask + frame (`wipeout-r2000` exact). render/src/draw/image.ts `imagesPlot`:
+  rasterEntities "omit" applies this rule.
+- **Missing image file** (R2000/R14): the frame (clip boundary; none with IMAGEFRAME 0) and the
+  IMAGEDEF path as one line of text, forward slashes shown as backslashes, in the current text
+  style (a txt.shx Standard style gives txt glyphs), centred on the image along u (rotates with
+  it), not clipped by the clip boundary. Height = image width / 42 (|u| · width px: 160 → 3.81,
+  120 → 2.86, 32 → 0.76; fits tall / wide / 300 px / rotated / imperial / $TEXTSIZE variants within
+  a pixel), baseline 0.65 · height below the image centre. The R14 corpus file
+  (`fileformat/corpus-libredwg-leader-r14`, Arial, 300 × 168 px of 0.0276) plots the text ~14 %
+  larger (≈ width / 36.8) — cause **UNKNOWN** (not the path, pixel size, raster units, clipping or
+  proxy graphics: `imgtrig-l1…l7`). $TEXTSTYLE vs Standard: UNVERIFIED (same style in the probes). On DXFOUT both entities get an
   empty proxy graphic (PUSH_MODELXFORM identity + POP only): the ISM / WipeOut modules draw nothing
-  in the console. So §8.4 / §9 **cannot be verified with the console**; truedxf renders them
+  in the console (R2004+). So the bitmap rules of §8.4 / §9 are hard to verify with the console
+  (R2000 files are the way in); truedxf renders them
   (RenderEnv.rasterEntities "draw", render/src/draw/image.ts, UNVERIFIED formulas) and the harness
   uses "omit". Verifying needs plots from full AutoCAD (acad.exe).
 - Storage (DXFOUT): RASTERVARIABLES 70 keeps the value 2 (`imageframe-2`); WIPEOUTVARIABLES 70 = 2
@@ -1072,7 +1090,7 @@ fill (flag 1): polygon bottom border (forward) + top border (reversed), fill col
 | type | kind | render in PLOT? | notes |
 |---|---|---|---|
 | GROUP | object in NOD `ACAD_GROUP` (300 description, 70 unnamed, 71 selectable, 340 handles) (spec:L8258ff) | no | pure selection set; unnamed groups `*A###` |
-| SHAPE | entity: 10 insert (spec says WCS, **ASSUMPTION** OCS like TEXT with 210), 40 size, 2 shape name, 50 rotation, 41 x-scale, 51 oblique, 39 thickness, 210 | yes | shape found by name in the `.shx` of STYLE entries with flag 1 (shape file) — ezdxf shape.py:31-34 "iterating over all the text styles … until the one with the matching name is found". Needs SHX shape rendering (fonts note). ezdxf does not render SHAPE ("could not create any SHAPE entities in BricsCAD", disassemble.py:493); mlightcad does (AcDbShape.ts) |
+| SHAPE | entity: 10 insert (**OCS**, not WCS as the spec says), 40 size, 2 shape name, 50 rotation, 41 x-scale, 51 oblique, 39 thickness, 210 | yes (render/src/draw/shape.ts) | shape found by name in the `.shx` of STYLE entries with flag 1 (shape file) — ezdxf shape.py:31-34 "iterating over all the text styles … until the one with the matching name is found". ezdxf does not render SHAPE ("could not create any SHAPE entities in BricsCAD", disassemble.py:493); mlightcad does (AcDbShape.ts). **VERIFIED-BY-ACAD 2026-10-01** (acad-default-fonts/shape-*, shape-probes/*): one shape unit = 40 (a shape file has no "above"); 40 = 0 draws as 1 (DXFOUT keeps 0), 40 < 0 mirrors through the insertion point; 41 stretches the shape x axis and 51 slants independently of it (x' = x·41 + y·tan 51, like TEXT); 50 turns about 10; 210 = −Z mirrors shape and insertion point (OCS); 39 draws the extruded strokes in a 3D view (top copy + an edge at every vertex, like a curve with thickness; nothing extra in plan). DXFIN resolves 2 against the flag-1 STYLE shape files and **rejects the drawing** ("Missing DXF group code: 2") when none has it — a shape file referenced only by a flag-0 STYLE does not count (shape-probes/style-flag0-geniso, GENISO.shx is installed). Open: arc facets (AutoCAD plots SHX arcs as visible polygons, count UNKNOWN); a real font (with "above") referenced by a flag-1 STYLE scales by "above" (**ASSUMPTION**) |
 | LIGHT | entity | no | light glyphs are display aids (LIGHTGLYPHDISPLAY), not plotted (**ASSUMPTION**, Autodesk: "light glyphs do not plot") |
 | CAMERA | entity (not in DXF ref) | no | glyph controlled by CAMERADISPLAY; not plotted |
 | SUN | object | no | |

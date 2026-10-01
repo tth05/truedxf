@@ -1,10 +1,13 @@
 /**
  * IMAGE and WIPEOUT (note 07 §8, §9; note 06 §8.3).
  *
- * VERIFIED-BY-ACAD (images suite, 2026-09-30): accoreconsole — the reference harness — plots
- * neither IMAGE nor WIPEOUT (no bitmap, no frame, no mask; the DXFOUT re-save stores empty proxy
- * graphics for both), so RenderEnv.rasterEntities = "omit" reproduces the references. What
- * follows for "draw" (the default) is therefore UNVERIFIED against AutoCAD:
+ * VERIFIED-BY-ACAD (images suite 2026-09-30; render-probes/imgver-*, imgtrig-*, imgmiss-*
+ * 2026-10-01; note 07 §8.5): accoreconsole — the reference harness — plots no IMAGE and no
+ * WIPEOUT of an R2004+ file (no bitmap, no frame, no mask; DXFOUT stores empty proxy graphics),
+ * but it does plot the IMAGEs of R2000 and older files (bitmap, frame, missing-file placeholder).
+ * WIPEOUTs likewise (render-probes/wipeout-r2000). RenderEnv.rasterEntities = "omit" reproduces that.
+ * A missing image file plots its frame plus the file path as text (drawMissingText). What
+ * follows for the bitmap is UNVERIFIED against AutoCAD:
  * - placement: pixel (i, j) (row j from the top) covers insert + [i, i+1]·u + [h−1−j, h−j]·v;
  *   nearest sampling;
  * - clip boundary (pixel coordinates, (−0.5, −0.5) = top-left corner) when 280 = 1; 290 inverts;
@@ -13,14 +16,15 @@
  *   the background, brightness towards white / black;
  * - bitonal (1-bit) images: dark pixels in the entity colour, light pixels background-white or
  *   transparent with display flag 8;
- * - missing / unloaded / hidden images: frame only; frame per IMAGEFRAME (RASTERVARIABLES 70:
- *   0 off, 1 plotted, 2 displayed but not plotted; AutoCAD keeps 70 = 2 on DXFOUT, imageframe-2).
+ * - unloaded / hidden images: frame only; frame per IMAGEFRAME (RASTERVARIABLES 70: 0 off,
+ *   1 plotted, 2 displayed but not plotted; AutoCAD keeps 70 = 2 on DXFOUT, imageframe-2).
  * - WIPEOUT: boundary filled with the paper colour, frame per WIPEOUTFRAME (DICTIONARYVAR over
  *   WIPEOUTVARIABLES 70).
  */
 import { FillRule, lineSegment, type Matrix44, type PathSegment, triangulateFill } from "@truedxf/geometry";
 import type {
   DxfDocument,
+  Entity,
   ImageDefObject,
   ImageEntity,
   RasterImageProps,
@@ -41,8 +45,17 @@ const DECODED = new WeakMap<DxfDocument, Map<string, DecodedRaster | null>>();
 /** Adjusted rasters per document and (IMAGEDEF, adjustments) key. */
 const ADJUSTED = new WeakMap<DxfDocument, Map<string, RasterImage>>();
 
+/**
+ * Whether IMAGEs and WIPEOUTs are drawn: always with rasterEntities "draw"; with "omit" (accoreconsole) only in
+ * R2000 and older files (render-probes/imgver-ac1018 … ac1027 plot nothing, imgtrig-m7-r2000,
+ * imgfound-basic-r2000 and the R14 corpus file plot; note 07 §8.5).
+ */
+function imagesPlot(doc: DxfDocument, mode: "draw" | "omit" | undefined): boolean {
+  return mode !== "omit" || doc.acadver <= "AC1015";
+}
+
 registerPreparer(async (doc, env) => {
-  if (env.rasterEntities === "omit" || !env.loadImage) return;
+  if (!imagesPlot(doc, env.rasterEntities) || !env.loadImage) return;
   let map = DECODED.get(doc);
   if (!map) DECODED.set(doc, (map = new Map()));
   for (const o of doc.objects) {
@@ -210,8 +223,48 @@ function adjust(
   return img;
 }
 
+/**
+ * Missing image file: AutoCAD plots the IMAGEDEF path ("/" shown as "\") as one line of text
+ * centred on the image along u, in the current text style, height = image width / 42
+ * (|u| · width in pixels), baseline 0.65 · height below the centre (fitted to ±0.03 height on
+ * txt.shx and Liberation Sans), not clipped by the clip boundary. VERIFIED-BY-ACAD
+ * render-probes/imgmiss-* (rotated, tall, wide, small, txt.shx style, frame 0 = text only) and
+ * imgtrig-l* (R14 corpus file), 2026-10-01; note 07 §8.5. The style choice ($TEXTSTYLE vs
+ * Standard) is UNVERIFIED (the probes have both the same).
+ */
+function drawMissingText(fe: Frontend, e: ImageEntity, st: DrawState, path: string): void {
+  const ul = Math.hypot(e.u.x, e.u.y, e.u.z);
+  const vl = Math.hypot(e.v.x, e.v.y, e.v.z);
+  if (!(ul > 0) || !(vl > 0) || !path) return;
+  const height = (ul * e.size.x) / 42;
+  const c = pixelToWcs(e, (e.size.x - 1) / 2, (e.size.y - 1) / 2);
+  const k = (0.65 * height) / vl;
+  const p = { x: c.x - e.v.x * k, y: c.y - e.v.y * k, z: c.z - e.v.z * k };
+  const styles = fe.doc.tables.styles;
+  const style = styles.get(fe.doc.header.str("$TEXTSTYLE", "Standard")) ?? styles.get("Standard");
+  const text = {
+    ...e,
+    type: "TEXT",
+    dxfType: "TEXT",
+    text: path.replaceAll("/", "\\"),
+    insert: p,
+    alignPoint: p,
+    height,
+    rotation: (Math.atan2(e.u.y, e.u.x) * 180) / Math.PI,
+    widthFactor: style?.widthFactor || 1,
+    oblique: style?.oblique ?? 0,
+    style: style?.name ?? "Standard",
+    generationFlags: 0,
+    halign: 1,
+    valign: 0,
+    thickness: 0,
+    extrusion: { x: 0, y: 0, z: 1 },
+  } as unknown as Entity;
+  fe.drawEntities([text], st);
+}
+
 registerDrawer("IMAGE", (fe, ent, st) => {
-  if (fe.env.rasterEntities === "omit") return;
+  if (!imagesPlot(fe.doc, fe.env.rasterEntities)) return;
   const e = ent as ImageEntity;
   if (e.size.x <= 0 || e.size.y <= 0) return;
   const clip = e.clipping && e.clipBoundary.length >= 2;
@@ -247,10 +300,12 @@ registerDrawer("IMAGE", (fe, ent, st) => {
     }
   } else if (!src) fe.note(def ? "image-missing" : "image-no-imagedef");
   if (frame) drawFrame(fe, e, st, toTarget(e, pixelBoundary(e, clip), st.m));
+  // null = the file was looked for and not found (undefined: no loader, state unknown)
+  if (src === null && def) drawMissingText(fe, e, st, def.fileName);
 });
 
 registerDrawer("WIPEOUT", (fe, ent, st) => {
-  if (fe.env.rasterEntities === "omit") return;
+  if (!imagesPlot(fe.doc, fe.env.rasterEntities)) return;
   const e = ent as WipeoutEntity;
   // WIPEOUT boundaries are normalized to the unit "pixel" (size 1 × 1), always clipped
   const ring = toTarget(e, pixelBoundary(e, e.clipBoundary.length >= 2), st.m);

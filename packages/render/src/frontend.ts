@@ -71,8 +71,9 @@ export interface RenderEnv {
   loadImage?: (path: string) => Promise<Uint8Array | undefined>;
   /**
    * IMAGE and WIPEOUT (AutoCAD's ISM raster module): `draw` (default) or `omit`. accoreconsole
-   * plots neither — not even frames (VERIFIED-BY-ACAD, images suite, note 07 §8.4) — so the
-   * reference harness uses `omit`.
+   * plots neither — not even frames — in R2004+ files, but plots both in R2000 and older files
+   * (VERIFIED-BY-ACAD, images suite, render-probes/imgver-*, note 07 §8.5); `omit` emulates that
+   * (omits them for R2004+ only), the reference harness uses it.
    */
   rasterEntities?: "draw" | "omit";
   calibration?: Partial<PlotCalibration>;

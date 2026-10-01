@@ -1419,8 +1419,11 @@ rasterizer: `node packages/testkit/src/experiment.ts calibration/<case>` prints 
 `probe-circles`, `probe-arcs`, `probe-ellipses`, `probe-line-ties` (probe-thick 15 px, probe-fills
 188 px: the island hatches).
 
-- **CIRCLE / ARC** (and polyline bulge arcs) whose full circle lies inside the canvas go to the
-  raster driver as arcs: centre snapped to its pixel centre `C = (floor u + ½, floor v + ½)`,
+- **CIRCLE / ARC** (and polyline bulge arcs) that lie inside the canvas go to the raster driver as
+  arcs. **Correction 2026-10-01:** the test is the arc's own extent, not its full circle — arcs of
+  circles that run off the canvas plot with this rule too (VERIFIED-BY-ACAD dimensions/type-arc-*,
+  arc-dimarcsym-*, angular dimensions: 37/37 rule vertices inked vs 0/29 graphics-system ones;
+  polylines/bulge-0003/-0009/-0010 unchanged). Rule: centre snapped to its pixel centre `C = (floor u + ½, floor v + ½)`,
   integer radius `Ri = ceil(r) − 1` (r = device radius; an exact integer r gives r − 1),
   `n = 2·ceil(|sweep|/π · √Ri + ¼)` segments (full circle `2·ceil(2√Ri + ¼)`: Ri 1→6, 6→12, 49→30,
   456→86, 599→100), uniform angles from the start angle (0 for circles), vertices

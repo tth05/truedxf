@@ -715,7 +715,7 @@ export class Frontend {
 
   /**
    * Flattens a path. Plot mode tessellates curves like AutoCAD (note 08 §10.13): circular arcs
-   * whose full circle lies on the canvas go to the raster driver as arcs (integer rule,
+   * that lie on the canvas go to the raster driver as arcs (integer rule,
    * raster.ts arcVertices); other arcs, elliptic arcs and arcs of filled outlines are tessellated
    * in the graphics system (raster.ts gsSegmentCount) at their exact points.
    */
@@ -737,7 +737,8 @@ export class Frontend {
           const r = seg.radius / g.pixelSize;
           const cu = g.u(seg.center.x);
           const cv = g.v(seg.center.y);
-          if (!forFill && cu - r >= 0 && cu + r <= g.width && cv - r >= 0 && cv + r <= g.height) {
+          // the arc's own extent decides, not its full circle (dimensions/type-arc-*, angular-*)
+          if (!forFill && arcOnCanvas(cu, cv, r, seg.start, seg.sweep, g.width, g.height)) {
             // device pixels; emit their centres, which snap back to the same pixels
             const v = arcVertices(cu, cv, r, seg.start, seg.sweep);
             const w: number[] = [];
@@ -939,4 +940,30 @@ export function dropOnEdges(
   }
   flush();
   return hit ? out : undefined;
+}
+
+/** True if the device-space arc (centre, radius, start, sweep; device v grows with y) lies on the canvas. */
+function arcOnCanvas(
+  cu: number,
+  cv: number,
+  r: number,
+  start: number,
+  sweep: number,
+  w: number,
+  h: number,
+): boolean {
+  let x0 = Math.min(cu + r * Math.cos(start), cu + r * Math.cos(start + sweep));
+  let x1 = Math.max(cu + r * Math.cos(start), cu + r * Math.cos(start + sweep));
+  let y0 = Math.min(cv + r * Math.sin(start), cv + r * Math.sin(start + sweep));
+  let y1 = Math.max(cv + r * Math.sin(start), cv + r * Math.sin(start + sweep));
+  const a0 = Math.min(start, start + sweep);
+  const a1 = Math.max(start, start + sweep);
+  for (let k = Math.ceil(a0 / (Math.PI / 2)); k * (Math.PI / 2) <= a1; k++) {
+    const q = ((k % 4) + 4) % 4;
+    if (q === 0) x1 = cu + r;
+    else if (q === 1) y1 = cv + r;
+    else if (q === 2) x0 = cu - r;
+    else y0 = cv - r;
+  }
+  return x0 >= 0 && x1 <= w && y0 >= 0 && y1 <= h;
 }

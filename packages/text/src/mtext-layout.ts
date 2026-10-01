@@ -13,9 +13,10 @@
  * - word wrap at spaces only; a word longer than the width spills; leading spaces count;
  * - default tab stops every 4 × h (VERIFIED-BY-ACAD); `\pt` stops in multiples of h;
  * - style width factor and oblique are the initial `\W`/`\Q` (ezdxf#1351, VERIFIED TrueView).
- * UNVERIFIED (to calibrate against PLOT references): the attachment frame (we use the extents box,
- * or the reference width when 41 > 0), the stack geometry, decoration offsets, tracking, paragraph
- * spacing, background box, column breaking.
+ * - columns, per-column vertical attachment, text frame and background mask: note 04 §3.7.1
+ *   (VERIFIED-BY-ACAD user/columns-all, user/text-frame*, text-probes/mtx-*).
+ * UNVERIFIED (to calibrate against PLOT references): the stack geometry with TrueType fonts,
+ * decoration offsets.
  */
 import type { Bounds, StyleFont } from "@truedxf/fonts";
 import { Affine2, Matrix44, ocsToWcsMatrix, type Vec3, wcsToOcsMatrix } from "@truedxf/geometry";
@@ -52,6 +53,7 @@ export interface MTextColumnsInput {
   readonly gutter: number;
   readonly definedHeight: number;
   readonly heights: readonly number[];
+  readonly autoHeight?: boolean;
   readonly source?: "embedded" | "xdata";
 }
 
@@ -245,16 +247,18 @@ export function layoutMText(
   }
   if (lines.length === 0) return emptyLayout(ocs, notes);
 
-  // ---- vertical placement, column breaking
-  const colHeights = columnHeights(cols, e.definedHeight);
+  // ---- vertical placement, column breaking (note 04 §3.7.1)
+  const colSpec = columnSpec(cols, e.definedHeight);
   let column = 0;
   let prev: Line | undefined;
-  let bottom = 0;
   // Paragraph line spacing (VERIFIED-BY-ACAD mtext/para-spacing-*): \pse<v> = exact spacing as
   // for char height v (pitch 5/3·v, first baseline v below the top), \psa<v> = at least 5/3·v,
   // \psm<f> = factor f; \pb/\pa = space before/after the paragraph in drawing units.
   let pending = 0;
-  let exactCap = h0;
+  const lineBottom = (ln: Line, exact: boolean, cap: number) =>
+    exact ? ln.baseline - cap / 3 : ln.baseline + Math.min(0, ln.inkBottom);
+  /** Extents bottom per line: only the column's last line's descenders count (note 04 §3.6.1). */
+  const bottoms: number[] = [];
   for (let i = 0; i < lines.length; i++) {
     const ln = lines[i]!;
     const ls = ln.paragraph.lineSpacing;
@@ -276,24 +280,28 @@ export function layoutMText(
     pending = 0;
     const next = lines[i + 1];
     if (!next || next.first) pending += ln.paragraph.spaceAfter;
-    // column overflow (UNVERIFIED rule: the baseline passes the column height)
-    const limit = colHeights?.[column] ?? colHeights?.[colHeights.length - 1];
-    const forced = prev?.paragraph.columnBreakAfter && isParagraphStart(lines, ln);
-    if (cols && prev && ((limit !== undefined && limit > 0 && -ln.baseline > limit) || forced)) {
-      column++;
-      ln.baseline = exact ? -cap : -ascent;
+    if (colSpec && prev) {
+      // a line moves to the next column when its extents bottom (baseline + descenders) passes
+      // the column height (VERIFIED-BY-ACAD text-probes/mtx-break-*); a static column count is
+      // fixed: overflow and extra \N stay in the last column (user/columns-all,
+      // text-probes/mtx-static-extra-breaks)
+      const limit = colSpec.limit(column);
+      const forced = prev.paragraph.columnBreakAfter && isParagraphStart(lines, ln);
+      const over = limit > 0 && -lineBottom(ln, exact, cap) > limit + 1e-9;
+      if ((over || forced) && column + 1 < colSpec.maxColumns) {
+        column++;
+        ln.baseline = exact ? -cap : -ascent;
+      }
     }
     ln.column = column;
-    exactCap = cap;
-    const lnBottom = exact ? ln.baseline - cap / 3 : ln.baseline + Math.min(0, ln.inkBottom);
-    bottom = Math.min(bottom, lnBottom);
+    bottoms.push(lineBottom(ln, exact, cap));
     prev = ln;
   }
   const last = lines[lines.length - 1]!;
-  // the extents bottom counts only the descenders of the last line (note 04 §3.6.1)
-  const lastExact = last.paragraph.lineSpacing ? last.paragraph.lineSpacing.mode === "exact" : exact0;
-  const lastBottom = lastExact ? last.baseline - exactCap / 3 : last.baseline + Math.min(0, last.inkBottom);
-  const boxBottom = cols ? bottom : lastBottom;
+  const nCols = colSpec ? Math.max(colSpec.minColumns, last.column + 1) : 1;
+  // content height per column: top = first line's ascent (0), bottom = its last line's extents
+  const colContent: number[] = new Array(nCols).fill(0);
+  for (let i = 0; i < lines.length; i++) colContent[lines[i]!.column] = -bottoms[i]!;
 
   // ---- horizontal placement
   let contentWidth = 0;
@@ -316,50 +324,73 @@ export function layoutMText(
     else ln.x = (availL + availR) / 2 - (ln.ext0 + ln.ext1) / 2;
   }
 
-  // ---- attachment frame
-  const nCols = Math.max(1, (cols ? Math.max(cols.count, last.column + 1) : 1) || 1);
-  const colStep = cols ? (cols.width > 0 ? cols.width : frameW) + cols.gutter : 0;
-  const totalW = cols ? nCols * (colStep - cols.gutter) + (nCols - 1) * cols.gutter : frameW;
-  let frameH = -boxBottom;
-  // 46 (defined height) does not move non-column text (VERIFIED-BY-ACAD mtext/defined-height-*)
-  // A stored column height sets the frame only for real multi-column text: single-column dynamic
-  // column data (count 1, heights[0] > 0) doesn't move middle/bottom attachments
-  // (VERIFIED-BY-ACAD user/studienleistung street names). Multi-column rule: UNVERIFIED.
-  const defH = cols && nCols > 1 ? (colHeights?.[0] ?? 0) : 0;
-  if (defH > 0) frameH = defH;
+  // ---- attachment
+  // Horizontal: the attachment column refers to all columns (n·width + (n−1)·gutter) or the
+  // reference width. Vertical: every column is aligned on its own content height (top / middle /
+  // bottom of its extents box at the insertion point); stored column heights and 46 never move
+  // the text (VERIFIED-BY-ACAD user/columns-all, text-probes/mtx-cols-*, mtext/defined-height-*).
+  const colW = cols && cols.width > 0 ? cols.width : frameW;
+  const colStep = cols ? colW + cols.gutter : 0;
+  const totalW = cols ? nCols * colW + (nCols - 1) * cols.gutter : frameW;
   const xAtt = col === 1 ? 0 : col === 2 ? totalW / 2 : totalW;
-  const yAtt = row === 0 ? 0 : row === 1 ? -frameH / 2 : -frameH;
+  const rowShift = (hc: number) => (row === 0 ? 0 : row === 1 ? hc / 2 : hc);
 
   const ins = toOcs.transformPoint(e.insert);
   const cr = Math.cos(rot);
   const sr = Math.sin(rot);
-  const place = new Affine2(cr, sr, -sr, cr, ins.x, ins.y).multiply(Affine2.translation(-xAtt, -yAtt));
+  const place = new Affine2(cr, sr, -sr, cr, ins.x, ins.y).multiply(Affine2.translation(-xAtt, 0));
 
   const glyphs: GlyphPlacement[] = [];
   const decor: DecorationLine[] = [];
+  const extents: number[] = [];
   for (const ln of lines) {
-    const base = place.multiply(Affine2.translation(ln.x + ln.column * colStep, ln.baseline));
+    const dy = rowShift(colContent[ln.column]!);
+    const base = place.multiply(Affine2.translation(ln.x + ln.column * colStep, ln.baseline + dy));
+    // TrueType cell boxes count for the drawing extents (VERIFIED-BY-ACAD user/text-frame2:
+    // $EXTMIN/$EXTMAX = pen start … advance end × baseline − descender … baseline + ascender)
+    const cell = engine.cellBox(ln);
+    if (cell) {
+      for (const [x, y] of [
+        [cell[0], cell[2]],
+        [cell[1], cell[2]],
+        [cell[1], cell[3]],
+        [cell[0], cell[3]],
+      ] as const) {
+        const q = base.apply({ x, y });
+        extents.push(q.x, q.y);
+      }
+    }
     if (options.quickText) {
       if (ln.hasInk) decor.push(...quickBox(base, ln.ext0, ln.ext1, 0, ln.capMax));
     } else engine.emitLine(ln, base, glyphs, decor);
   }
 
-  // ---- background fill and frame (note 04 §3.1; geometry UNVERIFIED)
+  // ---- background mask and text frame (note 04 §3.1, §3.7.1; VERIFIED-BY-ACAD
+  // text-probes/mtx-*, user/text-frame*, user/columns-all): one box per column, x = the column
+  // [0, width] (single column: the reference width, or the content width when 41 = 0) widened
+  // to the ink of its lines, height = max(stored column height, content height) placed like the
+  // text; all grown by (45 − 1)·h — for the frame-only flag 16 too (45 defaults to 1.5). The
+  // frame is the outline of the union of the column boxes.
   const backgrounds: BackgroundFill[] = [];
   const bg = e.bgFlags;
   if (bg & 3 || bg & 16) {
-    const scale = bg & 3 ? (e.bgScale > 0 ? e.bgScale : 1.5) : 1.5;
-    const off = (scale - 1) * h0;
-    const x0 = -off;
-    const x1 = totalW + off;
-    const y1 = off;
-    const y0 = -frameH - off;
-    const q = [
-      place.apply({ x: x0, y: y0 }),
-      place.apply({ x: x1, y: y0 }),
-      place.apply({ x: x1, y: y1 }),
-      place.apply({ x: x0, y: y1 }),
-    ];
+    const off = Math.max(0, (e.bgScale > 0 ? e.bgScale : 1.5) - 1) * h0;
+    const boxes: Box[] = [];
+    for (let c = 0; c < nCols; c++) {
+      let x0 = c * colStep;
+      let x1 = x0 + colW;
+      for (const ln of lines) {
+        if (ln.column !== c || !ln.hasInk) continue;
+        x0 = Math.min(x0, c * colStep + ln.x + ln.ext0);
+        x1 = Math.max(x1, c * colStep + ln.x + ln.ext1);
+      }
+      const hc = Math.max(
+        colSpec ? colSpec.height(c) : e.definedHeight > 0 ? e.definedHeight : 0,
+        colContent[c]!,
+      );
+      const y1 = rowShift(hc);
+      boxes.push({ x0: x0 - off, x1: x1 + off, y0: y1 - hc - off, y1: y1 + off });
+    }
     if (bg & 3) {
       const color: BackgroundFill["color"] =
         bg & 2
@@ -367,21 +398,31 @@ export function layoutMText(
           : e.bgTrueColor !== undefined
             ? { kind: "rgb", rgb: e.bgTrueColor & 0xffffff }
             : { kind: "aci", aci: e.bgColor };
-      backgrounds.push({
-        corners: [q[0]!.x, q[0]!.y, q[1]!.x, q[1]!.y, q[2]!.x, q[2]!.y, q[3]!.x, q[3]!.y],
-        color,
-      });
+      for (const b of boxes) {
+        const q = [
+          place.apply({ x: b.x0, y: b.y0 }),
+          place.apply({ x: b.x1, y: b.y0 }),
+          place.apply({ x: b.x1, y: b.y1 }),
+          place.apply({ x: b.x0, y: b.y1 }),
+        ];
+        backgrounds.push({
+          corners: [q[0]!.x, q[0]!.y, q[1]!.x, q[1]!.y, q[2]!.x, q[2]!.y, q[3]!.x, q[3]!.y],
+          color,
+        });
+      }
     }
     if (bg & 16) {
-      for (let k = 0; k < 4; k++) {
-        const a = q[k]!;
-        const b = q[(k + 1) % 4]!;
-        decor.push({ kind: "frame", x0: a.x, y0: a.y, x1: b.x, y1: b.y, color: undefined });
+      for (const ring of unionOutlines(boxes)) {
+        for (let k = 0; k < ring.length; k++) {
+          const a = place.apply(ring[k]!);
+          const b = place.apply(ring[(k + 1) % ring.length]!);
+          decor.push({ kind: "frame", x0: a.x, y0: a.y, x1: b.x, y1: b.y, color: undefined });
+        }
       }
     }
   }
   const plane = ins.z !== 0 ? ocs.multiply(Matrix44.translation(0, 0, ins.z)) : ocs;
-  return { plane, backgrounds, glyphs, lines: decor, notes };
+  return { plane, backgrounds, glyphs, lines: decor, notes, ...(extents.length ? { extents } : {}) };
 }
 
 /** Measured MTEXT extents (42/43 model of note 04 §3.6.1), for tests and oracles. */
@@ -439,11 +480,103 @@ function isParagraphStart(lines: readonly Line[], ln: Line): boolean {
   return ln.first && lines.indexOf(ln) > 0;
 }
 
-function columnHeights(cols: MTextColumnsInput | undefined, definedHeight: number): number[] | undefined {
+/** Column breaking and frame heights of an MTEXT with column data (note 04 §3.7.1). */
+interface ColumnSpec {
+  /** Height limit of column c for line breaking; 0 = unlimited. */
+  limit(c: number): number;
+  /** Stored height of column c (frame / mask box); 0 = the content height. */
+  height(c: number): number;
+  /** Columns that exist (and get a frame box) even when empty. */
+  readonly minColumns: number;
+  readonly maxColumns: number;
+}
+
+function columnSpec(cols: MTextColumnsInput | undefined, definedHeight: number): ColumnSpec | undefined {
   if (!cols) return undefined;
-  if (cols.heights.length > 0) return [...cols.heights];
-  const h = cols.definedHeight > 0 ? cols.definedHeight : definedHeight;
-  return h > 0 ? [h] : undefined;
+  const defH = cols.definedHeight > 0 ? cols.definedHeight : definedHeight > 0 ? definedHeight : 0;
+  if (cols.type === 1) {
+    // static: a fixed number of columns, all drawn (empty ones too); the last one takes the
+    // overflow (VERIFIED-BY-ACAD user/columns-all, text-probes/mtx-cols-static-*)
+    const n = Math.max(1, cols.count);
+    return { limit: (c) => (c < n - 1 ? defH : 0), height: () => defH, minColumns: n, maxColumns: n };
+  }
+  const hs = cols.heights;
+  if (cols.autoHeight || hs.length === 0) {
+    // dynamic, auto height: as many columns of the defined height as the text needs (AutoCAD
+    // rewrites the stored count, text-probes/mtx-cols-dynauto-*)
+    return { limit: () => defH, height: () => defH, minColumns: 1, maxColumns: Number.POSITIVE_INFINITY };
+  }
+  // dynamic, manual heights: one column per stored height (0 = unlimited); text that overflows
+  // them goes to one extra column of unlimited height (text-probes/mtx-cols-dynman-overflow)
+  return {
+    limit: (c) => hs[c] ?? 0,
+    height: (c) => hs[c] ?? 0,
+    minColumns: hs.length,
+    maxColumns: hs.length + 1,
+  };
+}
+
+interface Box {
+  readonly x0: number;
+  readonly x1: number;
+  readonly y0: number;
+  readonly y1: number;
+}
+
+/**
+ * Outlines of the union of column boxes ordered left to right. Boxes of one group overlap in x
+ * and all contain the attachment line, so each group's union is one stepped polygon
+ * (user/columns-all: two touching columns of different heights give one 8-segment frame).
+ */
+export function unionOutlines(boxes: readonly Box[]): { x: number; y: number }[][] {
+  const sorted = [...boxes].sort((a, b) => a.x0 - b.x0);
+  const out: { x: number; y: number }[][] = [];
+  let i = 0;
+  while (i < sorted.length) {
+    const group = [sorted[i]!];
+    let right = sorted[i]!.x1;
+    i++;
+    while (i < sorted.length && sorted[i]!.x0 <= right + 1e-9) {
+      right = Math.max(right, sorted[i]!.x1);
+      group.push(sorted[i]!);
+      i++;
+    }
+    const xs = [...new Set(group.flatMap((b) => [b.x0, b.x1]))].sort((a, b) => a - b);
+    const top: { x: number; y: number }[] = [];
+    const bottom: { x: number; y: number }[] = [];
+    for (let k = 0; k + 1 < xs.length; k++) {
+      const xa = xs[k]!;
+      const xb = xs[k + 1]!;
+      let t = Number.NEGATIVE_INFINITY;
+      let u = Number.POSITIVE_INFINITY;
+      for (const b of group) {
+        if (b.x0 <= xa && b.x1 >= xb) {
+          t = Math.max(t, b.y1);
+          u = Math.min(u, b.y0);
+        }
+      }
+      top.push({ x: xa, y: t }, { x: xb, y: t });
+      bottom.push({ x: xa, y: u }, { x: xb, y: u });
+    }
+    const ring = [...top, ...bottom.reverse()];
+    // drop repeated and collinear vertices
+    const clean: { x: number; y: number }[] = [];
+    for (const p of ring) {
+      const q = clean[clean.length - 1];
+      if (q && Math.abs(q.x - p.x) < 1e-12 && Math.abs(q.y - p.y) < 1e-12) continue;
+      clean.push(p);
+    }
+    for (let k = 0; k < clean.length && clean.length > 4; ) {
+      const a = clean[(k + clean.length - 1) % clean.length]!;
+      const b = clean[k]!;
+      const c = clean[(k + 1) % clean.length]!;
+      const cross = (b.x - a.x) * (c.y - b.y) - (b.y - a.y) * (c.x - b.x);
+      if (Math.abs(cross) < 1e-12) clean.splice(k, 1);
+      else k++;
+    }
+    out.push(clean);
+  }
+  return out;
 }
 
 interface Paragraph {
@@ -791,6 +924,25 @@ class Engine {
         if (pi.item.k === "tab" && q > lastInk) ln.ext1 = Math.max(ln.ext1, pi.x + pi.adv);
       }
     }
+  }
+
+  /** TrueType cell box of a line [x0, x1, bottom, top] (line coordinates), or undefined. */
+  cellBox(ln: Line): [number, number, number, number] | undefined {
+    let x0 = Number.POSITIVE_INFINITY;
+    let x1 = Number.NEGATIVE_INFINITY;
+    let top = 0;
+    let bottom = 0;
+    for (const pi of ln.items) {
+      const it = pi.item;
+      if (it.k !== "glyph") continue;
+      const r = it.m.resolved;
+      if (r?.font.kind !== "ttf") continue;
+      x0 = Math.min(x0, pi.x);
+      x1 = Math.max(x1, pi.x + pi.adv);
+      top = Math.max(top, r.font.ascent * r.scale * it.h);
+      bottom = Math.min(bottom, -r.font.descent * r.scale * it.h);
+    }
+    return x0 <= x1 ? [x0, x1, bottom, top] : undefined;
   }
 
   private alignShift(it: GlyphItem | StackItem, cap: number): number {

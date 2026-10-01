@@ -1152,6 +1152,13 @@ frozen layers, 3DFACE vertices touched only by invisible edges and lineweight wi
 slightly larger than $EXTMIN/$EXTMAX (e.g. 20 × 10 extents → "Effective plotting area: 2000.00 wide by 1004.45 high"
 at 99 px/unit instead of 100); that padding rule is open (note 08 §10).
 
+**Text (VERIFIED-BY-ACAD 2026-10-01)**: TrueType TEXT and MTEXT count with their **font cell box**, not the
+ink: per line [pen start, advance end] × [baseline − hhea descender, baseline + hhea ascender]
+(`extents/probe-text-xxx`: TEXT "xxx" h 10 → $EXTMAX = (3 advances, 15 + 1854/1409·10);
+`user/text-frame2`, `text-frame4`: MTEXT $EXTMIN/$EXTMAX = first line's ascender, last line's descender,
+leftmost pen origin, rightmost advance end; the MTEXT frame/mask box counts too and dominates when larger,
+`user/text-frame-annotated`). SHX text: not measured (truedxf keeps the ink). Note 04 §13.
+
 ---
 
 ## 7. Implementation checklist (derived)

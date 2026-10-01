@@ -424,6 +424,9 @@ export function drawLayout(fe: Frontend, layout: TextLayout, e: Entity, m: Matri
   if (layout.glyphs.length === 0 && layout.lines.length === 0 && layout.backgrounds.length === 0) return;
   const r = fe.props.resolve(e, inh);
   const toTarget = affineOf(m.multiply(layout.plane));
+  // TrueType cell boxes count for the extents only (note 04 §11.1)
+  if (fe.props.extents && layout.extents?.length)
+    fe.builder.points(toTarget.applyPoints(Float64Array.from(layout.extents)), fe.color(r));
   const tol = fe.tolerance;
   for (const bg of layout.backgrounds) {
     const q = toTarget.applyPoints(Float64Array.from(bg.corners));

@@ -48,7 +48,10 @@ Tick items off (or delete them) when done.
       attachments 5/6/8, breaks, block attributes (~20 cases).
 - [ ] LARGE_RADIAL_DIMENSION group 40 text shift; DIMTMOVE 1/2 offsets from a single sample.
 - [ ] MTEXT: explicit `\pt` tab stops, stacks with a second divider / escaped `;`, TTF stack
-      centring, `\A1;`/`\A2;` against stacks, column breaking, flow direction 3.
+      centring, `\A1;`/`\A2;` against stacks, flow direction 3. (Columns, text frame and mask:
+      done 2026-10-01, note 04 §3.7.1; open: frame lines 1 px right/below AutoCAD's in raster
+      plots, `user/text-frame4`.)
+- [ ] Extents of SHX TEXT/MTEXT: cell box like TrueType (note 03 §6.2) or ink? Unmeasured.
 - [ ] TEXT: vertical text (STYLE flag 4), SHX underline −0.15·h shift (cause unknown), synthetic
       italic, complex scripts (Arabic/Thai shaping, bidi), missing-glyph TTF fallback font.
 - [ ] MLINE: sharp-mitred / self-overlapping fills, non-90° caps; MESH semi-sharp creases.

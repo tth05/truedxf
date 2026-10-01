@@ -394,13 +394,14 @@ MTEXT is a **WCS** entity (no OCS): 10 and 11 are WCS, 210 only defines the plan
 | 75,76,78,79,48,49,50 | spec's column codes — **these never appear as plain group codes**; they are the *encoded* codes inside XDATA ACAD_MTEXT_COLUMN_INFO (pre-R2018) | ezdxf mtext.rst |
 
 Group 45/90/63 are required together; text-frame-only: 90 = 16 and 45/63/421/431/441 absent,
-scale fixed 1.5 (ezdxf mtext.rst "Text Frame"). Pre-R2018 the frame is additionally stored as a
+scale fixed 1.5 (ezdxf mtext.rst "Text Frame") — **wrong for AutoCAD 2027**: the frame uses 45 like the
+mask (default 1.5 when absent); verified frame/mask geometry in §3.7.1. Pre-R2018 the frame is additionally stored as a
 separate LWPOLYLINE referenced by XDATA `ACAD_MTEXT_TEXT_BORDERS_BEGIN` (1070 80/16, 46/1.5, 81/1,
 5/handle…) — ezdxf deletes those LWPOLYLINEs on load; a renderer should **not draw the LWPOLYLINE
 twice** (it is a normal visible entity in the layout! → **UNKNOWN**: does AutoCAD draw it? It is
 probably drawn only by old versions; check whether it's on a special layer/invisible).
 
-Background mask geometry: ezdxf `make_bg_renderer` offsets all four sides by
+Background mask geometry (AutoCAD-verified rules: §3.7.1): ezdxf `make_bg_renderer` offsets all four sides by
 `char_height × (box_fill_scale − 1)` around the *column* box (width = column/reference width, not the
 text ink). Widely reported AutoCAD behaviour: the mask spans the full MTEXT reference width, not the text
 extents (users are told to set width 0/"size to fit") → **VERIFY** exact horizontal extent incl. width 0.
@@ -700,6 +701,49 @@ object, but 46 in AcDbMText. ODA 20.4.46 lists the same fields (+ "Is NOT annota
 Column count for dynamic-auto = round((total_width + gutter) / (width + gutter)) (ezdxf).
 Exact column breaking = exact AutoCAD layout (line heights) → any drift in line spacing changes
 which lines land in which column.
+
+#### 3.7.1 Column layout, text frame and mask — VERIFIED-BY-ACAD (2026-10-01)
+
+Cases: `user/columns-all`, `user/text-frame2`, `text-frame4`, `text-frame-annotated` (user drawings) and the
+local probes `text-probes/mtx-*` (PDF geometry measured relative to a cross at the insertion point).
+
+- **Column breaking**: a line moves to the next column when its extents bottom (baseline + its
+  descenders) passes the column height — "pp" lines (descender 1.13 at h 4) with baseline 10.67 break at
+  height 11 but not 12; "ac" lines break at 10.5 but not 11 (`mtx-break-*`). The new column restarts at
+  the top (first baseline = the line's ascent). The first line always stays in column 1.
+- **Static** (type 1): exactly `count` columns, all of them exist even when empty; the last column takes
+  all overflow (it grows past the column height) and extra `\N` there act as paragraph breaks
+  (`columns-all` "Hello…" text: column 3 holds 6 lines; `mtx-static-extra-breaks`).
+- **Dynamic, auto height** (type 2, 73 = 1): as many columns of the defined height (embedded 41) as the text
+  needs; AutoCAD rewrites 72 and 41/42 to the new count on load (60 words → 10 columns although 72 = 0,
+  42 = 3 columns were stored, `mtx-cols-dynauto-*`; with inconsistent stored data AutoCAD even moved the
+  insertion point of an MC text — not modelled).
+- **Dynamic, manual heights** (73 = 0, 46 per column): one column per stored height (0 = unlimited);
+  overflow goes to **one extra column** of unlimited height (AutoCAD appends `46 0.0`,
+  `mtx-cols-dynman-overflow`).
+- **Vertical attachment per column**: every column is aligned on its **own content height** (extents
+  top = first line's ascent, bottom = its last line's descenders): top rows at the insertion point, middle
+  rows centred on it, bottom rows ending on it — `columns-all`: the BR text's column 3 (6 lines) grows
+  upward past the stored height, column 2 sits higher by its "jgf" descenders; `mtx-cols-static-mc/bl/tr`.
+  Stored column heights and group 46 never move the text (single column too: §12, `mtx-defh-mc-col1`).
+- **Horizontal attachment**: relative to all columns, n·width + (n−1)·gutter (n = the actual count);
+  single column: the reference width 41 (or the content width when 41 = 0). Lines align inside their
+  column; a line wider than the column spills (right-aligned text to the left, `mtx-cols-mc-spill`).
+- **Frame (90 & 16) and mask (90 & 3) box** — one box per column:
+  x = the column [0, width] (single column: [0, 41], or the content when 41 = 0) **widened to the ink** of
+  its lines (`text-frame2`: 41 = 931 < text 1024 → box [0, 1024]; `text-frame4`, `mtx-wide-mr`: MR text
+  wider than 41 → box [−42, 0], text right-aligned at the insertion point);
+  height = **max(stored column height, content height)** — static/auto: embedded 41, manual: that column's
+  46, no columns: AcDbMText 46 (`mtx-defh-tl-frame`: 46 = 40 → 40-high frame, text unmoved), else the
+  content (= 43 for one column); placed like the column's text (top / centred / bottom at the insertion
+  point); all sides grown by **(45 − 1)·h** — also for the frame-only flag 16 (`text-frame2`: 45 = 1.0 →
+  frame on the extents box; `text-frame-annotated` 45 = 1.5 → 0.5·h; `mtx-w0-mr-frame125` 1.25 → 0.25·h);
+  45 absent → 1.5 (`mtx-frame-noscale`). The ezdxf claim "frame-only scale fixed 1.5" is wrong.
+- The **frame** is the outline of the **union** of the column boxes: touching boxes merge into one
+  stepped polygon (`columns-all` "WAhh" text: gutter 0, offset 1 → one 8-segment outline;
+  `mtx-cols-static-inkwide`: a spilling word joins two columns into one rectangle); separated columns get
+  separate rectangles (`mtx-cols-static-*-frame`, gutter 8 > 2·offset). The mask fills the same boxes.
+- A trailing `\P` adds no empty line to the frame (`mtx-trailing-p-mc/bl`).
 
 ## 4. Fonts
 
@@ -1470,5 +1514,17 @@ ATTRIB / ATTDEF (§2)
   stop. The "left edge = ink" rule (§3.6.1) removes only the first glyph's own side bearing,
   not leading tabs/spaces.
 - Single-column dynamic column data (75 = 2, count 1, stored column height > 0) does not set the
-  frame height for middle/bottom attachments; the frame comes from the text content. Whether a
-  stored height sets the frame for real multi-column text is still UNVERIFIED.
+  frame height for middle/bottom attachments; the frame comes from the text content. **Re-verified
+  for multi-column text** (§3.7.1, `user/columns-all`, `text-probes/mtx-cols-*`): stored heights never
+  move the text, every column is aligned on its own content; they only size the drawn frame/mask box.
+
+## 13. Findings 2026-10-01 (user drawings text-frame*, columns-all; probes text-probes/mtx-*)
+
+- MTEXT columns, text frame and background mask: §3.7.1 (all VERIFIED-BY-ACAD).
+- Extents (plot "Extents", $EXTMIN/$EXTMAX) of TrueType TEXT/MTEXT = the font **cell boxes**, not the
+  ink: per line [pen start, advance end] × [baseline − hhea descender, baseline + hhea ascender]
+  (`extents/probe-text-xxx`, `user/text-frame2`: $EXTMIN.x = the pen origin of "B", 36.6 units left of
+  its ink; $EXTMAX.y = the first line's ascender; note 03 §6.2). It sets the plot scale of every
+  extents-plotted drawing with text (`user/studienleistung` F1(r=1) 0.41 → 0.97).
+- A comment after a blank on a group-code line (` 71   // attachment point`) is ignored by AutoCAD
+  (`user/text-frame-annotated`; note 01 §8.1).

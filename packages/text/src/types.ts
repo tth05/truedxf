@@ -52,6 +52,12 @@ export interface TextLayout {
   readonly backgrounds: readonly BackgroundFill[];
   readonly glyphs: readonly GlyphPlacement[];
   readonly lines: readonly DecorationLine[];
+  /**
+   * Extra plane-coordinate quads (8 numbers each) that count for the drawing extents but are not
+   * drawn: AutoCAD's extents of TrueType text are the font cell boxes (pen start … advance end ×
+   * baseline − descender … baseline + ascender), not the ink (note 04 §13).
+   */
+  readonly extents?: readonly number[];
   /** Things the layout could not honour (unsupported features, missing glyphs), for diagnostics. */
   readonly notes: readonly string[];
 }

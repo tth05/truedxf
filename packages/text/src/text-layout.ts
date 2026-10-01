@@ -292,7 +292,25 @@ export function layoutText(e: TextInput, fonts: TextFontSource, options: TextLay
   // SHX decoration lines start 0.15 h left of the characters, TTF ones at the pen (VERIFIED-BY-ACAD)
   const shift = style.font?.kind === "ttf" ? 0 : TEXT_DECORATION.shift;
   const lines = decorations(line, frame, { ...TEXT_DECORATION, ...fontDeco, shift, ...options.decoration });
-  return { plane, backgrounds: [], glyphs, lines, notes };
+  // extents of TrueType TEXT: the cell box [0, advance] × [−descender, ascender]
+  // (VERIFIED-BY-ACAD extents/probe-text-xxx: $EXTMAX = advance end, baseline + hhea ascender)
+  const p = style.font?.primary;
+  let extents: number[] | undefined;
+  if (p?.kind === "ttf" && line.glyphs.length > 0) {
+    const a = p.ascent / p.capHeight;
+    const d = -p.descent / p.capHeight;
+    extents = [];
+    for (const [x, y] of [
+      [0, d],
+      [line.advance, d],
+      [line.advance, a],
+      [0, a],
+    ] as const) {
+      const q = frame.apply({ x, y });
+      extents.push(q.x, q.y);
+    }
+  }
+  return { plane, backgrounds: [], glyphs, lines, notes, ...(extents ? { extents } : {}) };
 }
 
 /** A quick-text rectangle ($QTEXTMODE) in frame units, as four decoration lines. */

@@ -6,6 +6,7 @@ import {
   mtextExtents,
   type TextInput,
   textFrame,
+  unionOutlines,
 } from "../src/index.ts";
 import { hasLato, hasSimplex, style, testFonts } from "./helpers.ts";
 
@@ -168,6 +169,84 @@ describe("MTEXT layout", () => {
     expect(l.glyphs[0]!.color).toEqual({ kind: "aci", aci: 1 });
     expect(l.glyphs[1]!.color).toBeUndefined();
     expect(l.backgrounds).toHaveLength(1);
+  });
+});
+
+// Columns, frame and mask rules (note 04 §3.7.1, VERIFIED-BY-ACAD user/columns-all, text-probes/mtx-*)
+describe("MTEXT columns, text frame and mask", () => {
+  const cols = (c: Partial<NonNullable<MTextInput["columns"]>>) => ({
+    type: 1,
+    count: 2,
+    width: 20,
+    gutter: 5,
+    definedHeight: 15,
+    heights: [],
+    ...c,
+  });
+  const frameBox = (l: ReturnType<typeof layoutMText>) => {
+    const f = l.lines.filter((d) => d.kind === "frame");
+    const xs = f.flatMap((d) => [d.x0, d.x1]);
+    const ys = f.flatMap((d) => [d.y0, d.y1]);
+    return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
+  };
+  it("keeps static overflow in the last column", async () => {
+    const fonts = await testFonts([style("S", "truedxf-test.shx")]);
+    const l = layoutMText(mtext({ text: "H\\PH\\PH\\PH", width: 45, columns: cols({}) }), fonts);
+    const xs = l.glyphs.map((g) => g.matrix.e);
+    expect(xs.filter((x) => x < 20)).toHaveLength(1);
+    expect(xs.filter((x) => x > 20)).toHaveLength(3);
+  });
+  it("aligns every column on its own content for bottom attachments", async () => {
+    const fonts = await testFonts([style("S", "truedxf-test.shx")]);
+    const l = layoutMText(mtext({ text: "H\\PH\\PH", width: 45, attachment: 7, columns: cols({}) }), fonts);
+    // column 1: one line on the bottom; column 2: two lines, the last on the bottom, growing upward
+    const ys = l.glyphs.map((g) => g.matrix.f).sort((a, b) => a - b);
+    expect(ys[0]).toBeCloseTo(0, 9);
+    expect(ys[1]).toBeCloseTo(0, 9);
+    expect(ys[2]).toBeCloseTo((5 / 3) * 10, 9);
+  });
+  it("frames the content box grown by (45 − 1)·h, also for the frame-only flag", async () => {
+    const fonts = await testFonts([style("S", "truedxf-test.shx")]);
+    const tight = frameBox(layoutMText(mtext({ text: "H", bgFlags: 16, bgScale: 1 }), fonts));
+    expect(tight[1]).toBeCloseTo(-10, 9);
+    expect(tight[3]).toBeCloseTo(0, 9);
+    const wide = frameBox(layoutMText(mtext({ text: "H", bgFlags: 16, bgScale: 1.5 }), fonts));
+    expect(wide[1]).toBeCloseTo(-15, 9);
+    expect(wide[3]).toBeCloseTo(5, 9);
+    expect(wide[0]).toBeCloseTo(tight[0]! - 5, 9);
+  });
+  it("widens a single-column frame to text wider than the reference width", async () => {
+    const fonts = await testFonts([style("S", "truedxf-test.shx")]);
+    const l = layoutMText(mtext({ text: "HHHHHH", width: 5, attachment: 3, bgFlags: 16, bgScale: 1 }), fonts);
+    const box = frameBox(l);
+    expect(box[2]).toBeCloseTo(0, 9); // right-aligned at the insertion point
+    expect(box[2]! - box[0]!).toBeGreaterThan(5);
+  });
+  it("sizes column boxes by max(stored height, content) and merges touching boxes", async () => {
+    const fonts = await testFonts([style("S", "truedxf-test.shx")]);
+    const l = layoutMText(
+      mtext({
+        text: "H\\PH\\PH",
+        width: 40,
+        columns: cols({ gutter: 0, definedHeight: 15 }),
+        bgFlags: 16,
+        bgScale: 1,
+      }),
+      fonts,
+    );
+    // column 1 (one line) is 15 high, column 2 (two lines, 26.7) taller: one stepped outline
+    expect(l.lines.filter((d) => d.kind === "frame")).toHaveLength(6);
+    expect(frameBox(l)[1]).toBeCloseTo(-(10 + (5 / 3) * 10), 9);
+  });
+  it("traces the union of overlapping boxes", () => {
+    const ring = unionOutlines([
+      { x0: 0, x1: 10, y0: -4, y1: 4 },
+      { x0: 8, x1: 20, y0: -2, y1: 2 },
+      { x0: 30, x1: 40, y0: -1, y1: 1 },
+    ]);
+    expect(ring).toHaveLength(2);
+    expect(ring[0]).toHaveLength(8);
+    expect(ring[1]).toHaveLength(4);
   });
 });
 

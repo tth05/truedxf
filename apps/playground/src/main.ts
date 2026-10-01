@@ -1,12 +1,15 @@
 /**
- * truedxf playground: open a DXF (button, drag and drop, or `?file=<url>`), browse layouts and
- * layers, pick entities and inspect their raw DXF tags, measure distances.
+ * truedxf playground: open a DXF (button, drag and drop, or `?file=<url>`) together with its
+ * fonts, shape files and images (several files or a folder), browse layouts and layers, pick
+ * entities and inspect their raw DXF tags, measure distances.
  */
 import {
   type DocumentInfo,
   DxfViewer,
   type EntityInfo,
+  type FileInput,
   type RenderStats,
+  type ViewerFile,
   type ViewerWarning,
   ViewerWarningCode,
 } from "@truedxf/viewer";
@@ -20,13 +23,17 @@ import {
 } from "./browse.ts";
 import { ComparePanel } from "./compare.ts";
 import { h, ICONS, icon, mount } from "./dom.ts";
+import { droppedFiles, FilesPanel, inputFiles, isDrawing, pickDrawing } from "./files.ts";
 import { fmtBytes, fmtCoord, fmtMs, fmtNum } from "./format.ts";
 
 const app = document.getElementById("app")!;
 
 // ---- layout skeleton ---------------------------------------------------------------------------
 
-const fileInput = h("input", { type: "file", accept: ".dxf,.DXF", hidden: true });
+// no `accept` filter: a drawing is opened together with its fonts, shape files and images
+const fileInput = h("input", { type: "file", multiple: true, hidden: true });
+const folderInput = h("input", { type: "file", multiple: true, webkitdirectory: true, hidden: true });
+const addInput = h("input", { type: "file", multiple: true, hidden: true });
 const fileName = h("span", { class: "filename" }, "No file");
 const btnSelect = toolButton(ICONS.select, "Select (click an entity)", true);
 const btnMeasure = toolButton(ICONS.measure, "Measure distance (two clicks)", false);
@@ -64,11 +71,26 @@ const topbar = h(
   btnTheme,
   h(
     "button",
-    { class: "btn primary", onclick: () => fileInput.click(), title: "Open a DXF file" },
+    {
+      class: "btn icon",
+      onclick: () => folderInput.click(),
+      title: "Open a folder (a drawing with its fonts and images)",
+    },
+    icon(ICONS.folder),
+  ),
+  h(
+    "button",
+    {
+      class: "btn primary",
+      onclick: () => fileInput.click(),
+      title: "Open a DXF file — select its fonts, shape files and images with it",
+    },
     icon(ICONS.open),
     "Open",
   ),
   fileInput,
+  folderInput,
+  addInput,
 );
 
 const layoutList = h("div", { class: "list" });
@@ -104,8 +126,23 @@ const emptyState = h(
     { class: "empty-card" },
     h("div", { class: "empty-icon" }, icon(ICONS.file)),
     h("h2", {}, "Open a DXF drawing"),
-    h("p", {}, "Drop a .dxf file anywhere, or choose one. Everything runs locally in your browser."),
-    h("button", { class: "btn primary", onclick: () => fileInput.click() }, icon(ICONS.open), "Choose file"),
+    h(
+      "p",
+      {},
+      "Drop a .dxf file — together with its fonts, shape files and images, or their whole folder — " +
+        "anywhere, or choose them. Everything runs locally in your browser.",
+    ),
+    h(
+      "div",
+      { class: "empty-actions" },
+      h(
+        "button",
+        { class: "btn primary", onclick: () => fileInput.click() },
+        icon(ICONS.open),
+        "Choose files",
+      ),
+      h("button", { class: "btn", onclick: () => folderInput.click() }, icon(ICONS.folder), "Open folder"),
+    ),
   ),
 );
 const busy = h("div", { class: "busy" }, h("span", { class: "spinner" }), h("span", {}, "Loading"));
@@ -128,11 +165,13 @@ const stage = h(
 );
 
 const inspector = h("div", { class: "section grow" });
+let filesPanel: FilesPanel;
 const diagnostics = h("div", { class: "list", style: "padding: 0 0 10px" });
 const rightPanel = h(
   "aside",
   { class: "sidebar right" },
   inspector,
+  h("div", { class: "files-slot" }),
   h(
     "div",
     { class: "section", style: "max-height: 40%" },
@@ -170,6 +209,11 @@ const viewer = new DxfViewer(viewerHost, {
   },
 });
 (window as unknown as { viewer: DxfViewer }).viewer = viewer;
+filesPanel = new FilesPanel(viewer, {
+  addFiles: () => addInput.click(),
+  openDrawing: (f) => void openStored(f),
+});
+rightPanel.querySelector(".files-slot")!.replaceWith(filesPanel.root);
 let info: DocumentInfo | undefined;
 let lastRender: RenderStats | undefined;
 let loadStart = 0;
@@ -211,7 +255,9 @@ viewer.on("layout", () => renderLayouts());
 viewer.on("warnings", () => {
   renderLayoutNotice();
   renderDiagnostics();
+  filesPanel.render();
 });
+viewer.on("files", () => filesPanel.render());
 viewer.on("render", (r) => {
   lastRender = r;
   if (firstFrame === undefined && loadStart) {
@@ -260,21 +306,70 @@ viewer.on("measure", (m) => {
   );
 });
 
-export async function openSource(
-  src: File | string,
-  name?: string,
-  images?: (path: string) => string,
-): Promise<void> {
+/** Common state for opening a drawing (local files have no URL: `src` undefined). */
+function beginOpen(src: string | undefined, images?: (path: string) => string): void {
   imageBase = images;
   syncUrl(src);
-  if (typeof src !== "string" || !src.startsWith(API)) {
+  if (src === undefined || !src.startsWith(API)) {
     compare.root.style.display = "none";
   }
   loadStart = performance.now();
   firstFrame = undefined;
   hideError();
+}
+
+export async function openSource(
+  src: File | string,
+  name?: string,
+  images?: (path: string) => string,
+): Promise<void> {
+  beginOpen(typeof src === "string" ? src : undefined, images);
+  filesPanel.current =
+    typeof src === "string" ? undefined : viewer.files.find((f) => f.name === src.name)?.path;
   try {
     await viewer.load(src, name);
+  } catch {
+    // reported through the error event
+  }
+}
+
+/**
+ * Opens local files (file dialog, folder, drop): the drawing among them with the others as its
+ * resources; a choice when there are several drawings; without a drawing, the files are added
+ * to the open one.
+ */
+async function openLocal(files: FileInput[]): Promise<void> {
+  if (files.length === 0) return;
+  const drawings = files.filter((f) => isDrawing(f.name));
+  if (drawings.length === 0) {
+    viewer.addFiles(files);
+    if (!info) showError("No .dxf drawing among the files — they were added for the next drawing.");
+    return;
+  }
+  if (drawings.length === 1) {
+    beginOpen(undefined);
+    filesPanel.current = undefined;
+    try {
+      const r = await viewer.openFiles(files);
+      filesPanel.current = r.opened?.path;
+      filesPanel.render();
+    } catch {
+      // reported through the error event
+    }
+    return;
+  }
+  const { drawings: added } = await viewer.openFiles(files, { drawing: false });
+  const chosen = await pickDrawing(stage, added);
+  if (chosen) await openStored(chosen);
+}
+
+/** Opens a drawing that is among the viewer's files. */
+async function openStored(f: ViewerFile): Promise<void> {
+  beginOpen(undefined);
+  filesPanel.current = f.path;
+  filesPanel.render();
+  try {
+    await viewer.openDrawing(f.path);
   } catch {
     // reported through the error event
   }
@@ -284,7 +379,7 @@ export async function openSource(
  * Keeps `?file=` in sync with the open drawing so links and reloads reopen it. Local files have
  * no URL the page could reload, so opening one removes a stale `?file=`.
  */
-function syncUrl(src: File | string): void {
+function syncUrl(src: string | undefined): void {
   const url = new URL(location.href);
   const current = url.searchParams.get("file");
   if (typeof src === "string") {
@@ -309,10 +404,17 @@ function toolButton(svg: string, title: string, pressed: boolean): HTMLButtonEle
   return h("button", { class: "btn icon", title, "aria-pressed": String(pressed) }, icon(svg));
 }
 
-fileInput.addEventListener("change", () => {
-  const f = fileInput.files?.[0];
-  if (f) void openSource(f);
-  fileInput.value = "";
+for (const input of [fileInput, folderInput]) {
+  input.addEventListener("change", () => {
+    const files = inputFiles(input);
+    input.value = "";
+    void openLocal(files);
+  });
+}
+addInput.addEventListener("change", () => {
+  const files = inputFiles(addInput);
+  addInput.value = "";
+  viewer.addFiles(files);
 });
 btnFit.addEventListener("click", () => viewer.fit());
 btnSelect.addEventListener("click", () => setTool("select"));
@@ -386,8 +488,9 @@ window.addEventListener("drop", (ev) => {
   ev.preventDefault();
   dragDepth = 0;
   stage.classList.remove("dragging");
-  const f = ev.dataTransfer?.files?.[0];
-  if (f) void openSource(f);
+  if (!ev.dataTransfer) return;
+  // read the items now: they are only accessible during the event
+  void droppedFiles(ev.dataTransfer).then(openLocal, (e) => showError(String(e)));
 });
 
 // ---- panels ------------------------------------------------------------------------------------

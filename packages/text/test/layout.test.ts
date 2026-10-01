@@ -8,7 +8,7 @@ import {
   textFrame,
   unionOutlines,
 } from "../src/index.ts";
-import { hasLato, hasSimplex, style, testFonts } from "./helpers.ts";
+import { hasArial, hasLato, hasSimplex, style, testFonts } from "./helpers.ts";
 
 const Z = { x: 0, y: 0, z: 1 };
 const text = (t: Partial<TextInput>): TextInput => ({
@@ -380,5 +380,36 @@ describe.skipIf(!hasLato)("TrueType stacks (Lato)", () => {
     const sl = l.lines.find((d) => d.kind === "stack-bar")!;
     expect((sl.x0 + sl.x1) / 2).toBeCloseTo(start + 854 * s + 10 / 6, 9);
     expect((sl.y0 + sl.y1) / 2 - y0).toBeCloseTo(1449 * s, 9);
+  });
+});
+
+// Missing-glyph boxes with TrueType fonts (VERIFIED-BY-ACAD 2026-10-01, note 04 §11): TEXT control
+// characters draw the primary font's .notdef (Lato: advance 1063 of cap 1433), characters no font
+// has Arial's .notdef at Arial's cap scale (advance 1536 of cap 1466); MTEXT control characters
+// Arial's .notdef advancing 0.575·h (0 for FS/GS/RS/US).
+describe.skipIf(!hasLato || !hasArial)("Missing-glyph boxes (Lato, Arial)", () => {
+  const xs = (l: { glyphs: readonly { matrix: { e: number } }[] }) => l.glyphs.map((g) => g.matrix.e);
+  it("TEXT: control characters draw the primary .notdef, unknown characters Arial's", async () => {
+    const fonts = await testFonts([style("S", "LatoWeb-Regular.ttf")]);
+    const l = layoutText(text({ text: "A^BB^?C", height: 10 }), fonts);
+    expect(l.glyphs).toHaveLength(5);
+    expect(l.glyphs[1]!.font).toBe(l.glyphs[0]!.font);
+    expect(l.glyphs[3]!.font.capHeight).toBe(1466);
+    const x = xs(l);
+    expect(x[2]! - x[1]!).toBeCloseTo((1063 / 1433) * 10, 9);
+    expect(x[4]! - x[3]!).toBeCloseTo((1536 / 1466) * 10, 9);
+  });
+  it("TEXT: %%9 is a control character too", async () => {
+    const fonts = await testFonts([style("S", "LatoWeb-Regular.ttf")]);
+    expect(layoutText(text({ text: "[%%9]", height: 10 }), fonts).glyphs).toHaveLength(3);
+  });
+  it("MTEXT: control characters draw Arial's .notdef advancing 0.575 h", async () => {
+    const fonts = await testFonts([style("S", "LatoWeb-Regular.ttf")]);
+    const l = layoutMText(mtext({ text: "a^Bb^\\c", height: 10, attachment: 7 }), fonts);
+    expect(l.glyphs).toHaveLength(5);
+    expect(l.glyphs[1]!.font.capHeight).toBe(1466);
+    const x = xs(l);
+    expect(x[2]! - x[1]!).toBeCloseTo(5.75, 9);
+    expect(x[4]!).toBeCloseTo(x[3]!, 9); // ^\ (FS) does not advance
   });
 });

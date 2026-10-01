@@ -22,6 +22,14 @@ describe("TEXT special codes (note 04 §1.6)", () => {
     expect(decodeTextString("%%065")[0]).toMatchObject({ cp: 65, numeric: true });
     expect(cps("%%1234")).toBe("{4");
   });
+  it("keeps the previous %%nnn digits in a 3-character buffer (text/nnn-short)", () => {
+    const d = decodeTextString("[%%9][%%09][%%009][%%65]").filter((c) => c.numeric);
+    expect(d.map((c) => c.cp)).toEqual([9, 9, 9, 659]);
+  });
+  it("decodes carets below @ to U+FFE0…U+FFFF (^6 U+FFF6, ^? U+FFFF)", () => {
+    expect(cps("a^6b^?c^-")).toBe("a￶b￿c￭");
+    expect(cps("^a^z^J")).toBe("!:\n");
+  });
   it("drops %% before unknown codes", () => {
     expect(cps("a%%xb")).toBe("axb");
     expect(cps("ab%% cd%%%%")).toBe("ab cd%%");

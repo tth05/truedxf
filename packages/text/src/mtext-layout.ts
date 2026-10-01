@@ -31,7 +31,7 @@ import {
   type ParagraphAlign,
   parseMText,
 } from "./mtext-parser.ts";
-import { quickBox } from "./text-layout.ts";
+import { boxGlyph, isBoxChar, missingGlyphBox, NOTDEF, quickBox } from "./text-layout.ts";
 import type {
   BackgroundFill,
   ColorOverride,
@@ -46,6 +46,8 @@ import type {
 export const LINE_PITCH = 5 / 3;
 /** Default tab stop distance in char heights (VERIFIED-BY-ACAD). */
 export const DEFAULT_TAB = 4;
+/** Advance of a control character's box in char heights (VERIFIED-BY-ACAD, see `glyph()`). */
+const CONTROL_ADVANCE = 0.575;
 
 /** MTEXT column data (structurally compatible with @truedxf/model's MTextColumns). */
 export interface MTextColumnsInput {
@@ -674,22 +676,51 @@ class Engine {
     return f;
   }
 
-  private glyph(ctx: MTextContext, ch: MTextChar): GlyphItem {
+  /**
+   * A character, measured. Missing glyphs (VERIFIED-BY-ACAD 2026-10-01, note 04 §11):
+   * - control characters draw Arial's .notdef at Arial's cap scale whatever the font, advancing
+   *   by 0.575·h (Liberation Sans and Lato alike; text/caret-codes-mtext, text-lato/mtext-control),
+   *   FS/GS/RS/US (^\ ^] ^^ ^_) by nothing — the next character overlaps the box;
+   * - characters missing from an SHX font come from a TrueType fallback at that font's own
+   *   cap-height scale — unlike TEXT, which draws "?" (text/escape-spellings); when no fallback
+   *   has them they draw nothing (font-probes/bigcp-mtext: 한 with txt + gbcbig);
+   * - {@link isBoxChar} characters no font has: Arial's .notdef with its advance
+   *   (text/caret-lowercase-mtext `^?`), inside a stack the primary font's .notdef
+   *   (mtext/stack-caret-*: `^6` = U+FFF6); SHX fonts draw "?" for them (mtext/stack-caret-nospace
+   *   with simplex, 2026-09-30); other missing characters draw nothing (text/fallback-thai-mtext).
+   */
+  private glyph(ctx: MTextContext, ch: MTextChar, inStack = false): GlyphItem {
     const font = this.fontOf(ctx);
+    const ttf = font.primary.kind === "ttf";
     let m: MeasuredGlyph;
-    if (ch.control) {
-      // control characters: the missing-glyph box of a TrueType font (text/caret-codes-mtext)
-      const nd = this.fonts.notdefGlyph?.(font);
-      m = nd ? measureResolved(0x25af, nd) : measureGlyph(font, 0x3f);
+    if (ch.control && !inStack) {
+      const nd = missingGlyphBox(this.fonts) ?? this.fonts.notdefGlyph?.(font);
+      if (nd) {
+        const advance = ch.cp >= 0x1c && ch.cp <= 0x1f ? 0 : CONTROL_ADVANCE;
+        m = { ...measureResolved(NOTDEF, nd), advance };
+      } else m = measureGlyph(font, 0x3f);
     } else {
-      m = measureGlyph(font, glyphCode(font, ch, this.fonts.encoding));
+      const box = ch.control || isBoxChar(ch.cp);
+      const code = ch.control ? (ttf ? undefined : 0x3f) : glyphCode(font, ch, this.fonts.encoding);
+      m = code === undefined ? measureResolved(0, undefined) : measureGlyph(font, code);
       // characters missing from an SHX font come from a TrueType fallback at that font's own
       // cap-height scale — unlike TEXT, which draws "?" (VERIFIED-BY-ACAD text/escape-spellings)
-      if (font.primary.kind === "shx" && (!m.resolved || m.resolved.fallback) && ch.cp !== 0x3f) {
+      if (!ttf && !box && (!m.resolved || m.resolved.fallback) && ch.cp !== 0x3f) {
         const fb = this.fonts.fallbackGlyph?.(ch.cp);
-        if (fb) m = measureResolved(ch.cp, fb);
+        m = fb ? measureResolved(ch.cp, fb) : measureResolved(ch.cp, undefined);
+      }
+      if (ttf && !m.resolved && box) {
+        const nd = inStack ? this.fonts.notdefGlyph?.(font) : missingGlyphBox(this.fonts);
+        if (nd) m = boxGlyph(ch.cp, nd);
+        // a stack measures the box up to its advance, not its ink (stack-caret-side-by-side:
+        // the next pen is box pen + advance + the "0" side bearing)
+        if (inStack && m.ink) m = { ...m, ink: { ...m.ink, xMax: Math.max(m.ink.xMax, m.advance) } };
       }
     }
+    return this.glyphItem(ctx, m);
+  }
+
+  private glyphItem(ctx: MTextContext, m: MeasuredGlyph): GlyphItem {
     const h = ctx.height;
     const w = ctx.widthFactor || 1;
     const ink = m.ink
@@ -763,7 +794,7 @@ class Engine {
   ): StackItem {
     const h = ctx.height;
     const run = (chars: readonly MTextChar[]) => {
-      const gs: GlyphItem[] = chars.map((c) => this.glyph(ctx, c));
+      const gs: GlyphItem[] = chars.map((c) => this.glyph(ctx, c, true));
       let pen = 0;
       const ink = new InkBox();
       const xs: number[] = [];

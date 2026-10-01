@@ -17,7 +17,8 @@
  * - FIT/ALIGNED: BACKWARD mirrors about the baseline (like upside-down), both flags mirror
  *   nothing (fitflags-*, ezdxf#353);
  * - SHX control characters execute the font's shape if it has one (LF = shape 10 moves the pen
- *   down without returning), otherwise "?" (caret-controls);
+ *   down without returning), otherwise "?" (caret-controls); TrueType control characters draw
+ *   the primary font's .notdef, characters no font has Arial's .notdef ({@link textGlyph});
  * - %%u/%%o/%%k lines: SHX at −0.2 h / 1.2 h / 0.5 h spanning the advances shifted by −0.15 h
  *   (special-* with simplex.shx; the shift's origin is unknown); TTF at −descent / ascent / 0.5 h
  *   (hhea), unshifted (text-lato/text-*);
@@ -27,10 +28,10 @@
  * (x' = x + y·tan θ, applied *after* the width factor — UNVERIFIED, note 04 §1.5 item 2) → shift by
  * the alignment offset → backward/upside-down mirror about the anchor → rotation → anchor → OCS.
  */
-import type { StyleFont } from "@truedxf/fonts";
+import { type ResolvedGlyph, type StyleFont, TtfFont } from "@truedxf/fonts";
 import { Affine2, Matrix44, ocsToWcsMatrix, type Vec3 } from "@truedxf/geometry";
 import { glyphCode, type TextFontSource } from "./fonts.ts";
-import { decorationOffsets, InkBox, type MeasuredGlyph, measureGlyph } from "./glyphs.ts";
+import { decorationOffsets, InkBox, type MeasuredGlyph, measureGlyph, measureResolved } from "./glyphs.ts";
 import { decodeTextString, type TextChar } from "./specials.ts";
 import type { DecorationLine, GlyphPlacement, TextLayout, TextRun } from "./types.ts";
 
@@ -96,24 +97,88 @@ export interface LineMetrics {
 
 const QUESTION = 0x3f;
 
-/** The glyph code of a TEXT character: control characters (and DEL) per note 04 §1.6. */
-function textCode(font: StyleFont, ch: TextChar, encoding: string): number {
-  if (!ch.numeric && (ch.cp < 0x20 || ch.cp === 0x7f)) {
-    // SHX fonts execute their own control shapes (LF = shape 10); everything else is "?"
-    if (font.primary.kind === "shx" && font.primary.hasGlyph(ch.cp)) return ch.cp;
-    return QUESTION;
+/** `MeasuredGlyph.code` of a missing-glyph box (a font's .notdef). */
+export const NOTDEF = -1;
+
+/**
+ * Characters for which AutoCAD draws a missing-glyph box when no font has them: DEL and C1
+ * controls, lone surrogates and unassigned or non-characters of U+FFE0…U+FFFF (where `^X` with X
+ * below "@" lands). Missing *assigned* characters (Thai with Liberation Sans) draw nothing in the
+ * raster plot (VERIFIED-BY-ACAD 2026-10-01 text/fallback-thai-*, caret-lowercase `^?` = U+FFFF,
+ * escape-astral-r2004 surrogates, fileformat/divergent-ansi-932 U+0081; DEL is an ASSUMPTION;
+ * mtext/stack-tol-signs-nospace: U+FFED comes from a Windows font-linked font, not emulated;
+ * note 04 §11).
+ */
+export function isBoxChar(cp: number): boolean {
+  return (
+    (cp >= 0x7f && cp <= 0x9f) ||
+    (cp >= 0xd800 && cp <= 0xdfff) ||
+    cp === 0xffe7 ||
+    (cp >= 0xffef && cp <= 0xfff8) ||
+    cp === 0xfffe ||
+    cp === 0xffff
+  );
+}
+
+/**
+ * The box AutoCAD draws for a {@link isBoxChar} character no font has: Arial's .notdef at Arial's
+ * own cap-height scale, also with a TrueType primary font (VERIFIED-BY-ACAD 2026-10-01: the PDFs
+ * of text/caret-lowercase(-mtext) and text/escape-astral-r2004 draw them with ArialMT at Arial's
+ * cap scale; note 04 §11). Arial is the first TrueType glyph fallback.
+ */
+export function missingGlyphBox(fonts: TextFontSource | undefined): ResolvedGlyph | undefined {
+  const f = fonts?.fallbackGlyph?.(0x41)?.font;
+  if (!(f instanceof TtfFont)) return undefined;
+  return { glyph: f.glyphByIndex(0), font: f, scale: 1 / f.capHeight, fallback: true };
+}
+
+/**
+ * A missing-glyph box for `cp`: C1 controls (U+0080…U+009F) do not advance — the next character
+ * is drawn over the box (VERIFIED-BY-ACAD fileformat/divergent-ansi-932: U+0081 in TEXT).
+ */
+export function boxGlyph(cp: number, box: ResolvedGlyph): MeasuredGlyph {
+  const m = measureResolved(NOTDEF, box);
+  return cp >= 0x80 && cp <= 0x9f ? { ...m, advance: 0 } : m;
+}
+
+/**
+ * A TEXT character, measured (note 04 §1.6, §11):
+ * - SHX: control characters execute the font's own shape (LF = shape 10), otherwise "?"
+ *   (text/caret-controls); missing characters "?" (text/escape-spellings);
+ * - TrueType: control characters (also `%%9`) draw the primary font's .notdef with its advance
+ *   (Liberation Sans: a cap-height box, text/caret-codes, caret-controls, nnn-short; Lato:
+ *   text-lato/text-control); {@link isBoxChar} characters no font has Arial's .notdef
+ *   ({@link missingGlyphBox}); other missing characters nothing.
+ */
+function textGlyph(font: StyleFont, ch: TextChar, encoding: string, fonts?: TextFontSource): MeasuredGlyph {
+  const ttf = font.primary.kind === "ttf";
+  if (ttf && ch.cp < 0x20) {
+    const nd = fonts?.notdefGlyph?.(font);
+    if (nd) return measureResolved(NOTDEF, nd);
+  } else if (!ttf && !ch.numeric && (ch.cp < 0x20 || ch.cp === 0x7f)) {
+    return measureGlyph(font, font.primary.hasGlyph(ch.cp) ? ch.cp : QUESTION);
   }
-  return glyphCode(font, ch, encoding);
+  const m = measureGlyph(font, glyphCode(font, ch, encoding));
+  if (ttf && !m.resolved && isBoxChar(ch.cp)) {
+    const box = missingGlyphBox(fonts);
+    if (box) return boxGlyph(ch.cp, box);
+  }
+  return m;
 }
 
 /** Lays out the characters of one line at h = 1 without width factor (pen positions + boxes). */
-export function measureLine(chars: readonly TextChar[], font: StyleFont, encoding: string): LineMetrics {
+export function measureLine(
+  chars: readonly TextChar[],
+  font: StyleFont,
+  encoding: string,
+  fonts?: TextFontSource,
+): LineMetrics {
   const glyphs: Placed[] = [];
   const ink = new InkBox();
   let pen = 0;
   let penY = 0;
   for (const ch of chars) {
-    const m = measureGlyph(font, textCode(font, ch, encoding));
+    const m = textGlyph(font, ch, encoding, fonts);
     glyphs.push({ m, pen, penY, ch });
     if (m.ink) ink.add(m.ink, pen, penY);
     pen += m.advance;
@@ -181,7 +246,7 @@ export function textFrame(
   if (!(h > 0)) return undefined;
   if (style.spec?.vertical) notes.push("text-vertical-unsupported");
   const chars = decodeTextString(e.text);
-  const line = measureLine(chars, font, fonts.encoding);
+  const line = measureLine(chars, font, fonts.encoding, fonts);
   let w = e.widthFactor || 1;
   const tanOb = Math.tan((e.oblique || 0) * DEG);
   let rot = (e.rotation || 0) * DEG;

@@ -88,13 +88,14 @@ export function decodeCarets(s: string): string {
 }
 
 /**
- * Code of `^X` (X ≠ space): X − 64 for X ≥ "@" (`^J` LF, `^a` "!", `^z` ":"), `^?` DEL, and a
- * "?" for X below "@" (`^6` renders "?" — not ezdxf's mod-126 "t"). VERIFIED-BY-ACAD
- * text/caret-lowercase(-mtext), mtext/stack-caret-nospace.
+ * Code of `^X` (X ≠ space): (X − 64) as a 16-bit code unit — `^J` LF, `^a` "!", `^z` ":", and for
+ * X below "@" a code in U+FFE0…U+FFFF (`^6` U+FFF6, `^?` U+FFFF; not ezdxf's mod-126 "t" nor
+ * DEL). No font has those, so SHX fonts draw "?" and TrueType fonts a missing-glyph box.
+ * VERIFIED-BY-ACAD text/caret-lowercase(-mtext), mtext/stack-caret-nospace (the PDFs' ToUnicode
+ * maps name U+FFFF, U+FFF6, U+FFED; note 04 §11).
  */
 export function caretCode(next: number): number {
-  if (next === 0x3f) return 0x7f;
-  return next >= 0x40 ? next - 64 : 0x3f;
+  return (next - 64) & 0xffff;
 }
 
 /** Decodes a TEXT/ATTRIB string into characters with decoration flags. */
@@ -104,6 +105,7 @@ export function decodeTextString(raw: string): TextChar[] {
   let underline = false;
   let overline = false;
   let strike = false;
+  const digits = ["", "", ""];
   const push = (cp: number, extra?: { symbol?: SpecialSymbol; numeric?: boolean }) =>
     out.push({ cp, ...extra, underline, overline, strike });
   for (let i = 0; i < s.length; ) {
@@ -138,8 +140,14 @@ export function decodeTextString(raw: string): TextChar[] {
       }
       if (c >= "0" && c <= "9") {
         let j = i + 2;
-        while (j < s.length && j < i + 5 && s[j]! >= "0" && s[j]! <= "9") j++;
-        push(Number(s.slice(i + 2, j)), { numeric: true });
+        while (j < s.length && j < i + 5 && s[j]! >= "0" && s[j]! <= "9") {
+          digits[j - i - 2] = s[j]!;
+          j++;
+        }
+        // AutoCAD reads the digits into a 3-character buffer that keeps the previous code's
+        // tail: "[%%009][%%65]" draws U+0293 (659) for "%%65" (VERIFIED-BY-ACAD text/nnn-short;
+        // whether the buffer survives across strings is UNKNOWN — reset per string here)
+        push(Number(digits.join("")), { numeric: true });
         i = j;
         continue;
       }

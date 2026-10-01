@@ -1497,8 +1497,8 @@ MTEXT (§3)
   - open: `\A1`/`\A2` align normal text against the stack's full height (stack-baseline-a1/a2,
     stack-in-wrap); the line after a stack line sits hs/3 higher than the at-least gap predicts
     (mtext/chunk-stack, one sample).
-- `\S5^6;` is **not** a tolerance stack: `^6` is a caret code (→ "?"), giving the no-divider stack
-  "5?" (mtext/stack-caret-nospace) — the §3.6.3 assumption from ezdxf#889 is wrong; `\S1^ 2;` is a
+- `\S5^6;` is **not** a tolerance stack: `^6` is a caret code (U+FFF6: "?" with SHX, the primary
+  font's .notdef with TrueType), giving the no-divider stack "5?" (mtext/stack-caret-nospace) — the §3.6.3 assumption from ezdxf#889 is wrong; `\S1^ 2;` is a
   stack.
 - `\C+5` swallows `\C` and prints "+5"; `\H1..5` → h = 1, then ".5"; `\AX` prints "X"; a stray `}`
   is ignored; `\J` and `\:` are printed literally (mtext/code-invalid-codes) — the §3.3 claim
@@ -1510,6 +1510,36 @@ MTEXT (§3)
   `^a`/`^z` are the printable "!"/":" (mtext/caret-*). Characters missing from an SHX font come from
   a TrueType fallback **at that font's own cap-height scale** (SimSun reproduced 层 exactly) —
   unlike TEXT, which draws "?" (text/escape-spellings).
+- **Missing-glyph boxes** (VERIFIED-BY-ACAD 2026-10-01, Liberation Sans / Lato references; the
+  PDF fonts and ToUnicode maps identify the glyphs, the raster gives the advances):
+  - `^X` is (X − 64) as a 16-bit code: `^6` = U+FFF6, `^-` = U+FFED, `^?` = U+FFFF (not DEL).
+    No font has those, so SHX fonts draw "?" (the 2026-09-30 simplex findings above still hold).
+  - TEXT, TrueType: control characters (< U+0020, also `%%9`) draw the **primary font's
+    .notdef** with its advance (Liberation: a cap-height box, advance 1536; text/caret-codes,
+    caret-controls, nnn-short; Lato: text-lato/text-control).
+  - Characters no font has — U+FFFF (`^?`), lone surrogates (`\U+D83D\U+DE00` = two boxes),
+    unassigned U+FFxx — draw **Arial's .notdef at Arial's cap scale** with its advance, in TEXT
+    and MTEXT, also with a TrueType primary (PDF: ArialMT at 1676.4 next to Liberation at 1744.2
+    = the cap-height ratio; text/caret-lowercase(-mtext), escape-astral-r2004). C1 controls
+    (U+0081 from an undefined code page byte) draw the same box with **zero advance** — the next
+    character overlaps it (fileformat/divergent-ansi-932).
+  - Missing *assigned* characters draw **nothing** in the raster plot (Thai with Liberation,
+    text/fallback-thai-*: the PDF writes notdef glyphs for them, the PNG has no ink and no
+    advance). U+FFED in a stack is a small square from a Windows font-linked font
+    (mtext/stack-tol-signs-nospace: box 0.355 h, advance ≈ 0.72 h; Microsoft JhengHei comes close
+    but does not match) — not emulated.
+  - MTEXT control characters: Arial's .notdef at Arial's cap scale whatever the font, advancing
+    **0.575·h** (Liberation and Lato alike: PDF 552/960 and 344.8/600), except FS/GS/RS/US
+    (`^\ ^] ^^ ^_`), which do not advance (text/caret-codes-mtext, text-lato/mtext-control).
+  - Inside an MTEXT stack a missing character draws the **primary font's** .notdef, and the stack
+    measures it up to its advance, not its ink (mtext/stack-caret-side-by-side: next pen = box pen
+    + 1536 units + the "0" side bearing).
+  - MTEXT with an SHX font: a character missing from the font and from every TrueType fallback
+    draws nothing (fonts agent, font-probes/bigcp-mtext: 한 with txt + gbcbig).
+- `%%nnn` digits go into a **3-character buffer that keeps the previous code's tail**:
+  `[%%9][%%09][%%009][%%65]` draws boxes for 9, 9, 9 and then U+0293 (659) for `%%65`
+  (text/nnn-short, PDF ToUnicode 0255 → 0293, 2026-10-01). Whether the buffer survives across
+  strings is UNKNOWN (truedxf resets it per string).
 - `\T` multiplies advances, clamped to **0.75…4** (`\T0.5` and `\T0.1x` both give 0.75)
   (mtext/code-tracking*).
 - At-least line gap with mixed heights: baseline_{i+1} = baseline_i − (5/3·f − 1)·(H_i + B_{i+1})/2

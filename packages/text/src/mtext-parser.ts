@@ -8,7 +8,7 @@
  * - `\U+XXXX` / `\M+nXXXX` are decoded *inside* the tokenizer, so `\U+005C` is a literal backslash;
  * - carets are decoded here, not as a pre-pass, so that `\S5^6;` stays a stack (ezdxf#889 sample);
  *   `^I` tab, `^J` new paragraph, `^M` ignored, `^ ` literal "^", `^@` ends the text, other control
- *   characters render as "▯" U+25AF (ezdxf mtext.rst);
+ *   characters are `control` chars (a missing-glyph box, note 04 §11);
  * - single-value commands (`\A \C \c \H \W \T \Q`) have an optional `;`, `\f \F \p \S` run to the
  *   next `;` (or the end);
  * - `%%c %%d %%p %%%` are decoded in MTEXT too; `%%nnn`/`%%u` in MTEXT are UNKNOWN and stay literal.
@@ -80,7 +80,7 @@ export interface MTextContext {
 export interface MTextChar {
   readonly cp: number;
   readonly symbol?: SpecialSymbol | undefined;
-  /** A non-printable control character: AutoCAD draws a missing-glyph box (text/caret-codes-mtext). */
+  /** A non-printable control character (`cp` < 0x20): AutoCAD draws a missing-glyph box (text/caret-codes-mtext). */
   readonly control?: boolean;
 }
 
@@ -182,7 +182,7 @@ class Parser {
             this.i = s.length;
             break;
           }
-          if (code >= 0x20 && code !== 0x7f) this.emitChar(code);
+          if (code >= 0x20) this.emitChar(code);
           else this.control(code);
         }
         continue;
@@ -233,7 +233,7 @@ class Parser {
     else if (code === 10) this.out.push({ t: "paragraph", ctx: this.ctx });
     else if (code === 13) {
       // ^M / CR: ignored (ezdxf docs)
-    } else this.out.push({ t: "char", ch: { cp: 0x25af, control: true }, ctx: this.ctx });
+    } else this.out.push({ t: "char", ch: { cp: code, control: true }, ctx: this.ctx });
   }
 
   private command(): void {
@@ -500,10 +500,10 @@ class Parser {
         c = expr[++k]!;
       }
       if (!escaped && c === "^" && k + 1 < expr.length && expr[k + 1] !== " ") {
-        // "^X" is a caret code even inside a stack: "\S5^6;" is "5?" without divider
+        // "^X" is a caret code even inside a stack: "\S5^6;" is "5" + U+FFF6 without divider
         // (VERIFIED-BY-ACAD mtext/stack-caret-nospace; the ezdxf#889 assumption was wrong)
         const code = caretCode(expr.charCodeAt(++k));
-        (kind === "" ? upper : lower).push({ cp: code < 0x20 || code === 0x7f ? 0x3f : code });
+        (kind === "" ? upper : lower).push(code < 0x20 ? { cp: code, control: true } : { cp: code });
         continue;
       }
       if (!escaped && kind === "" && (c === "^" || c === "/" || c === "#")) {

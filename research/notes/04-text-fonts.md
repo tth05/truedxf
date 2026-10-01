@@ -457,7 +457,7 @@ Tokenisation rules (ezdxf parser):
 | `\Wv;` / `\Wvx;` | width factor absolute / relative | as \H |
 | `\Tv;` / `\Tvx;` | tracking (char spacing factor, 1 = normal) | as \H; "negative values are used" |
 | `\Qa;` | oblique angle, degrees | as \H |
-| `\fName\|b1\|i0\|c0\|p0;` | font by family name (TTF) or file name (SHX: `\fromans.shx;`? `\Fgdt;`), b bold, i italic, c charset/codepage, p pitch | family required; "fonts which are not available on the system are replaced by the TXT.SHX shape font" (ezdxf; AutoCAD 2027 uses FONTALT = simplex.shx, §4.1); a `,bigfont` suffix in the name selects a bigfont (mlightcad `splitInlineFontFamily`); b1/i1 only exact "1" enables; c and p "ignored by AutoCAD and BricsCAD"; order free; empty name = no change |
+| `\fName\|b1\|i0\|c0\|p0;` | font by family name (TTF) or file name (SHX: `\fromans.shx;`? `\Fgdt;`), b bold, i italic, c charset/codepage, p pitch | family required; "fonts which are not available on the system are replaced by the TXT.SHX shape font" (ezdxf; AutoCAD 2027 uses FONTALT = simplex.shx, §4.1); a `,bigfont` suffix in the name selects a bigfont (mlightcad `splitInlineFontFamily`); b1/i1 only exact "1" enables; c and p "ignored by AutoCAD and BricsCAD"; order free; empty name = no change. An unknown `\f` family that is also not a font file (`\fNoSuchFamily|b0|i0|c0|p34;`) **draws nothing** in the plot; `\FNoSuchFont.shx;` uses FONTALT (acad-default-fonts/mtext-f-missing, VERIFIED-BY-ACAD 2026-10-01) |
 | `\FName;` | older font command (file name, e.g. `\Fgdt;`, `\Ftxt.shx;`) | "\F ignores some arguments" |
 | `\S…;` | stacking, see 3.4 | |
 | `\p…;` | paragraph properties, see 3.5 | |
@@ -791,6 +791,9 @@ The same fields appear in `\fArial|b0|i0|c238|p34;`.
    (`C:\Windows\Fonts\arial.ttf`) did NOT resolve** (fell back to FONTALT); quoted names work
    (netDxf#224). Real files contain absolute paths (`c:\program files\autocad 2002\fonts\hztxt.shx`)
    — strip to the base name for our lookup? (AutoCAD 2027 would fall back — follow AutoCAD.)
+   An **SHX** full path resolves by its base name: `C:\nope\txt.shx` draws exactly like txt.shx
+   (acad-default-fonts/font-name-txt-path, VERIFIED-BY-ACAD 2026-10-01). Only TrueType paths fall
+   back to FONTALT.
 4. Unresolved → **FONTALT** (default `simplex.shx`): missing SHX, missing TTF, unknown XDATA family, and
    empty group 3 without XDATA all rendered exactly like simplex.shx ("A" width 7.61905 = 16/21·10).
    **CONFLICT**: Autodesk "About Substitute Fonts" says for TTF "Windows substitutes a similar font"; the
@@ -824,6 +827,10 @@ values in the local corpus (5,578 files): txt 4489, ltypeshp.shx 1006, standard 
 "" 604, arial.ttf 574, romans.shx 131, simplex.shx 124, simplex 79, txt.shx 56, isocp.shx 51,
 simhei.ttf 30 …; bigfonts gbcbig 83, hztxt 55, bigfont.shx 11, @extfont2.shx 8, chineset.shx 2.
 ("standard" is a QCAD/LibreCAD font name, not an AutoCAD font.)
+
+truedxf: `TextRenderOptions.missingFont` is `"autocad"` (the rules above; plot emulation) or
+`"fallback"` (viewers, the default in smooth mode: always draw, using `fallbackFont` /
+`fallbackBigFont`). In both modes PlotResult gets `font-missing` / `bigfont-missing` notes.
 
 ### 4.2 SHX / SHP shape fonts — binary format
 
@@ -915,7 +922,7 @@ Displacement = (dx·L, dy·L) × current scale. (Identical in EZ:636, ML, YF, TZ
 | 3 | u8 n | scale /= n (cumulative within a shape; "The program does not reset the scale factor for you") |
 | 4 | u8 n | scale ×= n. **UNKNOWN**: persists across characters? (EZ GlyphCache renders each glyph fresh) |
 | 5 / 6 | – | push / pop position; stack **4 deep**, "You must pop everything you push"; errors "Position stack overflow/underflow in shape nnn". Pop moves without drawing. |
-| 7 | shapes: u8 shape#; **unifont: 2-byte shape#**; bigfont: u8, or `0` + extended form `7,0,prim#(2 bytes),basex,basey,width,height` (primitive scaled to a unit square then × width/height) | draw subshape at current point with current scale; "Draw mode is not reset for the new shape" — **contradicted by AutoCAD 2027 plots (triage 2026-10-01):** amgdt `f`/`n` call subshape 3 with the pen up and AutoCAD draws its first stroke, so the pen is down at the start of a subshape (ezdxf's forced pen-down matches). **CONFLICT** unifont code-7 byte order: EZ/YF/TZ/OSG little-endian, ML big-endian (every other 2-byte bytecode value is high-byte-first → BE more plausible; verify with amgdt.shx) |
+| 7 | shapes: u8 shape#; **unifont: 2-byte shape#**; bigfont: u8, or `0` + extended form `7,0,prim#(2 bytes),basex,basey,width,height` (primitive scaled to a unit square then × width/height) | draw subshape at current point with current scale; "Draw mode is not reset for the new shape" — **contradicted, VERIFIED-BY-ACAD (triage 2026-10-01, implemented in shx/interpret.ts):** a subshape starts with the pen down even if the caller lifted it (amgdt `f`/`n` draw the first stroke of subshape 3; ezdxf's forced pen-down matches); scale and position carry over (acad-default-fonts sample-amgdt / special-amgdt / subshape-code7 / tolerance-* improved). **CONFLICT** unifont code-7 byte order: EZ/YF/TZ/OSG little-endian, ML big-endian (every other 2-byte bytecode value is high-byte-first → BE more plausible; verify with amgdt.shx) |
 | 8 | i8 dx, i8 dy | single displacement (−128..127) × scale, draws if pen down |
 | 9 | (i8,i8)… (0,0) | multiple displacements; (0,0) terminates |
 | 0xA | u8 r, octant byte | octant arc: bit7 = clockwise, bits 4-6 start octant S (0..7, 45° steps CCW from 3 o'clock), bits 0-2 count C (0 = full circle). centre = P − r·(cos 45S, sin 45S); end angle = 45S ± 45C |
@@ -944,7 +951,8 @@ every arc** gives exactly (28,0) and (36,0) — strongly suggests AutoCAD keeps 
 3/4 scale, and whether the drawn arc geometry is adjusted. Test #1 for SHX fidelity.
 
 Arc tessellation in PLOT: **UNKNOWN** (EZ uses Béziers, YF 10° steps). Probably depends on plot
-resolution / VIEWRES — measure.
+resolution / VIEWRES — measure. SHAPE plots (acad-default-fonts/shape-size-25, CIRC1/BAT) show visibly faceted SHX arcs; our finer
+flattening is the remaining ~3.5 % gap.
 
 ### 4.4 SHX metrics → text height, advance, missing glyphs
 
@@ -985,6 +993,26 @@ resolution / VIEWRES — measure.
   are never filled. Bold/italic do not exist for SHX (oblique via style/\Q only).
 - **Bigfont height relative to main font** (different "above"): **UNKNOWN** (OSG scales each by its own
   above).
+
+**Bigfont code page — VERIFIED-BY-ACAD 2026-10-01** (acad-default-fonts/bigfont-txt-*-r2018,
+bigfont-native-ansi-932/950, mif-*, font-probes/bigcp-text, bigcp-mtext, bigcp-dwg936-r2004/r2018).
+AutoCAD 2027 keeps text as Unicode. For a style with a bigfont, each character is encoded into
+**the bigfont's own DBCS code page**:
+- Code pages: bigfont.shx, extfont.shx and extfont2.shx are Shift-JIS; chineset.shx is Big5;
+  gbcbig.shx is GBK; whgtxt.shx is KS X 1001.
+- If the bigfont has that code, its glyph is drawn. Otherwise the character is drawn from the
+  primary font by Unicode, as "?" in TEXT or the TTF fallback in MTEXT.
+- `$DWGCODEPAGE` has no influence: ANSI_936 in R2004 and in R2018 gave pixel-identical plots to
+  ANSI_1252.
+- The code page is fixed per font; AutoCAD does not try code pages in turn. With chineset, あ
+  draws "?" although GBK 0xA4A2 exists in chineset; with whgtxt, 日 draws "?"; with gbcbig, 한
+  draws "?".
+- Single bytes count too: the bigfont's space (bigfont.shx and extfont.shx: 9/15 h) replaces the
+  primary font's, in TEXT and MTEXT. Half-width katakana U+FF71 comes from bigfont.shx shape 0xB1.
+- special.shx pairs the escape byte `~` with the next ASCII character: `~1` is 1/16, `~2` is 1/8.
+- A compiled bigfont does not name its code page. truedxf uses a base-name table, and for unknown
+  fonts Shift-JIS when the escape ranges lie in 0x81–0x9F without 0xA1–0xDF, otherwise the
+  drawing's code page if that is DBCS, else GBK (ASSUMPTION).
 
 ### 4.5 TrueType rendering rules (VERIFIED-BY-ACAD unless noted)
 
@@ -1405,6 +1433,8 @@ Fonts
 - **gbcbig.shx header height anomaly**: shape 0 reads as above = 64 (`0,64,2,0`) while its glyphs
   are scaled by 9/102 to about 8 units high — the effective height AutoCAD uses is UNKNOWN (needs a
   TEXTBOX probe).
+- **gbcbig plot height** (VERIFIED-BY-ACAD 2026-10-01, font-probes/bigcp-text): AutoCAD draws gbcbig glyphs at
+  **1/8 of the text height**: 日 is 7.8 high and 3.2 wide at h = 10; the 64 in the header is not the cap height.
 - **simplex.shx "A"**: ink 16 units wide (7.619 at h = 10, as TEXTBOX measured), but the pen
   advance is **22 units = 10.476 at h = 10**, not "≈ 9.5238" as §4.6 said. Re-checked against
   AutoCAD: in suite `text` (plotted in simplex.shx, see §11) the Center box of "A " is exactly

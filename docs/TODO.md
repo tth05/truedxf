@@ -104,16 +104,30 @@ default, FILLMODE for pattern hatches, extents edge tolerance.
 - [ ] MTEXT line/tab-start side bearings (~15): glyph after a tab sits with its ink on the stop;
       leading spaces keep the next glyph's lsb; decorations must not cancel ext0; with 41 = 0
       leading tabs don't count.
-- [ ] TrueType control characters draw the font's .notdef box, not "?" (~14: text, text-lato,
-      mtext stacks).
-- [ ] Bigfont lookup by the bigfont's DBCS code page, not Unicode (10: acad-default-fonts).
+- [x] Missing-glyph boxes for control/unknown characters, caret codes (X − 64) & 0xFFFF,
+      `%%nnn` digit buffer (7b59a45); special.shx `~x` pairs (98f087b).
+- [x] Bigfont lookup by the bigfont's own DBCS code page, bigfont space, gbcbig at 1/8 h (c970db3);
+      SHX group-3 paths by base name, unknown `\f` family draws nothing, XDATA family via the
+      group-3 TTF (41142cf).
+- [x] Missing fonts: `text.missingFont` "autocad" | "fallback", `fallbackFont`, `fallbackBigFont`,
+      `PlotResult.notes` font-missing / bigfont-missing; viewer option + Diagnostics panel.
+- [ ] Missing assigned characters AutoCAD gets via Windows font linking (U+FFED small square,
+      mtext/stack-tol-signs-nospace); fonts.ts API for "Arial's .notdef" (replace the
+      `fallbackGlyph(0x41).font` workaround in text-layout `missingGlyphBox`); is raw DEL a
+      full-advance box; does the `%%nnn` buffer persist across strings.
+- [ ] Probe: code page and height of non-AutoCAD bigfonts (hztxt.shx, the most common after
+      gbcbig); inline `\F…,bigfont` with a missing bigfont; move the font-probes generator
+      (scratchpad) into tools/gen.
 - [ ] MLINE: end-cap colours from the second element; element linetypes continuous across
       vertices (10).
 - [ ] Linetyped circles that plot continuous use the graphics-system tessellation (f = 1.0);
       zero-length dashed LINEs plot like continuous (13: linetypes, lines-curves).
 - [x] SHAPE entities (2026-10-01, 092dbcf; corpus files lack their .shx files and now report
       `shape-not-found` / `shape-missing-file`).
-- [ ] Vertical text (5, also listed above), hatch background colour (4).
+- [x] Vertical TEXT (STYLE flag 4) and MTEXT flow direction 3 (2acb863, 746652c).
+- [ ] Vertical: OS/2 typo descender for TTF ALIGNED/Right (0.7 %); MTEXT flow 3 with other
+      attachments, wrapping, stacks, inline fonts (pitch 4/3·h·f and 0.55·h from one sample).
+- [ ] Hatch background colour (4).
 - [x] ACIS ellipse-curve records read from the wrong token (history id shifted every value) →
       edges millions of units long; tolerant vertices/edges; intcurve B-splines (f793242).
 - [ ] ACIS: subtype references (`ref n`) and `parcur` intcurves (78 corpus edges still chords).
@@ -128,10 +142,13 @@ default, FILLMODE for pattern hatches, extents edge tolerance.
       100 000-line limit is HPMAXLINES or a separate plot limit.
 - [ ] MULTILEADER: leader ends at the dogleg end when the dogleg is off / spline (6); text frame,
       underline attachments, per-line arrow override ignored, leader line breaks.
-- [ ] `\A1`/`\A2` against stacks (3); paragraph-code scope and line-spacing semantics (7); `\T`
-      tracking adds (T − 1)·xAvgCharWidth (2); oblique runs advance h·tan θ (2).
+- [x] MTEXT paragraph codes unscoped by braces, `\ps` spacing below the paragraph, 44 = 0 as 0.25
+      (9d22f09).
+- [ ] `\A1`/`\A2` against stacks (3); `\T` tracking adds (T − 1)·xAvgCharWidth (2); oblique
+      runs advance h·tan θ (2); probe `\psa`/`\psm` single gap 26/15·h at other heights/fonts.
+- [ ] AC1032 TEXT without a 330 owner and without a BLOCK_RECORD table draws nothing.
 - [ ] `$DWGCODEPAGE` aliases AutoCAD accepts/rejects (5: DOS850 decoded, CP1251/ANSI1251/
-      KCS5601/UTF-8 rejected); TrueType family lookup via the group-3 file (2); XCLIP clips
+      KCS5601/UTF-8 rejected; our decoding of these now yields C1 boxes); XCLIP clips
       ATTRIBs; xclip front/back planes for curves; XLINE/RAY clipped to the effective plot area.
 - [ ] Which arcs with off-canvas circles use the raster arc rule (note 08 §10.13): dimension and
       polyline arcs do, plain ARCs (splines/rational-quarter-circle, fileformat/version-r12) do

@@ -1487,7 +1487,8 @@ These findings supersede the ASSUMPTION/UNKNOWN markers of §1–§13 where they
 ### 17.5 LEADER / MULTILEADER / TOLERANCE
 - LEADER: arrow DIMLDRBLK, omitted when the first segment is shorter than 2·size; 77 is ignored
   (entity colour); a text annotation without hook gets the hook vertex added (DXFOUT gains it);
-  DIMTAD ≠ 0: unstored extension of gap + 41 from the last vertex along 211 (74 = 1 reverses it,
+  DIMTAD ≠ 0: unstored extension of gap + 41 from the last vertex along 211 (74 = 1 — and a
+  *missing* 74, which is how ezdxf writes 1 and how these fixtures were measured — reverses it,
   even back over the stored hook) in DIMCLRD/DIMLWD (leaders/leader-*). Spline leaders: fit spline
   with the first/last segment directions as end tangents (sub-pixel differences remain).
 - MULTILEADER: drawn from the context data; arrows omitted unless the first segment exceeds

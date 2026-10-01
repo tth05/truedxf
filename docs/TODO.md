@@ -27,8 +27,13 @@ Tick items off (or delete them) when done.
       (text/escape-malformed-*, text/fallback-cjk-*).
 - [ ] Remove the Liberation workaround from scripts/docs once references are regenerated
       (`--hide-fonts ^liberation`, harness `text.unavailableFonts`).
-- [ ] Verify IMAGE / WIPEOUT against full AutoCAD (`acad.exe`) plots — accoreconsole never plots
-      them (rendering is implemented but unverified). Decision 2026-10-01: stays open for now.
+- [ ] IMAGE / WIPEOUT plotting rules. Correction (triage 2026-10-01): accoreconsole *does* plot
+      WIPEOUT frames and masks (fileformat/corpus-ezdxf-wipeout-door, corpus-gdal-wipeout,
+      corpus-gdal-binary-wipeout) and, for an IMAGE whose file is missing, the frame plus the
+      file path as text (corpus-libredwg-leader-r14*). Still unknown: why corpus-ezdxf-
+      wipeout-random shows neither mask nor frame (WIPEOUTVARIABLES 70 = 0, 290 = 0, two-point
+      boundary with 71 = 1); images with a resolvable file are still unverified. The scorer
+      omits IMAGE/WIPEOUT (cpu-suite without `--draw-raster`) until those rules are known.
 - [ ] Load `AcMPolygonObj26.dbx` in the harness so MPOLYGON references aren't empty.
 - [ ] Generator: produce valid proxy entities (all `misc/proxy-*` fixtures are rejected by AutoCAD).
 - [ ] Generator: fixtures that need our own test SHX fonts (`plan:` entries in questions.md) —
@@ -60,8 +65,9 @@ Tick items off (or delete them) when done.
 - [ ] MULTILEADER: zero-length/disabled dogleg, spline leaders, text frames, underline
       attachments 5/6/8, breaks, block attributes (~20 cases).
 - [ ] LARGE_RADIAL_DIMENSION group 40 text shift; DIMTMOVE 1/2 offsets from a single sample.
-- [ ] MTEXT: explicit `\pt` tab stops, stacks with a second divider / escaped `;`, TTF stack
-      centring, `\A1;`/`\A2;` against stacks, flow direction 3. (Columns, text frame and mask:
+- [ ] MTEXT: explicit `\pt` tab stops, TTF stack geometry (second-divider / escaped-`;` stacks
+      parse correctly; only their geometry is wrong), `\A1;`/`\A2;` against stacks, flow
+      direction 3. (Columns, text frame and mask:
       done 2026-10-01, note 04 §3.7.1; open: frame lines 1 px right/below AutoCAD's in raster
       plots, `user/text-frame4`.)
 - [ ] Extents of SHX TEXT/MTEXT: cell box like TrueType (note 03 §6.2) or ink? Unmeasured.

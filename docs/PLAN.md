@@ -53,7 +53,8 @@ Fixtures view reads these reports).
 questions are in docs/questions.md):
 - **Fonts:** references are now plotted with the real TrueType fonts; TrueType text layout and
   rasterization is the largest remaining gap (exact matches dropped from 1 282 to 878).
-- **accoreconsole limits:** IMAGE/WIPEOUT never plot in the console (implemented, unverified);
+- **accoreconsole limits:** IMAGE/WIPEOUT rules only partly known (the console plots WIPEOUT and
+  missing-image frames, see docs/TODO.md);
   MPOLYGON needs `AcMPolygonObj26.dbx` loaded by the harness; proxy fixtures are rejected on load.
 - **Raster:** exact-tie noise at pixel boundaries (not modelled), spline tessellation, hatch
   islands, clipped huge arcs, extents-plot padding.

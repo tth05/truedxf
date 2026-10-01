@@ -56,7 +56,9 @@ const LEADER = fieldTable([
   { name: "arrowhead", code: 71, kind: "bool", subclass: L, def: true },
   { name: "pathType", code: 72, kind: "int", subclass: L, def: 0 },
   { name: "creationFlag", code: 73, kind: "int", subclass: L, def: 3 },
-  { name: "hookDirection", code: 74, kind: "int", subclass: L, def: 0 },
+  // a missing 74 behaves as 1: AutoCAD writes 74 only when it is 0 (leaders/leader-hook-211px-*,
+  // note 05 §17.5)
+  { name: "hookDirection", code: 74, kind: "int", subclass: L, def: 1 },
   { name: "hasHook", code: 75, kind: "bool", subclass: L, def: false },
   { name: "textHeight", code: 40, kind: "num", subclass: L, def: 0 },
   { name: "textWidth", code: 41, kind: "num", subclass: L, def: 0 },

@@ -258,8 +258,8 @@ Cases `hatches/edges-*`, `poly-open-*`, `one-loop-two-rects`, `nested-*`, `solid
 - Styles 1 (outer) and 2 (ignore) with no loop flagged external (92 bit 1) plot **nothing** — no
   geometric nesting fallback (`nested-solid-zero-style1|2`, `nested-ansi31-zero-style1|2`);
   style 0 fills all loops even-odd.
-- $FILLMODE = 0: solid (and gradient) hatches are not plotted at all, no outline
-  (`solid-fillmode-0`). A zero extrusion (210 = 0,0,0) hatch does not plot.
+- $FILLMODE = 0: no hatch is plotted at all, no outline — solid, gradient **and pattern**
+  (`solid-fillmode-0` is an ANSI31 hatch and its reference is empty; triage 2026-10-01). A zero extrusion (210 = 0,0,0) hatch does not plot.
 - MPOLYGON: accoreconsole does not load AcMPolygonObj26.dbx, the entities become proxies with
   empty graphics and plot nothing (`mpolygon-*`, DXFOUT writes 310 proxy data) — a harness
   limitation, not AutoCAD behaviour; the references cannot verify MPOLYGON rendering.

@@ -1004,7 +1004,8 @@ Answers (VERIFIED-BY-ACAD, AutoCAD 2027, 2026-09-30):
 - Q-0634: The 2nd matrix maps the clip-time WCS into the boundary system: block = inverse-insert · second⁻¹ · boundary (`xclip/transform-matrix-*`).
 - Q-0635: Yes: nested clips intersect, each in its own space (`xclip/nested*`).
 - Q-0636: Yes: one region placed with cell (0,0)'s transform clips all cells (`xclip/minsert`).
-- Q-0637: Yes: ATTRIBs are not clipped (`xclip/attrib-outside`).
+- Q-0637: ~~Yes: ATTRIBs are not clipped~~ Corrected 2026-10-01: ATTRIBs are clipped with their
+  INSERT (`xclip/attrib-outside`, regenerated reference).
 - Q-0638: Along the boundary normal: front 40 keeps z ≤ 40, back 41 keeps z ≥ 41; crossing geometry is cut (`xclip/frontback-*`).
 
 <a id="images"></a>

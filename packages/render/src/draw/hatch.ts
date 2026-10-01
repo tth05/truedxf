@@ -110,9 +110,9 @@ registerDrawer(["HATCH", "MPOLYGON"], (fe, e, st) => {
     if (pts.length >= 6) loops.push({ points: pts, flags: p.flags });
   }
   if (loops.length === 0) return;
-  // FILLMODE 0 hides solid and gradient hatches completely (no outline). VERIFIED-BY-ACAD
-  // (hatches/solid-fillmode-0)
-  if (!fe.fillMode && (h.solid || h.gradient?.kind === 1)) return;
+  // FILLMODE 0 hides every hatch completely, pattern hatches too, no outline. VERIFIED-BY-ACAD
+  // (hatches/solid-fillmode-0 is an ANSI31 hatch; note 06)
+  if (!fe.fillMode) return;
   const style = h.style;
   const color: Rgba = fe.color(r);
   if (h.gradient && h.gradient.kind === 1) {

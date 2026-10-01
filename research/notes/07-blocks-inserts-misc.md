@@ -658,7 +658,10 @@ References `samples/refs/acad2027-R26.0/xclip/*`; implementation `packages/rende
 - **Frame properties**: drawn with the INSERT's resolved colour, lineweight and linetype, the
   linetype restarting on every boundary edge (per-segment dashes) (frame-props-bylayer/-explicit;
   Q-0631).
-- **ATTRIBs are not clipped** (attrib-outside, Q-0637).
+- ~~ATTRIBs are not clipped~~ **SUPERSEDED 2026-10-01:** the regenerated reference of
+  xclip/attrib-outside omits the ATTRIB outside the boundary, so ATTRIBs *are* clipped with
+  their INSERT (VERIFIED-BY-ACAD xclip/attrib-outside, refs of 2026-10-01; Q-0637). Our
+  renderer still draws them unclipped (docs/TODO.md).
 - **Front/back clip** along the boundary normal (z in the boundary system): front 40 keeps
   z ≤ 40, back 41 keeps z ≥ 41; a ramp crossing a plane is cut geometrically (frontback-*;
   Q-0638). truedxf culls whole entities by their point depth range (crossing entities kept).

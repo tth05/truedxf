@@ -15,7 +15,8 @@
  *   1 = plotted (a value 2 there makes AutoCAD reject the file).
  * - The second matrix maps the clip-time WCS into the boundary system: block points =
  *   inverse-insert · second⁻¹ · boundary (transform-matrix-*; the identity matrix is the norm).
- * - ATTRIBs are not clipped (attrib-outside).
+ * - ATTRIBs: the 2026-10-01 reference of xclip/attrib-outside clips them with the INSERT; this
+ *   renderer still draws them unclipped (note 07 §7.5, docs/TODO.md).
  */
 import { DashUnits, degToRad, Matrix44, ocsToWcsMatrix } from "@truedxf/geometry";
 import type {

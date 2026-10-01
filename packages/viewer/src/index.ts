@@ -20,3 +20,4 @@ export type {
 } from "./protocol.ts";
 export * from "./view.ts";
 export * from "./viewer.ts";
+export * from "./warnings.ts";

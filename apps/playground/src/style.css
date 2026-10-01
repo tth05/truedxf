@@ -535,9 +535,10 @@ select {
 }
 
 @media (max-width: 900px) {
+  /* the hidden sidebars leave the grid: one column, or the stage lands in a 0-wide one */
   .main,
   .main.no-right {
-    grid-template-columns: 0 1fr 0;
+    grid-template-columns: 1fr;
   }
   .sidebar {
     display: none;
@@ -752,4 +753,42 @@ select {
 }
 .compare.actual .cmp-stack .cmp-img:first-child {
   position: relative;
+}
+
+/* ---- viewer warnings ---- */
+.layout-notice .notice-actions {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 10px;
+  pointer-events: auto;
+}
+.warn-chip {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  max-width: min(520px, calc(100% - 24px));
+  padding: 6px 8px 6px 12px;
+  border-radius: 8px;
+  background: var(--panel);
+  border: 1px solid var(--warn);
+  font-size: 12px;
+  display: none;
+  gap: 8px;
+  align-items: flex-start;
+  z-index: 4;
+}
+.warn-chip.on {
+  display: flex;
+}
+.warn-chip .warn-list {
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+.warn-chip .link {
+  font-size: 14px;
+  line-height: 1;
+}
+.diag-row.info .n {
+  color: var(--muted);
 }

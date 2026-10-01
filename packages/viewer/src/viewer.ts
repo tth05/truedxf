@@ -35,6 +35,7 @@ import {
   worldToScreen,
   zoomAt,
 } from "./view.ts";
+import type { ViewerWarning } from "./warnings.ts";
 
 export type Background = "dark" | "light" | readonly [number, number, number];
 
@@ -72,6 +73,8 @@ export interface RenderStats {
   entities: number;
   pixelSize: number;
   unsupported: Record<string, number>;
+  /** Warnings of this render (empty / invisible output, missing fonts, …). */
+  warnings: ViewerWarning[];
   ms: { frontend: number; pick: number; transfer: number; upload: number; total: number };
 }
 
@@ -96,6 +99,11 @@ export interface ViewerEvents {
   error: { error: Error };
   measure: Measurement | undefined;
   layout: { name: string };
+  /**
+   * The current warnings changed (document warnings followed by those of the current layout's
+   * render; see DxfViewer.warnings). Emitted after load and after renders that change them.
+   */
+  warnings: readonly ViewerWarning[];
 }
 
 const BACKGROUNDS = {
@@ -183,6 +191,8 @@ export class DxfViewer {
   private measureB: [number, number] | undefined;
   private cursorWorld: [number, number] | undefined;
   private lastRender: RenderStats | undefined;
+  private renderWarnings: ViewerWarning[] = [];
+  private warningsKey = "[]";
   private disposed = false;
 
   // pointer state
@@ -281,6 +291,16 @@ export class DxfViewer {
     return this.selected;
   }
 
+  /**
+   * Why the view may look empty, and what was substituted: document warnings (e.g. every layer
+   * with content is set not to plot) followed by those of the current render (empty layout,
+   * hidden layers, content in the background colour, missing fonts). Stable `code`s, see
+   * ViewerWarningCode.
+   */
+  get warnings(): readonly ViewerWarning[] {
+    return [...(this.info?.warnings ?? []), ...this.renderWarnings];
+  }
+
   /** Loads a DXF (ASCII or binary) from bytes, a File/Blob or a URL. */
   async load(source: Uint8Array | ArrayBuffer | Blob | URL | string, name?: string): Promise<DocumentInfo> {
     this.emit("busy", { busy: true, what: "Loading" });
@@ -309,7 +329,9 @@ export class DxfViewer {
       this.clearHighlight(this.selectGroup);
       this.clearHighlight(this.hoverGroup);
       this.layoutName = info.layouts.find((l) => l.isModel)?.name ?? "Model";
+      this.renderWarnings = [];
       this.emit("load", info);
+      this.emitWarnings();
       this.emit("layout", { name: this.layoutName });
       this.emit("select", { handle: undefined });
       await this.refit();
@@ -345,6 +367,8 @@ export class DxfViewer {
     const l = this.info.layouts.find((x) => x.name.toUpperCase() === name.toUpperCase());
     if (!l || l.name === this.layoutName) return;
     this.layoutName = l.name;
+    this.renderWarnings = [];
+    this.emitWarnings();
     this.selected = undefined;
     this.clearHighlight(this.selectGroup);
     this.clearHighlight(this.hoverGroup);
@@ -625,6 +649,7 @@ export class DxfViewer {
       entities: list.entities.length,
       pixelSize: list.pixelSize,
       unsupported: res.unsupported,
+      warnings: res.warnings,
       ms: {
         frontend: res.ms.frontend,
         pick: res.ms.pick,
@@ -633,7 +658,17 @@ export class DxfViewer {
         total: roundTrip + upload,
       },
     };
+    this.renderWarnings = res.warnings;
     this.emit("render", this.lastRender);
+    this.emitWarnings();
+  }
+
+  private emitWarnings(): void {
+    const all = this.warnings;
+    const key = JSON.stringify(all);
+    if (key === this.warningsKey) return;
+    this.warningsKey = key;
+    this.emit("warnings", all);
   }
 
   /** The sheet (or stored paper-space extents) of a paper layout; undefined for model space. */

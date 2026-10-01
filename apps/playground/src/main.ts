@@ -2,7 +2,14 @@
  * truedxf playground: open a DXF (button, drag and drop, or `?file=<url>`), browse layouts and
  * layers, pick entities and inspect their raw DXF tags, measure distances.
  */
-import { type DocumentInfo, DxfViewer, type EntityInfo, type RenderStats } from "@truedxf/viewer";
+import {
+  type DocumentInfo,
+  DxfViewer,
+  type EntityInfo,
+  type RenderStats,
+  type ViewerWarning,
+  ViewerWarningCode,
+} from "@truedxf/viewer";
 import {
   API,
   type CorpusRow,
@@ -105,6 +112,7 @@ const busy = h("div", { class: "busy" }, h("span", { class: "spinner" }), h("spa
 const toast = h("div", { class: "toast" });
 const measureChip = h("div", { class: "measure-chip" });
 const layoutNotice = h("div", { class: "layout-notice" });
+const warnChip = h("div", { class: "warn-chip" });
 const compare = new ComparePanel();
 compare.root.style.display = "none";
 const stage = h(
@@ -116,6 +124,7 @@ const stage = h(
   busy,
   measureChip,
   layoutNotice,
+  warnChip,
   compare.root,
   toast,
 );
@@ -198,6 +207,11 @@ viewer.on("load", (d) => {
   showInspector(undefined);
 });
 viewer.on("layout", () => renderLayouts());
+viewer.on("warnings", () => {
+  renderLayoutNotice();
+  renderWarnChip();
+  renderDiagnostics();
+});
 viewer.on("render", (r) => {
   lastRender = r;
   if (firstFrame === undefined && loadStart) {
@@ -398,19 +412,86 @@ function renderLayouts(): void {
   renderLayoutNotice();
 }
 
-/** Marks a never-initialized layout: the file has no content for it (see LayoutInfo.empty). */
+/** Viewer warnings that explain an empty (or blank-looking) stage, with their notice title. */
+const EMPTY_TITLES: Record<string, string> = {
+  [ViewerWarningCode.LayoutEmpty]: "Nothing in this layout",
+  [ViewerWarningCode.LayersHidden]: "All layers with content are hidden",
+  [ViewerWarningCode.LayersNoPlot]: "Nothing plots",
+  [ViewerWarningCode.NothingVisible]: "Nothing visible",
+  [ViewerWarningCode.ContentInvisible]: "Drawn in the background colour",
+};
+
+/**
+ * Stage notice for an empty view: a never-initialized layout (LayoutInfo.empty), or the viewer
+ * warning that explains why nothing shows (hidden layers, empty layout, …).
+ */
 function renderLayoutNotice(): void {
   const l = viewer.layouts.find((x) => x.name === viewer.layout);
-  layoutNotice.classList.toggle("on", l?.empty === true);
-  if (!l?.empty) return;
+  if (l?.empty) {
+    layoutNotice.classList.add("on");
+    mount(
+      layoutNotice,
+      h("b", {}, `Layout "${l.name}" is empty`),
+      h(
+        "p",
+        {},
+        "It was never opened in AutoCAD, so the file stores no viewport or page setup for it. " +
+          "AutoCAD creates a default viewport the first time the tab is activated.",
+      ),
+    );
+    return;
+  }
+  const w = viewer.warnings.find((x) => x.layout === viewer.layout && EMPTY_TITLES[x.code]);
+  layoutNotice.classList.toggle("on", w !== undefined);
+  if (!w) return;
+  const actions: HTMLElement[] = [];
+  if (w.code === ViewerWarningCode.LayersHidden)
+    actions.push(h("button", { class: "btn", onclick: () => setAllLayers(true) }, "Show all layers"));
+  else if (w.code === ViewerWarningCode.LayoutEmpty)
+    for (const name of (w.items ?? []).slice(0, 3))
+      actions.push(h("button", { class: "btn", onclick: () => void viewer.setLayout(name) }, `Open ${name}`));
+  else if (w.code === ViewerWarningCode.ContentInvisible)
+    actions.push(
+      h(
+        "button",
+        { class: "btn", onclick: () => btnTheme.click() },
+        viewer.isDark ? "Light background" : "Dark background",
+      ),
+    );
   mount(
     layoutNotice,
-    h("b", {}, `Layout "${l.name}" is empty`),
+    h("b", {}, EMPTY_TITLES[w.code]),
+    h("p", {}, w.message),
+    actions.length ? h("div", { class: "notice-actions" }, actions) : null,
+  );
+}
+
+/** Warnings that do not empty the view but change what it shows (missing fonts, …). */
+let chipDismissed = "";
+function renderWarnChip(): void {
+  const ws = viewer.warnings.filter((w) => w.severity === "warning" && !EMPTY_TITLES[w.code]);
+  const key = JSON.stringify(ws.map((w) => [w.code, w.items]));
+  const on = ws.length > 0 && key !== chipDismissed;
+  warnChip.classList.toggle("on", on);
+  if (!on) return;
+  mount(
+    warnChip,
     h(
-      "p",
-      {},
-      "It was never opened in AutoCAD, so the file stores no viewport or page setup for it. " +
-        "AutoCAD creates a default viewport the first time the tab is activated.",
+      "div",
+      { class: "warn-list" },
+      ws.map((w) => h("div", { title: w.items?.join(", ") ?? "" }, w.message)),
+    ),
+    h(
+      "button",
+      {
+        class: "link",
+        title: "Dismiss",
+        onclick: () => {
+          chipDismissed = key;
+          warnChip.classList.remove("on");
+        },
+      },
+      "×",
     ),
   );
 }
@@ -476,8 +557,22 @@ function setAllLayers(on: boolean): void {
   renderLayers();
 }
 
+function warningRow(w: ViewerWarning): HTMLElement {
+  return h(
+    "div",
+    { class: `diag-row ${w.severity}`, title: `${w.code}${w.items ? `: ${w.items.join(", ")}` : ""}` },
+    h("span", { class: "n" }, w.severity === "warning" ? "!" : "i"),
+    h("span", { class: "t" }, w.message),
+  );
+}
+
 function renderDiagnostics(): void {
   const rows: HTMLElement[] = [];
+  const warnings = viewer.warnings;
+  if (warnings.length) {
+    rows.push(h("div", { class: "diag-sub" }, "Viewer warnings"));
+    for (const w of warnings) rows.push(warningRow(w));
+  }
   const un = Object.entries(lastRender?.unsupported ?? {}).sort((a, b) => b[1] - a[1]);
   const model = Object.entries(info?.diagnostics ?? {}).sort((a, b) => b[1] - a[1]);
   rows.push(

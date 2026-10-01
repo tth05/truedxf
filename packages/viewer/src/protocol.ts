@@ -24,6 +24,7 @@ import {
 } from "@truedxf/render";
 import { buildPickData, type PickData } from "./pick.ts";
 import type { Rect } from "./view.ts";
+import { documentWarnings, type RenderNote, renderWarnings, type ViewerWarning } from "./warnings.ts";
 
 // ---- public data shapes ------------------------------------------------------------------------
 
@@ -67,6 +68,8 @@ export interface DocumentInfo {
   layers: LayerInfo[];
   /** Model diagnostics: occurrences per code. */
   diagnostics: Record<string, number>;
+  /** Document-level viewer warnings (e.g. every layer with content is set not to plot). */
+  warnings: ViewerWarning[];
   ms: { parse: number };
 }
 
@@ -105,6 +108,8 @@ export interface RenderResult {
    */
   bounds: Rect | undefined;
   unsupported: Record<string, number>;
+  /** Why the output is empty / invisible, and render notes (missing fonts, …). */
+  warnings: ViewerWarning[];
   ms: { frontend: number; pick: number };
 }
 
@@ -229,6 +234,7 @@ export class ViewerCore {
   async render(p: RenderParams): Promise<RenderResult> {
     const doc = this.requireDoc();
     const t0 = performance.now();
+    const toggles = new Map(Object.entries(p.layers).map(([k, v]) => [k.toUpperCase(), v]));
     const res = await renderPlot(
       doc,
       {
@@ -246,7 +252,7 @@ export class ViewerCore {
         loadImage: this.loadImage,
         raster: p.raster,
         background: p.background,
-        layerVisibility: new Map(Object.entries(p.layers).map(([k, v]) => [k.toUpperCase(), v])),
+        layerVisibility: toggles,
         rasterEntities: p.rasterEntities === false ? "omit" : "draw",
         visibility: p.visibility ?? "display",
         ...(p.dpi ? { calibration: { dpi: p.dpi } } : {}),
@@ -261,6 +267,14 @@ export class ViewerCore {
       view: { ...res.view },
       bounds: visibleBounds(res.displayList),
       unsupported: res.unsupported,
+      warnings: renderWarnings(doc, {
+        layout: p.layout,
+        toggles,
+        visibility: p.visibility ?? "display",
+        list: res.displayList,
+        unsupported: res.unsupported,
+        notes: (res as { notes?: readonly RenderNote[] }).notes,
+      }),
       ms: { frontend: t1 - t0, pick: t2 - t1 },
     };
   }
@@ -518,6 +532,7 @@ export function describe(doc: DxfDocument, name: string, byteLength: number, par
     layouts,
     layers,
     diagnostics: doc.diagnostics.summary(),
+    warnings: documentWarnings(doc),
     ms: { parse: parseMs },
   };
 }

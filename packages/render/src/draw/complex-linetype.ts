@@ -13,7 +13,13 @@ import { flattenStrokes, ShxFont } from "@truedxf/fonts";
 import { type ComplexPlacement, ComplexRotation, Matrix44 } from "@truedxf/geometry";
 import type { DxfDocument, Entity, LinetypeElement, TextStyleEntry } from "@truedxf/model";
 import { layoutText, type TextFonts, type TextLayout } from "@truedxf/text";
-import { type DrawState, type Frontend, registerPreparer, setComplexElementDrawer } from "../frontend.ts";
+import {
+  type DrawState,
+  type Frontend,
+  type RenderEnv,
+  registerPreparer,
+  setComplexElementDrawer,
+} from "../frontend.ts";
 import type { ComplexElementData } from "../linetype.ts";
 import type { Resolved } from "../props.ts";
 import { drawLayout, prepareTextFonts } from "../text.ts";
@@ -47,23 +53,38 @@ registerPreparer(async (doc, env) => {
     }
     const h = (el.styleHandle ?? "").toUpperCase();
     if (shapes.has(h)) continue;
-    const style = styles.get(h);
-    let font: ShxFont | null = null;
-    if (style?.font && env.loadFont) {
-      try {
-        const bytes = await env.loadFont(style.font.toLowerCase());
-        if (bytes) font = ShxFont.fromBytes(bytes, style.font);
-      } catch {
-        font = null;
-      }
-    }
-    shapes.set(h, font);
+    shapes.set(h, await loadShapeFile(env, styles.get(h)));
   }
   // Linetype text uses the STYLE's font like TEXT, TrueType included; FONTALT only stands in for
   // a missing file. VERIFIED-BY-ACAD 2026-10-01 (linetypes/ctext-*, note 06 §2.3)
   const textFonts = needText ? await prepareTextFonts(doc, env.loadFont, env.text) : undefined;
   RESOURCES.set(doc, { shapes, styles, textFonts });
 });
+
+/**
+ * The shape file of a STYLE entry (flag 1; also used by SHAPE entities, draw/shape.ts), or null
+ * when it cannot be loaded. A file name with a directory that the host does not know is retried
+ * by its base name, a name without extension with ".shx" (ASSUMPTION: like AutoCAD falling back
+ * to its support path).
+ */
+export async function loadShapeFile(
+  env: RenderEnv,
+  style: TextStyleEntry | undefined,
+): Promise<ShxFont | null> {
+  if (!style?.font || !env.loadFont) return null;
+  const name = style.font.toLowerCase();
+  const base = name.slice(Math.max(name.lastIndexOf("/"), name.lastIndexOf("\\")) + 1);
+  const names = new Set([name, base, base.includes(".") ? base : `${base}.shx`]);
+  for (const file of names) {
+    try {
+      const bytes = await env.loadFont(file);
+      if (bytes) return ShxFont.fromBytes(bytes, style.font);
+    } catch {
+      // unreadable or not an SHX file: try the next name, else draw nothing
+    }
+  }
+  return null;
+}
 
 setComplexElementDrawer((fe, placements, e, r, st) => {
   const res = RESOURCES.get(fe.doc);

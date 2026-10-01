@@ -3,9 +3,17 @@
  * viewer's additional files and what the drawing is missing) and the picker for folders with
  * several drawings.
  */
-import type { DxfViewer, FileInput, ViewerFile } from "@truedxf/viewer";
+import { type DxfViewer, type FileInput, type ViewerFile, ViewerWarningCode } from "@truedxf/viewer";
 import { h, ICONS, icon, mount } from "./dom.ts";
-import { fmtBytes } from "./format.ts";
+import type { FontFolder } from "./fonts.ts";
+import { fmtBytes, fmtNum } from "./format.ts";
+
+/** Warnings whose items are fonts (or shape files) the fonts folder can provide. */
+const FONT_CODES: readonly string[] = [
+  ViewerWarningCode.FontMissing,
+  ViewerWarningCode.BigFontMissing,
+  ViewerWarningCode.ShapeFileMissing,
+];
 
 /** Stop reading a dropped folder after this many files (a dropped drive must not hang the page). */
 const MAX_DROPPED_FILES = 20_000;
@@ -80,21 +88,26 @@ export interface FilesPanelActions {
   openDrawing(file: ViewerFile): void;
 }
 
-/** The "Files" section: missing files (with an add action) and the viewer's additional files. */
+/**
+ * The "Files" section: the fonts folder, missing files (with an add action) and the viewer's
+ * additional files.
+ */
 export class FilesPanel {
   readonly root: HTMLElement;
   private readonly head: HTMLElement;
   private readonly list: HTMLElement;
   private readonly viewer: DxfViewer;
   private readonly actions: FilesPanelActions;
+  private readonly fonts: FontFolder;
   /** Path of the open drawing when it came from the files. */
   current: string | undefined;
   /** The last drawing opened from a URL; stays listed until another URL drawing replaces it. */
   urlDrawing: UrlDrawing | undefined;
 
-  constructor(viewer: DxfViewer, actions: FilesPanelActions) {
+  constructor(viewer: DxfViewer, actions: FilesPanelActions, fonts: FontFolder) {
     this.viewer = viewer;
     this.actions = actions;
+    this.fonts = fonts;
     this.head = h("div", { class: "section-head" });
     this.list = h("div", { class: "list files" });
     this.root = h("div", { class: "section", style: "max-height: 34%" }, this.head, this.list);
@@ -139,6 +152,10 @@ export class FilesPanel {
         ),
       );
     }
+    const fontsMissing =
+      this.viewer.document !== undefined &&
+      this.viewer.warnings.some((w) => FONT_CODES.includes(w.code) && w.items?.length);
+    rows.push(...this.fontsFolderRows(fontsMissing));
     if (missing.length) {
       rows.push(
         h(
@@ -201,6 +218,63 @@ export class FilesPanel {
       );
     }
     mount(this.list, rows);
+  }
+
+  /** The fonts folder: its state, or (fonts missing, none chosen) why text looks different. */
+  private fontsFolderRows(fontsMissing: boolean): HTMLElement[] {
+    const f = this.fonts;
+    const choose = (label: string) =>
+      h("button", { class: "link inline", onclick: () => void f.choose() }, label);
+    if (f.state === "ready")
+      return [
+        h(
+          "div",
+          {
+            class: "item static",
+            title: f.remembered
+              ? `Fonts folder "${f.name}": remembered for your next visit`
+              : `Fonts folder "${f.name}": for this visit (this browser cannot remember folders)`,
+          },
+          h("span", { class: "icon-16" }, icon(ICONS.folder)),
+          h("span", { class: "name" }, `Fonts: ${f.name}`),
+          h("span", { class: "meta" }, `${fmtNum(f.count)} fonts`),
+          h(
+            "button",
+            { class: "link", onclick: () => void f.choose(), title: "Choose another fonts folder" },
+            "Change",
+          ),
+          h(
+            "button",
+            { class: "link remove", onclick: () => void f.forget(), title: "Forget the fonts folder" },
+            "×",
+          ),
+        ),
+      ];
+    if (f.state === "permission")
+      return [
+        h(
+          "div",
+          { class: "hint" },
+          `Your fonts folder "${f.name}" needs your permission again: `,
+          h("button", { class: "link inline", onclick: () => void f.reconnect() }, "reconnect"),
+          " or ",
+          h("button", { class: "link inline", onclick: () => void f.forget() }, "forget it"),
+          ".",
+        ),
+      ];
+    if (!fontsMissing) return [];
+    return [
+      h(
+        "div",
+        { class: "hint" },
+        "This site ships no AutoCAD or Windows fonts (txt.shx, simplex.shx, …), so missing fonts are " +
+          "drawn in Liberation Sans and text can look different from AutoCAD. ",
+        choose("Choose your fonts folder"),
+        f.canRemember
+          ? " (e.g. a copy of AutoCAD's Fonts folder) once; it stays on your computer and is remembered."
+          : " (e.g. a copy of AutoCAD's Fonts folder) for this visit; it stays on your computer.",
+      ),
+    ];
   }
 }
 

@@ -3,12 +3,114 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>truedxf playground</title>
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232f81f7'/%3E%3Cpath d='M8 23 L16 9 L24 23 Z' fill='none' stroke='white' stroke-width='2.5' stroke-linejoin='round'/%3E%3C/svg%3E" />
+    <title>Free online DXF viewer, private and accurate · truedxf</title>
+    <meta
+      name="description"
+      content="Open DXF drawings in your browser: layouts, layers, text, hatches, dimensions and lineweights, drawn the way AutoCAD plots them. Your files never leave your computer. Free, no sign-up."
+    />
+    <link rel="canonical" href="%SITE_URL%/" />
+    <meta name="theme-color" content="#0f1419" />
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="truedxf" />
+    <meta property="og:title" content="truedxf: free online DXF viewer" />
+    <meta
+      property="og:description"
+      content="View DXF drawings in your browser, drawn the way AutoCAD plots them. Files never leave your computer."
+    />
+    <meta property="og:url" content="%SITE_URL%/" />
+    <meta property="og:image" content="%SITE_URL%/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "truedxf DXF viewer",
+        "url": "%SITE_URL%/",
+        "description": "Free online DXF viewer that runs in your browser. Layouts, layers, text, hatches, dimensions and lineweights, drawn the way AutoCAD plots them. Files are never uploaded.",
+        "applicationCategory": "DesignApplication",
+        "operatingSystem": "Any (web browser with WebGL)",
+        "browserRequirements": "Requires JavaScript and WebGL",
+        "isAccessibleForFree": true,
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+        "license": "https://opensource.org/licenses/MIT"
+      }
+    </script>
     <link rel="stylesheet" href="./src/style.css" />
   </head>
   <body>
     <div id="app"></div>
+    <!-- Static page content (search engines, no-JS visitors). main.ts moves it into the stage as
+         the empty state; it hides while a drawing is open. -->
+    <article id="landing" class="landing">
+      <div class="empty-card">
+        <div class="empty-icon">
+          <svg aria-hidden="true" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>
+        </div>
+        <h1>Free online DXF viewer</h1>
+        <p>
+          Drop a <b>.dxf</b> file anywhere on this page, together with its fonts and images (or their
+          whole folder), or choose them. Everything runs locally in your browser: your drawing is
+          <b>never uploaded</b>.
+        </p>
+        <div class="empty-actions">
+          <button class="btn primary" data-open="files" type="button">Choose files</button>
+          <button class="btn" data-open="folder" type="button">Open folder</button>
+        </div>
+        <noscript><p class="landing-note">The viewer needs JavaScript and WebGL.</p></noscript>
+      </div>
+
+      <section>
+        <h2>Drawn the way AutoCAD plots it</h2>
+        <p>
+          truedxf is an open-source DXF renderer tested case by case against AutoCAD's own plot
+          output: text and MTEXT with SHX and TrueType fonts, hatches and gradients, dimensions and
+          leaders, complex linetypes, lineweights, blocks, tables, images, viewports and
+          paper-space layouts.
+        </p>
+        <ul class="landing-list">
+          <li><b>Layouts and layers</b>: model space and every paper-space layout; toggle or isolate layers.</li>
+          <li><b>Inspector</b>: click an entity for its layer, colour, linetype, lineweight and raw DXF tags.</li>
+          <li><b>Measure</b> distances and angles; dark or light background; lineweights on or off.</li>
+          <li><b>Large files</b>: parsing and rendering run in a background worker, drawn with WebGL.</li>
+          <li><b>ASCII and binary DXF</b>, from R12 to the current AutoCAD format.</li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>Questions</h2>
+        <h3>Are my files uploaded?</h3>
+        <p>
+          No. The drawing, its fonts and its images are read by your browser and never sent
+          anywhere. You can disconnect from the internet after the page has loaded.
+        </p>
+        <h3>Why does the text look different from AutoCAD?</h3>
+        <p>
+          AutoCAD's fonts (txt.shx, simplex.shx, …) and Windows fonts are not ours to distribute,
+          so this site falls back to the free Liberation fonts. Choose your own fonts folder, for
+          example a copy of AutoCAD's Fonts folder, in the Files panel or the Open menu; it stays on
+          your computer and, in Chromium-based browsers, is remembered for your next visit.
+        </p>
+        <h3>Can it open DWG files?</h3>
+        <p>Not yet. Save the drawing as DXF in your CAD program (DXFOUT or Save As) and open that.</p>
+        <h3>Something is drawn wrong.</h3>
+        <p>
+          Please <a href="%REPO_URL%/issues/new">report it</a>, ideally with a DXF you are allowed
+          to share.
+        </p>
+      </section>
+
+      <footer class="landing-footer">
+        <a href="%REPO_URL%">Source code</a> · MIT licence ·
+        <a href="./fonts/LICENSE-Liberation.txt">Liberation fonts: SIL OFL 1.1</a>
+        <br />
+        AutoCAD is a registered trademark of Autodesk, Inc. truedxf is not affiliated with or
+        endorsed by Autodesk.
+      </footer>
+    </article>
     <script type="module" src="./src/main.ts"></script>
   </body>
 </html>

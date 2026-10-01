@@ -4,7 +4,8 @@ A Vite app around `@truedxf/viewer`.
 
 ```bash
 pnpm playground            # dev server on http://localhost:5173
-pnpm playground:build      # static build in apps/playground/dist
+pnpm playground:build      # static build in apps/playground/dist (with the samples modes)
+pnpm playground:deploy     # public build → Cloudflare Pages (see "Public site")
 ```
 
 - **Modes** (only when the local `samples/` folder exists): **Viewer**, **Fixtures** (suite /
@@ -46,11 +47,52 @@ pnpm playground:build      # static build in apps/playground/dist
 
 ## Fonts
 
-`/fonts/<file>` serves `packages/fonts/assets` (our MIT test fonts, also copied into the build).
-The **dev server only** additionally serves the local system font folders and
-`C:\Program Files\Autodesk\AutoCAD 2027\Fonts` (extra folders: `TRUEDXF_FONT_DIRS`, `;`-separated),
-so real drawings get real fonts on this machine. Nothing from those folders is copied into the
-repository or the build output.
+Lookup order (`src/fonts.ts`), after the files opened with the drawing:
+
+1. the user's **fonts folder** (Open menu → "Fonts folder…", or the link in the Files panel when
+   fonts are missing). Chromium browsers remember it across visits (File System Access API, the
+   handle in IndexedDB; after a restart the Files panel offers "reconnect" when the permission
+   lapsed); other browsers pick it with a folder input for the visit. Up to 20 000 font files,
+   4 folder levels deep;
+2. `/fonts/<file>`: `packages/fonts/assets` (our MIT test fonts) and `apps/playground/fonts`
+   (Liberation Sans / Serif / Mono, SIL OFL 1.1, see [fonts/README.md](fonts/README.md)), both
+   copied into every build. The **dev server and `vite preview` only** also serve the local
+   system font folders and `C:\Program Files\Autodesk\AutoCAD 2027\Fonts` (extra folders:
+   `TRUEDXF_FONT_DIRS`, `;`-separated), so real drawings get real fonts on this machine. Nothing
+   from those folders is copied into the repository or the build output;
+3. the metric-compatible Liberation face for a missing Windows core font (`arial*.ttf`,
+   `times*.ttf`, `cour*.ttf`). Every other missing font falls back to the viewer's list, which
+   ends in Liberation Sans on the public site.
+
+## Public site
+
+`pnpm playground:deploy` (= `vite build --mode public` + `wrangler pages deploy dist --project-name
+truedxf`) publishes to Cloudflare Pages. The `public` mode differs from the default build:
+
+- no Fixtures / Corpus code (`__SAMPLES__` is false, so it is tree-shaken) and no sourcemaps;
+- `index.html` gets the canonical URL / Open Graph URLs for `SITE_URL` (default
+  `https://truedxf.pages.dev`; set it for a custom domain) and `REPO_URL` (default
+  `https://github.com/tth05/truedxf`); local builds drop the canonical link;
+- `robots.txt`, `sitemap.xml` and Cloudflare's `_headers` ([cloudflare/_headers](cloudflare/_headers):
+  CSP, `nosniff`, no framing, immutable `/assets/*`).
+
+The static content of `index.html` (`#landing`: heading, features, FAQ, licence and trademark
+notes) is what search engines and no-JS visitors see; `main.ts` moves it into the stage as the
+empty state. `public/og.png` (link previews) and `public/apple-touch-icon.png` are rendered by
+`pnpm --filter @truedxf/playground site-images` (Playwright). The status bar links to the source
+and a prefilled GitHub issue ("Report a problem": build, browser, DXF version, entity types, what
+was not rendered; never the file name).
+
+One-time setup and checks:
+
+```bash
+pnpm --filter @truedxf/playground exec wrangler login
+pnpm --filter @truedxf/playground exec wrangler pages project create truedxf --production-branch master
+pnpm --filter @truedxf/playground preview:public   # public build with _headers on http://localhost:8788
+```
+
+Deploys from `master` go to production, other branches to preview URLs. For search, verify the
+domain in Google Search Console (a DNS record in Cloudflare) and submit `sitemap.xml`.
 
 ## Tests and performance
 

@@ -8,7 +8,11 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "build:public": "vite build --mode public",
+    "preview:public": "vite build --mode public && wrangler pages dev dist",
+    "deploy": "vite build --mode public && wrangler pages deploy dist --project-name truedxf",
+    "site-images": "node --disable-warning=ExperimentalWarning scripts/site-images.ts"
   },
   "dependencies": {
     "@truedxf/three": "workspace:*",
@@ -20,6 +24,7 @@
     "@types/three": "^0.186.0",
     "fast-png": "^8.0.0",
     "playwright": "^1.63.0",
-    "vite": "^8.3.1"
+    "vite": "^8.3.1",
+    "wrangler": "^4.145.0"
   }
 }

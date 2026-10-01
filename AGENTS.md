@@ -60,6 +60,7 @@ Run all three (typecheck, test, lint) before committing.
 ## Licensing rules (strict)
 
 - truedxf is MIT. Runtime dependencies: MIT/ISC/BSD/Apache-2.0/BSL-1.0 only.
+  Bundled fonts may also be SIL OFL 1.1, with their licence next to them (`apps/playground/fonts`).
 - GPL code (libredwg, libdxfrw, LibreCAD, QCAD, dxf-json) may be **read for facts**, never copied
   or translated.
 - Never commit Autodesk files (fonts, .pat, .lin, .ctb, .pc3, .pmp copied from an install, spec
@@ -72,7 +73,15 @@ Run all three (typecheck, test, lint) before committing.
   dedicated truedxf plot configs.
 - AutoCAD is not part of the fix loop; batch new questions and run the harness.
 
+## Public site
+
+- `pnpm playground:deploy` builds `apps/playground` in `public` mode and deploys it to
+  Cloudflare Pages with wrangler (apps/playground/README.md "Public site"). The public build must
+  never contain samples, corpus files, AutoCAD or Windows fonts: keep anything that reads
+  `samples/` behind `__SAMPLES__` or in dev-server plugins.
+
 ## Git
 
-- Local commits only (no push). Small, focused commits with imperative subject lines.
+- Remote: `origin` = <https://github.com/tth05/truedxf> (private until release). Commit
+  locally; push only when the user asks. Small, focused commits with imperative subject lines.
 - Never commit `samples/`, `research/repos`, `research/github/raw`, `research/spec/*.pdf|txt`.

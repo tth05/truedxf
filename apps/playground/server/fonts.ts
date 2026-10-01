@@ -1,7 +1,8 @@
 /**
  * Font serving for the playground: `/fonts/<file name>` (case-insensitive).
  *
- * - Always: packages/fonts/assets (our own MIT test fonts; copied into the production build).
+ * - Always: packages/fonts/assets (our own MIT test fonts) and apps/playground/fonts (the OFL
+ *   Liberation fallback fonts, fonts/README.md); both are copied into the production build.
  * - Dev server only: the local system font folders and the AutoCAD Fonts folder, so real
  *   drawings get real fonts on this machine. Nothing from those folders is ever copied into the
  *   repository or the build output.
@@ -11,6 +12,8 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { join } from "node:path";
 
 export const BUNDLED_FONT_DIR = join(import.meta.dirname, "..", "..", "..", "packages", "fonts", "assets");
+/** Free fallback fonts of the public site (searched last, after the local folders). */
+export const FALLBACK_FONT_DIR = join(import.meta.dirname, "..", "fonts");
 
 /** Local font folders searched by the dev server (after the bundled fonts). */
 export function localFontDirs(): string[] {

@@ -24,6 +24,7 @@ import {
 import { ComparePanel } from "./compare.ts";
 import { h, ICONS, icon, mount } from "./dom.ts";
 import { droppedFiles, FilesPanel, inputFiles, isDrawing, pickDrawing } from "./files.ts";
+import { FontFolder, fontLoader } from "./fonts.ts";
 import { fmtBytes, fmtCoord, fmtMs, fmtNum } from "./format.ts";
 import { resizableSections, resizableSidebars } from "./resize.ts";
 
@@ -87,9 +88,22 @@ function openButton(): HTMLElement {
     h("button", { onclick: () => pick(fileInput) }, icon(ICONS.open), "Open files…"),
     h("button", { onclick: () => pick(folderInput) }, icon(ICONS.folder), "Open folder…"),
     h(
+      "button",
+      {
+        onclick: () => {
+          close();
+          void fontsFolder.choose();
+        },
+        title: "A folder with your SHX / TrueType fonts, e.g. a copy of AutoCAD's Fonts folder",
+      },
+      icon(ICONS.font),
+      "Fonts folder…",
+    ),
+    h(
       "div",
       { class: "menu-hint" },
-      "Select the .dxf together with its fonts, shape files and images. Files without a .dxf are added to the open drawing.",
+      "Select the .dxf together with its fonts, shape files and images. Files without a .dxf are added to the open drawing. " +
+        "Your fonts folder is used for every drawing.",
     ),
   );
   const close = () => menu.classList.remove("on");
@@ -158,33 +172,16 @@ const viewerSections = [
 const leftPanel = h("aside", { class: "sidebar left" }, ...viewerSections);
 
 const viewerHost = h("div", { class: "viewer" });
-const emptyState = h(
-  "div",
-  { class: "empty" },
-  h(
-    "div",
-    { class: "empty-card" },
-    h("div", { class: "empty-icon" }, icon(ICONS.file)),
-    h("h2", {}, "Open a DXF drawing"),
-    h(
-      "p",
-      {},
-      "Drop a .dxf file together with its fonts, shape files and images (or their whole folder) " +
-        "anywhere, or choose them. Everything runs locally in your browser.",
-    ),
-    h(
-      "div",
-      { class: "empty-actions" },
-      h(
-        "button",
-        { class: "btn primary", onclick: () => fileInput.click() },
-        icon(ICONS.open),
-        "Choose files",
-      ),
-      h("button", { class: "btn", onclick: () => folderInput.click() }, icon(ICONS.folder), "Open folder"),
-    ),
-  ),
-);
+/**
+ * The empty state is the static page content of index.html (#landing: what search engines and
+ * no-JS visitors see), moved into the stage; its buttons get their actions here.
+ */
+const emptyState = document.getElementById("landing") ?? h("article", { class: "landing" });
+for (const b of emptyState.querySelectorAll<HTMLButtonElement>("[data-open]")) {
+  const input = b.dataset.open === "folder" ? folderInput : fileInput;
+  b.prepend(icon(b.dataset.open === "folder" ? ICONS.folder : ICONS.open));
+  b.addEventListener("click", () => input.click());
+}
 const busy = h("div", { class: "busy" }, h("span", { class: "spinner" }), h("span", {}, "Loading"));
 const toast = h("div", { class: "toast" });
 const measureChip = h("div", { class: "measure-chip" });
@@ -228,7 +225,28 @@ const status = {
   backend: h("span"),
   cursor: h("span", { class: "cursor" }),
 };
-const statusbar = h("footer", { class: "statusbar" }, ...Object.values(status));
+const reportLink = h(
+  "a",
+  { class: "status-link", href: `${__BUILD__.repo}/issues/new`, target: "_blank", rel: "noopener" },
+  "Report a problem",
+);
+const statusbar = h(
+  "footer",
+  { class: "statusbar" },
+  ...Object.values(status),
+  reportLink,
+  h(
+    "a",
+    {
+      class: "status-link",
+      href: __BUILD__.repo,
+      target: "_blank",
+      rel: "noopener",
+      title: `truedxf ${__BUILD__.commit}, built ${__BUILD__.date}. Source code (MIT)`,
+    },
+    `truedxf ${__BUILD__.commit}`,
+  ),
+);
 const main = h("main", { class: "main" }, leftPanel, stage, rightPanel);
 mount(app, topbar, main, statusbar);
 resizableSidebars(main, leftPanel, rightPanel);
@@ -241,9 +259,10 @@ resizableSections(rightPanel, "right");
 let imageBase: ((path: string) => string) | undefined;
 /** `?fallbackFont=a.shx,b.ttf`: fonts for text whose font is missing (default: the viewer's). */
 const fallbackFont = new URLSearchParams(location.search).get("fallbackFont")?.split(",").filter(Boolean);
+const fontsFolder = new FontFolder();
 const viewer = new DxfViewer(viewerHost, {
   background: "dark",
-  fontBaseUrl: "fonts/",
+  loadFont: fontLoader(fontsFolder),
   ...(fallbackFont?.length ? { fallbackFont } : {}),
   loadImage: async (path) => {
     if (!imageBase) return undefined;
@@ -252,10 +271,18 @@ const viewer = new DxfViewer(viewerHost, {
   },
 });
 (window as unknown as { viewer: DxfViewer }).viewer = viewer;
-filesPanel = new FilesPanel(viewer, {
-  addFiles: () => fileInput.click(),
-  openDrawing: (f) => void openStored(f),
-});
+filesPanel = new FilesPanel(
+  viewer,
+  {
+    addFiles: () => fileInput.click(),
+    openDrawing: (f) => void openStored(f),
+  },
+  fontsFolder,
+);
+fontsFolder.onChange = () => {
+  viewer.reloadAssets();
+  filesPanel.render();
+};
 rightPanel.querySelector(".files-slot")!.replaceWith(filesPanel.root);
 let info: DocumentInfo | undefined;
 let lastRender: RenderStats | undefined;
@@ -295,6 +322,7 @@ viewer.on("load", (d) => {
   renderLayers();
   renderDiagnostics();
   showInspector(undefined);
+  updateReportLink();
 });
 viewer.on("layout", () => renderLayouts());
 viewer.on("warnings", () => {
@@ -327,6 +355,7 @@ viewer.on("render", (r) => {
   status.gpu.textContent = `${fmtNum(r.batches)} batches · ${fmtNum(r.vertices)} vertices`;
   status.backend.textContent = viewer.backendKind === "worker" ? "worker" : "main thread";
   renderDiagnostics();
+  updateReportLink();
 });
 viewer.on("busy", ({ busy: on, what }) => {
   busy.classList.toggle("on", on);
@@ -808,6 +837,37 @@ async function showInspector(handle: string | undefined): Promise<void> {
 
 // ---- errors ------------------------------------------------------------------------------------
 
+/**
+ * "Report a problem" opens a GitHub issue prefilled with what helps reproducing it: build,
+ * browser and the drawing's version / entity types / what was not rendered. No file name.
+ */
+function updateReportLink(): void {
+  const lines = [
+    "**What is drawn wrong** (a screenshot helps; attach the DXF, zipped, if you are allowed to share it):",
+    "",
+    "",
+    "---",
+    `- truedxf: ${__BUILD__.commit} (${__BUILD__.date})`,
+    `- Browser: ${navigator.userAgent}`,
+  ];
+  if (info) {
+    lines.push(
+      `- Drawing: ${info.acadver}, ${info.format}, ${fmtBytes(info.byteLength)}, ${info.entityCount} entities`,
+    );
+    const types = Object.entries(info.entityTypes).sort((a, b) => b[1] - a[1]);
+    lines.push(`- Entity types: ${types.map(([k, n]) => `${k} ${n}`).join(", ")}`);
+    const un = Object.entries(lastRender?.unsupported ?? {});
+    if (un.length) lines.push(`- Not rendered: ${un.map(([k, n]) => `${k} ${n}`).join(", ")}`);
+    const codes = [...new Set(viewer.warnings.map((w) => w.code))];
+    if (codes.length) lines.push(`- Viewer warnings: ${codes.join(", ")}`);
+  }
+  // GitHub rejects very long URLs: cut the tail (the long lists come last)
+  let body = lines.join("\n");
+  if (body.length > 4000) body = `${body.slice(0, 4000)}…`;
+  const q = new URLSearchParams({ title: "Rendering problem: ", body });
+  reportLink.setAttribute("href", `${__BUILD__.repo}/issues/new?${q}`);
+}
+
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
 function showError(msg: string): void {
   toast.textContent = msg.split("\n")[0] ?? msg;
@@ -915,7 +975,10 @@ renderDiagnostics();
 void showInspector(undefined);
 const initial = new URLSearchParams(location.search).get("file");
 if (initial) void openSource(initial);
-void initModes();
+// the public build has no samples (vite.config.ts): the fixture / corpus code is dropped
+if (__SAMPLES__) void initModes();
+updateReportLink();
+void fontsFolder.restore();
 
 export { viewer };
 

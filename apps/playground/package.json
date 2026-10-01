@@ -4,6 +4,13 @@
   "private": true,
   "description": "truedxf playground: DXF viewer, fixture compare and corpus browser",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tth05/truedxf.git",
+    "directory": "apps/playground"
+  },
+  "homepage": "https://github.com/tth05/truedxf/tree/master/apps/playground#readme",
+  "bugs": "https://github.com/tth05/truedxf/issues",
   "type": "module",
   "scripts": {
     "dev": "vite",

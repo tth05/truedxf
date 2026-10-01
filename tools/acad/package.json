@@ -4,6 +4,13 @@
   "private": true,
   "description": "AutoCAD reference harness: runs accoreconsole.exe to plot generated DXF fixtures to PNG/PDF",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tth05/truedxf.git",
+    "directory": "tools/acad"
+  },
+  "homepage": "https://github.com/tth05/truedxf/tree/master/tools/acad#readme",
+  "bugs": "https://github.com/tth05/truedxf/issues",
   "type": "module",
   "dependencies": {
     "fast-png": "^8.0.0"

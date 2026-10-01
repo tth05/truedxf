@@ -3,8 +3,24 @@
   "version": "0.0.0",
   "description": "three.js renderer for the truedxf display list",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tth05/truedxf.git",
+    "directory": "packages/three"
+  },
+  "homepage": "https://github.com/tth05/truedxf/tree/master/packages/three#readme",
+  "bugs": "https://github.com/tth05/truedxf/issues",
+  "keywords": [
+    "dxf",
+    "three.js",
+    "webgl",
+    "cad"
+  ],
   "type": "module",
-  "sideEffects": false,
+  "sideEffects": [
+    "./src/index.ts",
+    "./dist/index.js"
+  ],
   "exports": {
     ".": "./src/index.ts"
   },

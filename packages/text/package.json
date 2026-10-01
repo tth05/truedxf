@@ -3,6 +3,19 @@
   "version": "0.0.0",
   "description": "TEXT and MTEXT parsing and layout engine",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tth05/truedxf.git",
+    "directory": "packages/text"
+  },
+  "homepage": "https://github.com/tth05/truedxf/tree/master/packages/text#readme",
+  "bugs": "https://github.com/tth05/truedxf/issues",
+  "keywords": [
+    "dxf",
+    "mtext",
+    "text-layout",
+    "autocad"
+  ],
   "type": "module",
   "sideEffects": false,
   "exports": {

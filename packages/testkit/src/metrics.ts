@@ -2,9 +2,10 @@
  * Image comparison metrics between our render (A) and the AutoCAD reference (B), both RGBA with
  * the same size. docs/PLAN.md §7 / note 10 §16.5 D.
  *
- * - exact: pixels whose RGB differs by more than `channelTolerance`.
- * - tolerant(r): an ink pixel (≠ background) of A is matched if B has an ink pixel of a similar
- *   colour within Chebyshev distance r, and vice versa → recall / precision / F1.
+ * - exact: pixels whose RGB differs at all (no tolerance).
+ * - tolerant(r): an ink pixel (≠ background) of A is matched if B has an ink pixel within
+ *   Chebyshev distance r whose channels differ by at most `channelTolerance`, and vice versa
+ *   → recall / precision / F1.
  */
 
 export interface Image {

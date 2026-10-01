@@ -3,6 +3,19 @@
   "version": "0.0.0",
   "description": "Fonts: SHX (shape, unifont, bigfont) parser and TTF/OTF via opentype.js, font resolution",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tth05/truedxf.git",
+    "directory": "packages/fonts"
+  },
+  "homepage": "https://github.com/tth05/truedxf/tree/master/packages/fonts#readme",
+  "bugs": "https://github.com/tth05/truedxf/issues",
+  "keywords": [
+    "shx",
+    "autocad",
+    "fonts",
+    "ttf"
+  ],
   "type": "module",
   "sideEffects": false,
   "exports": {

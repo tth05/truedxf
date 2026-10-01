@@ -21,3 +21,5 @@ research/github/logs/
 .idea/
 # wrangler (Cloudflare Pages) local state
 .wrangler/
+# copied from the root LICENSE by scripts/package-dist.ts (npm packs it)
+packages/*/LICENSE

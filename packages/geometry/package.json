@@ -3,6 +3,19 @@
   "version": "0.0.0",
   "description": "Geometry kernel: vectors, matrices, OCS, arcs, ellipses, NURBS, flattening, stroking, dashing, hatching, clipping",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tth05/truedxf.git",
+    "directory": "packages/geometry"
+  },
+  "homepage": "https://github.com/tth05/truedxf/tree/master/packages/geometry#readme",
+  "bugs": "https://github.com/tth05/truedxf/issues",
+  "keywords": [
+    "cad",
+    "nurbs",
+    "hatch",
+    "geometry"
+  ],
   "type": "module",
   "sideEffects": false,
   "exports": {

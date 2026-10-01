@@ -1,8 +1,22 @@
 {
   "name": "@truedxf/plot",
   "version": "0.0.0",
+  "private": true,
   "description": "Plot settings: CTB/STB plot styles, page setup to plot transform, lineweight to device units",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tth05/truedxf.git",
+    "directory": "packages/plot"
+  },
+  "homepage": "https://github.com/tth05/truedxf/tree/master/packages/plot#readme",
+  "bugs": "https://github.com/tth05/truedxf/issues",
+  "keywords": [
+    "dxf",
+    "autocad",
+    "ctb",
+    "plot-styles"
+  ],
   "type": "module",
   "sideEffects": false,
   "exports": {

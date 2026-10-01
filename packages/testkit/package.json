@@ -3,6 +3,13 @@
   "version": "0.0.0",
   "description": "Visual test harness (headless Chromium), image metrics and reports",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tth05/truedxf.git",
+    "directory": "packages/testkit"
+  },
+  "homepage": "https://github.com/tth05/truedxf/tree/master/packages/testkit#readme",
+  "bugs": "https://github.com/tth05/truedxf/issues",
   "type": "module",
   "sideEffects": false,
   "exports": {
@@ -30,10 +37,7 @@
   "devDependencies": {
     "@types/node": "^26.6.3",
     "fast-png": "^8.0.0",
-    "pdfjs-dist": "^6.3.289",
-    "pixelmatch": "^7.2.0",
     "playwright": "^1.63.0",
-    "ssim.js": "^3.5.0",
     "three": "^0.186.1",
     "vite": "^8.3.1"
   }

@@ -3,6 +3,21 @@
   "version": "0.0.0",
   "description": "Embeddable DXF viewer: worker pipeline, pan/zoom, layouts, layers, picking",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tth05/truedxf.git",
+    "directory": "packages/viewer"
+  },
+  "homepage": "https://github.com/tth05/truedxf/tree/master/packages/viewer#readme",
+  "bugs": "https://github.com/tth05/truedxf/issues",
+  "keywords": [
+    "dxf",
+    "viewer",
+    "cad",
+    "autocad",
+    "three.js",
+    "webgl"
+  ],
   "type": "module",
   "sideEffects": false,
   "exports": {

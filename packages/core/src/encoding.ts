@@ -82,9 +82,7 @@ export function isUtf8Version(acadver: string | undefined): boolean {
 const decoders = new Map<string, TextDecoder>();
 
 /** windows-1252 0x80–0x9F (WHATWG; the five undefined bytes map to the C1 controls). */
-const CP1252_HIGH =
-  "€\u0081‚ƒ„…†‡ˆ‰Š‹Œ\u008DŽ\u008F" +
-  "\u0090‘’“”•–—˜™š›œ\u009DžŸ";
+const CP1252_HIGH = "€\u0081‚ƒ„…†‡ˆ‰Š‹Œ\u008DŽ\u008F" + "\u0090‘’“”•–—˜™š›œ\u009DžŸ";
 
 /**
  * windows-1252 from a table. Node (23.10) decodes the WHATWG labels windows-1252 / iso-8859-1 /

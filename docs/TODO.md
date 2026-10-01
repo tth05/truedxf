@@ -27,13 +27,12 @@ Tick items off (or delete them) when done.
       (text/escape-malformed-*, text/fallback-cjk-*).
 - [ ] Remove the Liberation workaround from scripts/docs once references are regenerated
       (`--hide-fonts ^liberation`, harness `text.unavailableFonts`).
-- [ ] IMAGE / WIPEOUT plotting rules. Correction (triage 2026-10-01): accoreconsole *does* plot
-      WIPEOUT frames and masks (fileformat/corpus-ezdxf-wipeout-door, corpus-gdal-wipeout,
-      corpus-gdal-binary-wipeout) and, for an IMAGE whose file is missing, the frame plus the
-      file path as text (corpus-libredwg-leader-r14*). Still unknown: why corpus-ezdxf-
-      wipeout-random shows neither mask nor frame (WIPEOUTVARIABLES 70 = 0, 290 = 0, two-point
-      boundary with 71 = 1); images with a resolvable file are still unverified. The scorer
-      omits IMAGE/WIPEOUT (cpu-suite without `--draw-raster`) until those rules are known.
+- [x] IMAGE / WIPEOUT in the console: R2000 and older files plot bitmap, frame and WIPEOUT mask;
+      R2004+ files plot none of them (render-probes, 2026-10-01; note 07 §8.4/§8.5). A missing
+      image file plots the frame plus the path as text (height = width / 42) (5a79616).
+- [ ] IMAGE: AutoCAD smooths bitmaps when plotting (we sample nearest-pixel); the R14 corpus
+      file's missing-image text is ~14 % larger than in R2000 probes (cause unknown); whether
+      the text uses $TEXTSTYLE or Standard; corpus-ezdxf-wipeout-random (no mask/frame).
 - [ ] Load `AcMPolygonObj26.dbx` in the harness so MPOLYGON references aren't empty.
 - [ ] Generator: produce valid proxy entities (all `misc/proxy-*` fixtures are rejected by AutoCAD).
 - [ ] Generator: fixtures that need our own test SHX fonts (`plan:` entries in questions.md) —
@@ -120,8 +119,18 @@ default, FILLMODE for pattern hatches, extents edge tolerance.
       (scratchpad) into tools/gen.
 - [ ] MLINE: end-cap colours from the second element; element linetypes continuous across
       vertices (10).
-- [ ] Linetyped circles that plot continuous use the graphics-system tessellation (f = 1.0);
-      zero-length dashed LINEs plot like continuous (13: linetypes, lines-curves).
+- [ ] Linetyped circles that plot continuous use the graphics-system tessellation (f = 1.0)
+      (9: linetypes).
+- [x] Zero-length dashed LINEs plot like continuous (9046a00).
+- [x] Layout extents: clipped content counts only inside its clip; model viewport frames count,
+      the overall viewport does not (d9001f2, note 08 §10.16).
+- [x] ACAD_TABLE drawn with the INSERT transform of 10/41–43/50/210 (06ef9b9; AutoCAD re-lays
+      tables out along 11 on load and writes the block pre-rotated against 50; note 07 §13.1).
+- [x] Hangs: (0,0)-(0,0) header extents count as unset, layout probes start from LAYOUT 14/15,
+      max 65 536 chords per circle (03affd0); dense dashes on wide polylines (cf75a0c).
+- [ ] Performance: ezdxf issue-574/7495047 still ~26 s / 105 M vertices from dense hatches;
+      viewer `visibleBounds` (packages/viewer/src/protocol.ts) could use the clip-aware
+      `list.bounds`; leader-r14 MLEADER proxy "proxy-text" unsupported.
 - [x] SHAPE entities (2026-10-01, 092dbcf; corpus files lack their .shx files and now report
       `shape-not-found` / `shape-missing-file`).
 - [x] Vertical TEXT (STYLE flag 4) and MTEXT flow direction 3 (2acb863, 746652c).

@@ -181,7 +181,7 @@ set the status here to `answered` (or `wontfix`) and add the answer in one line 
 | Q-0117 | extents | [U] Do plot 'Extents' of a SPLINE use the curve or its control-point hull? | 03 §6.1, §6.2, Test ideas 35 (03:T35) | `extents/probe-spline-control-hull`, `layouts/extents-spline-control` | answered |
 | Q-0118 | extents | [U] Do plot 'Extents' of a pattern HATCH use the boundary only, or the pattern line geometry? | 03 §6.2, Test ideas 35 (03:T35) | `extents/probe-hatch-pattern`, `layouts/extents-hatch-pattern` | answered |
 | Q-0119 | extents | [A] Do extents for a smoothed MESH use the level-0 control cage vertices or the subdivided surface? | 03 §6.1 | `misc/mesh-box-level0-extents`, `misc/mesh-box-level2-extents` | open |
-| Q-0120 | extents | [U] Do layout extents (Extents plot / LAYOUT 14/15) include viewport frames and the overall viewport? | 08 §8 item 17 (08:T-PL-9) | `misc/layout-extents-viewports` | open |
+| Q-0120 | extents | [U] Do layout extents (Extents plot / LAYOUT 14/15) include viewport frames and the overall viewport? | 08 §8 item 17 (08:T-PL-9) | `misc/layout-extents-viewports` | answered: viewport frames count, the overall viewport (id 1) does not; content seen through a viewport is clipped and never widens the extents (08 §10.16) |
 | Q-0121 | extents | [T] What does PLOT 'Limits'/'Layout' do with bogus (0,0)-(12,9) paper limits that do not contain the viewports? | 11b §4, Test ideas (11b:19) | `layouts/bogus-limits-layout`, `layouts/bogus-limits-window` | answered |
 
 - Q-0121: Plot area Layout ignores LAYOUT limits: the canvas at 1 px per paper unit from paper (0,0); Window plots are unaffected (`layouts/bogus-limits-*`, note 08 §10.12).

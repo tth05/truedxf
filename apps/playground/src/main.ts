@@ -600,11 +600,15 @@ function renderLayers(): void {
       });
       box.checked = on;
       box.addEventListener("click", toggle);
-      // ACI 7 is black or white depending on the background: show it split
-      const swatch =
-        l.aci === 7 && l.rgb === 0xffffff
-          ? "background:linear-gradient(135deg,#fff 50%,#000 50%)"
-          : `background:${hex(l.rgb)}`;
+      // ACI 7 and colours within 8 of white/black are drawn black or white depending on the
+      // background (the viewer flips them for contrast): show them split
+      const r = (l.rgb >> 16) & 255;
+      const g = (l.rgb >> 8) & 255;
+      const b = l.rgb & 255;
+      const flips = (l.aci === 7 && l.rgb === 0xffffff) || Math.min(r, g, b) >= 247 || Math.max(r, g, b) <= 8;
+      const swatch = flips
+        ? "background:linear-gradient(135deg,#fff 50%,#000 50%)"
+        : `background:${hex(l.rgb)}`;
       return h(
         "div",
         {
@@ -613,7 +617,11 @@ function renderLayers(): void {
           onclick: toggle,
         },
         box,
-        h("span", { class: "swatch", style: swatch }),
+        h("span", {
+          class: "swatch",
+          style: swatch,
+          title: l.aci > 0 && l.aci < 256 ? `ACI ${l.aci} (${hex(l.rgb)})` : hex(l.rgb),
+        }),
         h("span", { class: "name" }, l.name),
         h("span", { class: "meta" }, l.entities ? fmtNum(l.entities) : ""),
       );

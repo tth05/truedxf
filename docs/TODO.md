@@ -112,10 +112,14 @@ default, FILLMODE for pattern hatches, extents edge tolerance.
 - [ ] Linetyped circles that plot continuous use the graphics-system tessellation (f = 1.0);
       zero-length dashed LINEs plot like continuous (13: linetypes, lines-curves).
 - [ ] SHAPE entities (8), vertical text (5, also listed above), hatch background colour (4).
-- [ ] HATCH: collinear pattern lines on boundary edges are not drawn (7); self-intersecting loops
-      need edge-crossing slab levels in `trapezoids()` (5); too-dense patterns plot nothing (5);
-      rotated hemispherical/linear gradients (3); ellipse edge 50/51 are angles (3); text-box
-      loops stay holes per style (3); HATCH boundary counts for extents (6).
+- [x] HATCH: collinear pattern lines on boundary edges, edge-crossing slab levels for
+      self-intersecting loops, > 100 000 pattern lines plot nothing, hemispherical gradients,
+      ellipse edge 50/51 angles, HATCH boundary in the extents, MPOLYGON 11 offset (2026-10-01,
+      692398c…80cd939).
+- [ ] HATCH: text-box loops stay holes per style (3); MPOLYGON boundary not drawn (Q-0367);
+      rotated LINEAR gradient span (gradient-extents-rotated-boundary); fileformat/
+      corpus-gdal-additional-entities extents too large (not hatch-related); whether the
+      100 000-line limit is HPMAXLINES or a separate plot limit.
 - [ ] MULTILEADER: leader ends at the dogleg end when the dogleg is off / spline (6); text frame,
       underline attachments, per-line arrow override ignored, leader line breaks.
 - [ ] `\A1`/`\A2` against stacks (3); paragraph-code scope and line-spacing semantics (7); `\T`

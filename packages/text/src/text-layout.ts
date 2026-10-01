@@ -30,7 +30,7 @@
  */
 import { type ResolvedGlyph, type StyleFont, TtfFont } from "@truedxf/fonts";
 import { Affine2, Matrix44, ocsToWcsMatrix, type Vec3 } from "@truedxf/geometry";
-import { glyphCode, type TextFontSource } from "./fonts.ts";
+import { bigFontPairCode, glyphCode, type TextFontSource } from "./fonts.ts";
 import { decorationOffsets, InkBox, type MeasuredGlyph, measureGlyph, measureResolved } from "./glyphs.ts";
 import { decodeTextString, type TextChar } from "./specials.ts";
 import type { DecorationLine, GlyphPlacement, TextLayout, TextRun } from "./types.ts";
@@ -177,8 +177,13 @@ export function measureLine(
   const ink = new InkBox();
   let pen = 0;
   let penY = 0;
-  for (const ch of chars) {
-    const m = textGlyph(font, ch, encoding, fonts);
+  for (let k = 0; k < chars.length; k++) {
+    const ch = chars[k]!;
+    // "~1" with special.shx-style bigfonts is one bigfont glyph (fonts.ts bigFontPairCode)
+    const next = chars[k + 1];
+    const pair = next && !ch.numeric && !next.numeric ? bigFontPairCode(font, ch.cp, next.cp) : undefined;
+    if (pair !== undefined) k++;
+    const m = pair !== undefined ? measureGlyph(font, pair) : textGlyph(font, ch, encoding, fonts);
     glyphs.push({ m, pen, penY, ch });
     if (m.ink) ink.add(m.ink, pen, penY);
     pen += m.advance;

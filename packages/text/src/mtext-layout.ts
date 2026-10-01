@@ -21,7 +21,7 @@
  */
 import type { Bounds, StyleFont } from "@truedxf/fonts";
 import { Affine2, Matrix44, ocsToWcsMatrix, type Vec3, wcsToOcsMatrix } from "@truedxf/geometry";
-import { glyphCode, type TextFontSource } from "./fonts.ts";
+import { bigFontPairCode, glyphCode, type TextFontSource } from "./fonts.ts";
 import { decorationOffsets, InkBox, type MeasuredGlyph, measureGlyph, measureResolved } from "./glyphs.ts";
 import {
   defaultContext,
@@ -737,11 +737,22 @@ class Engine {
 
   items(tokens: readonly MTextToken[]): Item[] {
     const out: Item[] = [];
-    for (const t of tokens) {
+    for (let k = 0; k < tokens.length; k++) {
+      const t = tokens[k]!;
       switch (t.t) {
-        case "char":
-          out.push(this.glyph(t.ctx, t.ch));
+        case "char": {
+          // "~1" with special.shx-style bigfonts is one bigfont glyph (fonts.ts bigFontPairCode)
+          const n = tokens[k + 1];
+          const pair =
+            n?.t === "char" && !t.ch.control && !n.ch.control && n.ctx === t.ctx
+              ? bigFontPairCode(this.fontOf(t.ctx), t.ch.cp, n.ch.cp)
+              : undefined;
+          if (pair !== undefined) {
+            k++;
+            out.push(this.glyphItem(t.ctx, measureGlyph(this.fontOf(t.ctx), pair)));
+          } else out.push(this.glyph(t.ctx, t.ch));
           break;
+        }
         case "space":
         case "nbsp":
           out.push({ k: "space", ctx: t.ctx, adv: this.spaceAdvance(t.ctx), nbsp: t.t === "nbsp" });

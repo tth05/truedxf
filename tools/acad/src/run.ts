@@ -302,9 +302,25 @@ export async function runCase(
   const outputs = meta.outputs ?? ["png"];
   if (!isSupportedCanvas(meta.plot.canvas)) messages.push(`unsupported canvas ${meta.plot.canvas.join("x")}`);
 
-  // Short, space-free working paths (note 08 §6.3); one directory per worker.
-  const work = join(worker.tmp, `w${worker.id}`);
-  rmSync(work, { recursive: true, force: true });
+  // Short, space-free working paths (note 08 §6.3); one directory per worker. After an AutoCAD
+  // crash, Windows Error Reporting can keep files in <work>/ErrorReports locked for a long time;
+  // then the directory can't be wiped, so fall back to a fresh sibling instead of failing every
+  // following case of this worker.
+  let work = join(worker.tmp, `w${worker.id}`);
+  try {
+    rmSync(work, { recursive: true, force: true });
+  } catch {
+    for (let k = 1; ; k++) {
+      const alt = join(worker.tmp, `w${worker.id}-${k}`);
+      try {
+        rmSync(alt, { recursive: true, force: true });
+        work = alt;
+        break;
+      } catch {
+        if (k > 50) throw new Error(`no usable work directory for worker ${worker.id}`);
+      }
+    }
+  }
   mkdirSync(work, { recursive: true });
   const inDxf = join(work, "case.dxf");
   copyFileSync(c.dxf, inDxf);

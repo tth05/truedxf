@@ -213,7 +213,9 @@ class Parser {
       if (c === "}") {
         this.i++;
         const p = this.stack.pop();
-        if (p) this.ctx = p;
+        // paragraph properties are not scoped by braces: `{\pxqc;A\P}B` centres B too
+        // (VERIFIED-BY-ACAD mtext/para-scope, para-scope-mid; note 04 §3.5)
+        if (p) this.ctx = p.paragraph === this.ctx.paragraph ? p : { ...p, paragraph: this.ctx.paragraph };
         continue;
       }
       if (c === " ") {

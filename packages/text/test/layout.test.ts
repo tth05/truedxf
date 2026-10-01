@@ -170,6 +170,25 @@ describe("MTEXT layout", () => {
     const l = layoutMText(mtext({ text: "H\\PH" }), fonts);
     expect(l.glyphs[0]!.matrix.f - l.glyphs[1]!.matrix.f).toBeCloseTo((5 / 3) * 10, 12);
   });
+  it("sets the gap below a paragraph's lines from its own \\ps spacing (mtext/para-spacing-reset)", async () => {
+    const fonts = await testFonts([style("S", "truedxf-test.shx")]);
+    const l = layoutMText(mtext({ text: "\\pxsm2;H\\P\\ps*;H\\PH" }), fonts);
+    const y = l.glyphs.map((g) => g.matrix.f);
+    expect(y[0]! - y[1]!).toBeCloseTo(2 * (26 / 15) * 10, 9); // \psm2: 2 × the 26/15·h single gap
+    expect(y[1]! - y[2]!).toBeCloseTo((5 / 3) * 10, 9);
+  });
+  it("draws a stored 44 = 0 like 0.25 (mtext/spacing-defaults-factor-0)", async () => {
+    const fonts = await testFonts([style("S", "truedxf-test.shx")]);
+    const l = layoutMText(mtext({ text: "H\\PH", lineSpacingFactor: 0 }), fonts);
+    expect(l.glyphs[0]!.matrix.f - l.glyphs[1]!.matrix.f).toBeCloseTo((5 / 12) * 10, 9);
+  });
+  it("does not scope paragraph codes by braces (mtext/para-scope)", async () => {
+    const fonts = await testFonts([style("S", "truedxf-test.shx")]);
+    const xs = (t: string) => layoutMText(mtext({ text: t, width: 100 }), fonts).glyphs.map((g) => g.matrix.e);
+    const plain = xs("H\\PH\\PH");
+    const scoped = xs("{\\pxqc;H\\P}H\\PH");
+    for (let i = 0; i < 3; i++) expect(scoped[i]!).toBeGreaterThan(plain[i]! + 40);
+  });
   it("emits inline colours and background fills", async () => {
     const fonts = await testFonts([style("S", "truedxf-test.shx")]);
     const l = layoutMText(mtext({ text: "{\\C1;H}H", bgFlags: 1, bgColor: 3 }), fonts);

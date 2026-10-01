@@ -531,8 +531,8 @@ as `{\H0.7x;\S1/2;}` (ezdxf:examples_dxf/mtext_complex_inline_codes.dxf) — the
   dxf-viewer comment: "`\pxsm1,qc;` and `\pqc;` mean the same thing as `\pxqc;`" (it skips them).
   Units of b/a (multiples of h? of line pitch?) and exact semantics of sm/se/sa: **UNKNOWN** — test.
   mlightcad adds `tz` (clear tab stops). The parser must skip unknown letters + numbers gracefully.
-- Paragraph properties are *persistent* until changed (not scoped by `{}`? ezdxf stores them in the
-  context, so a `}` pops them — **UNKNOWN** in AutoCAD).
+- Paragraph properties are *persistent* until changed and **not scoped by `{}`** — ezdxf stores
+  them in the context, so a `}` pops them; AutoCAD does not (VERIFIED-BY-ACAD 2026-10-01, §11).
 - Default paragraph alignment when no `q` is given follows the attachment point column
   (left/center/right) (ezdxf `ATTACHMENT_POINT_TO_ALIGN`).
 
@@ -1549,6 +1549,19 @@ MTEXT (§3)
 - Paragraph spacing: `\pb<v>` / `\pa<v>` are **drawing units** before/after the paragraph (also
   before the first one); `\pse<v>` = exact spacing as for char height v (pitch 5/3·v, first
   baseline v below the top); `\psa<v>` = at least 5/3·v; `\psm<f>` = factor (mtext/para-spacing-*).
+- **Paragraph codes are not scoped by braces**, and a `\p` anywhere in a paragraph formats the
+  whole paragraph: `{\pxqc;A\P}B\PC` centres A, B and C; `A{\pxqc;B}C\PD` centres "ABC" and D
+  (VERIFIED-BY-ACAD 2026-10-01 mtext/para-scope, para-scope-mid; answers the §3.5 question).
+- **Paragraph line spacing sets the gaps below its lines** (VERIFIED-BY-ACAD 2026-10-01, PDF
+  baselines at Liberation h = 8): `\pxsm2;A\P\ps*;B\PC` puts B 27.733 below A and C 13.75 below
+  B (mtext/para-spacing-reset). `\psm<f>` = f × a single gap of **26/15·h** (13.867 at h = 8,
+  where the entity spacing gives 13.75–13.77 from the ink excess): xsm2 1664/60 = 27.733 =
+  2 × 13.867, sa2 832/60 = 13.867 (5/3·2 is smaller). The 26/15 rests on one text each —
+  UNVERIFIED in general.
+- **Group 44 = 0** draws like **0.25** (the valid minimum; mtext/spacing-defaults-factor-0: gaps
+  3.44 at h = 8). With f < 1 the ink above the cap height (0.426 for "Line two") is scaled by f:
+  gap = (5/3·f − 1)·h + h + f·excess = 3.333 + 0.107; at f = 1.25 it is not scaled
+  (mtext/random-0002/-0003 regress otherwise).
 - An overline raises the line like ink at +1.2 h (mtext/code-underline-all); MTEXT decoration
   lines are **not** shifted (unlike SHX TEXT); TTF decorations use the hhea metrics as in TEXT.
 - Left-aligned lines put their **ink** at the margin (a positive left side bearing is removed,

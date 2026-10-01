@@ -236,7 +236,7 @@ export function layoutMText(
   const cols = e.columns && e.columns.type > 0 ? e.columns : undefined;
   let wrap = options.wrapWidth ?? (cols && cols.width > 0 ? cols.width : e.width);
   if (!(wrap > 0)) wrap = 0;
-  const f0 = e.lineSpacingFactor > 0 ? e.lineSpacingFactor : 1;
+  const f0 = spacingFactor(e.lineSpacingFactor);
   const exact0 = e.lineSpacingStyle === 2;
   const col = ((e.attachment - 1) % 3) + 1;
   const row = Math.floor((e.attachment - 1) / 3);
@@ -257,7 +257,10 @@ export function layoutMText(
   let prev: Line | undefined;
   // Paragraph line spacing (VERIFIED-BY-ACAD mtext/para-spacing-*): \pse<v> = exact spacing as
   // for char height v (pitch 5/3·v, first baseline v below the top), \psa<v> = at least 5/3·v,
-  // \psm<f> = factor f; \pb/\pa = space before/after the paragraph in drawing units.
+  // \psm<f> = f × the single (44 = 1) gap; \pb/\pa = space before/after the paragraph in
+  // drawing units. A paragraph's spacing sets the gaps *below* its lines, so the gap above the
+  // first line of a paragraph is the previous paragraph's (mtext/para-spacing-reset: `\pxsm2;A\P
+  // \ps*;B\PC` puts B two pitches below A and C one pitch below B).
   let pending = 0;
   const lineBottom = (ln: Line, exact: boolean, cap: number) =>
     exact ? ln.baseline - cap / 3 : ln.baseline + Math.min(0, ln.inkBottom);
@@ -268,18 +271,33 @@ export function layoutMText(
     const ls = ln.paragraph.lineSpacing;
     const exact = ls ? ls.mode === "exact" : exact0;
     const cap = ls?.mode === "exact" ? ls.factor : h0;
-    const f = ls?.mode === "multiple" && ls.factor > 0 ? ls.factor : ls ? 1 : f0;
-    const minPitch = ls?.mode === "atLeast" ? LINE_PITCH * ls.factor : 0;
     const ascent = Math.max(ln.capMax, ln.inkTop);
     if (ln.first) pending += ln.paragraph.spaceBefore;
     if (!prev) ln.baseline = exact ? -cap : -ascent;
-    else if (exact) ln.baseline = prev.baseline - LINE_PITCH * cap * (exact0 && !ls ? f0 : 1);
-    // at least: the gap is (5/3·f − 1)·(previous line's largest height + this paragraph's base
-    // height)/2 (VERIFIED-BY-ACAD mtext/spacing-big-line-1, height-style-0)
-    else
-      ln.baseline =
-        prev.baseline -
-        Math.max(minPitch, ((LINE_PITCH * f - 1) * (prev.capMax + ln.paragraph.baseHeight)) / 2 + ascent);
+    else {
+      // the gap below `prev` follows prev's paragraph spacing
+      const ps = prev.paragraph.lineSpacing;
+      if (ps ? ps.mode === "exact" : exact0)
+        ln.baseline = prev.baseline - LINE_PITCH * (ps ? ps.factor : h0 * f0);
+      else {
+        // at least: the gap is (5/3·f − 1)·(previous line's largest height + this paragraph's
+        // base height)/2 + cap height + the ink above the cap height, scaled by f when f < 1
+        // (VERIFIED-BY-ACAD mtext/spacing-big-line-1, height-style-0; f < 1:
+        // spacing-defaults-factor-0 at f = 0.25; f > 1 unscaled: mtext/random-0002, -0003 at 1.25)
+        const H2 = (prev.capMax + ln.paragraph.baseHeight) / 2;
+        if (ps) {
+          // \psa / \psm: single gap 26/15·h (one text each, mtext/para-spacing-sa2 and -xsm2:
+          // 13.867 at h = 8 where the entity spacing gives 13.767 — UNVERIFIED in general)
+          const single = Math.max((LINE_PITCH - 1) * H2 + ascent, (26 / 15) * H2);
+          const scale = ps.mode === "multiple" && ps.factor > 0 ? ps.factor : 1;
+          const minPitch = ps.mode === "atLeast" ? LINE_PITCH * ps.factor : 0;
+          ln.baseline = prev.baseline - Math.max(minPitch, single * scale);
+        } else {
+          const cap = Math.min(ascent, ln.capMax);
+          ln.baseline = prev.baseline - ((LINE_PITCH * f0 - 1) * H2 + cap + Math.min(1, f0) * (ascent - cap));
+        }
+      }
+    }
     ln.baseline -= pending;
     pending = 0;
     const next = lines[i + 1];
@@ -465,7 +483,7 @@ export function mtextExtents(
   for (const para of splitParagraphs(tokens, h0))
     engine.wrapParagraph(engine.items(para.tokens), para.state, wrap, lines);
   if (lines.length === 0) return { width: 0, height: 0, lines: 0 };
-  const f = e.lineSpacingFactor > 0 ? e.lineSpacingFactor : 1;
+  const f = spacingFactor(e.lineSpacingFactor);
   const exact = e.lineSpacingStyle === 2;
   let prev: Line | undefined;
   let top = 0;
@@ -476,9 +494,14 @@ export function mtextExtents(
       ln.baseline = 0;
       top = exact ? h0 : ascent;
     } else if (exact) ln.baseline = prev.baseline - LINE_PITCH * h0 * f;
-    else
+    else {
+      const cap = Math.min(ascent, ln.capMax);
       ln.baseline =
-        prev.baseline - ((LINE_PITCH * f - 1) * (prev.capMax + ln.paragraph.baseHeight)) / 2 - ascent;
+        prev.baseline -
+        ((LINE_PITCH * f - 1) * (prev.capMax + ln.paragraph.baseHeight)) / 2 -
+        cap -
+        Math.min(1, f) * (ascent - cap);
+    }
     width = Math.max(width, ln.margin + ln.ext1 - ln.ext0);
     prev = ln;
   }
@@ -488,6 +511,14 @@ export function mtextExtents(
 }
 
 // ---- helpers ----------------------------------------------------------------------------------
+
+/**
+ * Group 44, clamped to AutoCAD's range 0.25…4 at the low end: a stored 0 draws like 0.25
+ * (VERIFIED-BY-ACAD mtext/spacing-defaults-factor-0); an absent 44 is 1 (the model's default).
+ */
+function spacingFactor(f: number): number {
+  return Number.isFinite(f) ? Math.max(0.25, f) : 1;
+}
 
 function isParagraphStart(lines: readonly Line[], ln: Line): boolean {
   return ln.first && lines.indexOf(ln) > 0;

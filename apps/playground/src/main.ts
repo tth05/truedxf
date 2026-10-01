@@ -25,15 +25,16 @@ import { ComparePanel } from "./compare.ts";
 import { h, ICONS, icon, mount } from "./dom.ts";
 import { droppedFiles, FilesPanel, inputFiles, isDrawing, pickDrawing } from "./files.ts";
 import { fmtBytes, fmtCoord, fmtMs, fmtNum } from "./format.ts";
+import { resizableSections, resizableSidebars } from "./resize.ts";
 
 const app = document.getElementById("app")!;
 
 // ---- layout skeleton ---------------------------------------------------------------------------
 
-// no `accept` filter: a drawing is opened together with its fonts, shape files and images
+// no `accept` filter: a drawing is opened together with its fonts, shape files and images;
+// files without a drawing are added to the open one
 const fileInput = h("input", { type: "file", multiple: true, hidden: true });
 const folderInput = h("input", { type: "file", multiple: true, webkitdirectory: true, hidden: true });
-const addInput = h("input", { type: "file", multiple: true, hidden: true });
 const fileName = h("span", { class: "filename" }, "No file");
 const btnSelect = toolButton(ICONS.select, "Select (click an entity)", true);
 const btnMeasure = toolButton(ICONS.measure, "Measure distance (two clicks)", false);
@@ -69,29 +70,68 @@ const topbar = h(
   btnFit,
   btnLw,
   btnTheme,
-  h(
-    "button",
-    {
-      class: "btn icon",
-      onclick: () => folderInput.click(),
-      title: "Open a folder (a drawing with its fonts and images)",
-    },
-    icon(ICONS.folder),
-  ),
-  h(
-    "button",
-    {
-      class: "btn primary",
-      onclick: () => fileInput.click(),
-      title: "Open a DXF file — select its fonts, shape files and images with it",
-    },
-    icon(ICONS.open),
-    "Open",
-  ),
+  openButton(),
   fileInput,
   folderInput,
-  addInput,
 );
+
+/**
+ * The single Open entry point: a file dialog for a drawing together with its fonts, shape files
+ * and images (or just more files for the open drawing), and a menu entry for a whole folder (a
+ * browser dialog picks either files or a folder, not both).
+ */
+function openButton(): HTMLElement {
+  const menu = h(
+    "div",
+    { class: "menu" },
+    h("button", { onclick: () => pick(fileInput) }, icon(ICONS.open), "Open files…"),
+    h("button", { onclick: () => pick(folderInput) }, icon(ICONS.folder), "Open folder…"),
+    h(
+      "div",
+      { class: "menu-hint" },
+      "Select the .dxf together with its fonts, shape files and images. Files without a .dxf are added to the open drawing.",
+    ),
+  );
+  const close = () => menu.classList.remove("on");
+  function pick(input: HTMLInputElement): void {
+    close();
+    input.click();
+  }
+  const root = h(
+    "div",
+    { class: "split" },
+    h(
+      "button",
+      {
+        class: "btn primary",
+        onclick: () => fileInput.click(),
+        title: "Open a DXF with its fonts, shape files and images — or add files to the open drawing",
+      },
+      icon(ICONS.open),
+      "Open",
+    ),
+    h(
+      "button",
+      {
+        class: "btn primary caret",
+        title: "More ways to open",
+        onclick: (ev: Event) => {
+          ev.stopPropagation();
+          menu.classList.toggle("on");
+        },
+      },
+      icon(ICONS.caret),
+    ),
+    menu,
+  );
+  document.addEventListener("click", (ev) => {
+    if (!root.contains(ev.target as Node)) close();
+  });
+  document.addEventListener("keydown", (ev) => {
+    if (ev.key === "Escape") close();
+  });
+  return root;
+}
 
 const layoutList = h("div", { class: "list" });
 const layerList = h("div", { class: "list" });
@@ -191,6 +231,9 @@ const status = {
 const statusbar = h("footer", { class: "statusbar" }, ...Object.values(status));
 const main = h("main", { class: "main" }, leftPanel, stage, rightPanel);
 mount(app, topbar, main, statusbar);
+resizableSidebars(main, leftPanel, rightPanel);
+resizableSections(leftPanel, "left");
+resizableSections(rightPanel, "right");
 
 // ---- viewer ------------------------------------------------------------------------------------
 
@@ -210,7 +253,7 @@ const viewer = new DxfViewer(viewerHost, {
 });
 (window as unknown as { viewer: DxfViewer }).viewer = viewer;
 filesPanel = new FilesPanel(viewer, {
-  addFiles: () => addInput.click(),
+  addFiles: () => fileInput.click(),
   openDrawing: (f) => void openStored(f),
 });
 rightPanel.querySelector(".files-slot")!.replaceWith(filesPanel.root);
@@ -411,11 +454,6 @@ for (const input of [fileInput, folderInput]) {
     void openLocal(files);
   });
 }
-addInput.addEventListener("change", () => {
-  const files = inputFiles(addInput);
-  addInput.value = "";
-  viewer.addFiles(files);
-});
 btnFit.addEventListener("click", () => viewer.fit());
 btnSelect.addEventListener("click", () => setTool("select"));
 btnMeasure.addEventListener("click", () => setTool("measure"));
@@ -820,8 +858,21 @@ async function initModes(): Promise<void> {
     for (const [k, b] of Object.entries(tabs)) b.setAttribute("aria-pressed", String(k === m));
     if (m === "viewer") mount(leftPanel, ...viewerSections);
     else if (m === "fixtures")
-      mount(leftPanel, (fixtures ??= fixtureBrowser(st, (c) => void openFixture(c))));
-    else mount(leftPanel, (corpus ??= corpusBrowser((r) => void openCorpus(r))));
+      mount(
+        leftPanel,
+        (fixtures ??= withResizableSections(
+          fixtureBrowser(st, (c) => void openFixture(c)),
+          "fixtures",
+        )),
+      );
+    else
+      mount(
+        leftPanel,
+        (corpus ??= withResizableSections(
+          corpusBrowser((r) => void openCorpus(r)),
+          "corpus",
+        )),
+      );
     if (m !== "fixtures") compare.root.style.display = "none";
     try {
       localStorage.setItem("truedxf.mode", m);
@@ -854,3 +905,9 @@ if (initial) void openSource(initial);
 void initModes();
 
 export { viewer };
+
+/** The fixture / corpus browsers keep their panels in their own container. */
+function withResizableSections<T extends HTMLElement>(el: T, key: string): T {
+  resizableSections(el, key);
+  return el;
+}

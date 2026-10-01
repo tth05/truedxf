@@ -18,15 +18,18 @@ pnpm playground:build      # static build in apps/playground/dist
   is the `DxfViewer` (e.g. `viewer.openFiles(files)` from the console).
 - **Fonts, shape files and images** (additional files, see `packages/viewer/README.md`): select
   the drawing together with its files in the **Open** dialog (multiple selection), open a whole
-  **folder** (the folder button; `webkitdirectory`), or drop several files or a folder (read
-  recursively). With several drawings you choose one; the others stay in the **Files** panel
-  (right), click one to switch. **Add files…** there adds files to the open drawing, which
-  re-renders. Files are matched by name only — the folders written in the DXF
+  **folder** (the arrow next to Open → "Open folder…"; `webkitdirectory`), or drop several files
+  or a folder (read recursively). Files selected without a drawing are added to the open one,
+  which re-renders (also the "add them" link next to missing files). With several drawings you
+  choose one; the others stay in the **Files** panel (right), click one to switch. Files are matched by name only — the folders written in the DXF
   (`C:\…\Fonts\txt.shx`, `..\images\a.png`) do not matter, and `txt` finds `txt.shx`. The panel
   lists what the drawing is still **missing** (fonts, big fonts, images, shape files); the
   Diagnostics panel has the full warnings. Drawings opened with `?file=<url>` also find images
   next to them on the server. Nothing leaves the browser.
 - **Layouts** and **Layers** (click: toggle, Alt+click: isolate, filter box) in the left panel.
+- **Resizable panels**: drag a sidebar's inner edge to change its width and the line between two
+  panels to change their heights; double-click a handle to reset. Sizes are kept in
+  `localStorage` (`truedxf.layout`).
 - **Inspector**: click an entity for its type, handle, owning block, layer, colour / linetype /
   lineweight / transparency (raw → resolved) and the raw DXF tags of its record.
 - **Measure** (`M`): two clicks. **Fit** (`F` or double-click on empty space). Dark / light

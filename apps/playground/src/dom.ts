@@ -68,5 +68,6 @@ export const ICONS = {
   folder: P(
     '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M12 10v6M9 13h6"/>',
   ),
+  caret: P('<path d="M6 9l6 6 6-6"/>'),
   font: P('<path d="M5 7V5h14v2M12 5v14M9 19h6"/>'),
 };

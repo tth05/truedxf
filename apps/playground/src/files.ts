@@ -99,11 +99,6 @@ export class FilesPanel {
       "Files ",
       h("span", { class: "count" }, files.length ? String(files.length) : ""),
       h("span", { class: "spacer" }),
-      h(
-        "button",
-        { class: "link", onclick: () => this.actions.addFiles(), title: "Add fonts, shape files, images, …" },
-        "Add files…",
-      ),
       files.length
         ? h(
             "button",

@@ -737,8 +737,8 @@ export class Frontend {
           const r = seg.radius / g.pixelSize;
           const cu = g.u(seg.center.x);
           const cv = g.v(seg.center.y);
-          // the arc's own extent decides, not its full circle (dimensions/type-arc-*, angular-*)
-          if (!forFill && arcOnCanvas(cu, cv, r, seg.start, seg.sweep, g.width, g.height)) {
+          // heuristic (note 08 §10.13): the arc itself on the canvas, radius ≤ 1024 px
+          if (!forFill && arcRuleApplies(cu, cv, r, seg.start, seg.sweep, g.width, g.height)) {
             // device pixels; emit their centres, which snap back to the same pixels
             const v = arcVertices(cu, cv, r, seg.start, seg.sweep);
             const w: number[] = [];
@@ -942,8 +942,16 @@ export function dropOnEdges(
   return hit ? out : undefined;
 }
 
-/** True if the device-space arc (centre, radius, start, sweep; device v grows with y) lies on the canvas. */
-function arcOnCanvas(
+/**
+ * Whether a circular arc goes to the raster driver's integer arc rule (note 08 §10.13). AutoCAD
+ * uses it for arcs whose full circle is on the canvas (VERIFIED-BY-ACAD) and also for dimension
+ * and polyline arcs whose circle runs off the canvas (dimensions/type-arc-*, angular-*,
+ * polylines/closed-0004). HEURISTIC for the latter: the arc's own extent on the canvas and a device
+ * radius of at most 1024 px (r 1000 arc rule, r 1350 graphics system). Known counterexamples: plain
+ * ARCs in splines/rational-quarter-circle and fileformat/version-r12, and layouts/clip-bulge, plot
+ * with the graphics system.
+ */
+function arcRuleApplies(
   cu: number,
   cv: number,
   r: number,
@@ -952,6 +960,9 @@ function arcOnCanvas(
   w: number,
   h: number,
 ): boolean {
+  if (cu - r >= 0 && cu + r <= w && cv - r >= 0 && cv + r <= h) return true;
+  if (r > 1024) return false;
+  // bounding box of the arc (device v grows with y)
   let x0 = Math.min(cu + r * Math.cos(start), cu + r * Math.cos(start + sweep));
   let x1 = Math.max(cu + r * Math.cos(start), cu + r * Math.cos(start + sweep));
   let y0 = Math.min(cv + r * Math.sin(start), cv + r * Math.sin(start + sweep));

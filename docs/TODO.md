@@ -89,6 +89,46 @@ Tick items off (or delete them) when done.
 - [ ] Model load speed dropped from 64 to ~53 MB/s with the complex parsers — profile.
 - [ ] Writer / editing API (Phase 8).
 
+## Failure triage backlog (2026-10-01)
+
+Root causes found by the triage of all 517 failing cases (F1(r=1) < 0.99) that are not fixed yet,
+with the case count each would lift. Done in the same round: linetype text with TrueType, TTF
+stacks by ink box, U+2205 as Ø, raster arcs by arc extent, windows-1252 table, LEADER 74
+default, FILLMODE for pattern hatches, extents edge tolerance.
+
+- [ ] Extents plot padding (~40 cases: fileformat, text-probes, layouts, points): accoreconsole
+      pads the window on a virtual-screen grid that depends on the *Active VPORT; partial model in
+      note 08 §10.15, no rule for all view heights yet. Needs more probe sweeps.
+- [ ] Tilted/non-uniformly scaled circles (16: ocs, blocks, xclip): near-flat tilts plot with the
+      circle rule; ellipse segment count seems based on the largest curvature radius.
+- [ ] MTEXT line/tab-start side bearings (~15): glyph after a tab sits with its ink on the stop;
+      leading spaces keep the next glyph's lsb; decorations must not cancel ext0; with 41 = 0
+      leading tabs don't count.
+- [ ] TrueType control characters draw the font's .notdef box, not "?" (~14: text, text-lato,
+      mtext stacks).
+- [ ] Bigfont lookup by the bigfont's DBCS code page, not Unicode (10: acad-default-fonts).
+- [ ] MLINE: end-cap colours from the second element; element linetypes continuous across
+      vertices (10).
+- [ ] Linetyped circles that plot continuous use the graphics-system tessellation (f = 1.0);
+      zero-length dashed LINEs plot like continuous (13: linetypes, lines-curves).
+- [ ] SHAPE entities (8), vertical text (5, also listed above), hatch background colour (4).
+- [ ] HATCH: collinear pattern lines on boundary edges are not drawn (7); self-intersecting loops
+      need edge-crossing slab levels in `trapezoids()` (5); too-dense patterns plot nothing (5);
+      rotated hemispherical/linear gradients (3); ellipse edge 50/51 are angles (3); text-box
+      loops stay holes per style (3); HATCH boundary counts for extents (6).
+- [ ] MULTILEADER: leader ends at the dogleg end when the dogleg is off / spline (6); text frame,
+      underline attachments, per-line arrow override ignored, leader line breaks.
+- [ ] `\A1`/`\A2` against stacks (3); paragraph-code scope and line-spacing semantics (7); `\T`
+      tracking adds (T − 1)·xAvgCharWidth (2); oblique runs advance h·tan θ (2).
+- [ ] `$DWGCODEPAGE` aliases AutoCAD accepts/rejects (5: DOS850 decoded, CP1251/ANSI1251/
+      KCS5601/UTF-8 rejected); TrueType family lookup via the group-3 file (2); XCLIP clips
+      ATTRIBs; xclip front/back planes for curves; XLINE/RAY clipped to the effective plot area.
+- [ ] Which arcs with off-canvas circles use the raster arc rule (note 08 §10.13): dimension and
+      polyline arcs do, plain ARCs (splines/rational-quarter-circle, fileformat/version-r12) do
+      not; the renderer uses a heuristic. Probe the same arc as ARC, LWPOLYLINE bulge, dimension.
+- [ ] SHX arcs ~0.5–1 px too large (inscribed polygon?); SHX subshapes start pen-down (note 04
+      §4.3 corrected, code not yet).
+
 ## Later phases (not started)
 
 - [ ] Phase 6 — AI fix loop (docs/agent-loop.md, `fix:next`, regression gate, hold-out seeds).

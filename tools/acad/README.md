@@ -1,10 +1,11 @@
-# tools/acad — AutoCAD reference harness
+# tools/acad
 
-Plots the generated fixtures (`samples/generated/<suite>/<case>.{dxf,json}`, contract:
-[docs/fixtures.md](../../docs/fixtures.md)) with AutoCAD's `accoreconsole.exe` and writes the
-references to `samples/refs/<acad-build>/<suite>/<case>.{png,pdf,dxf,log,json}`.
-Calibration results (how AutoCAD rasterizes): research/notes/08 §10 "Calibration results
-(VERIFIED-BY-ACAD, AutoCAD 2027)" and research/notes/06 §3.5 (palette).
+Node scripts that plot the generated fixtures with a local AutoCAD 2027 install
+(`accoreconsole.exe`, Windows) to produce the reference images truedxf is scored against.
+
+`samples/generated/<suite>/<case>.{dxf,json}` ([docs/fixtures.md](../../docs/fixtures.md)) in,
+`samples/refs/<acad-build>/<suite>/<case>.{png,pdf,dxf,log,json}` out. Calibration results (how
+AutoCAD rasterizes): research/notes/08 §10 and research/notes/06 §3.5 (palette).
 
 ## Setup (once per machine / AutoCAD install)
 
@@ -13,8 +14,8 @@ node tools/acad/src/configs.ts          # writes the 4 truedxf plot configs (ide
 node tools/acad/src/configs.ts --dump   # also prints the generated PIA texts
 ```
 
-`configs.ts` reads the user's stock `PublishToWeb PNG.pc3`, `PMP Files/PublishToWeb PNG.pmp` and
-`DWG To PDF.pc3` from `%APPDATA%\Autodesk\AutoCAD 2027\R26.0\enu\Plotters` and writes
+`configs.ts` reads the stock `PublishToWeb PNG.pc3`, `PMP Files/PublishToWeb PNG.pmp` and
+`DWG To PDF.pc3` from `%APPDATA%\Autodesk\AutoCAD 2027\R26.0\enu\Plotters` and writes:
 
 | file | based on | content |
 |---|---|---|
@@ -23,8 +24,8 @@ node tools/acad/src/configs.ts --dump   # also prints the generated PIA texts
 | `Plotters\truedxf PDF.pc3` | DWG To PDF.pc3 | vector PDF, no viewer, points to the PMP below |
 | `Plotters\PMP Files\truedxf PDF.pmp` | meta of DWG To PDF.pc3 + PNG PMP media sections | the same sheets in inches (px / 100), zero margins |
 
-Existing configs are never modified. Nothing from Autodesk is committed; override the folders with
-`TRUEDXF_PLOTTERS_DIR`, `TRUEDXF_ACAD_ROAMING`, `TRUEDXF_ACAD_DIR` (install folder).
+Existing configs are never modified and nothing from Autodesk is committed. Override the folders
+with `TRUEDXF_PLOTTERS_DIR`, `TRUEDXF_ACAD_ROAMING`, `TRUEDXF_ACAD_DIR` (install folder).
 
 **Paper sizes (authoritative canvas list):**
 
@@ -37,16 +38,16 @@ Existing configs are never modified. Nothing from Autodesk is committed; overrid
 
 ### PIA file format (PC3 / PMP / CTB / STB)
 
-`src/pia.ts`: 48-byte ASCII header `PIAFILEVERSION_2.0,PC3VER1,compress\r\npmzlibcodec` (`PC3VER1`
-also for PMP; `CTBVER1`/`STBVER1` for plot styles), then three uint32 LE: **adler32 of the
-compressed body**, plain length, compressed length, then a zlib stream of latin-1 text (one
-`key=value` per line, one space of indent per level, `key{ … }` sections, string values start with
-`"` and have no closing quote; some files end with a NUL). Numbers ≥ 1e5 or with many digits
-carry an optional ` (xxxxxxxxxxxxxx)` token — a uuencode-style dump of the little-endian double
-plus 16 bits of an unknown checksum; AutoCAD accepts plain decimals without it. Raster sizes use
-inclusive pixel indices: zero margins = printable bounds `(0,0)–(W−1,H−1)`. AutoCAD 2027 also
-reads a new uncompressed `PIAFILEVERSION_3.0,json` variant (not used). The parser round-trips all
-stock files byte-exactly (text level).
+`src/pia.ts`: 48-byte ASCII header `PIAFILEVERSION_2.0,PC3VER1,compress\r\npmzlibcodec`
+(`PC3VER1` also for PMP; `CTBVER1`/`STBVER1` for plot styles), three uint32 LE (**adler32 of the
+compressed body**, plain length, compressed length), then a zlib stream of latin-1 text: one
+`key=value` per line, one space of indent per level, `key{ … }` sections, string values start
+with `"` and have no closing quote; some files end with a NUL. Numbers ≥ 1e5 or with many digits
+carry an optional ` (xxxxxxxxxxxxxx)` token (uuencode-style little-endian double plus 16 bits of
+an unknown checksum); AutoCAD accepts plain decimals without it. Raster sizes use inclusive pixel
+indices: zero margins = printable bounds `(0,0)–(W−1,H−1)`. AutoCAD 2027 also reads an
+uncompressed `PIAFILEVERSION_3.0,json` variant (not used). The parser round-trips all stock files
+byte-exactly (text level).
 
 Hashes (sha256) on the reference machine, 2026-09-30 (the generated files embed the absolute PMP
 path, so they are machine specific):
@@ -75,31 +76,33 @@ node tools/acad/src/run.ts --suite text --jobs 4 --timeout 180
 node tools/acad/src/run.ts --list                   # list the cases it would consider
 ```
 
-Defaults: `--jobs min(4, cores/2)`, `--timeout 120` s per case. Exit code 2 if any case is not `ok`.
-A reference is up to date when its `.json` has the same `fixtureSha256`, `metaSha256` and
+Defaults: `--jobs min(4, cores/2)`, `--timeout 120` s per case. Exit code 2 if any case is not
+`ok`. A reference is up to date when its `.json` has the same `fixtureSha256`, `metaSha256` and
 `harness` version and status `ok` or `invalid-fixture`; everything else is re-run.
 
 Per case the runner:
-1. copies the DXF to a short, space-free work dir (`%TEMP%\truedxf-acad\w<slot>\case.dxf`, override
-   the root with `TRUEDXF_ACAD_TMP`);
+
+1. copies the DXF to a short, space-free work dir (`%TEMP%\truedxf-acad\w<slot>\case.dxf`; root
+   override `TRUEDXF_ACAD_TMP`);
 2. writes `run.scr` (CRLF, no BOM): LISP helpers, the sysvar prologue, `_.UCS _W`, optional
    `_.DXFOUT` (R2018, 16 digits), the harness ZOOM, one detailed `_.-PLOT` per requested output
    (`png` → truedxf PNG.pc3, `pdf` → truedxf PDF.pc3), `_.QUIT _Y`;
 3. runs `accoreconsole.exe /isolate truedxf-w<slot> <tmp>\profile-w<slot> /i case.dxf /s run.scr
-   /l en-US` (stdin = NUL, hard kill of the process tree on timeout, `senddmp.exe` killed after a
+   /l en-US` (stdin = NUL; on timeout the process tree is killed, `senddmp.exe` is killed after a
    crash);
-4. decodes the UTF-16LE transcript and verifies it: every expected prompt answered in order
-   (no re-prompt), `Effective plotting area` after each plot, no error lines (`Unknown command`,
+4. decodes the UTF-16LE transcript and verifies it: every expected prompt answered in order (no
+   re-prompt), `Effective plotting area` after each plot, no error lines (`Unknown command`,
    `; error:`, `Invalid …`, `not found.` …), the PNG exists and its size equals the canvas;
 5. writes `<case>.png/.pdf/.dxf` (as requested), `<case>.log` (decoded transcript) and
    `<case>.json` (docs/fixtures.md + `harness`, `outputs.png.{width,height,channels,depth,palette,
    sha256,effectivePlottingArea}`, `outputs.pdf.{bytes,sha256,mediaBox,pages}`).
 
 Statuses: `ok`; `invalid-fixture` (AutoCAD rejected the DXF: "Invalid or incomplete DXF input",
-exit code 53); `timeout`; `crash` (non-zero exit before the end of the script); `harness-failure`
-(anything else: desynchronised prompts, missing output, wrong PNG size, error lines).
+exit code 53); `timeout`; `crash` (non-zero exit before the end of the script);
+`harness-failure` (anything else: desynchronised prompts, missing output, wrong PNG size, error
+lines).
 
-Several runner processes may run concurrently (e.g. per suite): each worker claims a slot with a
+Several runner processes may run at once (e.g. one per suite): each worker claims a slot with a
 lock file `%TEMP%\truedxf-acad\slot-<n>.lock` (stale locks of dead processes are taken over), so
 work dirs and `/isolate` profiles never collide.
 
@@ -108,17 +111,17 @@ work dirs and `/isolate` profiles never collide.
 - Sysvars set every run (`/isolate` keeps them out of the user's profile): FILEDIA 0, CMDDIA 0,
   CMDECHO 1, EXPERT 5, BACKGROUNDPLOT 0, PLOTTRANSPARENCYOVERRIDE 0, PLOTOFFSET 0, PLOTROTMODE 2,
   LWDEFAULT 25, TEXTFILL 1, TEXTQLTY 50, FONTALT simplex.shx, SECURELOAD 0. Drawing-stored
-  variables are **not** overridden but echoed into the log: FILLMODE, MSLTSCALE, PSLTSCALE, LTSCALE,
-  SORTENTS, TILEMODE, LWDISPLAY, PDMODE, PDSIZE.
+  variables are **not** overridden, only echoed into the log: FILLMODE, MSLTSCALE, PSLTSCALE,
+  LTSCALE, SORTENTS, TILEMODE, LWDISPLAY, PDMODE, PDSIZE.
 - **Harness ZOOM** before Window plots: `_.ZOOM _C <window centre> <window height / 100>` (for
   layouts after `CTAB = <layout>`, `_.PSPACE`, LAYOUTCREATEVIEWPORT 0). Without it AutoCAD trims
-  the window to the geometry extents and re-centres the plot when the geometry comes within ~2 % of
-  the view height of the window edge (note 08 §10.1).
+  the window to the geometry extents and re-centres the plot when the geometry comes within ~2 %
+  of the view height of the window edge (note 08 §10.1).
 - -PLOT answers: `_Y`, layout, device, paper, (`_I` paper units for PDF), orientation (`_L`;
-  **`_P` for square sheets** — Landscape rotates a square sheet by 90°), `_N` upside down, area
-  (`_W` + corners | `_E` | `_L` layout), scale (`_F` or `p=d`; PNG units are pixels, PDF units
-  inches = px/100), offset `_C` (`0,0` for area Layout, which has no Center option), `_Y` plot
-  styles, CTB, lineweights `_Y/_N`, then `_A` shade plot (model) or `_N` scale lineweights,
+  **`_P` for square sheets**, since Landscape rotates a square sheet by 90°), `_N` upside down,
+  area (`_W` + corners | `_E` | `_L` layout), scale (`_F` or `p=d`; PNG units are pixels, PDF
+  units inches = px/100), offset `_C` (`0,0` for area Layout, which has no Center option), `_Y`
+  plot styles, CTB, lineweights `_Y/_N`, then `_A` shade plot (model) or `_N` scale lineweights,
   `_N/_Y` paper space first, `_N` hide paperspace objects (layouts), file name, `_N` save page
   setup, `_Y` proceed.
 
@@ -143,19 +146,19 @@ tools/gen/.venv/Scripts/python tools/acad/calibration/analyze_pdf.py          # 
 tools/gen/.venv/Scripts/python tools/acad/calibration/analyze_viewports.py    # twist, layouts
 ```
 
-The suite `calibration` is owned by tools/acad (tools/gen refuses to write it).
+The `calibration` suite is owned by tools/acad (tools/gen refuses to write it).
 
 ## Fixture advice for generators (from the calibration)
 
 - Keep geometry off exact pixel boundaries: at 10 px/unit every multiple of 0.1 unit is an exact
   tie that AutoCAD resolves by floating-point noise. Shift the window by half a pixel (e.g.
-  `min = (-0.05, -0.05)`), so round coordinates hit pixel centres.
+  `min = (-0.05, -0.05)`) so round coordinates hit pixel centres.
 - Use `monochrome.ctb` only with ACI colours: true-colour entities keep their RGB under it.
 - POINT ignores the lineweight (1 px); ACI 255 plots FAFAFA, true-colour white is invisible.
 
 ## Troubleshooting
 
-- `harness-failure … prompt not found`: look at `<case>.log`; the first unexpected line shows which
+- `harness-failure … prompt not found`: the first unexpected line in `<case>.log` shows which
   answer AutoCAD rejected.
 - Git Bash converts `/i`-style arguments to paths; run the console only through `run.ts` (Node
   spawn) or with `MSYS_NO_PATHCONV=1`.

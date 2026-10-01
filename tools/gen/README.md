@@ -1,18 +1,18 @@
-# tools/gen — test-fixture generator (Python + ezdxf)
+# tools/gen
 
-Generates the small, deterministic DXF fixtures that the AutoCAD harness (`tools/acad`) plots
-and the visual test kit compares against. Output contract: [docs/fixtures.md](../../docs/fixtures.md).
-Fixtures are **local only** (`samples/generated/`, gitignored).
+Python generator (needs Python 3.11 and ezdxf 1.4.4) for the small, deterministic DXF fixtures
+that `tools/acad` plots with AutoCAD and `packages/testkit` scores against. Output contract:
+[docs/fixtures.md](../../docs/fixtures.md). Fixtures are local only (`samples/generated/`,
+gitignored).
 
 ## Setup
 
-The venv lives in `tools/gen/.venv` (gitignored; Python 3.11, ezdxf 1.4.4, matplotlib, pillow,
-pymupdf). To recreate it:
+The venv is `tools/gen/.venv` (gitignored; Python 3.11, ezdxf 1.4.4, matplotlib, pillow, pymupdf):
 
 ```bash
 py -3.11 -m venv tools/gen/.venv
 tools/gen/.venv/Scripts/python -m pip install ezdxf==1.4.4 matplotlib pillow pymupdf
-tools/gen/.venv/Scripts/python -m pip install -e tools/gen    # optional: makes `-m truedxf_gen` work anywhere
+tools/gen/.venv/Scripts/python -m pip install -e tools/gen    # optional: `-m truedxf_gen` from anywhere
 ```
 
 ## Commands (from the repo root)
@@ -28,14 +28,14 @@ $PY tools/gen/run.py --update-questions       # refresh the `test` column of doc
 $PY -m truedxf_gen.preview samples/generated/polylines/width-*.json --out sheet.png  # ezdxf preview (run in tools/gen)
 ```
 
-(`python -m truedxf_gen …` is equivalent when run inside `tools/gen` or after `pip install -e`.)
+`python -m truedxf_gen …` is the same CLI (inside `tools/gen` or after `pip install -e`).
 
-- Every written DXF is re-read and passed through `ezdxf.audit`; audit **errors** fail the run
-  (exit code 1). Audit fixes are printed as warnings.
+- Every written DXF is re-read and run through `ezdxf.audit`: audit errors fail the run (exit
+  code 1), fixes are printed as warnings. `--no-audit` skips it.
 - `--clean` deletes only the selected suites' folders. `samples/generated/calibration` belongs to
-  `tools/acad` and is never written here (the name is rejected by the registry).
-- The generator re-executes itself with `PYTHONHASHSEED=0`: ezdxf creates a few objects in
-  set-iteration order, which otherwise changes the byte output between runs.
+  `tools/acad`; the registry rejects that suite name.
+- The generator re-executes itself with `PYTHONHASHSEED=0`, because ezdxf creates a few objects
+  in set-iteration order and the bytes would otherwise change between runs.
 
 ## Adding a suite
 
@@ -62,10 +62,10 @@ def build(s: SuiteBuilder) -> None:
 ### `s.case(name, title, **kw)` keywords
 
 `tags`, `questions`, `seed` (int → `c.rng = random.Random(seed)`, the only allowed randomness),
-`params`, `dxfversion` (`"R2018"` default = AC1032; also R12…R2013), `units` ($INSUNITS, default 4 =
-mm), `header` (dict of `$VAR` overrides), `standard_font` (STANDARD style font, default Liberation
-Sans), `style_table` (`"monochrome.ctb"` | `"acad.ctb"`, default from the suite), `outputs`
-(default `["png", "pdf", "dxf"]`).
+`params`, `dxfversion` (`"R2018"` default = AC1032; also R12…R2013), `units` ($INSUNITS, default
+4 = mm), `header` (dict of `$VAR` overrides), `standard_font` (STANDARD style font, default
+Liberation Sans), `style_table` (`"monochrome.ctb"` | `"acad.ctb"`, default from the suite),
+`outputs` (default `["png", "pdf", "dxf"]`).
 
 ### Case helpers
 
@@ -79,47 +79,47 @@ Sans), `style_table` (`"monochrome.ctb"` | `"acad.ctb"`, default from the suite)
 | `c.layer(name, color=, linetype=, lineweight=, plot=, on=, frozen=, locked=, true_color=, transparency=)` | create a layer once |
 | `c.linetype(name)` | add an AutoCAD-valued standard/ISO linetype (`resources.py`; note 11a §12) |
 | `c.style(name, font=, width=, oblique=, height=, bigfont=)` | text style; fonts from [FONTS.md](FONTS.md) |
-| `c.sysvar("PLOTTRANSPARENCYOVERRIDE", 2)` / `c.plot.paperSpaceFirst = True` | harness extensions emitted as `plot.sysvars` / `plot.paperSpaceFirst` (registry sysvars and plot prompts a DXF can't carry; see tools/acad) |
+| `c.sysvar("PLOTTRANSPARENCYOVERRIDE", 2)` / `c.plot.paperSpaceFirst = True` | emitted as `plot.sysvars` / `plot.paperSpaceFirst`: registry sysvars and plot prompts a DXF cannot carry (see tools/acad) |
 | `c.header(pdmode=3, ltscale=2)` | set header vars (`$` + upper-cased name) |
 | `c.add_file("img-a.png", data)` | extra file written next to the case; returns its absolute canonical path (`samples/generated/<suite>/…`) |
 | `c.notes.append("…")` | free-text notes copied into the meta JSON (`notes`) |
 | `c.byte_filters.append(fn)` | `bytes -> bytes` post-processing of the serialised DXF (deliberately malformed files for `fileformat` questions) |
-| `c.allow_audit_errors = True` | ezdxf audit errors are reported but don't fail the run (only for cases that are invalid on purpose) |
+| `c.allow_audit_errors = True` | ezdxf audit errors are reported but do not fail the run (only for cases that are invalid on purpose) |
 
-Canvases: `2000×1500` (default), `1000×1000`, `800×600` (`plotwin.CANVASES`; the harness README
-is authoritative). Default document state (`core.new_doc`): no ezdxf `setup` resources, STANDARD
-style → `LiberationSans-Regular.ttf`, `$MEASUREMENT 1`, `$INSUNITS 4`, `$LTSCALE`/`$CELTSCALE 1`,
-`$PSLTSCALE 1`, `$PDMODE 0`, `$FILLMODE 1`, `$MIRRTEXT 0`, `$LWDISPLAY 1`, fixed timestamps and
-null GUIDs; `$EXTMIN/$EXTMAX` are set from ezdxf's bounding box before writing;
-the `*Active` VPORT is centred on the plot window so AutoCAD opens on the feature.
+Canvases: `2000×1500` (default), `1000×1000`, `800×600` (`plotwin.CANVASES`; the tools/acad
+README is authoritative). Default document (`core.new_doc`): no ezdxf `setup` resources,
+STANDARD style → `LiberationSans-Regular.ttf`, `$MEASUREMENT 1`, `$INSUNITS 4`,
+`$LTSCALE`/`$CELTSCALE 1`, `$PSLTSCALE 1`, `$PDMODE 0`, `$FILLMODE 1`, `$MIRRTEXT 0`,
+`$LWDISPLAY 1`, fixed timestamps and null GUIDs. `$EXTMIN/$EXTMAX` come from ezdxf's bounding box,
+and the `*Active` VPORT is centred on the plot window so AutoCAD opens on the feature.
 
 ## Conventions for cases
 
 - **One feature per case.** Parameter sweeps become separate cases (`bulge-0001…`), plus a few
   seeded random cases (`random-0001…`) per suite. Keep drawings small (≲ 200 entities) except in
   `mixed`.
-- **Make it visible.** Choose windows so the feature spans a large part of the canvas and has
-  several px per unit (typically a 200 × 150 window on 2000 × 1500 px = 10 px/unit). Put a small
-  reference mark (cross/point) where it helps to locate things.
+- **Make it visible.** The feature should span much of the canvas at several px per unit
+  (typically a 200 × 150 window on 2000 × 1500 px = 10 px/unit). Add a small reference mark
+  (cross/point) where it helps to locate things.
 - **Pixel centres.** `c.window*` shift the window by half a device pixel towards −x/−y, so round
-  coordinates hit pixel centres instead of exact pixel-boundary ties (tools/acad calibration
-  advice). Set `c.half_pixel_shift = False` for cases about exact boundaries.
+  coordinates hit pixel centres instead of exact pixel-boundary ties (tools/acad calibration).
+  Set `c.half_pixel_shift = False` for cases about exact boundaries.
 - **Extra files.** `tools/acad` copies only the DXF into its work dir, so IMAGE/underlay/xref
-  paths must be the absolute paths returned by `c.add_file`; relative-path cases only resolve
-  when AutoCAD opens the fixture in `samples/generated/<suite>/`.
-- **Hairline geometry.** Geometry suites register `layer0_lineweight=0` so entities are drawn at
-  the thinnest width (pixel-exact comparisons); appearance suites keep the defaults.
+  paths must be the absolute paths returned by `c.add_file`; relative paths resolve only when
+  AutoCAD opens the fixture in `samples/generated/<suite>/`.
+- **Hairline geometry.** Geometry suites register `layer0_lineweight=0` so entities plot at the
+  thinnest width (pixel-exact comparisons); appearance suites keep the defaults.
 - **Style tables.** `monochrome.ctb` by default; colour/appearance suites use `acad.ctb`.
 - **Fonts.** Only [FONTS.md](FONTS.md) fonts; AutoCAD SHX fonts only in `acad-default-fonts`.
 - **Determinism.** No `random` module functions, no time, no `set` iteration, no absolute paths
-  except those returned by `c.add_file` (canonical folder, independent of `--out`).
+  except those from `c.add_file` (canonical folder, independent of `--out`).
   `--check-determinism` must pass.
-- **AutoCAD must open it.** Cases that probe invalid data on purpose (e.g. radius 0) say so in
-  the title; if AutoCAD rejects them the harness marks them `invalid-fixture`, which is itself an
+- **AutoCAD must open it.** Cases that probe invalid data on purpose (e.g. radius 0) say so in the
+  title. If AutoCAD rejects them the harness marks them `invalid-fixture`, which is itself an
   answer for `fileformat` questions.
-- **Questions.** Link each case to the `docs/questions.md` ids it helps answer
-  (`questions=[…]`), then run `--update-questions`. Questions without a case keep a
-  `plan: …` note in the test column.
+- **Questions.** Link each case to the `docs/questions.md` ids it helps answer (`questions=[…]`),
+  then run `--update-questions`. Questions without a case keep a `plan: …` note in the test
+  column.
 
 ## Layout
 

@@ -1,0 +1,77 @@
+# @truedxf/render
+
+The rendering frontend: walks a model-space or paper-space layout of a `DxfDocument` and emits a renderer-agnostic display list, emulating AutoCAD 2027's raster plot.
+
+## What it does
+
+- `renderPlot(doc, request, env)` returns `PlotResult { displayList, view, unsupported, notes? }`.
+  `PlotRequest` picks the layout, the plot area (`window` with Fit + Center, `extents`, `layout`
+  at 1 px per paper unit or an explicit scale) and the canvas in device pixels.
+- All geometry work happens here: tessellation, linetypes (including complex linetypes with shapes
+  and text), lineweight widening, hatch fills, clipping. The `DisplayList` holds batches of
+  `Triangles`, `Lines` (1 px), `Points` and textured `Image` triangles in strict draw order, float32
+  positions relative to a float64 origin, clip regions and pick ranges back to entity handles.
+  `transferables(list)` lists its buffers for `postMessage`.
+- `raster: "autocad"` (default) computes pixel spans on the CPU with AutoCAD's raster rules (thin
+  lines, arcs, lineweight polygons, fills; `PixelGrid`, `linePixels`, `arcVertices`,
+  `fillPolygon`) at the driver's 100 dpi. `raster: "smooth"` gives plain geometry for viewers.
+- Properties (`PropertyResolver`): ByLayer/ByBlock, layer on/off/frozen/no-plot/Defpoints,
+  per-viewport freeze, the plotted ACI palette (`PLOT_ACI_RGB`), plotted transparency
+  (PLOTTRANSPARENCYOVERRIDE), draw order (SORTENTSTABLE with `$SORTENTS`), `monochrome.ctb`.
+- Entities: LINE, CIRCLE, ARC, ELLIPSE, SPLINE, LWPOLYLINE, POLYLINE, POINT (PDMODE), SOLID, TRACE,
+  3DFACE, RAY, XLINE, INSERT/MINSERT with ATTRIBs and XCLIP, TEXT, MTEXT, ATTDEF, SHAPE, HATCH,
+  MPOLYGON, DIMENSION (regenerated with `generateDimension` when the `*D` block is missing),
+  LEADER, MULTILEADER, TOLERANCE, MLINE, MESH, HELIX, ACAD_TABLE (its block), IMAGE and WIPEOUT
+  (PNG, JPEG, TIFF, BMP), REGION/3DSOLID/BODY/surfaces as ACIS wireframe (SAT and SAB), proxy
+  graphics, VIEWPORT, underlay and OLE frames.
+- Fonts and images come from the host through `env.loadFont` / `env.loadImage`; text is laid out by
+  @truedxf/text. `env.text.missingFont` chooses AutoCAD's missing-font behaviour or a fallback
+  font; missing fonts show up in `PlotResult.notes` (`font-missing`, `bigfont-missing`).
+
+Importing the package registers every drawer (side effects in `src/draw/*.ts`); `registerDrawer`
+and `registerPreparer` add more.
+
+## Usage
+
+```ts
+import { readFile } from "node:fs/promises";
+import { loadDxf } from "@truedxf/model";
+import { type PlotRequest, renderPlot } from "@truedxf/render";
+
+const doc = loadDxf(new Uint8Array(await readFile("drawing.dxf")));
+const request: PlotRequest = { layout: "Model", area: { type: "extents" }, canvas: [1600, 1200] };
+const { displayList, view, unsupported, notes } = await renderPlot(doc, request, {
+  // font bytes by lower-cased file name ("txt.shx", "arial.ttf"); undefined = missing
+  loadFont: (name) => readFile(`fonts/${name}`).then((b) => new Uint8Array(b), () => undefined),
+});
+// view: the world window that maps onto the canvas; draw the batches in order without depth testing
+console.log(displayList.batches.length, view, unsupported, notes);
+```
+
+For a paper-space layout pass its name and `area: { type: "layout" }` (or a `window` in paper
+units). Viewers pass `raster: "smooth"`, `visibility: "display"` and `layerVisibility`, as
+[viewer/src/protocol.ts](../viewer/src/protocol.ts) does.
+
+## Limitations
+
+- Plot styles: only `monochrome.ctb` (ACI colours to black, true colours kept) is emulated; CTB/STB
+  files are not read (rung 15, `@truedxf/plot` is a placeholder).
+- Stored page setups are not read: the caller supplies the plot area and canvas (`PlotRequest`,
+  docs/fixtures.md). Extents plots miss AutoCAD's padding (extents suite 9/18 at F1(r=1) ≥ 0.99).
+- Model space is drawn in plan view (the `*ACTIVE` VPORT view direction is not applied); no
+  perspective viewports.
+- Open features: PDF underlay content (frame only), wide polylines with linetypes, some
+  MULTILEADER variants, XCLIP of ATTRIBs. Raster gaps: exact-pixel ties, spline tessellation, hatch
+  islands, clipped huge arcs (docs/TODO.md).
+- Scoreboard (docs/PLAN.md, 2026-10-01): 3 279 of 3 583 reference cases at F1(r=1) ≥ 0.99, 924
+  pixel-exact. Not published to npm yet (version 0.0.0); consumed from source in the workspace.
+
+## See also
+
+- Notes: [03](../../research/notes/03-entities-geometry.md) geometry,
+  [05](../../research/notes/05-dimensions-leaders.md) dimensions,
+  [06](../../research/notes/06-hatch-linetype-appearance.md) hatch, linetypes, colours,
+  [07](../../research/notes/07-blocks-inserts-misc.md) blocks, images, proxies,
+  [08](../../research/notes/08-layouts-viewports-plotting.md) layouts and plotting (§10 raster rules)
+- [@truedxf/three](../three) (`DisplayListRenderer`), [@truedxf/viewer](../viewer),
+  [@truedxf/testkit](../testkit) (CPU rasterizer and scorer), [@truedxf/text](../text)

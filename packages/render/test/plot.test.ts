@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { DEFAULT_CALIBRATION, Frontend, fitWindow, renderPlot } from "../src/index.ts";
 import { viewFromBounds } from "../src/plot.ts";
+import { modelDoc } from "./helpers.ts";
 
 describe("viewFromBounds", () => {
   it("spans the bounds exactly on the axis that sets the scale", () => {
@@ -23,5 +25,53 @@ describe("viewFromBounds", () => {
     const v = viewFromBounds(b, [2000, 1500]);
     expect(v.minX).toBe(0.1);
     expect(v.maxX).toBe(20.3);
+  });
+});
+
+describe("extents plots", () => {
+  const circle = `0 CIRCLE
+5 40
+330 1F
+100 AcDbEntity
+8 0
+100 AcDbCircle
+10 5
+20 5
+30 0
+40 10`;
+  const request = {
+    layout: "Model",
+    area: { type: "extents" as const },
+    canvas: [200, 150] as const,
+    styleTable: "monochrome.ctb",
+  };
+
+  it("treats degenerate header extents (0,0)-(0,0) as unset", async () => {
+    const header = "9 $EXTMIN\n10 0\n20 0\n30 0\n9 $EXTMAX\n10 0\n20 0\n30 0";
+    const r = await renderPlot(modelDoc({ entities: circle, header }), request);
+    expect(r.view.maxY - r.view.minY).toBeCloseTo(20, 1);
+  });
+
+  it("caps curve tessellation when the view is far smaller than the geometry", () => {
+    const doc = modelDoc({ entities: circle });
+    const view = fitWindow([0, 0], [4e-9, 3e-9], [200, 150]);
+    for (const raster of ["smooth", "autocad"] as const) {
+      const fe = new Frontend(
+        doc,
+        { ...request, area: { type: "window", min: [0, 0], max: [4e-9, 3e-9] } },
+        view,
+        DEFAULT_CALIBRATION,
+        { raster },
+      );
+      const pts = fe.flatten({
+        subpaths: [
+          {
+            segments: [{ kind: "arc", center: { x: 0, y: 0 }, radius: 10, start: 0, sweep: 2 * Math.PI }],
+            closed: false,
+          },
+        ],
+      });
+      expect(pts[0]!.points.length / 2).toBeLessThanOrEqual((1 << 16) + 1);
+    }
   });
 });

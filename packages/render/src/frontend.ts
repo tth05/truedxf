@@ -774,7 +774,8 @@ export class Frontend {
    */
   flatten(path: Path2, forFill = false): { points: Float64Array; closed: boolean }[] {
     const g = this.grid;
-    if (!g) return flattenPath(path, this.tolerance);
+    const tol = Math.max(this.tolerance, curveToleranceFloor(path));
+    if (!g) return flattenPath(path, tol);
     const out: { points: Float64Array; closed: boolean }[] = [];
     for (const sp of path.subpaths) {
       const pts: number[] = [];
@@ -799,7 +800,10 @@ export class Frontend {
             append(w);
             continue;
           }
-          const n = gsSegmentCount(r, seg.sweep, forFill ? GS_FILL_FACTOR : GS_STROKE_FACTOR);
+          const n = Math.min(
+            MAX_CURVE_SEGMENTS,
+            gsSegmentCount(r, seg.sweep, forFill ? GS_FILL_FACTOR : GS_STROKE_FACTOR),
+          );
           const w: number[] = [];
           for (let k = 0; k <= n; k++) {
             const t = seg.start + (seg.sweep * k) / n;
@@ -808,7 +812,10 @@ export class Frontend {
           append(w);
         } else if (seg.kind === "ellipticArc") {
           // uniform parameter steps, exact vertices
-          const n = gsSegmentCount(ellipticArc2SemiAxes(seg)[0] / g.pixelSize, seg.sweep, GS_STROKE_FACTOR);
+          const n = Math.min(
+            MAX_CURVE_SEGMENTS,
+            gsSegmentCount(ellipticArc2SemiAxes(seg)[0] / g.pixelSize, seg.sweep, GS_STROKE_FACTOR),
+          );
           const w: number[] = [];
           for (let k = 0; k <= n; k++) {
             const t = seg.start + (seg.sweep * k) / n;
@@ -818,7 +825,7 @@ export class Frontend {
           }
           append(w);
         } else {
-          const fl = flattenPath({ subpaths: [{ segments: [seg], closed: false }] }, this.tolerance)[0];
+          const fl = flattenPath({ subpaths: [{ segments: [seg], closed: false }] }, tol)[0];
           if (fl) append(fl.points);
         }
       }
@@ -862,8 +869,11 @@ export async function renderPlot(
     view = layoutAreaView(request);
   } else {
     // extents: a first pass at a coarse resolution finds the drawing bounds
-    const ext = doc.header.point("$EXTMAX", { x: 1, y: 1, z: 0 });
-    const exn = doc.header.point("$EXTMIN", { x: 0, y: 0, z: 0 });
+    // the stored extents only seed the probe's resolution: model space $EXTMIN/$EXTMAX, a layout
+    // its LAYOUT 14/15 (they match paper space + viewport frames, note 08 §10.16)
+    const lo = space.isModel ? undefined : space.layout?.object;
+    const ext = lo ? lo.extentsMax : doc.header.point("$EXTMAX", { x: 1, y: 1, z: 0 });
+    const exn = lo ? lo.extentsMin : doc.header.point("$EXTMIN", { x: 0, y: 0, z: 0 });
     // geometric bounds: no pixel grid (it clips to the guessed canvas), no lineweight widening
     const probeBounds = (guess: View) => {
       const probe = new Frontend(doc, { ...request, lineweights: false }, guess, calibration, {
@@ -877,7 +887,9 @@ export async function renderPlot(
     const w = ext.x - exn.x;
     const h = ext.y - exn.y;
     let guess: View;
-    if (w >= 0 && h >= 0 && w < 1e15 && h < 1e15) {
+    // degenerate header extents (0,0)-(0,0), written by many non-AutoCAD writers, count as unset:
+    // a ~1e-9 window would make the probe flatten every curve at a 1e-10 tolerance
+    if (w >= 0 && h >= 0 && Math.max(w, h) > 0 && w < 1e15 && h < 1e15) {
       guess = fitWindow(
         [exn.x, exn.y],
         [Math.max(ext.x, exn.x + 1e-9), Math.max(ext.y, exn.y + 1e-9)],
@@ -897,6 +909,32 @@ export async function renderPlot(
   const contrast = fe.contrastNote();
   if (contrast) notes.push(contrast);
   return { displayList: fe.build(), view, unsupported: fe.unsupported, ...(notes.length ? { notes } : {}) };
+}
+
+/**
+ * Guard against runaway tessellation (a view far smaller than the geometry, e.g. a degenerate
+ * extents guess): at most this many chords per full circle, independent of the pixel size.
+ */
+const MAX_CURVE_SEGMENTS = 1 << 16;
+
+/**
+ * Smallest useful chord tolerance for a path: the sagitta of a full circle of the path's largest
+ * curve radius cut into MAX_CURVE_SEGMENTS chords (count-based, deterministic). Lines: 0.
+ */
+function curveToleranceFloor(path: Path2): number {
+  let r = 0;
+  for (const sp of path.subpaths) {
+    for (const seg of sp.segments) {
+      if (seg.kind === "arc") r = Math.max(r, seg.radius);
+      else if (seg.kind === "ellipticArc")
+        r = Math.max(r, Math.hypot(seg.u.x, seg.u.y) + Math.hypot(seg.v.x, seg.v.y));
+      else if (seg.kind === "quad" || seg.kind === "cubic") {
+        const q = seg.kind === "quad" ? [seg.p0, seg.p1, seg.p2] : [seg.p0, seg.p1, seg.p2, seg.p3];
+        for (const a of q) for (const b of q) r = Math.max(r, Math.hypot(a.x - b.x, a.y - b.y));
+      }
+    }
+  }
+  return r * (1 - Math.cos(Math.PI / MAX_CURVE_SEGMENTS));
 }
 
 /** Whether every segment of a path is a single point (zero-length LINE, zero-radius arc). */

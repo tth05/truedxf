@@ -263,16 +263,17 @@ export class FilesPanel {
         ),
       ];
     if (!fontsMissing) return [];
+    const why =
+      "This site ships no AutoCAD or Windows fonts (txt.shx, simplex.shx, …), so missing fonts are " +
+      "drawn in Liberation Sans and text can look different from AutoCAD. Choose your fonts folder " +
+      "(e.g. a copy of AutoCAD's Fonts folder): it stays on your computer" +
+      (f.canRemember ? " and is remembered for your next visit." : "; this browser keeps it for this visit.");
     return [
       h(
         "div",
-        { class: "hint" },
-        "This site ships no AutoCAD or Windows fonts (txt.shx, simplex.shx, …), so missing fonts are " +
-          "drawn in Liberation Sans and text can look different from AutoCAD. ",
+        { class: "diag-sub fonts-cta" },
         choose("Choose your fonts folder"),
-        f.canRemember
-          ? " (e.g. a copy of AutoCAD's Fonts folder) once; it stays on your computer and is remembered."
-          : " (e.g. a copy of AutoCAD's Fonts folder) for this visit; it stays on your computer.",
+        h("span", { class: "help", title: why, "aria-label": why, role: "img" }, icon(ICONS.help)),
       ),
     ];
   }

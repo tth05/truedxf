@@ -70,4 +70,7 @@ export const ICONS = {
   ),
   caret: P('<path d="M6 9l6 6 6-6"/>'),
   font: P('<path d="M5 7V5h14v2M12 5v14M9 19h6"/>'),
+  help: P(
+    '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.6M12 17h.01"/>',
+  ),
 };

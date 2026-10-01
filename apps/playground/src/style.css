@@ -962,6 +962,23 @@ body > .landing {
   justify-content: center;
   gap: 8px;
 }
+.fonts-cta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.help {
+  display: inline-flex;
+  color: var(--faint);
+  cursor: help;
+}
+.help:hover {
+  color: var(--text);
+}
+.help svg {
+  width: 14px;
+  height: 14px;
+}
 .files .item.static {
   cursor: default;
 }

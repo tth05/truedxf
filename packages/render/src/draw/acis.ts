@@ -8,7 +8,15 @@
  * R2013+ files keep the ACIS data as SAB (binary SAT) in the ACDSDATA section: ACDSRECORD
  * `320 <entity handle>`, `2 ASM_Data`, `94 <size>`, `310…` (tag layout after ezdxf acis/sab.py).
  */
-import { type Curve3, ellipticArcCurve3, line3, projectCurve3, type Vec3 } from "@truedxf/geometry";
+import {
+  type Curve3,
+  ellipticArcCurve3,
+  line3,
+  Matrix44,
+  NurbsCurve,
+  projectCurve3,
+  type Vec3,
+} from "@truedxf/geometry";
 import type { AcisEntity, DxfDocument } from "@truedxf/model";
 import { registerDrawer } from "../frontend.ts";
 
@@ -156,7 +164,7 @@ export function parseSab(bytes: Uint8Array): SatRecord[] | undefined {
 }
 
 /** SAB blobs of the ACDSDATA section by entity handle. */
-function sabByHandle(doc: DxfDocument): Map<string, Uint8Array> {
+export function sabByHandle(doc: DxfDocument): Map<string, Uint8Array> {
   const out = new Map<string, Uint8Array>();
   const store = doc.tags.store;
   for (const sec of doc.tags.sections) {
@@ -199,6 +207,10 @@ const SAB_CACHE = new WeakMap<DxfDocument, Map<string, Uint8Array>>();
 const ref = (t: string) => (t.startsWith("$") ? Number(t.slice(1)) : Number.NaN);
 const nums = (r: SatRecord) => r.tokens.filter((t) => /^[-+]?(\d|\.\d)/.test(t)).map(Number);
 
+// tolerant vertices / edges ("tvertex-vertex", "tedge-edge") are derived types
+const isVertex = (t: string | undefined) => t === "vertex" || (t?.endsWith("-vertex") ?? false);
+const isEdge = (t: string) => t === "edge" || t.endsWith("-edge");
+
 /** Wireframe curves of an ACIS model in WCS (block coordinates). */
 export function satWireframe(lines: readonly string[] | SatRecord[]): {
   curves: Curve3[];
@@ -209,7 +221,7 @@ export function satWireframe(lines: readonly string[] | SatRecord[]): {
   const at = (i: number) => (i >= 0 && i < recs.length ? recs[i] : undefined);
   const point = (vi: number): Vec3 | undefined => {
     const v = at(vi);
-    if (v?.type !== "vertex") return undefined;
+    if (!isVertex(v?.type)) return undefined;
     for (const t of v.tokens) {
       const p = at(ref(t));
       if (p?.type === "point") {
@@ -249,9 +261,9 @@ export function satWireframe(lines: readonly string[] | SatRecord[]): {
   const curves: Curve3[] = [];
   let unsupported = 0;
   for (const r of recs) {
-    if (r.type !== "edge") continue;
+    if (!isEdge(r.type)) continue;
     const refs = r.tokens.map(ref).filter((i) => !Number.isNaN(i) && i >= 0);
-    const vs = refs.filter((i) => at(i)?.type === "vertex");
+    const vs = refs.filter((i) => isVertex(at(i)?.type));
     const ci = refs.find((i) => /-curve$|^intcurve/.test(at(i)?.type ?? ""));
     if (vs.length < 1) continue;
     const a = point(vs[0]!);
@@ -259,42 +271,254 @@ export function satWireframe(lines: readonly string[] | SatRecord[]): {
     if (!a || !b) continue;
     const curve = ci !== undefined ? at(ci)! : undefined;
     const reversed = r.tokens.includes("reversed");
-    if (curve?.type === "ellipse-curve") {
-      const n = nums(curve);
-      if (n.length >= 10) {
-        const c = T({ x: n[0]!, y: n[1]!, z: n[2]! });
-        const nrm = Tdir({ x: n[3]!, y: n[4]!, z: n[5]! });
-        const u = Tdir({ x: n[6]!, y: n[7]!, z: n[8]! });
-        const ratio = n[9]!;
-        const ul = Math.hypot(u.x, u.y, u.z);
-        const nl = Math.hypot(nrm.x, nrm.y, nrm.z) || 1;
-        const w = {
-          x: ((nrm.y * u.z - nrm.z * u.y) / nl) * ratio,
-          y: ((nrm.z * u.x - nrm.x * u.z) / nl) * ratio,
-          z: ((nrm.x * u.y - nrm.y * u.x) / nl) * ratio,
-        };
-        const ang = (p: Vec3) => {
-          const d = { x: p.x - c.x, y: p.y - c.y, z: p.z - c.z };
-          const cu = (d.x * u.x + d.y * u.y + d.z * u.z) / (ul * ul);
-          const wl2 = w.x * w.x + w.y * w.y + w.z * w.z || 1;
-          const cw = (d.x * w.x + d.y * w.y + d.z * w.z) / wl2;
-          return Math.atan2(cw, cu);
-        };
-        const pa = T(a);
-        const pb = T(b);
-        let t0 = ang(pa);
-        let t1 = ang(pb);
-        if (reversed) [t0, t1] = [t1, t0];
-        let sweep = t1 - t0;
-        while (sweep <= 1e-12) sweep += 2 * Math.PI;
-        curves.push(ellipticArcCurve3({ center: c, u, v: w, start: t0, sweep }));
+    if (curve && curve.type !== "straight-curve") {
+      // Curved edges are bounded by their vertices: a curve that does not pass through them was
+      // misread (or is a kind we cannot evaluate) and falls back to the chord, noted.
+      const c =
+        curve.type === "ellipse-curve"
+          ? ellipseEdge(geometry(curve), T, Tdir, a, b, reversed)
+          : splineEdge(geometry(curve), edgeParams(r, vs), reversed, T, a, b);
+      if (c) {
+        curves.push(c);
         continue;
       }
+      unsupported++;
     }
-    if (curve && curve.type !== "straight-curve") unsupported++;
     curves.push(line3(T(a), T(b)));
   }
   return { curves, unsupported };
+}
+
+/**
+ * Geometry tokens of a curve record: everything after its header pointers. The header is
+ * `$attrib` (old SAT) or `$attrib <history id> $…` (ACIS ≥ 7, SAB); reading numbers from the
+ * start of the record took the history id −1 for the first coordinate, which made ellipse edges
+ * millions of units large (corpus libredwg#1021 test-trichter, netDxf#475 MUEB).
+ */
+function geometry(r: SatRecord): string[] {
+  let k = 0;
+  for (let i = 0; i < Math.min(4, r.tokens.length); i++) if (r.tokens[i]!.startsWith("$")) k = i + 1;
+  return r.tokens.slice(k);
+}
+
+/** Edge parameters (start, end) stored after the vertex pointers (newer ACIS), if any. */
+function edgeParams(r: SatRecord, vs: readonly number[]): [number, number] | undefined {
+  // positional: a closed edge points to the same vertex twice
+  const at: number[] = [];
+  for (let i = 0; i < r.tokens.length && at.length < 2; i++) {
+    const t = r.tokens[i]!;
+    if (t.startsWith("$") && vs.includes(ref(t))) at.push(Number(r.tokens[i + 1]));
+  }
+  const [p0, p1] = at;
+  return p0 !== undefined && p1 !== undefined && Number.isFinite(p0) && Number.isFinite(p1)
+    ? [p0, p1]
+    : undefined;
+}
+
+type Xf = (p: Vec3) => Vec3;
+
+const dist = (p: Vec3, q: Vec3) => Math.hypot(p.x - q.x, p.y - q.y, p.z - q.z);
+
+/** Rounding slack for coordinates near these points: old SAT text has 6 significant digits. */
+const precision = (...ps: Vec3[]) =>
+  1e-5 * Math.max(...ps.map((p) => Math.max(Math.abs(p.x), Math.abs(p.y), Math.abs(p.z)))) + 1e-9;
+
+/**
+ * Elliptic arc of an `ellipse-curve` edge (centre, normal, major axis, ratio) from its start to
+ * its end vertex, in local coordinates; undefined unless both vertices lie on the ellipse.
+ */
+function ellipseEdge(
+  g: readonly string[],
+  T: Xf,
+  Tdir: Xf,
+  a: Vec3,
+  b: Vec3,
+  reversed: boolean,
+): Curve3 | undefined {
+  const n = g.slice(0, 10).map(Number);
+  if (n.length < 10 || !n.every(Number.isFinite)) return undefined;
+  const c = { x: n[0]!, y: n[1]!, z: n[2]! };
+  const nrm = { x: n[3]!, y: n[4]!, z: n[5]! };
+  const u = { x: n[6]!, y: n[7]!, z: n[8]! };
+  const ratio = n[9]!;
+  const ul = Math.hypot(u.x, u.y, u.z);
+  const nl = Math.hypot(nrm.x, nrm.y, nrm.z);
+  if (!(ul > 0) || !(nl > 0) || !(ratio > 0)) return undefined;
+  // minor axis = N̂ × major · ratio, taken before the body transform so that a mirroring
+  // transform keeps the curve (N̂ is a pseudo-vector)
+  const w = {
+    x: ((nrm.y * u.z - nrm.z * u.y) / nl) * ratio,
+    y: ((nrm.z * u.x - nrm.x * u.z) / nl) * ratio,
+    z: ((nrm.x * u.y - nrm.y * u.x) / nl) * ratio,
+  };
+  const wl2 = w.x * w.x + w.y * w.y + w.z * w.z;
+  const ang = (p: Vec3) => {
+    const d = { x: p.x - c.x, y: p.y - c.y, z: p.z - c.z };
+    return Math.atan2(
+      (d.x * w.x + d.y * w.y + d.z * w.z) / wl2,
+      (d.x * u.x + d.y * u.y + d.z * u.z) / (ul * ul),
+    );
+  };
+  const on = (p: Vec3, t: number) =>
+    dist(p, {
+      x: c.x + u.x * Math.cos(t) + w.x * Math.sin(t),
+      y: c.y + u.y * Math.cos(t) + w.y * Math.sin(t),
+      z: c.z + u.z * Math.cos(t) + w.z * Math.sin(t),
+    }) <= tol;
+  const tol = 1e-3 * ul + precision(c, a, b);
+  let t0 = ang(a);
+  let t1 = ang(b);
+  if (!on(a, t0) || !on(b, t1)) return undefined;
+  if (reversed) [t0, t1] = [t1, t0];
+  let sweep = t1 - t0;
+  while (sweep <= 1e-12) sweep += 2 * Math.PI;
+  return ellipticArcCurve3({ center: T(c), u: Tdir(u), v: Tdir(w), start: t0, sweep });
+}
+
+/**
+ * The B-spline (`nubs`) / NURBS (`nurbs`) approximation stored in an intcurve (and other
+ * procedural curves): `degree closure knotCount (knot multiplicity)… point…`, each end knot
+ * written once less than in a clamped knot vector (ezdxf acis/entities.py). Trimmed to the edge
+ * parameters when they lie on the spline, else drawn whole; undefined unless the result runs
+ * between the edge's vertices.
+ */
+function splineEdge(
+  g: readonly string[],
+  params: [number, number] | undefined,
+  reversed: boolean,
+  T: Xf,
+  a: Vec3,
+  b: Vec3,
+): Curve3 | undefined {
+  const s = g.findIndex((t) => t === "nubs" || t === "nurbs");
+  if (s < 0) return undefined;
+  const spline = parseBs(g, s + 1, g[s] === "nurbs");
+  if (!spline) return undefined;
+  const lo = spline.domainStart;
+  const hi = spline.domainEnd;
+  const span = hi - lo;
+  const ranges: [number, number][] = [];
+  if (params) {
+    // a reversed edge stores the negated curve parameters
+    const [p0, p1] = params;
+    ranges.push(reversed ? [-p1, -p0] : [p0, p1], reversed ? [p0, p1] : [-p1, -p0]);
+  }
+  ranges.push([lo, hi]);
+  let size = dist(a, b);
+  const P = spline.points;
+  for (let i = 0; i + 2 < P.length; i += 3)
+    size = Math.max(size, dist({ x: P[i]!, y: P[i + 1]!, z: P[i + 2]! }, a));
+  const tol = 1e-3 * size + precision(a, b);
+  const at = (u: number) => {
+    const q = spline.pointAt(u);
+    return { x: q[0]!, y: q[1]!, z: q[2]! };
+  };
+  if (dist(a, b) === 0 && dist(at(lo), at(hi)) <= tol) {
+    // a closed edge on a closed (periodic) spline may start anywhere on it: the whole spline,
+    // if the vertex lies in its control point box (the curve stays inside the control hull)
+    let inside = true;
+    for (const [c, v] of [
+      [0, a.x],
+      [1, a.y],
+      [2, a.z],
+    ] as const) {
+      let mn = Number.POSITIVE_INFINITY;
+      let mx = Number.NEGATIVE_INFINITY;
+      for (let i = c; i < P.length; i += 3) {
+        mn = Math.min(mn, P[i]!);
+        mx = Math.max(mx, P[i]!);
+      }
+      if (v < mn - tol || v > mx + tol) inside = false;
+    }
+    if (inside) return { kind: "nurbs", curve: spline.transform(affine(T)) };
+  }
+  for (const [r0, r1] of ranges) {
+    if (!(r0 >= lo - 1e-9 * span && r1 <= hi + 1e-9 * span && r1 - r0 > 1e-12 * span)) continue;
+    const u0 = Math.max(r0, lo);
+    const u1 = Math.min(r1, hi);
+    const q0 = at(u0);
+    const q1 = at(u1);
+    const fits = (dist(q0, a) <= tol && dist(q1, b) <= tol) || (dist(q0, b) <= tol && dist(q1, a) <= tol);
+    if (!fits) continue;
+    const sub = u0 === lo && u1 === hi ? spline : trim(spline, u0, u1);
+    return sub ? { kind: "nurbs", curve: sub.transform(affine(T)) } : undefined;
+  }
+  return undefined;
+}
+
+function parseBs(g: readonly string[], i: number, rational: boolean): NurbsCurve | undefined {
+  const degree = Number(g[i]);
+  if (!(degree >= 1 && degree <= 25 && Number.isInteger(degree))) return undefined;
+  // the closure ("open" / "closed" / "periodic", an enum in SAB) is missing in old SAT
+  for (const skip of [1, 0]) {
+    let k = i + 1 + skip;
+    const nk = Number(g[k++]);
+    if (!(nk >= 2 && Number.isInteger(nk)) || k + 2 * nk > g.length) continue;
+    const knots: number[] = [];
+    let ok = true;
+    for (let j = 0; j < nk && ok; j++) {
+      const v = Number(g[k++]);
+      const m = Number(g[k++]);
+      if (!Number.isFinite(v) || !(m >= 1 && Number.isInteger(m)) || (knots.length > 0 && v < knots.at(-1)!))
+        ok = false;
+      else for (let q = 0; q < m; q++) knots.push(v);
+    }
+    if (!ok) continue;
+    const count = knots.length - degree + 1;
+    const stride = rational ? 4 : 3;
+    if (count < degree + 1 || k + count * stride > g.length) continue;
+    const pts = new Float64Array(count * 3);
+    const wts = rational ? new Float64Array(count) : undefined;
+    for (let j = 0; j < count; j++) {
+      for (let c = 0; c < 3; c++) pts[j * 3 + c] = Number(g[k++]);
+      if (wts) wts[j] = Number(g[k++]);
+    }
+    if (!pts.every(Number.isFinite) || (wts && !wts.every((w) => w > 0))) continue;
+    try {
+      return new NurbsCurve(degree, 3, pts, Float64Array.from([knots[0]!, ...knots, knots.at(-1)!]), wts);
+    } catch {
+      // inconsistent counts: try the other layout
+    }
+  }
+  return undefined;
+}
+
+/** The part of `c` over [u0, u1]: knot insertion up to multiplicity p at both ends. */
+function trim(c: NurbsCurve, u0: number, u1: number): NurbsCurve | undefined {
+  const p = c.degree;
+  const mult = (k: Float64Array, u: number) => k.reduce((n, v) => n + (v === u ? 1 : 0), 0);
+  let s = c;
+  s = s.insertKnot(u0, Math.max(0, p - mult(s.knots, u0)));
+  s = s.insertKnot(u1, Math.max(0, p - mult(s.knots, u1)));
+  const K = s.knots;
+  // a knot of multiplicity p at indices r … r+p−1 makes the curve pass through point r − 1
+  const first = K.lastIndexOf(u0) - p;
+  const last = K.indexOf(u1) - 1;
+  if (first < 0 || last < first + 1 || last >= s.count) return undefined;
+  const knots = K.slice(first, last + p + 2);
+  knots[0] = u0;
+  knots[knots.length - 1] = u1;
+  try {
+    return new NurbsCurve(
+      p,
+      3,
+      s.points.slice(first * 3, (last + 1) * 3),
+      knots,
+      s.weights?.slice(first, last + 1),
+    );
+  } catch {
+    return undefined;
+  }
+}
+
+/** The affine map `T` as a matrix. */
+function affine(T: Xf): Matrix44 {
+  const o = T({ x: 0, y: 0, z: 0 });
+  const d = (p: Vec3) => {
+    const q = T(p);
+    return { x: q.x - o.x, y: q.y - o.y, z: q.z - o.z };
+  };
+  return Matrix44.fromBasis(d({ x: 1, y: 0, z: 0 }), d({ x: 0, y: 1, z: 0 }), d({ x: 0, y: 0, z: 1 }), o);
 }
 
 registerDrawer(

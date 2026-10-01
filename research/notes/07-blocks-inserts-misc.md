@@ -1078,6 +1078,28 @@ VERIFIED-BY-ACAD (misc suite, 2026-09-30): LIGHT plots nothing, whatever its plo
 (`light-point-glyph-0/1`, `light-spot`). Native 3DSOLID / REGION are written by DXFOUT without
 proxy graphics.
 
+**ACIS wireframe records (render/src/draw/acis.ts; corpus findings 2026-10-01, file format facts,
+not AutoCAD output):**
+- Curve records start with header pointers before the geometry: `$attrib` (old SAT, version
+  < 700), `$attrib -1 $…` (SAT ≥ 7.0 and SAB, the `-1` is a history id) or `$-1 $-1 $-1` (some
+  21500 text). Geometry = the tokens after the last leading `$` pointer. Reading the first
+  numbers of the record instead took the history id `-1` as the centre x of `ellipse-curve`s and
+  made SAB solids/surfaces millions of units large (libredwg#1021 test-trichter, netDxf#475 MUEB).
+- `ellipse-curve`: centre, normal, major axis, ratio (then the parameter range); the edge's
+  vertices bound the arc. Minor axis = N̂ × major · ratio (take it before the body transform).
+- Tolerant topology is a derived type: `tvertex-vertex`, `tedge-edge` (SAB joins the type names
+  with `-`). Ignoring them dropped a quarter of the edges of a real solid (libredwg#1071
+  Waschbecken).
+- Edges store their curve parameters after the vertex pointers (`edge … $v0 t0 $v1 t1 $coedge
+  $curve sense`); a closed edge points to the same vertex twice.
+- `intcurve-curve` (exact_int_cur / par_int_cur / int_int_cur …) carries a B-spline
+  approximation: `nubs|nurbs degree closure knotCount (knot mult)… points…` (closure is an enum in
+  SAB, a word in SAT; `nurbs` points have a 4th weight), each end knot written once less than in
+  a clamped knot vector. Evaluating it trimmed to the edge parameters draws the intcurve edges;
+  not handled: subtype references (`ref n`) and `parcur` (surface-parameter curves) — those
+  fall back to the chord between the vertices (`acis-curve` note). Corpus: 1 082 chord edges
+  before, 78 after, out of ~31 500.
+
 ## 15. ACAD_PROXY_ENTITY and proxy graphics
 
 ### 15.1 Where proxy graphics live

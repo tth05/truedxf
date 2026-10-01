@@ -47,7 +47,7 @@ import type {
   SplineEntity,
   VertexEntity,
 } from "@truedxf/model";
-import { type DrawState, type Frontend, registerDrawer } from "../frontend.ts";
+import { DENSE_LINETYPE_PERIOD_PX, type DrawState, type Frontend, registerDrawer } from "../frontend.ts";
 import type { Resolved } from "../props.ts";
 import { pointSymbol } from "./points.ts";
 
@@ -230,7 +230,12 @@ function polyline2d(
   }
   // tolerance in OCS units for tapered arcs: target tolerance / plane scale
   const scale = fe.transformScale(st.m) || 1;
-  const lt = fe.linetypeFor(e, r, st);
+  let lt = fe.linetypeFor(e, r, st);
+  // like strokePath: a pattern below half a device pixel plots continuous (note 06 §2.6.1); in
+  // smooth (viewing) mode already below one pixel — dashes that small are not visible, and dense
+  // patterns on long wide polylines made hundreds of thousands of dash polygons (ezdxf#429)
+  const dense = fe.grid ? DENSE_LINETYPE_PERIOD_PX : 1;
+  if (lt && lt.period < dense * fe.pixelSize) lt = undefined;
   if (lt && fe.fillMode) {
     const vs = closed && plinegen && verts.length > 1 ? [...verts.slice(1), verts[0]!] : verts;
     dashedWidePolyline(
@@ -334,6 +339,7 @@ function dashedWidePolyline(
     }
   };
   const rings: Float64Array[] = [];
+  const color = fe.color(r);
   const ranges = res.ranges;
   for (let k = 0; k + 1 < ranges.length; k += 2) {
     const s0 = ranges[k]!;
@@ -341,11 +347,15 @@ function dashedWidePolyline(
     const vs = s0 <= s1 ? piece(s0, s1) : [...piece(s0, total).slice(0, -1), ...piece(0, s1)];
     if (vs.length < 2) continue;
     const outline = widePolylineOutline(vs, { closed: false, tolerance: tol });
-    for (const p of fe.flatten(transformPath(outline.fill, plane))) rings.push(p.points);
+    const dash = fe.flatten(transformPath(outline.fill, plane)).map((p) => p.points);
+    // plot mode: one scanline fill of all dashes (overlaps at vertices fill once); smooth mode:
+    // each dash on its own — a nonzero union of all of them is quadratic in practice
+    if (fe.grid) rings.push(...dash);
+    else if (dash.length > 0) fe.fillRings(dash, color, FillRule.NonZero);
     if (outline.thin.length > 0)
       fe.strokePath(transformPath({ subpaths: outline.thin }, plane), r, undefined, st, { noLinetype: true });
   }
-  if (rings.length > 0) fe.fillRings(rings, fe.color(r), FillRule.NonZero);
+  if (rings.length > 0) fe.fillRings(rings, color, FillRule.NonZero);
 }
 
 /**

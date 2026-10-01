@@ -175,6 +175,15 @@ default, FILLMODE for pattern hatches, extents edge tolerance.
 
 ## Viewer (packages/viewer, apps/playground)
 
+- [x] Additional files: `viewer.addFiles` / `openFiles` / `openDrawing`, loose name matching
+      (base name, case, implied font/image extensions, longest common folder suffix), re-render
+      on change, `image-missing` / `shapefile-missing` warnings; playground multi-file open,
+      folder open / drop, Files panel (2026-10-01, 48a3f77, 3c0635e, b704017).
+- [ ] render `transferables()` lists cached image pixel buffers (DataCloneError on the next
+      render; the viewer copies them as a workaround).
+- [ ] Missing complex-linetype shape files reported only for linetypes in use (ltypeshp.shx);
+      `pdf-missing` note for PDF underlays; scan stored TTF name tables so family names resolve;
+      xref loading from the file store; optionally show which stored file served a request.
 - [ ] Frontend view culling: every LOD step re-tessellates the whole drawing (a window only sets
       the pixel size), so deep zoom into large files costs a full render each time. Cull entities
       (block references by bounds) outside the requested window + margin and re-request on pan.

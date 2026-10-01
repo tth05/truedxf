@@ -9,7 +9,13 @@ import { fmtBytes, fmtNum } from "./format.ts";
 export interface SamplesStatus {
   available: boolean;
   refs: string | null;
-  suites: { name: string; cases: number; score?: { n: number; exact: number; good: number; f1?: number } }[];
+  suites: {
+    name: string;
+    cases: number;
+    score?: { n: number; exact: number; good: number; f1?: number };
+    /** Scored cases per grade (server/samples.ts grade()). */
+    grades?: Record<Grade, number>;
+  }[];
   corpus: number;
 }
 
@@ -21,8 +27,18 @@ export interface FixtureCase {
   plot: FixturePlot | null;
   dxf: string;
   ref: string | null;
-  score: { exact?: number; f1?: number[]; source: string } | null;
+  score: { exact?: number; f1?: number[]; error?: string; source: string } | null;
 }
+
+type Grade = "exact" | "good" | "fair" | "poor" | "error";
+const GRADES: readonly Grade[] = ["exact", "good", "fair", "poor", "error"];
+const GRADE_TITLE: Record<Grade, string> = {
+  exact: "exact (no differing pixel)",
+  good: "good (F1 at 1 px ≥ 0.99)",
+  fair: "fair (F1 at 1 px ≥ 0.9)",
+  poor: "poor (F1 at 1 px < 0.9)",
+  error: "render error",
+};
 
 export interface CorpusRow {
   path: string;
@@ -36,6 +52,7 @@ export interface CorpusRow {
 }
 
 export const API = "api/samples/";
+const NEWLINE = String.fromCharCode(10);
 
 export async function samplesStatus(): Promise<SamplesStatus> {
   try {
@@ -47,9 +64,10 @@ export async function samplesStatus(): Promise<SamplesStatus> {
   }
 }
 
-/** Score badge class: exact / good (F1 at 1 px ≥ 0.99) / poor. */
-function grade(s: FixtureCase["score"]): string {
+/** Score badge class: exact / good (F1 at 1 px ≥ 0.99) / fair (≥ 0.9) / poor; as server grade(). */
+function grade(s: FixtureCase["score"]): Grade | "none" {
   if (!s) return "none";
+  if (s.error !== undefined) return "error";
   if (s.exact === 0) return "exact";
   const f1 = s.f1?.[1] ?? s.f1?.[0] ?? 0;
   return f1 >= 0.99 ? "good" : f1 >= 0.9 ? "fair" : "poor";
@@ -69,19 +87,24 @@ export function fixtureBrowser(status: SamplesStatus, open: (c: FixtureCase) => 
     mount(
       suiteList,
       status.suites.map((s) => {
-        const sc = s.score;
+        const g = s.grades;
+        const shown = g ? GRADES.filter((k) => g[k] > 0) : [];
         return h(
           "div",
           { class: `item${s.name === suite ? " active" : ""}`, onclick: () => void pick(s.name) },
           h("span", { class: "name" }, s.name),
-          h(
-            "span",
-            {
-              class: "meta",
-              title: sc ? `${sc.exact} exact, ${sc.good} good of ${sc.n} scored` : "not scored",
-            },
-            sc ? `${sc.exact}/${sc.n}` : fmtNum(s.cases),
-          ),
+          g
+            ? h(
+                "span",
+                {
+                  class: "meta grades",
+                  title: [...shown.map((k) => `${g[k]} ${GRADE_TITLE[k]}`), `of ${s.cases} cases`].join(
+                    NEWLINE,
+                  ),
+                },
+                ...shown.map((k) => h("span", { class: `g-${k}` }, fmtNum(g[k]))),
+              )
+            : h("span", { class: "meta", title: "not scored" }, fmtNum(s.cases)),
         );
       }),
     );

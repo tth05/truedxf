@@ -19,11 +19,22 @@ write("generated/lines/b-0002.dxf", "0\nEOF\n");
 write("refs/acad2027-R26.0/lines/a-0001.png", "png");
 write(
   "reports/scoreboard/lines.json",
-  JSON.stringify({ n: 2, exact: 1, good: 2, perSuite: { lines: { f1: 0.99 } } }),
+  JSON.stringify({
+    n: 3,
+    exact: 1,
+    good: 2,
+    perSuite: { lines: { f1: 0.99 } },
+    cases: {
+      "lines/a-0001": { exact: 0, f1: [1, 1, 1] },
+      "lines/b-0002": { exact: 12, f1: [0.9, 0.99, 1] },
+      "lines/e-0005": { error: "boom" },
+    },
+  }),
 );
+// a --quiet log: exact matches are not logged; d-0004 is only in the log (older report)
 write(
   "reports/scoreboard/lines.log",
-  "lines/a-0001    exact=0     f1=1.000/1.000/1.000 \nlines/b-0002 exact=12 f1=0.900/0.990/1.000\n",
+  "lines/b-0002 exact=99 f1=0.100/0.100/0.100\nlines/d-0004 exact=7 f1=0.500/0.800/0.900\n",
 );
 write(
   "out/visual/results.json",
@@ -59,7 +70,12 @@ afterAll(() => rmSync(root, { recursive: true, force: true }));
 describe("samples API (playground dev server)", () => {
   it("lists suites with scoreboard summaries and cases with scores and references", () => {
     expect(listSuites(root)).toEqual([
-      { name: "lines", cases: 2, score: { n: 2, exact: 1, good: 2, f1: 0.99 } },
+      {
+        name: "lines",
+        cases: 2,
+        score: { n: 3, exact: 1, good: 2, f1: 0.99 },
+        grades: { exact: 1, good: 2, fair: 0, poor: 1, error: 1 },
+      },
     ]);
     const cases = listCases("lines", root);
     expect(cases.map((c) => c.id)).toEqual(["lines/a-0001", "lines/b-0002"]);
@@ -70,6 +86,14 @@ describe("samples API (playground dev server)", () => {
     });
     expect(cases[1]).toMatchObject({ ref: null, score: { exact: 12, f1: [0.9, 0.99, 1] } });
     expect(listCases("../x", root)).toEqual([]);
+  });
+
+  it("reads every case from the JSON reports, the logs only as a fallback", () => {
+    const s = caseScores(root);
+    expect(s.get("lines/a-0001")).toEqual({ exact: 0, f1: [1, 1, 1], source: "scoreboard" });
+    expect(s.get("lines/b-0002")?.exact).toBe(12);
+    expect(s.get("lines/d-0004")).toEqual({ exact: 7, f1: [0.5, 0.8, 0.9], source: "scoreboard" });
+    expect(s.get("lines/e-0005")).toEqual({ error: "boom", source: "scoreboard" });
   });
 
   it("merges visual harness results", () => {

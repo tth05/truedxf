@@ -56,6 +56,8 @@ async function loadFont(name: string): Promise<Uint8Array | undefined> {
 let n = 0;
 let exact = 0;
 let good = 0;
+/** Every scored case, also the exact ones (--quiet leaves those out of the log). */
+const cases: Record<string, { exact: number; f1: number[] } | { error: string }> = {};
 const perSuite: Record<string, { cases: number; exact: number; good: number; f1: number }> = {};
 for (const t of targets) {
   const [suite, name] = t.split("/");
@@ -89,6 +91,7 @@ for (const t of targets) {
       if (m.exactMismatch === 0) ps.exact++;
       if (m.f1[1] >= 0.99) ps.good++;
       ps.f1 += m.f1[1];
+      cases[meta.id] = { exact: m.exactMismatch, f1: m.f1.map((x: number) => Number(x.toFixed(4))) };
       if (out) {
         mkdirSync(join(out, suite!), { recursive: true });
         const base = join(out, suite!, f.replace(/\.json$/, ""));
@@ -104,9 +107,10 @@ for (const t of targets) {
         );
     } catch (e) {
       console.log(meta.id.padEnd(48), "ERROR", e instanceof Error ? e.stack : e);
+      cases[meta.id] = { error: e instanceof Error ? e.message : String(e) };
     }
   }
 }
 console.log(`\n${n} cases: ${exact} exact, ${good} with F1(r=1) ≥ 0.99`);
 for (const ps of Object.values(perSuite)) ps.f1 = ps.cases ? ps.f1 / ps.cases : 0;
-if (jsonOut) writeFileSync(jsonOut, JSON.stringify({ n, exact, good, perSuite }, null, 1));
+if (jsonOut) writeFileSync(jsonOut, JSON.stringify({ n, exact, good, perSuite, cases }, null, 1));

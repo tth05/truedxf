@@ -591,8 +591,33 @@ select {
 .dot.fair {
   background: var(--warn);
 }
-.dot.poor {
+.dot.poor,
+.dot.error {
   background: var(--danger);
+}
+.dot.error {
+  border-radius: 1px;
+}
+.grades {
+  display: flex;
+  gap: 6px;
+  font-variant-numeric: tabular-nums;
+}
+.grades .g-exact {
+  color: var(--ok);
+}
+.grades .g-good {
+  color: #7ee787;
+}
+.grades .g-fair {
+  color: var(--warn);
+}
+.grades .g-poor,
+.grades .g-error {
+  color: var(--danger);
+}
+.grades .g-error {
+  text-decoration: underline dotted;
 }
 
 /* ---- compare overlay ---- */

@@ -2,7 +2,7 @@
  * Dev-server API over the local samples/ folder (docs/PLAN.md §7.6: samples stay local and may be
  * absent — every endpoint then answers with empty data). Only files below samples/ are served.
  *
- *   GET /api/samples/status                → { available, refs, suites: [{ name, cases, score }], corpus }
+ *   GET /api/samples/status                → { available, refs, suites: [{ name, cases, score, grades }], corpus }
  *   GET /api/samples/suite/<suite>         → { cases: [{ id, name, title, tags, plot, ref, score }] }
  *   GET /api/samples/corpus?q&type&version&producer&limit → { total, rows }
  *   GET /api/samples/facets                → { versions, producers, types }
@@ -20,7 +20,19 @@ export interface CaseScore {
   exact?: number;
   /** F1 at tolerance 0 / 1 / 2 px. */
   f1?: number[];
+  /** The case failed to render. */
+  error?: string;
   source: "scoreboard" | "visual";
+}
+
+export type Grade = "exact" | "good" | "fair" | "poor" | "error";
+
+/** exact / good (F1 at 1 px ≥ 0.99) / fair (≥ 0.9) / poor; same rule as the browser's dots. */
+export function grade(s: CaseScore): Grade {
+  if (s.error !== undefined) return "error";
+  if (s.exact === 0) return "exact";
+  const f1 = s.f1?.[1] ?? s.f1?.[0] ?? 0;
+  return f1 >= 0.99 ? "good" : f1 >= 0.9 ? "fair" : "poor";
 }
 
 export interface CorpusRow {
@@ -77,21 +89,37 @@ export function refsDir(root = SAMPLES): string | undefined {
   return last ? join(root, "refs", last) : undefined;
 }
 
-/** Per-case scores: scoreboard logs (CPU scorer) overridden by the visual harness results. */
+/**
+ * Per-case scores: the scoreboard reports (CPU scorer), then the visual harness results for
+ * cases the scoreboard does not have. The JSON reports list every case; the logs are only a
+ * fallback for older reports, since `--quiet` runs log no exact matches.
+ */
 export function caseScores(root = SAMPLES): Map<string, CaseScore> {
   const out = new Map<string, CaseScore>();
   const board = join(root, "reports", "scoreboard");
-  let logs: string[] = [];
+  let files: string[] = [];
   try {
-    logs = readdirSync(board).filter((f) => f.endsWith(".log"));
+    files = readdirSync(board).sort();
   } catch {
     // no scoreboard
   }
+  for (const f of files.filter((x) => x.endsWith(".json"))) {
+    const report = readJson<{ cases?: Record<string, { exact?: number; f1?: number[]; error?: string }> }>(
+      join(board, f),
+    );
+    for (const [id, c] of Object.entries(report?.cases ?? {}))
+      out.set(id, {
+        ...(c.exact !== undefined ? { exact: c.exact } : {}),
+        ...(c.f1 ? { f1: c.f1 } : {}),
+        ...(c.error !== undefined ? { error: c.error } : {}),
+        source: "scoreboard",
+      });
+  }
   const line = /^(\S+\/\S+)\s+exact=(\d+)\s+f1=([\d.]+)\/([\d.]+)\/([\d.]+)/;
-  for (const f of logs) {
+  for (const f of files.filter((x) => x.endsWith(".log"))) {
     for (const l of readFileSync(join(board, f), "utf8").split(/\r?\n/)) {
       const m = line.exec(l);
-      if (m)
+      if (m && !out.has(m[1]!))
         out.set(m[1]!, {
           exact: Number(m[2]),
           f1: [Number(m[3]), Number(m[4]), Number(m[5])],
@@ -115,6 +143,14 @@ export function caseScores(root = SAMPLES): Map<string, CaseScore> {
 
 export function listSuites(root = SAMPLES) {
   const gen = join(root, "generated");
+  // per-suite counts by grade, over all scored cases
+  const grades = new Map<string, Record<Grade, number>>();
+  for (const [id, s] of caseScores(root)) {
+    const suite = id.slice(0, id.indexOf("/"));
+    let g = grades.get(suite);
+    if (!g) grades.set(suite, (g = { exact: 0, good: 0, fair: 0, poor: 0, error: 0 }));
+    g[grade(s)]++;
+  }
   return dirs(gen).map((name) => {
     let cases = 0;
     try {
@@ -134,6 +170,7 @@ export function listSuites(root = SAMPLES) {
       ...(score
         ? { score: { n: score.n, exact: score.exact, good: score.good, f1: score.perSuite?.[name]?.f1 } }
         : {}),
+      ...(grades.has(name) ? { grades: grades.get(name)! } : {}),
     };
   });
 }

@@ -1325,7 +1325,7 @@ Grouped by rendering impact (highest first).
     unifont code-7 byte order.
 16. Missing TTF: FONTALT (core console) vs Windows substitution (Autodesk help).
 17. $QTEXTMODE in PLOT (rectangles?); TEXTFILL = 0 outlines.
-18. Vertical text (STYLE flag 4) alignment semantics; MTEXT flow direction 3.
+18. ~~Vertical text (STYLE flag 4) alignment semantics~~ (answered in §11, 2026-10-01); MTEXT flow direction 3.
 19. `\p` indent/tab units (multiples of h vs absolute, ezdxf#1390), `\pt` right/centre/decimal stops.
 20. Distributed paragraph alignment; justified last line; CJK line breaking and kinsoku in AutoCAD.
 
@@ -1540,6 +1540,26 @@ MTEXT (§3)
   `[%%9][%%09][%%009][%%65]` draws boxes for 9, 9, 9 and then U+0293 (659) for `%%65`
   (text/nnn-short, PDF ToUnicode 0255 → 0293, 2026-10-01). Whether the buffer survives across
   strings is UNKNOWN (truedxf resets it per string).
+- **Vertical TEXT** (STYLE flag 4; VERIFIED-BY-ACAD 2026-10-01 acad-default-fonts/vertical-*
+  with txt.shx — pixel-exact — and the DXFOUT of fileformat/corpus-ezdxf-text-stacked-shx-font,
+  64 TEXTs incl. rotation, width factor, oblique and mirror flags, all 10 points matched):
+  - a **dual-orientation SHX font** (modes = 2) does it all: its glyphs in vertical mode (code
+    0x0E commands) are centred on the pen x, hang below the pen y and advance the pen down
+    (txt.shx: ±2 × −6 units, advance −9 = 1.5 h; simplex ±8 × −21, advance −31);
+  - 72 moves 10 along the column, **73 is ignored**: Left/any → anchor at 11 (no offset), Center
+    and Middle → 11 at the centre of the column's ink, Right → 11 at the ink bottom ("ABC",
+    txt.shx, h = 12: 10 = 11 + 24 / + 48);
+  - ALIGNED: h = |11 − 10| / (ink column length), the ink top at 10; FIT: only the width factor
+    changes (w = d / (length·h)), the column keeps its length; rotation = angle(10 → 11) + 90°,
+    with BACKWARD − 90° (DXFOUT 284°/270°; the column then runs away from 11 in the plot); FIT
+    with coincident points: rotation 90°, DXFOUT width factor 0, drawn like 1;
+  - **TrueType** "vertical" text is drawn horizontally but aligned as a column from the pen down
+    to −descent: Right puts 10 descent·h above 11 (Arial: 431/1466 = the OS/2 typo descender;
+    truedxf uses the hhea 434), Center and Middle put 11 at the ink centre of the horizontal
+    line, ALIGNED h = d / descent (17.53 for "Aligned alignment", a giant text) with the + 90°
+    rotation (fileformat/corpus-ezdxf-text-stacked-true-type-font DXFOUT; f1 0.06 → 0.96).
+  - Extents: AutoCAD's plot extents of these files matched once the BACKWARD rotation was right
+    (the column's ink box; no special extents rule needed).
 - `\T` multiplies advances, clamped to **0.75…4** (`\T0.5` and `\T0.1x` both give 0.75)
   (mtext/code-tracking*).
 - At-least line gap with mixed heights: baseline_{i+1} = baseline_i − (5/3·f − 1)·(H_i + B_{i+1})/2

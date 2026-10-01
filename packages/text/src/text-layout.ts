@@ -22,13 +22,16 @@
  * - %%u/%%o/%%k lines: SHX at −0.2 h / 1.2 h / 0.5 h spanning the advances shifted by −0.15 h
  *   (special-* with simplex.shx; the shift's origin is unknown); TTF at −descent / ascent / 0.5 h
  *   (hhea), unshifted (text-lato/text-*);
- * - $QTEXTMODE: a rectangle [box] × [−descent, h] instead of the glyphs (qtextmode-1).
+ * - $QTEXTMODE: a rectangle [box] × [−descent, h] instead of the glyphs (qtextmode-1);
+ * - vertical text (STYLE flag 4): a column from the font's vertical-mode glyphs (dual-orientation
+ *   SHX fonts), aligned along the column; TrueType stays horizontal with column alignment rules
+ *   (acad-default-fonts/vertical-*, note 04 §11; see `textFrame`).
  *
  * Transform order: glyph → height/width factor → oblique shear about the baseline
  * (x' = x + y·tan θ, applied *after* the width factor — UNVERIFIED, note 04 §1.5 item 2) → shift by
  * the alignment offset → backward/upside-down mirror about the anchor → rotation → anchor → OCS.
  */
-import { type ResolvedGlyph, type StyleFont, TtfFont } from "@truedxf/fonts";
+import { type ResolvedGlyph, ShxFont, type StyleFont, TtfFont } from "@truedxf/fonts";
 import { Affine2, Matrix44, ocsToWcsMatrix, type Vec3 } from "@truedxf/geometry";
 import { bigFontPairCode, glyphCode, type TextFontSource } from "./fonts.ts";
 import { decorationOffsets, InkBox, type MeasuredGlyph, measureGlyph, measureResolved } from "./glyphs.ts";
@@ -150,15 +153,21 @@ export function boxGlyph(cp: number, box: ResolvedGlyph): MeasuredGlyph {
  *   text-lato/text-control); {@link isBoxChar} characters no font has Arial's .notdef
  *   ({@link missingGlyphBox}); other missing characters nothing.
  */
-function textGlyph(font: StyleFont, ch: TextChar, encoding: string, fonts?: TextFontSource): MeasuredGlyph {
+function textGlyph(
+  font: StyleFont,
+  ch: TextChar,
+  encoding: string,
+  fonts?: TextFontSource,
+  vertical = false,
+): MeasuredGlyph {
   const ttf = font.primary.kind === "ttf";
   if (ttf && ch.cp < 0x20) {
     const nd = fonts?.notdefGlyph?.(font);
     if (nd) return measureResolved(NOTDEF, nd);
   } else if (!ttf && !ch.numeric && (ch.cp < 0x20 || ch.cp === 0x7f)) {
-    return measureGlyph(font, font.primary.hasGlyph(ch.cp) ? ch.cp : QUESTION);
+    return measureGlyph(font, font.primary.hasGlyph(ch.cp) ? ch.cp : QUESTION, vertical);
   }
-  const m = measureGlyph(font, glyphCode(font, ch, encoding));
+  const m = measureGlyph(font, glyphCode(font, ch, encoding), vertical);
   if (ttf && !m.resolved && isBoxChar(ch.cp)) {
     const box = missingGlyphBox(fonts);
     if (box) return boxGlyph(ch.cp, box);
@@ -172,6 +181,7 @@ export function measureLine(
   font: StyleFont,
   encoding: string,
   fonts?: TextFontSource,
+  vertical = false,
 ): LineMetrics {
   const glyphs: Placed[] = [];
   const ink = new InkBox();
@@ -183,7 +193,10 @@ export function measureLine(
     const next = chars[k + 1];
     const pair = next && !ch.numeric && !next.numeric ? bigFontPairCode(font, ch.cp, next.cp) : undefined;
     if (pair !== undefined) k++;
-    const m = pair !== undefined ? measureGlyph(font, pair) : textGlyph(font, ch, encoding, fonts);
+    const m =
+      pair !== undefined
+        ? measureGlyph(font, pair, vertical)
+        : textGlyph(font, ch, encoding, fonts, vertical);
     glyphs.push({ m, pen, penY, ch });
     if (m.ink) ink.add(m.ink, pen, penY);
     pen += m.advance;
@@ -192,7 +205,10 @@ export function measureLine(
   }
   let x0: number;
   let x1: number;
-  if (ink.empty) {
+  if (vertical && !ink.empty) {
+    x0 = ink.xMin;
+    x1 = ink.xMax;
+  } else if (ink.empty) {
     x0 = 0;
     x1 = pen;
   } else if (font.kind === "ttf") {
@@ -228,6 +244,8 @@ export interface TextFrame {
   readonly elevation: number;
   /** Font descent in text heights (for quick-text boxes). */
   readonly descent: number;
+  /** Vertical text drawn as a column (dual-orientation SHX font with STYLE flag 4). */
+  readonly vertical: boolean;
 }
 
 /**
@@ -249,9 +267,14 @@ export function textFrame(
   const defaultHeight = options.defaultHeight ?? 2.5;
   let h = e.height > 0 ? e.height : defaultHeight;
   if (!(h > 0)) return undefined;
-  if (style.spec?.vertical) notes.push("text-vertical-unsupported");
+  // vertical text (STYLE flag 4) needs a dual-orientation SHX font: its shapes carry the vertical
+  // pen moves (code 0x0E). TrueType fonts draw horizontally but are aligned as a "column" of
+  // length descent·h below the pen (`ttfColumn`, note 04 §11); other SHX fonts ignore the flag.
+  const vertical = !!style.spec?.vertical && font.primary instanceof ShxFont && font.primary.modes === 2;
+  const ttfColumn = !!style.spec?.vertical && font.kind === "ttf";
+  if (style.spec?.vertical && !vertical && !ttfColumn) notes.push("text-vertical-unsupported");
   const chars = decodeTextString(e.text);
-  const line = measureLine(chars, font, fonts.encoding, fonts);
+  const line = measureLine(chars, font, fonts.encoding, fonts, vertical);
   let w = e.widthFactor || 1;
   const tanOb = Math.tan((e.oblique || 0) * DEG);
   let rot = (e.rotation || 0) * DEG;
@@ -268,7 +291,45 @@ export function textFrame(
   let ax = 0;
   let ay = 0;
   const boxW = line.x1 - line.x0;
-  if (options.useStoredInsert || !validH) {
+  // vertical: the column runs down from the pen; its extent is the ink [bottom, top]
+  const top = ttfColumn || line.ink.empty ? 0 : line.ink.yMax;
+  const bottom = ttfColumn ? -font.descentRatio : line.ink.empty ? 0 : line.ink.yMin;
+  if (vertical || ttfColumn) {
+    if (options.useStoredInsert || !validH) {
+      // stored 10 = the top of the column
+    } else if (halign === 3 || halign === 5) {
+      // VERIFIED-BY-ACAD acad-default-fonts/vertical-special (txt.shx): ALIGNED scales the
+      // height so the column's ink spans 10 → 11; FIT scales only the width factor (the
+      // column keeps its length); the rotation is the 10 → 11 angle + 90°. AutoCAD's DXFOUT of
+      // fileformat/corpus-ezdxf-text-stacked-shx-font: FIT with coincident points has
+      // rotation 90° and a stored width factor 0, which draws like 1 (the plot shows full glyphs);
+      // with BACKWARD the rotation is the angle − 90° (DXFOUT 284°/270°: the column runs away
+      // from 11 in the plot) and the flags mirror as usual.
+      const p1 = e.insert;
+      const dx = p11.x - p1.x;
+      const dy = p11.y - p1.y;
+      const d = Math.hypot(dx, dy);
+      const len = top - bottom;
+      rot = Math.atan2(dy, dx) + (flags & 2 ? -Math.PI / 2 : Math.PI / 2);
+      if (len > 1e-12 && d > 1e-12) {
+        if (halign === 3) h = d / len;
+        else w = d / (len * h);
+      } else if (halign === 3) h = defaultHeight;
+      ay = top;
+    } else if (halign !== 0 || e.valign !== 0) {
+      // 72 moves along the column, 73 is ignored (VERIFIED-BY-ACAD vertical-bottom/-baseline/
+      // -top/-middle: 10 = 11 + (0, 2h) for Center, + (0, 4h) for Right with "ABC" in txt.shx)
+      anchor = p11;
+      ay = halign === 1 || halign === 4 ? (top + bottom) / 2 : halign === 2 ? bottom : 0;
+      // TrueType "columns" (VERIFIED-BY-ACAD DXFOUT of fileformat/corpus-ezdxf-text-stacked-
+      // true-type-font, Arial h = 0.2, 64 TEXTs): Center and Middle put 11 at the ink centre of
+      // the horizontal line ("Top-Center..." 0.0739 with the "p" descender, else 0.1), Right
+      // descent·h below 10 (AutoCAD: 431/1466, the OS/2 typo descender; hhea 434 here),
+      // ALIGNED h = d / descent
+      if (ttfColumn && (halign === 1 || halign === 4))
+        ay = line.ink.empty ? 0.5 : (line.ink.yMin + line.ink.yMax) / 2;
+    }
+  } else if (options.useStoredInsert || !validH) {
     // stored 10 is the (mirrored) left end of the baseline; invalid 72 → LEFT at 10
   } else if (halign === 3 || halign === 5) {
     const p1 = e.insert;
@@ -325,6 +386,7 @@ export function textFrame(
     rotation: rot,
     elevation: anchor.z,
     descent: font.descentRatio,
+    vertical,
   };
 }
 
@@ -341,7 +403,9 @@ export function layoutText(e: TextInput, fonts: TextFontSource, options: TextLay
       plane,
       backgrounds: [],
       glyphs: [],
-      lines: quickBox(frame, line.x0, line.x1, -tf.descent, 1),
+      lines: tf.vertical
+        ? quickBox(frame, line.x0, line.x1, line.ink.empty ? 0 : line.ink.yMin, 0)
+        : quickBox(frame, line.x0, line.x1, -tf.descent, 1),
       notes,
     };
   }

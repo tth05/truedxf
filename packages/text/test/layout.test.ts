@@ -116,6 +116,42 @@ describe.skipIf(!hasSimplex)("TEXT alignment vs AutoCAD (simplex.shx, h = 20)", 
   });
 });
 
+// Vertical TEXT (STYLE flag 4) with a dual-orientation SHX font (VERIFIED-BY-ACAD 2026-10-01
+// acad-default-fonts/vertical-*, fileformat/corpus-ezdxf-text-stacked-shx-font DXFOUT, note 04 §11).
+// simplex "A"/"B" in vertical mode: ink x ±8/±7, y −21…0, pen advance −31 (h = 21: scale 1).
+describe.skipIf(!hasSimplex)("Vertical TEXT (simplex.shx)", () => {
+  const vfonts = () => testFonts([style("S", "simplex.shx", { vertical: true })]);
+  it("stacks the characters down the column", async () => {
+    const l = layoutText(text({ text: "AB", height: 21 }), await vfonts());
+    const ys = l.glyphs.map((g) => g.matrix.f);
+    expect(ys[0]).toBeCloseTo(0, 9);
+    expect(ys[1]).toBeCloseTo(-31, 9);
+    for (const g of l.glyphs) expect(g.matrix.e).toBeCloseTo(0, 9);
+  });
+  it("moves 10 along the column for Center/Right and ignores 73", async () => {
+    const fonts = await vfonts();
+    // ink column 0 … −52: Center 10 = 11 + 26, Right 11 + 52
+    for (const valign of [0, 1, 2, 3]) {
+      expect(insertionPoint(fonts, { text: "AB", height: 21, halign: 1, valign }).y).toBeCloseTo(75 + 26, 9);
+      expect(insertionPoint(fonts, { text: "AB", height: 21, halign: 2, valign }).y).toBeCloseTo(75 + 52, 9);
+      if (valign)
+        expect(insertionPoint(fonts, { text: "AB", height: 21, halign: 0, valign }).y).toBeCloseTo(75, 9);
+    }
+  });
+  it("ALIGNED scales the height to the 10 → 11 distance, FIT only the width; rotation + 90°", async () => {
+    const fonts = await vfonts();
+    const p = { insert: { x: 0, y: 0, z: 0 }, alignPoint: { x: 0, y: -104, z: 0 } };
+    const a = textFrame(text({ text: "AB", height: 21, halign: 3, ...p }), fonts)!;
+    expect(a.height).toBeCloseTo(42, 9);
+    expect(a.rotation).toBeCloseTo(0, 12);
+    const f = textFrame(text({ text: "AB", height: 21, halign: 5, ...p }), fonts)!;
+    expect(f.height).toBeCloseTo(21, 9);
+    expect(f.widthFactor).toBeCloseTo(2, 9);
+    const b = textFrame(text({ text: "AB", height: 21, halign: 5, generationFlags: 2, ...p }), fonts)!;
+    expect(b.rotation).toBeCloseTo(-Math.PI, 12); // BACKWARD: angle − 90°
+  });
+});
+
 describe.skipIf(!hasSimplex)("MTEXT extents vs AutoCAD's stored 42/43 (note 04 §3.6.1)", () => {
   const cases: [string, number, number | undefined, number][] = [
     // text, h, 42, 43
@@ -184,7 +220,8 @@ describe("MTEXT layout", () => {
   });
   it("does not scope paragraph codes by braces (mtext/para-scope)", async () => {
     const fonts = await testFonts([style("S", "truedxf-test.shx")]);
-    const xs = (t: string) => layoutMText(mtext({ text: t, width: 100 }), fonts).glyphs.map((g) => g.matrix.e);
+    const xs = (t: string) =>
+      layoutMText(mtext({ text: t, width: 100 }), fonts).glyphs.map((g) => g.matrix.e);
     const plain = xs("H\\PH\\PH");
     const scoped = xs("{\\pxqc;H\\P}H\\PH");
     for (let i = 0; i < 3; i++) expect(scoped[i]!).toBeGreaterThan(plain[i]! + 40);

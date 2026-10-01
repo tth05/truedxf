@@ -639,7 +639,8 @@ frame width is 41 when set). Verify placement with PLOT.
   distributed (ezdxf treats as justified; dxf-viewer maps `d` to justify, `j` to default).
 - Underline/overline/strike geometry: ezdxf h/5 guesses; mlightcad ±0.05 h; UNKNOWN.
 - `\T` tracking: ezdxf ignores; mlightcad `\T0.1x` → 1.1 (+1!) vs ezdxf multiplier — CONFLICT/UNKNOWN.
-- Flow direction 3 / vertical MTEXT: unsupported everywhere; rare.
+- Flow direction 3 / vertical MTEXT: unsupported everywhere; rare. AutoCAD 2027: §11 (vertical
+  columns with dual-orientation SHX fonts, one line with TrueType).
 - Column flow: text flows into the next column when the column height is full; dynamic manual height:
   last column unlimited (height 0).
 - Hebrew/Arabic: the Autodesk viewer shows Hebrew MTEXT words right-to-left (ezdxf#1259); Thai needs
@@ -1325,7 +1326,8 @@ Grouped by rendering impact (highest first).
     unifont code-7 byte order.
 16. Missing TTF: FONTALT (core console) vs Windows substitution (Autodesk help).
 17. $QTEXTMODE in PLOT (rectangles?); TEXTFILL = 0 outlines.
-18. ~~Vertical text (STYLE flag 4) alignment semantics~~ (answered in §11, 2026-10-01); MTEXT flow direction 3.
+18. ~~Vertical text (STYLE flag 4) alignment semantics; MTEXT flow direction 3.~~ Answered in
+    §11 (2026-10-01); vertical MTEXT attachments other than 1 remain open.
 19. `\p` indent/tab units (multiples of h vs absolute, ezdxf#1390), `\pt` right/centre/decimal stops.
 20. Distributed paragraph alignment; justified last line; CJK line breaking and kinsoku in AutoCAD.
 
@@ -1560,6 +1562,16 @@ MTEXT (§3)
     rotation (fileformat/corpus-ezdxf-text-stacked-true-type-font DXFOUT; f1 0.06 → 0.96).
   - Extents: AutoCAD's plot extents of these files matched once the BACKWARD rotation was right
     (the column's ink box; no special extents rule needed).
+- **MTEXT flow direction 3** (top to bottom, VERIFIED-BY-ACAD 2026-10-01):
+  - TrueType (Liberation, mtext/flow-direction-3 `ABC\PDEF`, attachment 1): **one horizontal
+    line**, the paragraphs **0.55·h** apart (D's pen 5.497 after C's advance end at h = 10), the
+    **baseline at the insertion point**; one sample.
+  - Dual-orientation SHX (simplex, fileformat/corpus-ezdxf-text `vertical\PText`, h = 100,
+    attachment 1, 44 = 1 and 2): each paragraph is a **vertical column** (glyphs as in vertical
+    TEXT), the first glyph's top at the insertion point, the first column's ink starting at the
+    insertion point (pen 28–30 units right of it), columns left to right **≈ 4/3·h·f** apart
+    (133.25 for f = 1, 261–263 for f = 2 at 0.23 px/unit — 4/3·2·h = 266.7 is 1.5 % more);
+    other attachments, wrapping, stacks and inline fonts in vertical MTEXT are UNKNOWN.
 - `\T` multiplies advances, clamped to **0.75…4** (`\T0.5` and `\T0.1x` both give 0.75)
   (mtext/code-tracking*).
 - At-least line gap with mixed heights: baseline_{i+1} = baseline_i − (5/3·f − 1)·(H_i + B_{i+1})/2

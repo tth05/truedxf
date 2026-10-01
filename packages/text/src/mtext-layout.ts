@@ -17,9 +17,11 @@
  * - columns, per-column vertical attachment, text frame and background mask: note 04 §3.7.1
  *   (VERIFIED-BY-ACAD user/columns-all, user/text-frame*, text-probes/mtx-*).
  * - stacks: SHX and TrueType geometry VERIFIED-BY-ACAD (note 04 §11, `stack()` below).
+ * - flow direction 3: vertical columns with dual-orientation SHX fonts (`layoutVerticalMText`),
+ *   one horizontal line with TrueType fonts (note 04 §11).
  * UNVERIFIED (to calibrate against PLOT references): decoration offsets.
  */
-import type { Bounds, StyleFont } from "@truedxf/fonts";
+import { type Bounds, ShxFont, type StyleFont } from "@truedxf/fonts";
 import { Affine2, Matrix44, ocsToWcsMatrix, type Vec3, wcsToOcsMatrix } from "@truedxf/geometry";
 import { bigFontPairCode, glyphCode, type TextFontSource } from "./fonts.ts";
 import { decorationOffsets, InkBox, type MeasuredGlyph, measureGlyph, measureResolved } from "./glyphs.ts";
@@ -46,6 +48,10 @@ import type {
 export const LINE_PITCH = 5 / 3;
 /** Default tab stop distance in char heights (VERIFIED-BY-ACAD). */
 export const DEFAULT_TAB = 4;
+/** Gap between the paragraphs of a flow-direction-3 MTEXT drawn on one line, in char heights. */
+const FLOW3_GAP = 0.55;
+/** Column pitch of vertical MTEXT in char heights × 44 (see `layoutVerticalMText`). */
+const VERTICAL_PITCH = 4 / 3;
 /** Advance of a control character's box in char heights (VERIFIED-BY-ACAD, see `glyph()`). */
 const CONTROL_ADVANCE = 0.575;
 
@@ -229,13 +235,17 @@ export function layoutMText(
   }
   const h0 = e.height > 0 ? e.height : (options.defaultHeight ?? 2.5);
   if (!(h0 > 0)) return emptyLayout(ocs, notes);
-  if (e.flowDirection === 3) notes.push("mtext-vertical-flow-unsupported");
   const spec = style.spec;
   const ctx0 = defaultContext(h0, spec?.widthFactor || 1, spec?.oblique ?? 0);
   const tokens = parseMText(e.text, ctx0, options.dimension);
+  // flow direction 3 (top to bottom): vertical columns with a dual-orientation SHX font, one
+  // horizontal line otherwise (note 04 §11)
+  const flow3 = e.flowDirection === 3;
+  if (flow3 && baseFont.primary instanceof ShxFont && baseFont.primary.modes === 2)
+    return layoutVerticalMText(e, fonts, baseFont, h0, rot, tokens, notes);
   const cols = e.columns && e.columns.type > 0 ? e.columns : undefined;
   let wrap = options.wrapWidth ?? (cols && cols.width > 0 ? cols.width : e.width);
-  if (!(wrap > 0)) wrap = 0;
+  if (!(wrap > 0) || flow3) wrap = 0;
   const f0 = spacingFactor(e.lineSpacingFactor);
   const exact0 = e.lineSpacingStyle === 2;
   const col = ((e.attachment - 1) % 3) + 1;
@@ -245,9 +255,22 @@ export function layoutMText(
 
   // ---- paragraphs → lines
   const lines: Line[] = [];
-  for (const para of splitParagraphs(tokens, h0)) {
-    const items = engine.items(para.tokens);
-    engine.wrapParagraph(items, para.state, wrap, lines);
+  const paragraphs = splitParagraphs(tokens, h0);
+  if (flow3) {
+    // TrueType: the paragraphs on one line, 0.55·h apart (VERIFIED-BY-ACAD mtext/flow-direction-3,
+    // Liberation "ABC\PDEF": D's pen 5.497 after C's advance end at h = 10; one sample)
+    const items: Item[] = [];
+    paragraphs.forEach((para, k) => {
+      const ctx = para.tokens[0]?.ctx ?? ctx0;
+      if (k > 0) items.push({ k: "space", ctx, adv: FLOW3_GAP * ctx.height, nbsp: true });
+      items.push(...engine.items(para.tokens));
+    });
+    if (paragraphs[0]) engine.wrapParagraph(items, paragraphs[0].state, 0, lines);
+  } else {
+    for (const para of paragraphs) {
+      const items = engine.items(para.tokens);
+      engine.wrapParagraph(items, para.state, wrap, lines);
+    }
   }
   if (lines.length === 0) return emptyLayout(ocs, notes);
 
@@ -315,6 +338,8 @@ export function layoutMText(
         ln.baseline = exact ? -cap : -ascent;
       }
     }
+    // flow direction 3: the baseline at the insertion point (mtext/flow-direction-3, attachment 1)
+    if (flow3) ln.baseline = 0;
     ln.column = column;
     bottoms.push(lineBottom(ln, exact, cap));
     prev = ln;
@@ -508,6 +533,65 @@ export function mtextExtents(
   const last = lines[lines.length - 1]!;
   const bottom = exact ? last.baseline - h0 / 3 : last.baseline + Math.min(0, last.inkBottom);
   return { width, height: top - bottom, lines: lines.length };
+}
+
+/**
+ * Vertical MTEXT (flow direction 3) with a dual-orientation SHX font: every paragraph is a column
+ * of characters stacked by the font's vertical pen moves (code 0x0E), the first glyph's top at
+ * the insertion point; columns run left to right, the first one's ink starting at the
+ * insertion point, then 4/3·h·f apart. Measured on fileformat/corpus-ezdxf-text (simplex,
+ * h = 100, attachment 1, f = 1 and 2: column pens 133 and ≈ 262 apart, first pen 28 units right
+ * of the insertion point) — ASSUMPTION for other attachments; stacks, tabs, decorations and
+ * inline fonts are not laid out vertically.
+ */
+function layoutVerticalMText(
+  e: MTextInput,
+  fonts: TextFontSource,
+  font: StyleFont,
+  h0: number,
+  rot: number,
+  tokens: readonly MTextToken[],
+  notes: string[],
+): TextLayout {
+  const ocs = ocsToWcsMatrix(e.extrusion);
+  const toOcs = wcsToOcsMatrix(e.extrusion);
+  const ins = toOcs.transformPoint(e.insert);
+  const plane = ins.z !== 0 ? ocs.multiply(Matrix44.translation(0, 0, ins.z)) : ocs;
+  const place = new Affine2(Math.cos(rot), Math.sin(rot), -Math.sin(rot), Math.cos(rot), ins.x, ins.y);
+  const pitch = VERTICAL_PITCH * h0 * spacingFactor(e.lineSpacingFactor);
+  const glyphs: GlyphPlacement[] = [];
+  let x0: number | undefined;
+  splitParagraphs(tokens, h0).forEach((para, col) => {
+    const placed: { m: MeasuredGlyph; y: number; ctx: MTextContext }[] = [];
+    let y = 0;
+    let inkLeft = 0;
+    for (const t of para.tokens) {
+      if (t.t !== "char" && t.t !== "space" && t.t !== "nbsp") continue;
+      const code = t.t === "char" ? glyphCode(font, t.ch, fonts.encoding) : 0x20;
+      const m = measureGlyph(font, code, true);
+      const h = t.ctx.height;
+      placed.push({ m, y, ctx: t.ctx });
+      if (m.ink) inkLeft = Math.min(inkLeft, m.ink.xMin * h * (t.ctx.widthFactor || 1));
+      const r = m.resolved;
+      if (r?.glyph.kind === "strokes") y += r.glyph.advanceY * r.scale * h;
+    }
+    x0 ??= -inkLeft;
+    const x = x0 + col * pitch;
+    for (const g of placed) {
+      const r = g.m.resolved;
+      if (!r?.glyph.bounds) continue;
+      const s = r.scale * g.ctx.height;
+      const tan = Math.tan(g.ctx.oblique * DEG);
+      glyphs.push({
+        glyph: r.glyph,
+        font: r.font,
+        matrix: place.multiply(new Affine2(s * (g.ctx.widthFactor || 1), 0, s * tan, s, x, g.y)),
+        color: g.ctx.color,
+      });
+    }
+  });
+  if (e.attachment !== 1) notes.push("mtext-vertical-attachment-assumed");
+  return { plane, backgrounds: [], glyphs, lines: [], notes };
 }
 
 // ---- helpers ----------------------------------------------------------------------------------

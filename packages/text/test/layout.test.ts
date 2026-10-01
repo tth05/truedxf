@@ -150,6 +150,29 @@ describe.skipIf(!hasSimplex)("Vertical TEXT (simplex.shx)", () => {
     const b = textFrame(text({ text: "AB", height: 21, halign: 5, generationFlags: 2, ...p }), fonts)!;
     expect(b.rotation).toBeCloseTo(-Math.PI, 12); // BACKWARD: angle − 90°
   });
+  it("lays out flow-direction-3 MTEXT as columns, the first ink at the insertion point", async () => {
+    const fonts = await testFonts([style("S", "simplex.shx")]);
+    const l = layoutMText(mtext({ text: "AB\\PC", height: 21, flowDirection: 3 }), fonts);
+    const p = l.glyphs.map((g) => ({ x: g.matrix.e, y: g.matrix.f }));
+    expect(p[0]!.x).toBeCloseTo(8, 9); // "A" ink ±8: its left edge at the insertion point
+    expect(p[0]!.y).toBeCloseTo(0, 9);
+    expect(p[1]!.y).toBeCloseTo(-31, 9);
+    expect(p[2]!.x).toBeCloseTo(8 + (4 / 3) * 21, 9);
+    expect(p[2]!.y).toBeCloseTo(0, 9);
+  });
+});
+
+// Flow direction 3 with a TrueType font: one line, paragraphs 0.55·h apart, baseline at the
+// insertion point (VERIFIED-BY-ACAD mtext/flow-direction-3; note 04 §11)
+describe.skipIf(!hasLato)("Flow-direction-3 MTEXT with TrueType (Lato)", () => {
+  it("draws the paragraphs on one line", async () => {
+    const fonts = await testFonts([style("S", "LatoWeb-Regular.ttf")]);
+    const bb = layoutMText(mtext({ text: "BB", height: 10 }), fonts).glyphs.map((g) => g.matrix.e);
+    const l = layoutMText(mtext({ text: "AB\\PC", height: 10, flowDirection: 3 }), fonts);
+    const x = l.glyphs.map((g) => g.matrix.e);
+    expect(x[2]! - x[1]!).toBeCloseTo(bb[1]! - bb[0]! + 5.5, 9); // B's advance + 0.55 h
+    for (const g of l.glyphs) expect(g.matrix.f).toBeCloseTo(0, 9);
+  });
 });
 
 describe.skipIf(!hasSimplex)("MTEXT extents vs AutoCAD's stored 42/43 (note 04 §3.6.1)", () => {

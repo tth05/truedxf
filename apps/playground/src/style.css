@@ -11,6 +11,7 @@
   --warn: #e3b341;
   --danger: #f85149;
   --ok: #3fb950;
+  --good: #7ee787;
   --radius: 8px;
   --font: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
   --mono: "Cascadia Code", "JetBrains Mono", Consolas, ui-monospace, monospace;
@@ -27,6 +28,10 @@
   --faint: #8c959f;
   --accent: #0969da;
   --accent-soft: rgba(9, 105, 218, 0.1);
+  --ok: #1a7f37;
+  --good: #2da44e;
+  --warn: #9a6700;
+  --danger: #cf222e;
   color-scheme: light;
 }
 
@@ -586,7 +591,7 @@ select {
   background: var(--ok);
 }
 .dot.good {
-  background: #7ee787;
+  background: var(--good);
 }
 .dot.fair {
   background: var(--warn);
@@ -607,7 +612,7 @@ select {
   color: var(--ok);
 }
 .grades .g-good {
-  color: #7ee787;
+  color: var(--good);
 }
 .grades .g-fair {
   color: var(--warn);

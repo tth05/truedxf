@@ -111,7 +111,13 @@ default, FILLMODE for pattern hatches, extents edge tolerance.
       vertices (10).
 - [ ] Linetyped circles that plot continuous use the graphics-system tessellation (f = 1.0);
       zero-length dashed LINEs plot like continuous (13: linetypes, lines-curves).
-- [ ] SHAPE entities (8), vertical text (5, also listed above), hatch background colour (4).
+- [x] SHAPE entities (2026-10-01, 092dbcf; corpus files lack their .shx files and now report
+      `shape-not-found` / `shape-missing-file`).
+- [ ] Vertical text (5, also listed above), hatch background colour (4).
+- [x] ACIS ellipse-curve records read from the wrong token (history id shifted every value) →
+      edges millions of units long; tolerant vertices/edges; intcurve B-splines (f793242).
+- [ ] ACIS: subtype references (`ref n`) and `parcur` intcurves (78 corpus edges still chords).
+- [ ] SHX and TTF TEXT with thickness in a 3D view is not extruded (thickness-text-shape-iso).
 - [x] HATCH: collinear pattern lines on boundary edges, edge-crossing slab levels for
       self-intersecting loops, > 100 000 pattern lines plot nothing, hemispherical gradients,
       ellipse edge 50/51 angles, HATCH boundary in the extents, MPOLYGON 11 offset (2026-10-01,
@@ -130,8 +136,8 @@ default, FILLMODE for pattern hatches, extents edge tolerance.
 - [ ] Which arcs with off-canvas circles use the raster arc rule (note 08 §10.13): dimension and
       polyline arcs do, plain ARCs (splines/rational-quarter-circle, fileformat/version-r12) do
       not; the renderer uses a heuristic. Probe the same arc as ARC, LWPOLYLINE bulge, dimension.
-- [ ] SHX arcs ~0.5–1 px too large (inscribed polygon?); SHX subshapes start pen-down (note 04
-      §4.3 corrected, code not yet).
+- [ ] SHX arcs ~0.5–1 px too large / PLOT facet count (inscribed polygon?; SHAPE and SHX text).
+- [x] SHX subshapes start pen-down (07de7b2).
 
 ## Later phases (not started)
 

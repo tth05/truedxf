@@ -229,7 +229,10 @@ class Machine {
           this.warnings.push(`shape ${shape}: missing subshape ${o.shape}`);
           break;
         }
-        // Draw mode and scale are not reset for the subshape (ADSK); state is shared.
+        // Scale and position carry into the subshape (ADSK), but it starts with the pen down:
+        // amgdt f/n call subshape 3 with the pen up and AutoCAD draws its first stroke (note 04
+        // §4.3, triage 2026-10-01; ADSK says draw mode is not reset).
+        this.pen = true;
         this.run(sub, depth + 1, o.shape);
         break;
       }

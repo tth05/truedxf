@@ -83,8 +83,8 @@ export interface RenderEnv {
    */
   raster?: "autocad" | "smooth";
   /**
-   * Background (paper) colour, default white. ACI 7 and white/black true colours contrast with it
-   * (interactive viewers with a dark background); plots are always on white paper.
+   * Background (paper) colour, default white. ACI 7 contrasts with it; with `raster: "smooth"`
+   * (near-)white / (near-)black colours do too (interactive viewers); plots are on white paper.
    */
   background?: readonly [number, number, number];
   /**
@@ -206,6 +206,8 @@ function blockUpsideDown(m: Matrix44): ((t: number) => boolean) | undefined {
 /** Chord tolerance in device pixels for curve flattening. */
 export const TOLERANCE_PX = 0.1;
 const MAX_BLOCK_DEPTH = 64;
+/** Interactive display: colours within this of white / black count as white / black (Frontend.color). */
+const NEAR_EXTREME = 8;
 
 export interface StrokeOptions {
   /** Linetype generation: continuous over the whole path (PLINEGEN, single curves) or per segment. */
@@ -468,22 +470,22 @@ export class Frontend {
   color(r: Resolved): Rgba {
     const a = this.alpha(r);
     // true colours keep their RGB even with monochrome.ctb (note 08 §10.7)
-    if (r.trueColor !== undefined) {
-      // interactive display (no pixel grid): pure black / white true colours contrast with the
-      // background like ACI 7, so they stay visible (a viewer choice, not plot behaviour)
-      if (!this.grid && this.env.background) {
-        const bg = this.env.background;
-        const dark = bg[0] + bg[1] + bg[2] < 384;
-        const c = r.trueColor & 0xffffff;
-        if (dark && c === 0) return [255, 255, 255, a];
-        if (!dark && c === 0xffffff) return [0, 0, 0, a];
+    if (r.trueColor === undefined) {
+      if (this.monochrome) return [0, 0, 0, a];
+      if (this.grid) {
+        const [red, g, b] = plotAciToRgb(r.aci);
+        return [red, g, b, a];
       }
-      return [r.rgb[0], r.rgb[1], r.rgb[2], a];
     }
-    if (this.monochrome) return [0, 0, 0, a];
-    if (this.grid) {
-      const [red, g, b] = plotAciToRgb(r.aci);
-      return [red, g, b, a];
+    // interactive display (no pixel grid): (near-)white on a light background and (near-)black
+    // on a dark one contrast with it like ACI 7 — true colours such as QCAD's layer 0 with
+    // 420 = 0xFFFFFF, and ACI 255. A viewer choice, not plot behaviour (plots keep the RGB).
+    if (!this.grid && this.env.background) {
+      const bg = this.env.background;
+      const [red, g, b] = r.rgb;
+      if (bg[0] + bg[1] + bg[2] < 384) {
+        if (Math.max(red, g, b) <= NEAR_EXTREME) return [255, 255, 255, a];
+      } else if (Math.min(red, g, b) >= 255 - NEAR_EXTREME) return [0, 0, 0, a];
     }
     return [r.rgb[0], r.rgb[1], r.rgb[2], a];
   }

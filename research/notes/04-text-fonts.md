@@ -220,7 +220,7 @@ rs_filterdxf.cpp:2550; dxf-viewer TextRenderer.js:15.)
 
 | Code | Result |
 |---|---|
-| `%%c` | diameter. **VERIFIED-BY-ACAD (AutoCAD 2027 TEXTBOX, §4.5): with a TTF, `%%c` renders exactly like `\U+00D8` "Ø"** (and like `%%216`), while `\U+2205` gives a different glyph from a fallback font → ezdxf's mapping %%c → U+00D8 is right. The Autodesk symbol table lists Diameter %%c ↔ U+2205 (nominal) and AutoCAD-generated dimension text contains a literal U+2205 (cad-viewer#473); LibreCAD/dxf-viewer map %%c to U+2205 (**mismatch**). Non-Unicode SHX: shape 258 (ADSK); Unicode SHX: UNKNOWN whether U+00D8 or U+2205 is used (txt.shx gave identical boxes). |
+| `%%c` | diameter. **VERIFIED-BY-ACAD (AutoCAD 2027 TEXTBOX, §4.5): with a TTF, `%%c` renders exactly like `\U+00D8` "Ø"** (and like `%%216`), while `\U+2205` gives a different glyph from a fallback font → ezdxf's mapping %%c → U+00D8 is right. The Autodesk symbol table lists Diameter %%c ↔ U+2205 (nominal) and AutoCAD-generated dimension text contains a literal U+2205 (cad-viewer#473); LibreCAD/dxf-viewer map %%c to U+2205 (**mismatch**). Non-Unicode SHX: shape 258 (ADSK); Unicode SHX: UNKNOWN whether U+00D8 or U+2205 is used (txt.shx gave identical boxes). **PLOT, TTF without U+2205 (Liberation Sans): U+2205 is drawn as the font's own U+00D8**, not from a fallback font, for dimension text (AutoCAD writes a literal U+2205) and `\U+2205` alike (VERIFIED-BY-ACAD 2026-10-01, dimensions/*-nb, text/fallback-diameter-*, special-cdp-vs-unicode); the TEXTBOX difference above came from a font setup with a U+2205 fallback. |
 | `%%d` | ° U+00B0 |
 | `%%p` | ± U+00B1 |
 | `%%%` | "%" |
@@ -914,7 +914,7 @@ Displacement = (dx·L, dy·L) × current scale. (Identical in EZ:636, ML, YF, TZ
 | 3 | u8 n | scale /= n (cumulative within a shape; "The program does not reset the scale factor for you") |
 | 4 | u8 n | scale ×= n. **UNKNOWN**: persists across characters? (EZ GlyphCache renders each glyph fresh) |
 | 5 / 6 | – | push / pop position; stack **4 deep**, "You must pop everything you push"; errors "Position stack overflow/underflow in shape nnn". Pop moves without drawing. |
-| 7 | shapes: u8 shape#; **unifont: 2-byte shape#**; bigfont: u8, or `0` + extended form `7,0,prim#(2 bytes),basex,basey,width,height` (primitive scaled to a unit square then × width/height) | draw subshape at current point with current scale; "Draw mode is not reset for the new shape". EZ bug: forces pen down. **CONFLICT** unifont code-7 byte order: EZ/YF/TZ/OSG little-endian, ML big-endian (every other 2-byte bytecode value is high-byte-first → BE more plausible; verify with amgdt.shx) |
+| 7 | shapes: u8 shape#; **unifont: 2-byte shape#**; bigfont: u8, or `0` + extended form `7,0,prim#(2 bytes),basex,basey,width,height` (primitive scaled to a unit square then × width/height) | draw subshape at current point with current scale; "Draw mode is not reset for the new shape" — **contradicted by AutoCAD 2027 plots (triage 2026-10-01):** amgdt `f`/`n` call subshape 3 with the pen up and AutoCAD draws its first stroke, so the pen is down at the start of a subshape (ezdxf's forced pen-down matches). **CONFLICT** unifont code-7 byte order: EZ/YF/TZ/OSG little-endian, ML big-endian (every other 2-byte bytecode value is high-byte-first → BE more plausible; verify with amgdt.shx) |
 | 8 | i8 dx, i8 dy | single displacement (−128..127) × scale, draws if pen down |
 | 9 | (i8,i8)… (0,0) | multiple displacements; (0,0) terminates |
 | 0xA | u8 r, octant byte | octant arc: bit7 = clockwise, bits 4-6 start octant S (0..7, 45° steps CCW from 3 o'clock), bits 0-2 count C (0 = full circle). centre = P − r·(cos 45S, sin 45S); end angle = 45S ± 45C |
@@ -1543,6 +1543,8 @@ ATTRIB / ATTDEF (§2)
 
 ## 12. Findings 2026-10-01 (user drawing, VERIFIED-BY-ACAD user/studienleistung)
 
+- (Triage 2026-10-01: with 41 = 0 leading tabs do *not* count — `^I^I^I|`, `^I12.5` and
+  `\pxt…;^IA` put the first ink at the margin; the rule below holds for 41 > 0.)
 - MTEXT lines that start with `^I` keep the tab advance: the text sits on the default 4·h tab
   stop. The "left edge = ink" rule (§3.6.1) removes only the first glyph's own side bearing,
   not leading tabs/spaces.

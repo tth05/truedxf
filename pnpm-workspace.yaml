@@ -2,3 +2,6 @@ packages:
   - packages/*
   - apps/*
   - tools/*
+allowBuilds:
+  esbuild: false
+  workerd: false

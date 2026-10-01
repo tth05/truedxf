@@ -18,6 +18,7 @@ export {
   MemoryFontProvider,
 } from "./provider.ts";
 export {
+  BIG_FONT_CODE,
   FontManager,
   type FontManagerOptions,
   type FontSubstitution,
@@ -35,6 +36,7 @@ export {
   type ShapeOp,
   VECTOR_DIRECTIONS,
 } from "./shx/bytecode.ts";
+export { type BigFontEncoding, bigFontEncoding } from "./shx/codepage.ts";
 export { ShxFont, type ShxFontOptions } from "./shx/font.ts";
 export {
   decodeFontInfo,

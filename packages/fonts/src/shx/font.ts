@@ -46,6 +46,12 @@ export class ShxFont implements Font, ShapeSource {
     this.cell = info?.extended;
     this.warnings.push(...file.warnings);
     let above = info?.above ?? 0;
+    // gbcbig.shx's `0, 64, 2, 0` header (format.ts): AutoCAD 2027 draws its glyphs (scaled by
+    // 9/102 to ~7.4 units) at 1/8 of the text height, not 1/64: 日 is 7.8 high at h = 10
+    // (VERIFIED-BY-ACAD font-probes/bigcp-text, note 04 §10; other fonts with this header form:
+    // ASSUMPTION).
+    if (file.kind === "bigfont" && info && !info.extended && info.tail[0] === 0 && info.tail.length >= 4)
+      above = 8;
     if (above <= 0) {
       // Shape files and broken fonts: use the measured "A" (as ezdxf does), else 1 (plain shapes).
       const a = this.glyph(65);

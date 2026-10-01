@@ -2,6 +2,7 @@
 // per-text-style composite of primary font, bigfont and glyph fallbacks.
 
 import { baseName, type FontProvider } from "./provider.ts";
+import { type BigFontEncoding, bigFontEncoding } from "./shx/codepage.ts";
 import { ShxFont, type ShxFontOptions } from "./shx/font.ts";
 import { isShx } from "./shx/parse.ts";
 import { TtfFont } from "./ttf/font.ts";
@@ -80,11 +81,22 @@ export interface ResolvedStyle {
 
 const QUESTION_MARK = 0x3f;
 
+/**
+ * Glyph codes at or above this value address the bigfont directly: `BIG_FONT_CODE + dbcs`
+ * (see {@link StyleFont.bigFontCode}); far above Unicode, so they never collide with code points.
+ */
+export const BIG_FONT_CODE = 0x1000000;
+
 /** Primary font + optional bigfont + per-glyph fallbacks of one text style. */
 export class StyleFont {
   readonly primary: Font;
   readonly bigFont: ShxFont | undefined;
   readonly glyphFallbacks: readonly Font[];
+  /**
+   * The DBCS code page the bigfont is indexed in (WHATWG label), `undefined` when unknown —
+   * then callers use the drawing code page if it is a DBCS page (note 04 §4.4).
+   */
+  readonly bigFontEncoding: BigFontEncoding | undefined;
   private readonly bigScale: "own" | "primary";
 
   constructor(
@@ -96,6 +108,7 @@ export class StyleFont {
     this.primary = primary;
     // Bigfont subshapes that are not in the bigfont refer to the primary font (special.shx).
     this.bigFont = bigFont && primary instanceof ShxFont ? bigFont.withCompanion(primary) : bigFont;
+    this.bigFontEncoding = bigFont ? bigFontEncoding(bigFont.name, bigFont.file.ranges) : undefined;
     this.glyphFallbacks = glyphFallbacks;
     this.bigScale = bigFontScale;
   }
@@ -110,15 +123,39 @@ export class StyleFont {
   }
 
   /**
-   * Glyph for a code: Unicode code point (TTF, unifonts), code page byte (shape fonts) or DBCS
-   * code lead·256 + trail (bigfonts). Bigfont first, then the primary font (ADSK "Big Font
-   * Descriptions"); TTF misses go through `glyphFallbacks`; SHX misses become "?".
+   * The code addressing the bigfont glyph for `code` in the bigfont's code page (a byte or
+   * lead·256 + trail, from the caller's encoder), as `BIG_FONT_CODE + code`, or `undefined`
+   * when the bigfont has no such glyph. Single bytes count too: a space is the bigfont's own
+   * (bigfont.shx / extfont.shx space 9/15 h, VERIFIED-BY-ACAD font-probes/bigcp-text).
    */
-  glyph(code: number, options: GlyphOptions = {}): ResolvedGlyph | undefined {
+  bigFontCode(code: number | undefined): number | undefined {
+    if (code === undefined || code < 0x20 || !this.bigFont?.hasGlyph(code)) return undefined;
+    return BIG_FONT_CODE + code;
+  }
+
+  /**
+   * Glyph for a code: Unicode code point (TTF, unifonts), code page byte (shape fonts),
+   * `BIG_FONT_CODE + dbcs` (the bigfont, see {@link bigFontCode}). ASCII codes, and for
+   * shape-font primaries every raw code, are looked up in the bigfont first (byte-oriented fonts
+   * share the drawing's DBCS codes, ADSK "Big Font Descriptions"); Unicode code points ≥ 0x80
+   * never are (U+93FA is not Shift-JIS 0x93FA). TTF misses go through `glyphFallbacks`; SHX
+   * misses become "?".
+   */
+  glyph(requested: number, options: GlyphOptions = {}): ResolvedGlyph | undefined {
     const p = this.primary;
     const primaryScale = 1 / p.capHeight;
     const bf = this.bigFont;
-    if (bf?.hasGlyph(code)) {
+    let code = requested;
+    if (code >= BIG_FONT_CODE) {
+      const g = bf?.glyph(code - BIG_FONT_CODE, options);
+      if (bf && g) {
+        const scale = this.bigScale === "own" ? 1 / bf.capHeight : primaryScale;
+        return { glyph: g, font: bf, scale, fallback: false };
+      }
+      code = QUESTION_MARK;
+    } else if (bf && (code < 0x80 || (p instanceof ShxFont && !p.isUnicode)) && bf.hasGlyph(code)) {
+      // ASCII is the same in every bigfont code page (the bigfont's space wins, MTEXT too:
+      // font-probes/bigcp-mtext); other raw codes only for byte-oriented shape fonts
       const g = bf.glyph(code, options);
       if (g) {
         const scale = this.bigScale === "own" ? 1 / bf.capHeight : primaryScale;

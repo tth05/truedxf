@@ -256,6 +256,11 @@ export interface CharForCode {
 
 /**
  * The glyph code of a character for a style font (note 04 §4.4, §4.5, §5):
+ * - A style bigfont comes first: the character's code in the bigfont's own code page
+ *   (Shift-JIS for bigfont.shx, Big5 for chineset.shx, …; $DWGCODEPAGE does not matter) when the
+ *   bigfont has that glyph (VERIFIED-BY-ACAD acad-default-fonts/bigfont-txt-*-r2018,
+ *   font-probes/bigcp-*: 日 → bigfont.shx 0x93FA, 中 → chineset.shx 0xA4A4, あ with chineset →
+ *   txt's "?" although GBK 0xA4A2 exists in chineset).
  * - TTF and Unicode SHX (unifonts): the Unicode code point. `%%c` is U+00D8 for TTF
  *   (VERIFIED-BY-ACAD); for unifonts U+2205 when the font has it, else U+00D8 (UNKNOWN).
  * - Non-Unicode SHX: `%%d %%p %%c` → shapes 256/257/258 (ADSK); other characters → the code page
@@ -264,6 +269,11 @@ export interface CharForCode {
 export function glyphCode(font: StyleFont, ch: CharForCode, encoding: string): number {
   const p = font.primary;
   const shape = p instanceof ShxFont && !p.isUnicode;
+  if (font.bigFont && !ch.symbol && !ch.numeric) {
+    const enc = font.bigFontEncoding ?? (DBCS.has(encoding.toLowerCase()) ? encoding : "gbk");
+    const big = font.bigFontCode(ch.cp < 0x80 ? ch.cp : encoderFor(enc).get(ch.cp));
+    if (big !== undefined) return big;
+  }
   if (ch.symbol) {
     if (shape) return ch.symbol === "degree" ? 256 : ch.symbol === "plusminus" ? 257 : 258;
     if (ch.symbol === "diameter" && p instanceof ShxFont && p.hasGlyph(0x2205)) return 0x2205;
@@ -275,4 +285,18 @@ export function glyphCode(font: StyleFont, ch: CharForCode, encoding: string): n
   if (ch.cp === 0x2205 && p instanceof TtfFont && !p.hasGlyph(0x2205) && p.hasGlyph(0xd8)) return 0xd8;
   if (ch.numeric || !shape || ch.cp < 0x80) return ch.cp;
   return encoderFor(encoding).get(ch.cp) ?? 0x3f;
+}
+
+/**
+ * Bigfonts whose escape range is an ASCII byte (special.shx, spec_bar.shx, spec_sl.shx: `~`)
+ * pair two ASCII characters into one bigfont glyph: `~1` draws shape 0x7E31 (1/16), `~2`
+ * 0x7E32 (1/8) — VERIFIED-BY-ACAD font-probes/bigcp-text and bigcp-mtext (TEXT and MTEXT).
+ * Returns the glyph code (as {@link glyphCode} returns it) for the pair `cp` + `next`, or
+ * `undefined` when they do not form a bigfont glyph; the layout then consumes both characters.
+ */
+export function bigFontPairCode(font: StyleFont, cp: number, next: number | undefined): number | undefined {
+  const bf = font.bigFont;
+  if (!bf || next === undefined || cp >= 0x80 || next < 0x20 || next >= 0x80) return undefined;
+  if (!bf.file.ranges.some(([a, b]) => cp >= a && cp <= b)) return undefined;
+  return font.bigFontCode((cp << 8) | next);
 }

@@ -14,6 +14,13 @@ dxf-viewer = vagran__dxf-viewer, ACadSharp = DomCR__ACadSharp, netDxf = haplokuo
 
 ## 0. TL;DR for the implementer
 
+Interactive LOD (2026-10-02, renderer performance task; **viewer approximation**, not an
+AutoCAD rule): with `lod: true` and smooth raster only, glyphs whose cap height times the
+largest transform singular value is below 1.5 device pixels become one hairline at half cap
+height spanning the glyph advance. Glyphs without ink remain blank; backgrounds, inline colour
+and decorations keep their normal paths. Entity-plane layouts are cached per frontend, font
+identity, text, header layout options, dimension handling and linked-column wrap width.
+
 1. **Text height = cap height.** TTF: scale = h / yMax(glyph "A") in font units (Arial 1466, *not*
    OS/2 sCapHeight 1467; Times 1387 vs capHeight 1356 decides it) — VERIFIED-BY-ACAD (AutoCAD 2027
    TEXTBOX probes, §4.5, and stored alignment points / MTEXT extents in AutoCAD-saved DXFs, §1.4/§3.6).

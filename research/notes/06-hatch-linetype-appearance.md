@@ -31,6 +31,16 @@ Source abbreviations:
 
 ## 0. TL;DR — decisions for the renderer
 
+Interactive LOD (2026-10-02; **viewer approximation**, not an AutoCAD rule): smooth raster with
+`lod: true` replaces pattern families with perpendicular spacing below one device pixel by
+an even-odd fill of the same selected loops. Its alpha is the clamped sum of on-fractions divided
+by spacing in pixels; dots count as one pixel of on-length, continuous families have fraction 1.
+Families with spacing at least one pixel but a sub-pixel dash period become continuous. The
+100,000-line test still counts **all original families before simplification** (§1.6.3).
+LOD also draws lineweight strokes at most 1.5 pixels wide as hairlines. Filled polyline bands
+keep their geometry: a centre-line shortcut increased vertices and visibly brightened sub-pixel
+bands in huge-blocks-187 (see docs/perf-render-results.md). These changes are excluded from plots.
+
 1. **HATCH pattern lines in DXF are final geometry**: base point, offset and dash lengths are
    stored already scaled by 41 and rotated by 52 (and include the hatch origin and the doubled
    lines of 77). Render the stored 53/43/44/45/46/49 data; use 2/52/41/77 only when *creating*

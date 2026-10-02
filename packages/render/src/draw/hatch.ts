@@ -8,8 +8,11 @@ import {
   arcSpanDeg,
   buildSplineCurve,
   bulgePolylineToSubpath,
+  cosSinDeg,
+  DEFAULT_HATCH_MAX_LINES,
   degToRad,
   type HatchLoop,
+  hatchPatternLineCount,
   hatchPatternLines,
   lineSegment,
   Matrix44,
@@ -146,10 +149,37 @@ registerDrawer(["HATCH", "MPOLYGON"], (fe, e, st) => {
     fe.fillHatch(loops, style, color);
     return;
   }
-  const lines = h.patternLines.map((l) =>
+  let lines = h.patternLines.map((l) =>
     transformHatchPatternLine({ angle: l.angle, base: l.base, offset: l.offset, dashes: l.dashes }, plane),
   );
   if (lines.length === 0) return;
+  let coverage = 0;
+  if (fe.lod) {
+    const rings = selectHatchLoops(loops, style).map((k) => loops[k]!.points);
+    // Check the original families before replacing them: AutoCAD's count limit suppresses
+    // the entire hatch, including sub-pixel families (note 06 §1.6.3).
+    if (!(hatchPatternLineCount(lines, rings) <= DEFAULT_HATCH_MAX_LINES)) {
+      fe.note("hatch-too-dense");
+      return;
+    }
+    lines = lines.flatMap((line) => {
+      const [cx, sy] = cosSinDeg(line.angle);
+      const spacingPx = Math.abs(-line.offset.x * sy + line.offset.y * cx) / fe.pixelSize;
+      const period = line.dashes.reduce((sum, dash) => sum + Math.abs(dash), 0);
+      if (spacingPx > 0 && spacingPx < 1) {
+        // Dots cover one device pixel; empty/zero-period definitions are continuous, as in
+        // the pattern engine. This is a viewer approximation, not an AutoCAD plot rule.
+        const on = line.dashes.reduce(
+          (sum, dash) => sum + (dash > 0 ? dash : dash === 0 ? fe.pixelSize : 0),
+          0,
+        );
+        const fraction = period > 0 ? Math.min(1, on / period) : 1;
+        coverage += fraction / spacingPx;
+        return [];
+      }
+      return [period > 0 && period < fe.pixelSize ? { ...line, dashes: [] } : line];
+    });
+  }
   const res = hatchPatternLines(loops, style, lines);
   if (res.tooDense) {
     // more than 100,000 pattern lines: AutoCAD plots nothing, no solid fill. VERIFIED-BY-ACAD
@@ -157,6 +187,8 @@ registerDrawer(["HATCH", "MPOLYGON"], (fe, e, st) => {
     fe.note("hatch-too-dense");
     return;
   }
+  if (coverage > 0)
+    fe.fillHatch(loops, style, [color[0], color[1], color[2], Math.round(color[3] * Math.min(1, coverage))]);
   const seg = res.segments;
   for (let i = 0; i + 3 < seg.length; i += 4) {
     fe.strokeFlat(seg.subarray(i, i + 4), false, r);

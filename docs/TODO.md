@@ -180,11 +180,13 @@ default, FILLMODE for pattern hatches, extents edge tolerance.
 
 - [x] Bench set, `tools/corpus/src/bench.ts`, baselines and profiles (2026-10-02); `perf:viewer
       --gpu` now really uses the GPU.
-- [ ] 0: fingerprint gate (model dump + display-list hashes, plot and viewer mode).
-- [x] 1a: opt-in renderer batch merging and shared materials; viewer defaults on (2026-10-02).
-- [ ] 1b: GPU buffers built in the worker.
-- [ ] 2: frontend memoization (properties, text layouts), viewer first render without probe pass.
-- [ ] 3: viewer LOD (dense hatch patterns, sub-pixel text, view culling).
+- [x] 0: fingerprint gate (model dump + display-list hashes, plot and viewer mode).
+- [x] 1: renderer batch merging and shared materials (viewer default), merging, picking and
+      highlight geometry in the worker (2026-10-02).
+- [x] 2: frontend memoization (properties, text layouts), viewer first render without probe pass
+      when stored extents pass the scale check (2026-10-02). [Results](perf-render-results.md).
+- [ ] 3: viewer LOD: dense hatch patterns, sub-pixel text and narrow lineweights implemented
+      (2026-10-02); view culling remains open; greeked text loses the density of text blocks.
 - [x] 4: parser (2026-10-02): tokenizer, exact numbers, direct binary reads, compiled fields and lazy TTF parsing; all fingerprint gates identical. [Results](perf-parser-results.md).
 - [ ] 5: memory and transfer (compact display list, picking in the worker, model per-entity size).
 

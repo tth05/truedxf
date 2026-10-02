@@ -18,6 +18,17 @@ Reports go to `samples/reports/` (not committed); runners take `--filter <regex>
 Use `node tools/corpus/src/bench.ts --runs 3 --parse-only` to measure tokenizer throughput and
 model loading without rendering, picking, or zoom work. The model timing includes tokenization.
 
+`node --disable-warning=ExperimentalWarning --expose-gc --max-old-space-size=16000
+tools/corpus/src/lod-check.ts [--only regex] [--fixtures 3] [--json report.json]
+[--images output-dir]` compares smooth viewer mode with LOD off/on at one explicit window
+derived from the off-mode fit. It covers the benchmark set and evenly spaced, sorted fixtures
+from hatches/text/mtext/blocks. Fonts/layout/background match the benchmark; fixture images
+resolve beside the DXF. JSON rows report vertices, frontend milliseconds and pixels differing
+by more than 48 in any RGB channel, divided by the union of off/on ink pixels. Optional PNGs
+contain off/on/diff images. The CPU rasterizer has no antialiasing, so this measures pixel-grid
+aliasing as well as the approximations; it is not a browser screenshot comparison. `--expose-gc`
+releases large fit/off lists between stages; measured frontend intervals exclude explicit GC.
+
 `pnpm fingerprint --save` saves parser, fixture plot, and viewer fingerprints before behaviour-neutral
 performance work; `pnpm fingerprint --check` compares afterwards and exits 1 on any difference.
 **Plot mode must stay identical.** This checks exact model values and display-list bytes, including

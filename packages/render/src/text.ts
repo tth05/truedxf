@@ -639,6 +639,19 @@ export function drawLayout(fe: Frontend, layout: TextLayout, e: Entity, m: Matri
     if (!(sigma > 0)) continue;
     const tolFu = tol / sigma;
     const glyph = g.glyph;
+    if (fe.lod && g.font.capHeight * sigma < 1.5 * fe.pixelSize) {
+      // Cap height is measured in font units (note 04 §4.4–4.5). The largest singular value
+      // keeps stretched/sheared glyphs detailed until every direction is sub-pixel.
+      if (glyph.bounds) {
+        const y = g.font.capHeight / 2;
+        fe.builder.polyline(
+          t.applyPoints(Float64Array.of(0, y, glyph.advance, y)),
+          g.color ? resolveColor(fe, r, g.color, inh) : baseColor,
+          false,
+        );
+      }
+      continue;
+    }
     if (glyph.kind === "strokes") {
       const rr = colored(g.color);
       for (const pl of glyphPolylines(glyph, tolFu)) fe.strokeFlat(t.applyPoints(pl), false, rr);

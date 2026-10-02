@@ -83,6 +83,8 @@ export interface RenderEnv {
    * `smooth`: plain geometry for interactive viewing.
    */
   raster?: "autocad" | "smooth";
+  /** Approximate sub-pixel geometry for interactive viewing; honoured only with smooth raster. */
+  lod?: boolean;
   /**
    * Background (paper) colour, default white. ACI 7 contrasts with it; with `raster: "smooth"`
    * (near-)white / (near-)black colours do too (interactive viewers); plots are on white paper.
@@ -240,6 +242,7 @@ export class Frontend {
   readonly caches = new Map<string, unknown>();
   /** Device pixel grid when emulating AutoCAD's raster rules. */
   readonly grid: PixelGrid | undefined;
+  readonly lod: boolean;
   /** Plot draw order of block entities (SORTENTSTABLE, draworder.ts). */
   readonly drawOrder: DrawOrder;
   /** Whether this plot honours transparency (PLOTTRANSPARENCYOVERRIDE / page setup). */
@@ -300,6 +303,7 @@ export class Frontend {
     this.lineweights = request.lineweights ?? true;
     this.fillMode = doc.header.num("$FILLMODE", 1) !== 0;
     this.grid = (env.raster ?? "autocad") === "autocad" ? new PixelGrid(view, request.canvas) : undefined;
+    this.lod = env.lod === true && env.raster === "smooth";
     this.drawOrder = new DrawOrder(doc);
     this.transparency = plotsTransparency(doc, request);
   }
@@ -555,7 +559,10 @@ export class Frontend {
   strokeWidth(r: Resolved): number {
     if (!this.lineweights || r.lineweight <= 0) return 0;
     const px = (r.lineweight / 100) * (this.calibration.dpi / 25.4);
-    return px <= this.calibration.hairlineMaxPx ? 0 : px * this.pixelSize;
+    const hairlineMax = this.lod
+      ? Math.max(1.5, this.calibration.hairlineMaxPx)
+      : this.calibration.hairlineMaxPx;
+    return px <= hairlineMax ? 0 : px * this.pixelSize;
   }
 
   /** Uniform scale of the transform in the target plane (for linetype scaling). */
@@ -894,6 +901,7 @@ export async function renderPlot(
       const probe = new Frontend(doc, { ...request, lineweights: false }, guess, calibration, {
         ...env,
         raster: "smooth",
+        lod: false,
       });
       probe.props.extents = true;
       drawSpace(probe, space);
@@ -910,6 +918,26 @@ export async function renderPlot(
         [Math.max(ext.x, exn.x + 1e-9), Math.max(ext.y, exn.y + 1e-9)],
         request.canvas,
       );
+      if (env.lod && env.raster === "smooth" && w > 0 && h > 0) {
+        // The viewer can refine the list on its next scale octave. Use stored extents only
+        // when the actual geometry confirms their scale; plots still probe (note 03 §6.2).
+        const fast = new Frontend(doc, request, guess, calibration, env);
+        drawSpace(fast, space);
+        const displayList = fast.build();
+        const bounds = displayList.bounds;
+        const bw = bounds.maxX - bounds.minX;
+        const bh = bounds.maxY - bounds.minY;
+        if (bw >= w / 4 && bw <= w * 4 && bh >= h / 4 && bh <= h * 4) {
+          const contrast = fast.contrastNote();
+          if (contrast) notes.push(contrast);
+          return {
+            displayList,
+            view: viewFromBounds(bounds, request.canvas),
+            unsupported: fast.unsupported,
+            ...(notes.length ? { notes } : {}),
+          };
+        }
+      }
     } else {
       // unset header extents (AutoCAD writes EXTMIN 1e20 / EXTMAX -1e20 for empty or never
       // regenerated drawings): the guess only sets the flattening tolerance, so a very coarse

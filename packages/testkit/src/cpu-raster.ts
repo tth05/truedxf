@@ -7,8 +7,8 @@
  * Clip regions (display-list `clips`) keep pixels whose centre is inside the region (even-odd),
  * like the three.js stencil clip. Image triangles sample their texture nearest at the pixel
  * centre. Colours with alpha < 255 blend as AutoCAD's plot does:
- * out = (src·a + dst·(256 − a)) >> 8 (VERIFIED-BY-ACAD, note 06 §4.2). Lines primitives are not
- * supported.
+ * out = (src·a + dst·(256 − a)) >> 8 (VERIFIED-BY-ACAD, note 06 §4.2). Lines primitives use
+ * clipped single-pixel Bresenham segments for viewer LOD comparisons (without AA).
  */
 import type { DisplayList } from "@truedxf/render";
 import type { Image } from "./metrics.ts";
@@ -68,9 +68,14 @@ export function rasterize(
     const Y = (k: number) => (b.originY + pos[k * 2 + 1]! - view.minY) / ps;
     if (b.kind === 2) {
       for (let k = 0; k < n; k++) put(Math.floor(X(k)), Math.floor(Y(k)), b.colors, k * 4);
+    } else if (b.kind === 1) {
+      for (let k = 0; k + 1 < n; k += 2)
+        hairline(X(k), Y(k), X(k + 1), Y(k + 1), w, h, (i, j) => put(i, j, b.colors, k * 4));
     } else if (b.kind === 0) {
       for (let k = 0; k + 2 < n; k += 3) {
-        triangle(X(k), Y(k), X(k + 1), Y(k + 1), X(k + 2), Y(k + 2), (i, j) => put(i, j, b.colors, k * 4));
+        triangle(X(k), Y(k), X(k + 1), Y(k + 1), X(k + 2), Y(k + 2), w, h, (i, j) =>
+          put(i, j, b.colors, k * 4),
+        );
       }
     } else if (b.kind === 3 && b.uvs && b.image !== undefined) {
       const img = list.images[b.image]!;
@@ -85,7 +90,7 @@ export function rasterize(
         const y2 = Y(k + 2);
         const d = (y1 - y2) * (x0 - x2) + (x2 - x1) * (y0 - y2);
         if (d === 0) continue;
-        triangle(x0, y0, x1, y1, x2, y2, (i, j) => {
+        triangle(x0, y0, x1, y1, x2, y2, w, h, (i, j) => {
           const px = i + 0.5;
           const py = j + 0.5;
           const l0 = ((y1 - y2) * (px - x2) + (x2 - x1) * (py - y2)) / d;
@@ -119,6 +124,8 @@ function triangle(
   y1: number,
   x2: number,
   y2: number,
+  width: number,
+  height: number,
   plot: (i: number, j: number) => void,
 ): void {
   const area = (x1 - x0) * (y2 - y0) - (x2 - x0) * (y1 - y0);
@@ -129,9 +136,9 @@ function triangle(
     [y1, y2] = [y2, y1];
   }
   const minI = Math.max(0, Math.floor(Math.min(x0, x1, x2)));
-  const maxI = Math.ceil(Math.max(x0, x1, x2));
+  const maxI = Math.min(width - 1, Math.ceil(Math.max(x0, x1, x2)));
   const minJ = Math.max(0, Math.floor(Math.min(y0, y1, y2)));
-  const maxJ = Math.ceil(Math.max(y0, y1, y2));
+  const maxJ = Math.min(height - 1, Math.ceil(Math.max(y0, y1, y2)));
   const edge = (ax: number, ay: number, bx: number, by: number, px: number, py: number) =>
     (bx - ax) * (py - ay) - (by - ay) * (px - ax);
   // top-left rule for a CCW triangle in y-up coordinates: include left and top edges
@@ -148,6 +155,60 @@ function triangle(
       const w2 = edge(x0, y0, x1, y1, px, py);
       if ((w0 > 0 || (w0 === 0 && t0)) && (w1 > 0 || (w1 === 0 && t1)) && (w2 > 0 || (w2 === 0 && t2)))
         plot(i, j);
+    }
+  }
+}
+
+/** Clip before walking pixels so off-canvas geometry cannot dominate viewer comparisons. */
+function hairline(
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number,
+  width: number,
+  height: number,
+  plot: (i: number, j: number) => void,
+): void {
+  if (![x0, y0, x1, y1].every(Number.isFinite)) return;
+  const dx = x1 - x0;
+  const dy = y1 - y0;
+  let lo = 0;
+  let hi = 1;
+  for (const [p, q] of [
+    [-dx, x0],
+    [dx, width - x0],
+    [-dy, y0],
+    [dy, height - y0],
+  ]) {
+    if (p === 0) {
+      if (q! < 0) return;
+    } else {
+      const t = q! / p!;
+      if (p! < 0) lo = Math.max(lo, t);
+      else hi = Math.min(hi, t);
+    }
+  }
+  if (lo > hi) return;
+  let x = Math.floor(x0 + lo * dx);
+  let y = Math.floor(y0 + lo * dy);
+  const endX = Math.floor(x0 + hi * dx);
+  const endY = Math.floor(y0 + hi * dy);
+  const ax = Math.abs(endX - x);
+  const ay = -Math.abs(endY - y);
+  const sx = x < endX ? 1 : -1;
+  const sy = y < endY ? 1 : -1;
+  let error = ax + ay;
+  for (;;) {
+    plot(x, y);
+    if (x === endX && y === endY) return;
+    const e = 2 * error;
+    if (e >= ay) {
+      error += ay;
+      x += sx;
+    }
+    if (e <= ax) {
+      error += ax;
+      y += sy;
     }
   }
 }

@@ -1,7 +1,20 @@
+import { DisplayListBuilder } from "@truedxf/render";
 import { describe, expect, it } from "vitest";
-import { clipMask } from "../src/cpu-raster.ts";
+import { clipMask, rasterize } from "../src/cpu-raster.ts";
 
 const id = (v: number) => v;
+
+describe("smooth hairlines", () => {
+  it("clips far-away endpoints and honours colour, alpha and clip holes", () => {
+    const builder = new DisplayListBuilder(1);
+    builder.background = [0, 0, 0];
+    const clip = builder.addClip({ rings: [Float64Array.of(1, 0, 3, 0, 3, 1, 1, 1)] });
+    builder.setClip(clip);
+    builder.polyline([-1e12, 0.5, 1e12, 0.5], [255, 0, 0, 128]);
+    const img = rasterize(builder.build(), { minX: 0, minY: 0, maxX: 4, maxY: 1 }, [4, 1]);
+    expect([...img.data]).toEqual([0, 0, 0, 255, 127, 0, 0, 255, 127, 0, 0, 255, 0, 0, 0, 255]);
+  });
+});
 
 describe("clipMask", () => {
   it("keeps pixels whose centre lies inside a rectangle", () => {

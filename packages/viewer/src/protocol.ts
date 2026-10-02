@@ -317,6 +317,7 @@ export class ViewerCore {
         loadFont: this.loadFont,
         loadImage: this.loadImage,
         raster: p.raster,
+        lod: true,
         background: p.background,
         layerVisibility: toggles,
         rasterEntities: p.rasterEntities === false ? "omit" : "draw",

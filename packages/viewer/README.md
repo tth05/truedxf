@@ -23,6 +23,39 @@ const info = await viewer.inspect(handle); // type, raw/resolved properties, raw
 Not on npm yet (version 0.0.0); consumed from source in the workspace. `three` is a peer
 dependency.
 
+## Embedding
+
+Every input switch, the fitting behaviour and the view are configurable, at construction and at
+runtime.
+
+```ts
+// a static picture of the drawing: no input, refits when the container resizes
+new DxfViewer(el, { interaction: false, autoFit: "always" });
+
+// in a scrolling page: Ctrl/⌘ + wheel zooms, the plain wheel scrolls the page; no click-select
+new DxfViewer(el, { interaction: { zoom: "ctrl", select: false }, limits: { minZoom: 0.5, maxZoom: 50 } });
+
+viewer.setInteraction({ pan: false, zoom: false }); // lock the view ("true" / "false" for all)
+viewer.zoomToEntity("2F");                          // from your own list / search
+viewer.setView({ cx: 120, cy: 40, scale: 0.05 });   // world centre, world units per CSS pixel
+const png = await viewer.snapshot();                // Blob of the current view
+```
+
+| Option | Default | |
+|---|---|---|
+| `interaction` | `true` | `true` / `false` or switches (missing ones stay on): `pan` (drag, two fingers), `zoom` (`true`, `"ctrl"`: wheel only with Ctrl/⌘ held, trackpad pinch included, `false`), `hover` (highlight + `hover` events), `select` (click to select + `select` event; `select()` always works), `dblclickFit`, `keyboard` (focus on click, `Esc`). Turning all of them off also gives the page its wheel, touch scrolling and context menu back. `setInteraction(change)`, `interaction`. |
+| `autoFit` | `"load"` | `"load"`: fit on load and layout switch. `"always"`: also on container resize, until the user or `setView` moves the view; `fit()` re-arms it. `false`: keep the view across `load()` / `setLayout()` (live preview of an edited drawing), fit only when there is none yet. `setAutoFit(mode)`. |
+| `fitMargin` | `0.04` | Margin per side, relative to the drawing size. |
+| `limits` | none | `{ minZoom, maxZoom }` relative to the fitted view (1 = fitted, so they work in any unit) and `keepInView` (the view centre stays inside the drawing). Applied to input and to `zoom` / `setView` / `fitTo` / `zoomToEntity`. `setLimits(limits)`. |
+| `initialLayout` | `"model"` | `"model"`, `"active"` (the layout current when the file was saved, `DocumentInfo.activeLayout` from `$TILEMODE`), a layout name (falls back to model space) or `(doc) => name`. The first list is rendered for that layout directly. |
+| `colors` | | `select`, `hover`, `measure` and `surround` (around a layout's paper sheet; the sheet stays white because drawing colours are contrasted against it), CSS colour strings or `0xRRGGBB`. `setColors(colors)`. |
+
+View methods: `fit()`, `fitTo(rect, margin?)`, `zoomToEntity(handle, margin = 0.25)` (false when
+the entity draws nothing in the current layout; a point only centres), `setView({ cx?, cy?,
+scale? })`, `zoom(factor)`, `viewState`, `zoomLevel` (1 = fitted), `screenToWorld` /
+`worldToScreen`, and the `view` event. `snapshot(type?, quality?)` draws and copies the frame in
+one task, so it needs no `preserveDrawingBuffer`.
+
 **Bundlers.** The worker is created with `new Worker(new URL("./worker.js", import.meta.url))`,
 which Vite, webpack and Rollup bundle. Vite's dependency pre-bundling breaks that URL: add
 `optimizeDeps: { exclude: ["@truedxf/viewer"] }`. Or pass your own `worker: () => new Worker(…)`.
@@ -36,9 +69,9 @@ which Vite, webpack and Rollup bundle. Vite's dependency pre-bundling breaks tha
   `ViewerCore` and `serveWorker` for Node and custom workers. The worker's font and image
   requests are answered on the main thread: additional files first (below), then `loadFont` /
   `loadImage`, so any loader works.
-- **Navigation.** Wheel zoom at the cursor, drag pan (left, middle or right button), touch
-  pinch/pan, `fit()` or double-click on empty space to fit, `Esc` clears the selection (or the
-  measurement). The canvas follows the container (`ResizeObserver`) and `devicePixelRatio`.
+- **Navigation** (each part switchable, see Embedding). Wheel zoom at the cursor, drag pan
+  (left, middle or right button), touch pinch/pan, `fit()` or double-click on empty space to
+  fit, `Esc` clears the selection (or the measurement). The canvas follows the container (`ResizeObserver`) and `devicePixelRatio`.
 - **Level of detail.** Lists are built with `raster: "smooth"` for one pixel size (tessellation
   tolerance, lineweight widening). After zooming by more than 2× a new list is requested
   (debounced 150 ms) while the old one stays visible. Below 1/65536 of the drawing size the list

@@ -51,6 +51,12 @@ describe("pick index", () => {
     expect(index.entityOf("nope")).toBe(-1);
   });
 
+  it("bounds an entity over all of its ranges (zoomToEntity)", () => {
+    expect(index.bounds(index.entityOf("LINE"))).toEqual({ minX: 10, minY: 50, maxX: 1100, maxY: 1000 });
+    expect(index.bounds(index.entityOf("DOT"))).toEqual({ minX: 500, minY: 500, maxX: 500, maxY: 500 });
+    expect(index.bounds(-1)).toBeUndefined();
+  });
+
   it("handles empty lists", () => {
     const empty = new DisplayListBuilder(1).build();
     const d = buildPickData(empty);

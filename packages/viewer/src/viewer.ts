@@ -20,6 +20,12 @@ import {
   relativeUrls,
   type ViewerFile,
 } from "./files.ts";
+import {
+  type Interaction,
+  type InteractionOption,
+  initialInteraction,
+  resolveInteraction,
+} from "./interaction.ts";
 import { type LodOptions, needsRetessellation, targetPixelSize } from "./lod.ts";
 import { Kind, type PickBatch, PickIndex } from "./pick.ts";
 import type {
@@ -32,16 +38,21 @@ import type {
   RenderResult,
 } from "./protocol.ts";
 import {
+  constrainView,
   fitRect,
+  isValidRect,
+  limitZoomFactor,
   panBy,
   type Rect,
   resize,
   screenToWorld,
   unionRect,
+  type ViewLimits,
   type ViewState,
   viewRect,
   worldToScreen,
   zoomAt,
+  zoomLevel,
 } from "./view.ts";
 import { MISSING_FILE_CODES, type ViewerWarning } from "./warnings.ts";
 
@@ -82,8 +93,30 @@ export interface DxfViewerOptions {
   lodDelay?: number;
   /** Pick tolerance in CSS pixels (default 6). */
   pickTolerance?: number;
-  /** Hover highlighting (default true). */
-  hover?: boolean;
+  /**
+   * Which input the viewer handles: true (default) everything, false nothing (a display-only
+   * view: the page scrolls over it and the browser's context menu works), or single switches
+   * (missing ones stay on), e.g. `{ zoom: "ctrl", select: false }`. See setInteraction().
+   */
+  interaction?: InteractionOption;
+  /**
+   * When the view fits the drawing by itself: "load" (default) when a drawing is loaded or the
+   * layout changes; "always" also when the container resizes, until the user (or setView) moves
+   * the view, and again after fit(); false only when there is no view yet, so reloading a
+   * drawing or switching layouts keeps the view.
+   */
+  autoFit?: AutoFit;
+  /** Margin around the drawing when fitting, relative to its size per side (default 0.04). */
+  fitMargin?: number;
+  /** Zoom limits relative to the fitted view, and keeping the drawing in view (default none). */
+  limits?: ViewLimits;
+  /**
+   * Layout shown after loading: "model" (default), "active" (the one current when the file was
+   * saved, DocumentInfo.activeLayout), a layout name (else model space) or a function choosing one.
+   */
+  initialLayout?: InitialLayout;
+  /** Highlight, measure and layout surround colours (CSS colour strings or 0xRRGGBB). */
+  colors?: ViewerColors;
   /** preserveDrawingBuffer (tests reading pixels). */
   preserveDrawingBuffer?: boolean;
   /**
@@ -97,6 +130,27 @@ export interface DxfViewerOptions {
 }
 
 export type Tool = "select" | "measure";
+
+export type AutoFit = "load" | "always" | false;
+
+export type InitialLayout = "model" | "active" | (string & {}) | ((doc: DocumentInfo) => string | undefined);
+
+/** A CSS colour string ("#2f81f7", "rgb(...)", names) or 0xRRGGBB. */
+export type ViewerColor = string | number;
+
+export interface ViewerColors {
+  /** Selected entity (default #2f81f7). */
+  select?: ViewerColor;
+  /** Entity under the pointer (default #f0a33e). */
+  hover?: ViewerColor;
+  /** Measure tool line and points (default #ff2d95). */
+  measure?: ViewerColor;
+  /**
+   * Around the paper sheet of a layout (default: a grey matching the background). The sheet
+   * itself stays white: the drawing's colours are contrasted against white paper.
+   */
+  surround?: ViewerColor;
+}
 
 export interface RenderStats {
   batches: number;
@@ -162,9 +216,9 @@ const BACKGROUNDS = {
   dark: [33, 40, 48] as const,
   light: [255, 255, 255] as const,
 };
-const SELECT_COLOR = new THREE.Color(0x2f81f7);
-const HOVER_COLOR = new THREE.Color(0xf0a33e);
-const MEASURE_COLOR = new THREE.Color(0xff2d95);
+const DEFAULT_COLORS = { select: 0x2f81f7, hover: 0xf0a33e, measure: 0xff2d95 } as const;
+/** Margin of zoomToEntity: a lone entity right at the canvas edge looks cut off. */
+const ENTITY_MARGIN = 0.25;
 
 interface CurrentList {
   key: string;
@@ -237,6 +291,17 @@ export class DxfViewer {
   private frame = 0;
   private readonly resizeObserver: ResizeObserver;
   private tool: Tool = "select";
+  private input: Interaction;
+  private autoFit: AutoFit;
+  private limits: ViewLimits | undefined;
+  private readonly colors: {
+    select: THREE.Color;
+    hover: THREE.Color;
+    measure: THREE.Color;
+    surround: THREE.Color | undefined;
+  };
+  /** The view is the fitted one (autoFit "always" re-fits it on resize). */
+  private fitted = false;
   private selected: string | undefined;
   private hovered: string | undefined;
   private readonly selectGroup = new THREE.Group();
@@ -263,6 +328,16 @@ export class DxfViewer {
     this.options = options;
     this.background = resolveBackground(options.background ?? "dark");
     this.lineweights = options.lineweights ?? true;
+    this.input = initialInteraction(options.interaction);
+    this.autoFit = options.autoFit ?? "load";
+    this.limits = options.limits;
+    this.colors = {
+      select: new THREE.Color(DEFAULT_COLORS.select),
+      hover: new THREE.Color(DEFAULT_COLORS.hover),
+      measure: new THREE.Color(DEFAULT_COLORS.measure),
+      surround: undefined,
+    };
+    this.assignColors(options.colors ?? {});
     // Every asset request: the viewer's files, then the configured loader (then, for images, the
     // drawing's URL folder). These identities stay fixed; the backend makes fresh ones per file
     // store generation (RenderParams.assets) because the renderer caches per loader identity.
@@ -283,10 +358,8 @@ export class DxfViewer {
       width: "100%",
       height: "100%",
       display: "block",
-      touchAction: "none",
       outline: "none",
     });
-    this.canvas.tabIndex = 0;
     container.append(this.canvas);
     this.renderer = new DisplayListRenderer({
       canvas: this.canvas,
@@ -306,6 +379,7 @@ export class DxfViewer {
     this.resizeObserver.observe(container);
     this.handleResize();
     this.attachInput();
+    this.applyInteraction();
   }
 
   // ---- events -------------------------------------------------------------------------------
@@ -522,7 +596,7 @@ export class DxfViewer {
       this.clearMeasure();
       this.clearHighlight(this.selectGroup);
       this.clearHighlight(this.hoverGroup);
-      this.layoutName = info.layouts.find((l) => l.isModel)?.name ?? "Model";
+      this.layoutName = this.initialLayout(info);
       this.renderWarnings = [];
       this.emit("load", info);
       this.emitWarnings();
@@ -604,22 +678,97 @@ export class DxfViewer {
     this.requestList(0);
   }
 
-  /** Fits the view to the drawing extents (paper sheet included for layouts). */
+  /**
+   * Fits the view to the drawing extents (paper sheet included for layouts). With autoFit
+   * "always" the view then follows container resizes again.
+   */
   fit(): void {
     const r = this.fitRectangle();
     if (!r) return;
-    this.setView(fitRect(r, this.cssWidth(), this.cssHeight()));
+    this.applyView(this.fitView(r), true);
   }
 
-  /** Zooms by a factor around the canvas centre (> 1 zooms in). */
+  /** Fits the view to a world rectangle; `margin` per side relative to its size (default fitMargin). */
+  fitTo(rect: Rect, margin = this.fitMargin): void {
+    if (!isValidRect(rect)) return;
+    this.applyView(fitRect(rect, this.cssWidth(), this.cssHeight(), margin));
+  }
+
+  /**
+   * Zooms to an entity of the current layout (its drawn geometry; margin per side relative to its
+   * size, default 0.25). A point only centres the view. False when the entity draws nothing here.
+   */
+  zoomToEntity(handle: string, margin = ENTITY_MARGIN): boolean {
+    const cur = this.current;
+    if (!cur || !this.view) return false;
+    const e = cur.pick.entityOf(handle);
+    const r = e < 0 ? undefined : cur.pick.bounds(e);
+    if (!r) return false;
+    if (r.maxX === r.minX && r.maxY === r.minY) this.setView({ cx: r.minX, cy: r.minY });
+    else this.fitTo(r, margin);
+    return true;
+  }
+
+  /** Sets the view centre (world coordinates) and / or scale (world units per CSS pixel). */
+  setView(view: { cx?: number; cy?: number; scale?: number }): void {
+    if (!this.view) return;
+    this.applyView({
+      ...this.view,
+      ...(view.cx !== undefined ? { cx: view.cx } : {}),
+      ...(view.cy !== undefined ? { cy: view.cy } : {}),
+      ...(view.scale !== undefined ? { scale: view.scale } : {}),
+    });
+  }
+
+  /** Zooms by a factor around the canvas centre (> 1 zooms in), within the zoom limits. */
   zoom(factor: number): void {
     if (!this.view) return;
-    this.setView(zoomAt(this.view, this.view.width / 2, this.view.height / 2, factor));
+    this.applyView(zoomAt(this.view, this.view.width / 2, this.view.height / 2, this.limitZoom(factor)));
+  }
+
+  /** Zoom level relative to the fitted view (1 = fitted), or undefined before the first render. */
+  get zoomLevel(): number | undefined {
+    const r = this.fitRectangle();
+    return this.view && r ? zoomLevel(this.view, r, this.fitMargin) : undefined;
+  }
+
+  /** The input switches in effect. */
+  get interaction(): Interaction {
+    return { ...this.input };
+  }
+
+  /**
+   * Changes which input the viewer handles: true / false for everything, or the switches to
+   * change, e.g. `setInteraction({ pan: false, zoom: false })` to lock the view.
+   */
+  setInteraction(change: InteractionOption): void {
+    this.input = resolveInteraction(this.input, change);
+    this.applyInteraction();
+  }
+
+  setAutoFit(mode: AutoFit): void {
+    this.autoFit = mode;
+  }
+
+  /** Changes the navigation limits; the current view is brought within them. */
+  setLimits(limits: ViewLimits | undefined): void {
+    this.limits = limits;
+    if (this.view) this.applyView(this.view, this.fitted);
+  }
+
+  /** Changes highlight, measure or surround colours (undefined keeps a colour). */
+  setColors(colors: ViewerColors): void {
+    this.assignColors(colors);
+    this.applyClearColor();
+    this.highlight(this.selectGroup, this.selected, this.colors.select, 1);
+    this.highlight(this.hoverGroup, this.hoverShown(), this.colors.hover, 0.85);
+    this.updateMeasureOverlay();
+    this.requestFrame();
   }
 
   setTool(tool: Tool): void {
     this.tool = tool;
-    this.canvas.style.cursor = tool === "measure" ? "crosshair" : "";
+    this.updateCursor();
     if (tool !== "measure") this.clearMeasure();
   }
 
@@ -646,7 +795,7 @@ export class DxfViewer {
   /** Selects an entity by handle (undefined clears) and highlights it. */
   select(handle: string | undefined): void {
     this.selected = handle;
-    this.highlight(this.selectGroup, handle, SELECT_COLOR, 1);
+    this.highlight(this.selectGroup, handle, this.colors.select, 1);
     this.emit("select", { handle });
     this.requestFrame();
   }
@@ -668,6 +817,17 @@ export class DxfViewer {
   renderNow(): void {
     if (!this.view || this.disposed) return;
     this.renderer.render(viewRect(this.view));
+  }
+
+  /**
+   * The current view as an image (PNG by default) at the canvas resolution. The frame is drawn
+   * and copied in the same task, so this works without preserveDrawingBuffer.
+   */
+  snapshot(type = "image/png", quality?: number): Promise<Blob> {
+    this.renderNow();
+    return new Promise((resolve, reject) =>
+      this.canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("snapshot failed"))), type, quality),
+    );
   }
 
   dispose(): void {
@@ -719,7 +879,7 @@ export class DxfViewer {
   }
 
   private async refit(): Promise<void> {
-    this.fitPending = true;
+    this.fitPending = this.autoFit !== false || !this.view;
     this.current = undefined;
     // the old list belongs to another layout / document
     this.renderer.clear();
@@ -765,7 +925,7 @@ export class DxfViewer {
       // made the sheet a dot on a far too coarse list.
       const frame = this.layoutFrame();
       if (!frame) return { ...base, area: { type: "extents" } };
-      const r = viewRect(fitRect(frame, this.cssWidth(), this.cssHeight()));
+      const r = viewRect(this.fitView(frame));
       return { ...base, area: { type: "window", min: [r.minX, r.minY], max: [r.maxX, r.maxY] } };
     }
     // the frontend tessellates the whole drawing; the window only sets the pixel size
@@ -831,14 +991,20 @@ export class DxfViewer {
     if (fit) {
       this.fitPending = false;
       const r = this.fitRectangle();
-      this.view = r
-        ? fitRect(r, this.cssWidth(), this.cssHeight())
-        : fitRect({ minX: 0, minY: 0, maxX: 1, maxY: 1 }, this.cssWidth(), this.cssHeight());
+      this.view = this.constrain(this.fitView(r ?? { minX: 0, minY: 0, maxX: 1, maxY: 1 }));
+      this.fitted = true;
       this.emit("view", { ...this.view });
+    } else if (this.view && this.limits) {
+      // the extents may have changed (first list after a kept view, layer toggles)
+      const v = this.constrain(this.view);
+      if (v !== this.view) {
+        this.view = v;
+        this.emit("view", { ...v });
+      }
     }
     // re-highlight on the new list (entity indexes change)
-    this.highlight(this.selectGroup, this.selected, SELECT_COLOR, 1);
-    this.highlight(this.hoverGroup, this.hovered, HOVER_COLOR, 0.85);
+    this.highlight(this.selectGroup, this.selected, this.colors.select, 1);
+    this.highlight(this.hoverGroup, this.hoverShown(), this.colors.hover, 0.85);
     this.renderNow();
     const upload = performance.now() - t0;
     let vertices = 0;
@@ -885,6 +1051,10 @@ export class DxfViewer {
 
   private applyClearColor(): void {
     const sheet = this.layoutInfo()?.paper !== undefined;
+    if (sheet && this.colors.surround) {
+      this.renderer.renderer.setClearColor(this.colors.surround, 1);
+      return;
+    }
     const c = sheet ? (isDark(this.background) ? [58, 64, 72] : [205, 210, 216]) : this.renderBackground();
     this.renderer.renderer.setClearColor(new THREE.Color(c[0]! / 255, c[1]! / 255, c[2]! / 255), 1);
   }
@@ -911,13 +1081,73 @@ export class DxfViewer {
     });
   }
 
-  private setView(v: ViewState): void {
-    if (!(v.scale > 0) || !Number.isFinite(v.cx) || !Number.isFinite(v.cy)) return;
-    this.view = v;
+  /** Every view change goes through here: limits, `fitted`, frame, `view` event, LOD. */
+  private applyView(v: ViewState, fitted = false): void {
+    if (!(v.scale > 0) || !Number.isFinite(v.scale) || !Number.isFinite(v.cx) || !Number.isFinite(v.cy))
+      return;
+    this.view = this.constrain(v);
+    this.fitted = fitted;
     this.requestFrame();
     this.emit("view", { ...v });
     this.checkLod();
     this.updateMeasureOverlay();
+  }
+
+  private constrain(v: ViewState): ViewState {
+    return constrainView(v, this.fitRectangle(), this.limits, this.fitMargin);
+  }
+
+  private limitZoom(factor: number): number {
+    return this.view
+      ? limitZoomFactor(this.view, factor, this.fitRectangle(), this.limits, this.fitMargin)
+      : factor;
+  }
+
+  private get fitMargin(): number {
+    return this.options.fitMargin ?? 0.04;
+  }
+
+  private fitView(r: Rect): ViewState {
+    return fitRect(r, this.cssWidth(), this.cssHeight(), this.fitMargin);
+  }
+
+  private initialLayout(info: DocumentInfo): string {
+    const want = this.options.initialLayout ?? "model";
+    const model = info.layouts.find((l) => l.isModel)?.name ?? "Model";
+    let name: string | undefined =
+      want === "active" ? info.activeLayout : want === "model" ? model : undefined;
+    if (typeof want === "function") name = want(info);
+    else name ??= want;
+    return info.layouts.find((l) => l.name.toUpperCase() === name?.toUpperCase())?.name ?? model;
+  }
+
+  private assignColors(c: ViewerColors): void {
+    if (c.select !== undefined) this.colors.select = new THREE.Color(c.select);
+    if (c.hover !== undefined) this.colors.hover = new THREE.Color(c.hover);
+    if (c.measure !== undefined) this.colors.measure = new THREE.Color(c.measure);
+    if (c.surround !== undefined) this.colors.surround = new THREE.Color(c.surround);
+  }
+
+  private applyInteraction(): void {
+    const i = this.input;
+    // "none" keeps the browser from scrolling the page on touch: only claim it to pan / zoom
+    this.canvas.style.touchAction = i.pan || i.zoom ? "none" : "auto";
+    if (i.keyboard) this.canvas.tabIndex = 0;
+    else this.canvas.removeAttribute("tabindex");
+    if (!i.hover) this.setHover(undefined);
+    this.updateCursor();
+  }
+
+  private updateCursor(): void {
+    let cursor = "";
+    if (this.tool === "measure") cursor = "crosshair";
+    else if (this.hovered !== undefined && this.input.select) cursor = "pointer";
+    this.canvas.style.cursor = cursor;
+  }
+
+  /** The hover highlight: not drawn over the selection. */
+  private hoverShown(): string | undefined {
+    return this.hovered === this.selected ? undefined : this.hovered;
   }
 
   private cssWidth(): number {
@@ -937,7 +1167,9 @@ export class DxfViewer {
     this.renderer.renderer.setPixelRatio(dpr);
     this.renderer.setSize(w, h, false);
     if (this.view) {
-      this.view = resize(this.view, w, h);
+      this.view = this.constrain(resize(this.view, w, h));
+      if (this.autoFit === "always" && this.fitted) this.fit();
+      else this.emit("view", { ...this.view });
       if (dprChanged) this.requestList();
     }
     this.renderNow();
@@ -1015,7 +1247,7 @@ export class DxfViewer {
     // positions relative to point a (float32 precision), group positioned at a
     const pts = b ? [0, 0, b[0] - a[0], b[1] - a[1]] : [0, 0];
     const g = geometry2d(new Float32Array(pts));
-    const common = { color: MEASURE_COLOR, transparent: true, depthTest: false, depthWrite: false };
+    const common = { color: this.colors.measure, transparent: true, depthTest: false, depthWrite: false };
     const line = new THREE.LineSegments(g, new THREE.LineBasicMaterial(common));
     const dots = new THREE.Points(
       g,
@@ -1041,22 +1273,28 @@ export class DxfViewer {
     c.addEventListener(
       "wheel",
       (ev) => {
-        if (!this.view) return;
+        const z = this.input.zoom;
+        // without zoom (or Ctrl in "ctrl" mode) the wheel scrolls the page
+        if (!this.view || !z || (z === "ctrl" && !ev.ctrlKey && !ev.metaKey)) return;
         ev.preventDefault();
         const unit = ev.deltaMode === 1 ? 16 : ev.deltaMode === 2 ? 400 : 1;
         const dy = Math.max(-400, Math.min(400, ev.deltaY * unit));
         const { x, y } = this.local(ev);
-        this.setView(zoomAt(this.view, x, y, Math.exp(-dy * 0.0015)));
+        this.applyView(zoomAt(this.view, x, y, this.limitZoom(Math.exp(-dy * 0.0015))));
       },
       { passive: false },
     );
-    c.addEventListener("contextmenu", (ev) => ev.preventDefault());
+    // right-drag pans: keep the browser menu only when it would not
+    c.addEventListener("contextmenu", (ev) => {
+      if (this.input.pan) ev.preventDefault();
+    });
     c.addEventListener("pointerdown", (ev) => {
-      c.focus();
+      if (this.input.keyboard) c.focus({ preventScroll: true });
       const p = this.local(ev);
       this.pointers.set(ev.pointerId, { ...p, button: ev.button });
       c.setPointerCapture(ev.pointerId);
-      if (ev.button === 1) ev.preventDefault();
+      // middle button: no autoscroll while panning
+      if (ev.button === 1 && this.input.pan) ev.preventDefault();
       this.dragMoved = 0;
       if (this.pointers.size === 2) this.pinch = this.pinchState();
     });
@@ -1081,9 +1319,11 @@ export class DxfViewer {
       if (this.pointers.size >= 2) {
         const now = this.pinchState();
         if (this.pinch && now) {
-          let v = panBy(this.view, now.cx - this.pinch.cx, now.cy - this.pinch.cy);
-          if (this.pinch.dist > 0 && now.dist > 0) v = zoomAt(v, now.cx, now.cy, now.dist / this.pinch.dist);
-          this.setView(v);
+          let v = this.view;
+          if (this.input.pan) v = panBy(v, now.cx - this.pinch.cx, now.cy - this.pinch.cy);
+          if (this.input.zoom && this.pinch.dist > 0 && now.dist > 0)
+            v = zoomAt(v, now.cx, now.cy, this.limitZoom(now.dist / this.pinch.dist));
+          if (v !== this.view) this.applyView(v);
         }
         this.pinch = now;
         this.dragMoved += 10;
@@ -1091,8 +1331,8 @@ export class DxfViewer {
       }
       this.dragMoved += Math.abs(dx) + Math.abs(dy);
       // left drag pans only after a small threshold, so clicks stay clicks
-      if (prev.button === 1 || prev.button === 2 || this.dragMoved > 3)
-        this.setView(panBy(this.view, dx, dy));
+      if (this.input.pan && (prev.button === 1 || prev.button === 2 || this.dragMoved > 3))
+        this.applyView(panBy(this.view, dx, dy));
     });
     const end = (ev: PointerEvent) => {
       const prev = this.pointers.get(ev.pointerId);
@@ -1104,7 +1344,7 @@ export class DxfViewer {
         if (this.tool === "measure" && this.view) {
           const [wx, wy] = screenToWorld(this.view, p.x, p.y);
           this.measureClick(wx, wy);
-        } else this.select(this.pickAt(p.x, p.y));
+        } else if (this.input.select) this.select(this.pickAt(p.x, p.y));
       }
     };
     c.addEventListener("pointerup", end);
@@ -1115,10 +1355,12 @@ export class DxfViewer {
       if (this.hovered !== undefined && this.pointers.size === 0) this.setHover(undefined);
     });
     c.addEventListener("dblclick", (ev) => {
-      if (this.tool === "select" && this.pickAt(this.local(ev).x, this.local(ev).y) === undefined) this.fit();
+      if (!this.input.dblclickFit || this.tool !== "select") return;
+      const p = this.local(ev);
+      if (!this.input.select || this.pickAt(p.x, p.y) === undefined) this.fit();
     });
     c.addEventListener("keydown", (ev) => {
-      if (ev.key === "Escape") {
+      if (this.input.keyboard && ev.key === "Escape") {
         if (this.tool === "measure") this.clearMeasure();
         else this.select(undefined);
       }
@@ -1134,12 +1376,12 @@ export class DxfViewer {
   }
 
   private scheduleHover(): void {
-    if (this.options.hover === false || this.hoverScheduled) return;
+    if (!this.input.hover || this.hoverScheduled) return;
     this.hoverScheduled = true;
     requestAnimationFrame(() => {
       this.hoverScheduled = false;
       const p = this.lastPointer;
-      if (!p || this.pointers.size > 0) return;
+      if (!p || this.pointers.size > 0 || !this.input.hover) return;
       this.setHover(this.pickAt(p.x, p.y));
     });
   }
@@ -1147,8 +1389,8 @@ export class DxfViewer {
   private setHover(handle: string | undefined): void {
     if (handle === this.hovered) return;
     this.hovered = handle;
-    this.highlight(this.hoverGroup, handle === this.selected ? undefined : handle, HOVER_COLOR, 0.85);
-    this.canvas.style.cursor = this.tool === "measure" ? "crosshair" : handle ? "pointer" : "";
+    this.highlight(this.hoverGroup, this.hoverShown(), this.colors.hover, 0.85);
+    this.updateCursor();
     this.emit("hover", { handle });
     this.requestFrame();
   }

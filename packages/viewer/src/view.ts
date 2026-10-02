@@ -72,6 +72,67 @@ export function resize(v: ViewState, width: number, height: number): ViewState {
   return { ...v, width: Math.max(width, 1), height: Math.max(height, 1) };
 }
 
+/**
+ * Navigation limits. Zoom levels are relative to the fitted view (1 = the drawing fits, 0.5 =
+ * twice as far out), so they work without knowing the drawing's units.
+ */
+export interface ViewLimits {
+  minZoom?: number;
+  maxZoom?: number;
+  /** Keep the view centre inside the drawing (the fit rectangle). */
+  keepInView?: boolean;
+}
+
+/** Zoom level of `v` relative to fitting `frame` (1 = fitted). */
+export function zoomLevel(v: ViewState, frame: Rect, margin?: number): number {
+  return fitRect(frame, v.width, v.height, margin).scale / v.scale;
+}
+
+/**
+ * Limits a zoom factor so the resulting zoom level stays within the limits (applied before
+ * zoomAt, so the point under the cursor stays put at the limit).
+ */
+export function limitZoomFactor(
+  v: ViewState,
+  factor: number,
+  frame: Rect | undefined,
+  limits: ViewLimits | undefined,
+  margin?: number,
+): number {
+  if (!frame || !isValidRect(frame) || (limits?.minZoom === undefined && limits?.maxZoom === undefined))
+    return factor;
+  const z = zoomLevel(v, frame, margin);
+  return clamp(z * factor, limits.minZoom, limits.maxZoom) / z;
+}
+
+/** Clamps the scale (around the centre) and, with keepInView, the centre into the limits. */
+export function constrainView(
+  v: ViewState,
+  frame: Rect | undefined,
+  limits: ViewLimits | undefined,
+  margin?: number,
+): ViewState {
+  if (!limits || !frame || !isValidRect(frame)) return v;
+  let out = v;
+  if (limits.minZoom !== undefined || limits.maxZoom !== undefined) {
+    const z = zoomLevel(v, frame, margin);
+    const zc = clamp(z, limits.minZoom, limits.maxZoom);
+    if (zc !== z) out = { ...out, scale: (v.scale * z) / zc };
+  }
+  if (limits.keepInView) {
+    const cx = clamp(out.cx, frame.minX, frame.maxX);
+    const cy = clamp(out.cy, frame.minY, frame.maxY);
+    if (cx !== out.cx || cy !== out.cy) out = { ...out, cx, cy };
+  }
+  return out;
+}
+
+function clamp(x: number, min: number | undefined, max: number | undefined): number {
+  if (max !== undefined && x > max) x = max;
+  if (min !== undefined && x < min) x = min;
+  return x;
+}
+
 export function unionRect(a: Rect | undefined, b: Rect | undefined): Rect | undefined {
   if (!a || !isValidRect(a)) return b && isValidRect(b) ? { ...b } : undefined;
   if (!b || !isValidRect(b)) return { ...a };

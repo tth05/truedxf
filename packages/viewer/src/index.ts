@@ -4,6 +4,7 @@
  */
 export { type Backend, LocalBackend, WorkerBackend } from "./backend.ts";
 export * from "./files.ts";
+export * from "./interaction.ts";
 export * from "./lod.ts";
 export * from "./pick.ts";
 export type {

@@ -65,6 +65,11 @@ export interface DocumentInfo {
   entityCount: number;
   entityTypes: Record<string, number>;
   layouts: LayoutInfo[];
+  /**
+   * The layout that was current when the file was saved: "Model" with $TILEMODE 1, else the
+   * paper layout owning *Paper_Space (note 08 §1.3); "Model" when that layout has no entities.
+   */
+  activeLayout: string;
   layers: LayerInfo[];
   /** Model diagnostics: occurrences per code. */
   diagnostics: Record<string, number>;
@@ -457,6 +462,13 @@ function layerRgb(l: Pick<LayerEntry, "color" | "trueColor">): number {
   return ACI_RGB[Math.abs(l.color)] ?? 0xffffff;
 }
 
+/** A missing $TILEMODE behaves like 0, a layout tab (VERIFIED-BY-ACAD, note 08 §1.3). */
+function activeLayout(doc: DxfDocument): string {
+  if (doc.header.num("$TILEMODE", 0) !== 0 || !doc.paperSpace) return "Model";
+  const l = doc.layouts.find((x) => !x.isModel && x.block === doc.paperSpace);
+  return l && l.block.entities.length > 0 ? l.name : "Model";
+}
+
 /** Summary of a loaded document for the UI (layouts, layers, counts). */
 export function describe(doc: DxfDocument, name: string, byteLength: number, parseMs: number): DocumentInfo {
   const perLayer = new Map<string, { name: string; n: number }>();
@@ -569,6 +581,7 @@ export function describe(doc: DxfDocument, name: string, byteLength: number, par
     entityCount: count,
     entityTypes: types,
     layouts,
+    activeLayout: activeLayout(doc),
     layers,
     diagnostics: doc.diagnostics.summary(),
     warnings: documentWarnings(doc),

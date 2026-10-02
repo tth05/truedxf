@@ -7,6 +7,7 @@
  */
 import type { DisplayList } from "@truedxf/render";
 import Flatbush from "flatbush";
+import type { Rect } from "./view.ts";
 
 /** PrimitiveKind values of @truedxf/render (a type-only import keeps the pipeline out of the main bundle). */
 export const Kind = { Triangles: 0, Lines: 1, Points: 2, Image: 3 } as const;
@@ -144,6 +145,28 @@ export class PickIndex {
   /** Entity index of a handle (first occurrence), or -1. */
   entityOf(handle: string): number {
     return this.entities.indexOf(handle);
+  }
+
+  /** World bounds of an entity's pick ranges (what highlighting draws), or undefined. */
+  bounds(entity: number): Rect | undefined {
+    let r: Rect | undefined;
+    for (const { batch, first, count } of this.ranges(entity)) {
+      const b = this.batches[batch];
+      if (!b) continue;
+      const p = b.positions;
+      for (let i = first * 2; i < (first + count) * 2; i += 2) {
+        const x = p[i]! + b.originX;
+        const y = p[i + 1]! + b.originY;
+        if (!r) r = { minX: x, minY: y, maxX: x, maxY: y };
+        else {
+          if (x < r.minX) r.minX = x;
+          if (y < r.minY) r.minY = y;
+          if (x > r.maxX) r.maxX = x;
+          if (y > r.maxY) r.maxY = y;
+        }
+      }
+    }
+    return r;
   }
 }
 

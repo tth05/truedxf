@@ -144,6 +144,26 @@ describe("wide strokes (§10.4, §10.14)", () => {
 });
 
 describe("fills (§10.5)", () => {
+  it.each([true, false])("limits rows without changing edge rounding (evenOdd=%s)", (evenOdd) => {
+    const rings = [
+      [-13, -111, 57, 137, -9, 143],
+      [1, -50, 13, -50, 13, 130, 1, 130],
+    ];
+    const full = new SpanSet();
+    const bounded = new SpanSet();
+    fillPolygon(rings, evenOdd, full);
+    fillPolygon(rings, evenOdd, bounded, { height: 20 });
+    expect(spans(bounded)).toEqual(
+      spans(full).filter((s) => {
+        const j = Number(s.split(":")[0]);
+        return j >= 0 && j < 20;
+      }),
+    );
+    const distant = new SpanSet();
+    fillPolygon([[0, -1e9, 1, -1e9, 1, -1e8, 0, -1e8]], evenOdd, distant, { height: 20 });
+    expect(distant.empty).toBe(true);
+  });
+
   it("axis-aligned rectangle fills [x0, x1) x [y0, y1)", () => {
     const s = new SpanSet();
     fillPolygon([[2, 3, 7, 3, 7, 5, 2, 5]], true, s);

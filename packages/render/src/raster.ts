@@ -394,7 +394,12 @@ export function strokeDotPixels(i: number, j: number, w: number, out: SpanSet): 
  * the scanline of row j is y = j; every edge is walked from its lower vertex with the slope
  * trunc(dx·2^16/dy)/2^16, crossings [ymin, ymax); pixel i is filled when x_left < i + ½ ≤ x_right.
  */
-export function fillPolygon(rings: readonly (readonly number[])[], evenOdd: boolean, out: SpanSet): void {
+export function fillPolygon(
+  rings: readonly (readonly number[])[],
+  evenOdd: boolean,
+  out: SpanSet,
+  canvas?: Pick<PixelGrid, "height">,
+): void {
   interface Edge {
     xb: number;
     yb: number;
@@ -420,6 +425,12 @@ export function fillPolygon(rings: readonly (readonly number[])[], evenOdd: bool
       if (yb < ymin) ymin = yb;
       if (yt > ymax) ymax = yt;
     }
+  }
+  // Zoomed corpus windows can put remote fills millions of rows off canvas. Keep the original
+  // edge origins/slopes (note 08 §10.5), and only visit rows emitSpans can actually emit.
+  if (canvas) {
+    ymin = Math.max(ymin, 0);
+    ymax = Math.min(ymax, canvas.height);
   }
   const xs: { x: number; dir: number }[] = [];
   for (let j = ymin; j < ymax; j++) {

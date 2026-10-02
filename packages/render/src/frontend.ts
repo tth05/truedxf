@@ -956,7 +956,7 @@ export class Frontend {
         ring[q * 2] = g.px(tri[k + q * 2]!);
         ring[q * 2 + 1] = g.py(tri[k + q * 2 + 1]!);
       }
-      fillPolygon([ring], true, spans);
+      fillPolygon([ring], true, spans, g);
     }
     this.emitSpans(spans, color);
   }
@@ -973,7 +973,7 @@ export class Frontend {
         return out;
       });
       const spans = new SpanSet();
-      fillPolygon(snapped, fillRule === FillRule.EvenOdd, spans);
+      fillPolygon(snapped, fillRule === FillRule.EvenOdd, spans, g);
       this.emitSpans(spans, color);
       return;
     }
@@ -996,7 +996,7 @@ export class Frontend {
     for (const t of trapezoids(rings, true)) {
       const q: number[] = [];
       for (let k = 0; k < 8; k += 2) q.push(g.px(t[k]!), g.py(t[k + 1]!));
-      fillPolygon([q], true, spans);
+      fillPolygon([q], true, spans, g);
     }
     this.emitSpans(spans, color);
   }

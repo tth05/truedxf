@@ -194,6 +194,13 @@ default, FILLMODE for pattern hatches, extents edge tolerance.
 - [x] Viewer block tessellation reuse (2026-10-02): bounded per-frontend Float64 primitive
       streams at exact scale/inherited properties, rigid replay with current picks; clips,
       viewports and unsupported transforms fall back. [Results](perf-block-results.md).
+- [x] Block reuse admission (2026-10-02): draw first uses directly, record on the second,
+      defer first-definition signatures, bound admission metadata, and skip measured cheap
+      single continuous-LINE definitions.
+      Recheck isolated render/zoom timings, fixed-view pixels and all fingerprint gates.
+- [ ] Make viewer block stroking/triangulation equivariant under rigid replay: mixed direct/
+      canonical output still exceeds the 1e-3 px ordered-coordinate bound in huge-blocks,
+      viewports and dense-hatch despite identical counts and CPU pixels. [Measurements](perf-block-results.md).
 
 ## Viewer (packages/viewer, apps/playground)
 

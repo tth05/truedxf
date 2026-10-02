@@ -296,6 +296,23 @@ linetype/alpha/plot style/visibility propagation captures the folded ByBlock cha
 the entire block-name stack and linetypeScale are also keyed. Pixel size, document/layer toggles,
 background, fonts and calibration are fixed for the lifetime of the per-frontend cache.
 
+Cache admission is count-based: the first use of a block/key draws normally, the second
+records, and later uses replay. The first sighting of a definition retains its immutable draw
+state and resolver modes; its signature and eligibility walk are deferred until a repeat.
+Both first/current signatures are then compared, so different property/scale contexts remain
+independent. This avoids serializing thousands of never-repeated definitions: r12-network-16
+reached 16,384 one-off keys and zero recordings with eager signatures. Admission metadata
+(first-definition states plus serialized keys) is bounded to 16,384 per frontend, independently
+of the existing vertex/command/recording limits. A definition containing only
+one LINE with an effective Continuous linetype stays on normal traversal. In a controlled
+256-definition probe, recording on the second use cost 29–45% at two/three uses for this
+class, while even 32 uses saved only ~9%. Delaying to eight uses still cost ~19% on the
+eighth; a structural exclusion avoids that admission spike. Two-LINE definitions retain
+reuse: the same probe saved ~23% at 32 uses. This is an implementation tradeoff, not an
+AutoCAD rule. Dashed LINEs remain eligible because their target-unit pattern can produce
+substantial output (note 06 §2.5). Normal traversal can populate nested cache admissions
+before a repeated outer definition records them; there are still no nested fills during capture.
+
 Nonuniform/sheared/tilted/perspective transforms, paper viewport contexts, entity filters,
 active clips, nested extension dictionaries, gradients, infinite lines and documents with
 absolute-angle complex linetypes use normal traversal. Arbitrary registered clip hooks also
@@ -310,7 +327,11 @@ strokes (`blocks/inherit-*`) gain/lose nearly zero-area round-cap fan triangles 
 `triangulateConvex` tests the floating cross product against zero; removing the INSERT
 translation changes that rounding. Filled wide polylines/hatches normalize on a target-aligned
 fixed-point grid and can choose different diagonals/order after rotation. All 88 block fixtures
-have identical CPU raster pixels at the fixed viewer view despite seven vertex-count changes.
+have identical CPU raster pixels at the fixed viewer view: the initial eager implementation
+changed seven vertex counts, the admission follow-up changes only three. Mixed direct and
+canonical output also produces ordered triangle-array deltas of 0.37–0.82 px in three larger
+bench files despite equal counts and zero pixel differences; equal counts alone do not establish
+rigid-equivariant tessellation or a 1e−3 px ordered-coordinate bound.
 See [the measurements](../../docs/perf-block-results.md) for coordinate bounds, exceptions and
 the complete bench comparison; plot mode and LOD-off viewing never enter this path.
 

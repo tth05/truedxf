@@ -21,7 +21,12 @@ const insert = (id: string, name = "B", fields = "") => {
 };
 const block = (name: string, content: string) =>
   `0 BLOCK\n100 AcDbEntity\n8 0\n100 AcDbBlockBegin\n2 ${name}\n70 0\n10 0\n20 0\n${content}\n0 ENDBLK\n100 AcDbEntity\n8 0\n100 AcDbBlockEnd`;
-const document = (entities: string, content = line("30", 0, 0, 10, 2, 0), blocks = "", tables = "") =>
+const document = (
+  entities: string,
+  content = `${line("30", 0, 0, 10, 2, 0)}\n${line("31", 0, 3, 10, 5, 0)}`,
+  blocks = "",
+  tables = "",
+) =>
   DxfDocument.load(
     dxfBytes(
       `0 SECTION\n2 HEADER\n9 $ACADVER\n1 AC1032\n0 ENDSEC\n0 SECTION\n2 TABLES\n${tables}\n0 ENDSEC\n0 SECTION\n2 BLOCKS\n${block("B", content)}\n${blocks}\n0 ENDSEC\n0 SECTION\n2 ENTITIES\n${entities}\n0 ENDSEC\n0 EOF`,
@@ -51,6 +56,70 @@ function coordinates(list: ReturnType<DisplayListBuilder["build"]>) {
 }
 
 describe("viewer block streams", () => {
+  it("skips single continuous LINEs but admits dashed lines on the second use", () => {
+    for (const dashed of [false, true]) {
+      const entities = Array.from({ length: 10 }, (_, i) =>
+        insert((64 + i).toString(16), "B", `10 ${i * 10}`),
+      ).join("\n");
+      const tables =
+        "0 TABLE\n2 LTYPE\n0 LTYPE\n100 AcDbSymbolTableRecord\n100 AcDbLinetypeTableRecord\n2 DASH\n70 0\n3 dash\n72 65\n73 2\n40 3\n49 2\n74 0\n49 -1\n74 0\n0 ENDTAB";
+      const doc = document(
+        entities,
+        `${line("30", 0, 0, 10, 2, 0)}\n6 ${dashed ? "DASH" : "Continuous"}`,
+        "",
+        tables,
+      );
+      const fe = frontend(doc),
+        captures: boolean[] = [],
+        original = fe.drawEntities.bind(fe);
+      vi.spyOn(fe, "drawEntities").mockImplementation((es, st) => {
+        if (es === doc.getBlock("B")!.entities) captures.push(fe.builder instanceof BlockRecorder);
+        original(es, st);
+      });
+      fe.drawBlock(doc.modelSpace);
+      expect(captures).toEqual(dashed ? [false, true] : Array(10).fill(false));
+      expect(fe.build()).toEqual(draw(doc, { blockReuse: false }).list);
+    }
+  });
+  it("admits only repeated keys and captures exactly on their second use", () => {
+    const doc = document(`${insert("40")}\n${insert("41", "B", "10 30")}\n${insert("42", "B", "10 60")}`);
+    const fe = frontend(doc),
+      b = doc.getBlock("B")!,
+      captures: boolean[] = [];
+    const original = fe.drawEntities.bind(fe);
+    vi.spyOn(fe, "drawEntities").mockImplementation((entities, st) => {
+      if (entities === b.entities) captures.push(fe.builder instanceof BlockRecorder);
+      original(entities, st);
+    });
+    const state = { m: Matrix44.identity(), inh: TOP_LEVEL, stack: ["*MODEL_SPACE"] };
+    fe.drawEntity(doc.modelSpace.entities[0]!, state);
+    expect(captures).toEqual([false]);
+    fe.drawEntity(doc.modelSpace.entities[1]!, state);
+    expect(captures).toEqual([false, true]);
+    fe.drawEntity(doc.modelSpace.entities[2]!, state);
+    expect(captures).toEqual([false, true]);
+    expect(fe.build()).toEqual(draw(doc, { blockReuse: false }).list);
+  });
+  it("preserves the first use's resolver mode when its signature is deferred", () => {
+    const doc = document(insert("40")),
+      fe = frontend(doc),
+      b = doc.getBlock("B")!,
+      captures: boolean[] = [],
+      original = fe.drawEntities.bind(fe);
+    vi.spyOn(fe, "drawEntities").mockImplementation((es, st) => {
+      if (es === b.entities) captures.push(fe.builder instanceof BlockRecorder);
+      original(es, st);
+    });
+    for (const extents of [true, false, false, false]) {
+      fe.props.extents = extents;
+      fe.drawBlockContent(b, Matrix44.identity(), doc.modelSpace.entities[0]!, {
+        m: Matrix44.identity(),
+        inh: TOP_LEVEL,
+        stack: ["*MODEL_SPACE"],
+      });
+    }
+    expect(captures).toEqual([false, false, true]);
+  });
   it("falls back for arbitrary clip hooks even when the first reference is unclipped", () => {
     const doc = document(
       `${insert("40")}\n${insert("41", "B", "10 30")}`,
@@ -97,14 +166,14 @@ describe("viewer block streams", () => {
     }
   });
 
-  it("tessellates one definition once across translated/rotated references with per-INSERT picks", () => {
+  it("draws directly once, records the second use and replays later references with per-INSERT picks", () => {
     const doc = document(
       `${insert("40")}\n${insert("41", "B", "10 25\n20 10\n50 90")}\n${insert("42", "B", "10 50\n20 50\n50 37")}`,
     );
     const fe = frontend(doc);
     const spy = vi.spyOn(fe, "drawEntities");
     fe.drawBlock(doc.modelSpace);
-    expect(spy.mock.calls.filter(([entities]) => entities === doc.getBlock("B")!.entities)).toHaveLength(1);
+    expect(spy.mock.calls.filter(([entities]) => entities === doc.getBlock("B")!.entities)).toHaveLength(2);
     const list = fe.build();
     const off = draw(doc, { blockReuse: false }).list;
     expect(list.entities).toEqual(["40", "41", "42"]);
@@ -130,18 +199,21 @@ describe("viewer block streams", () => {
     ];
     const entities = contexts
       .flatMap((fields, i) => [
-        insert((64 + i * 2).toString(16), "B", fields),
-        insert((65 + i * 2).toString(16), "B", `${fields}\n10 30`),
+        insert((64 + i * 3).toString(16), "B", fields),
+        insert((65 + i * 3).toString(16), "B", `${fields}\n10 30`),
+        insert((66 + i * 3).toString(16), "B", `${fields}\n10 60`),
       ])
       .join("\n");
-    const content = `${line("30", 0, 0, 10, 2, 0)}\n370 -2\n440 16777216\n6 ByBlock`;
+    const content = `${line("30", 0, 0, 10, 2, 0)}\n370 -2\n440 16777216\n6 ByBlock\n${line("31", 0, 3, 10, 5, 0)}\n370 -2\n440 16777216\n6 ByBlock`;
     const tables =
       "0 TABLE\n2 LTYPE\n0 LTYPE\n100 AcDbSymbolTableRecord\n100 AcDbLinetypeTableRecord\n2 DASH\n70 0\n3 dash\n72 65\n73 2\n40 3\n49 2\n74 0\n49 -1\n74 0\n0 ENDTAB";
     const doc = document(entities, content, "", tables);
     const fe = frontend(doc);
     const spy = vi.spyOn(fe, "drawEntities");
     fe.drawBlock(doc.modelSpace);
-    expect(spy.mock.calls.filter(([es]) => es === doc.getBlock("B")!.entities)).toHaveLength(contexts.length);
+    expect(spy.mock.calls.filter(([es]) => es === doc.getBlock("B")!.entities)).toHaveLength(
+      contexts.length * 2,
+    );
     const list = fe.build(),
       off = draw(doc, { blockReuse: false }).list;
     expect(list.batches.map((b) => [...b.colors])).toEqual(off.batches.map((b) => [...b.colors]));
@@ -150,15 +222,15 @@ describe("viewer block streams", () => {
 
   it("records nested INSERTs with the outer stream and repeats unsupported counts", () => {
     const doc = document(
-      `${insert("40")}\n${insert("41", "B", "10 30")}`,
+      `${insert("40")}\n${insert("41", "B", "10 30")}\n${insert("42", "B", "10 60")}`,
       `${insert("31", "C", "10 5")}\n0 NOT_SUPPORTED\n5 32\n100 AcDbEntity\n8 0`,
       block("C", line("33", 0, 0, 4, 1, 0)),
     );
     const fe = frontend(doc);
     const spy = vi.spyOn(fe, "drawEntities");
     fe.drawBlock(doc.modelSpace);
-    expect(spy.mock.calls.filter(([es]) => es === doc.getBlock("C")!.entities)).toHaveLength(1);
-    expect(fe.unsupported["entity:NOT_SUPPORTED"]).toBe(2);
+    expect(spy.mock.calls.filter(([es]) => es === doc.getBlock("C")!.entities)).toHaveLength(2);
+    expect(fe.unsupported["entity:NOT_SUPPORTED"]).toBe(3);
     expect(fe.build()).toEqual(draw(doc, { blockReuse: false }).list);
   });
 
@@ -211,14 +283,14 @@ describe("viewer block streams", () => {
       parent = doc.modelSpace.entities[0]!,
       b = doc.getBlock("B")!;
     const spy = vi.spyOn(fe, "drawEntities");
-    for (const linetypeScale of [1, 2, 1])
+    for (const linetypeScale of [1, 2, 1, 2, 1, 2])
       fe.drawBlockContent(b, Matrix44.identity(), parent, {
         m: Matrix44.identity(),
         inh: TOP_LEVEL,
         stack: ["*MODEL_SPACE"],
         linetypeScale,
       });
-    expect(spy).toHaveBeenCalledTimes(2);
+    expect(spy).toHaveBeenCalledTimes(4);
     expect(
       fe.drawBlockContent(b, Matrix44.identity(), parent, {
         m: Matrix44.identity(),

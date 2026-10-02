@@ -281,11 +281,14 @@ export class Frontend {
    * AutoCAD's selection picks the block reference or dimension, not its parts.
    */
   pickOwner: string | undefined;
-  private readonly blockStreams = new Map<Block, Map<string, BlockStream>>();
+  /** Numbers count direct uses until a repeated key earns a recording. */
+  private readonly blockStreams = new Map<Block, Map<string, BlockStream | number>>();
+  private readonly blockFirstUses = new Map<Block, { st: DrawState; extents: boolean; display: boolean }>();
   private readonly reusableBlocks = new Map<Block, boolean>();
   private recordedVertices = 0;
   private recordedCommands = 0;
   private recordedEntries = 0;
+  private observedBlockKeys = 0;
   private recordingBlock = false;
   private blockCacheFull = false;
   private readonly blockReplayWorkspace = { xy: new Float64Array(0) };
@@ -493,10 +496,28 @@ export class Frontend {
       (blockClipHook !== undefined && !staticBlockClips) ||
       this.props.viewport ||
       this.entityFilters.length ||
-      this.clipStack.length ||
-      !this.reusableBlock(block)
+      this.clipStack.length
     )
       return false;
+    // Measurements show capture overhead dominates short-lived single continuous LINEs;
+    // even 32 uses save only ~9%. Skip their key/capture allocations altogether.
+    // Dashed lines can emit substantial geometry (note 06 §2.5), so keep them eligible.
+    const only = block.entities.length === 1 ? block.entities[0] : undefined;
+    if (only?.type === "LINE" && this.props.properties(only, st.inh).linetype.toUpperCase() === "CONTINUOUS")
+      return false;
+    let entries = this.blockStreams.get(block);
+    const first = this.blockFirstUses.get(block);
+    if (!entries && !first) {
+      if (this.blockCacheFull || this.recordedEntries >= 4096 || this.observedBlockKeys >= 16_384)
+        return false;
+      // Thousands of one-off definitions occur in network exports. Keep their immutable
+      // state instead of constructing a signature/eligibility walk that will never be used.
+      // Resolver modes must be captured here, since extents traversal can change them later.
+      this.blockFirstUses.set(block, { st, extents: this.props.extents, display: this.props.display });
+      this.observedBlockKeys++;
+      return false;
+    }
+    if (!this.reusableBlock(block)) return false;
     // Absolute-angle complex elements do not rotate with a rigid replay (note 06 §2.3).
     // A document-level fallback also covers inherited/inline complex linetypes and proxy data.
     let absolute = this.caches.get("block-reuse:absolute-linetypes") as boolean | undefined;
@@ -509,31 +530,20 @@ export class Frontend {
     if (absolute) return false;
     const split = splitBlockTransform(st.m);
     if (!split) return false;
-    // The resolver folds the ByBlock chain into the innermost resolved parent (note 07 §3).
-    // Include visibility/plot propagation and alpha as well as the drawer-facing Inherited.
-    const p = st.inh.parents[st.inh.parents.length - 1]!.resolved;
-    const key = JSON.stringify([
-      split.scale,
-      split.mirror,
-      st.m.m[10],
-      st.inh.layer,
-      st.inh.aci,
-      st.inh.trueColor,
-      st.inh.lineweight,
-      st.inh.linetype,
-      p.alpha,
-      p.colorName,
-      p.plotStyleHandle,
-      p.expandBlock,
-      p.contentPlottable,
-      st.linetypeScale ?? 1,
-      st.stack,
-      this.props.extents,
-      this.props.display,
-    ]);
-    let entries = this.blockStreams.get(block);
+    const key = this.blockReuseKey(st, split.scale, split.mirror);
+    if (!entries) {
+      entries = new Map();
+      const previous = splitBlockTransform(first!.st.m);
+      if (previous)
+        entries.set(
+          this.blockReuseKey(first!.st, previous.scale, previous.mirror, first!.extents, first!.display),
+          1,
+        );
+      this.blockStreams.set(block, entries);
+      this.blockFirstUses.delete(block);
+    }
     const stream = entries?.get(key);
-    if (stream) {
+    if (stream !== undefined && typeof stream !== "number") {
       replayBlockStream(stream, this.builder, split.r, this.blockReplayWorkspace);
       for (const [what, count] of Object.entries(stream.notes))
         this.unsupported[what] = (this.unsupported[what] ?? 0) + count;
@@ -548,6 +558,15 @@ export class Frontend {
       this.recordedCommands >= 262_144
     )
       return false;
+    if (stream === undefined) {
+      // The first use cannot amortize capture plus replay. Bound admission metadata separately
+      // so a drawing with many unique transforms/properties cannot grow an unbounded key map.
+      if (this.observedBlockKeys >= 16_384) return false;
+      if (!entries) this.blockStreams.set(block, (entries = new Map()));
+      entries.set(key, 1);
+      this.observedBlockKeys++;
+      return false;
+    }
     const out = this.builder;
     const recorder = new BlockRecorder(
       this.pixelSize,
@@ -585,6 +604,37 @@ export class Frontend {
     this.recordedEntries++;
     replayBlockStream(recorded, out, split.r, this.blockReplayWorkspace);
     return true;
+  }
+
+  private blockReuseKey(
+    st: DrawState,
+    scale: number,
+    mirror: boolean,
+    extents = this.props.extents,
+    display = this.props.display,
+  ): string {
+    // The resolver folds the ByBlock chain into the innermost resolved parent (note 07 §3).
+    // Include visibility/plot propagation and alpha as well as the drawer-facing Inherited.
+    const p = st.inh.parents[st.inh.parents.length - 1]!.resolved;
+    return JSON.stringify([
+      scale,
+      mirror,
+      st.m.m[10],
+      st.inh.layer,
+      st.inh.aci,
+      st.inh.trueColor,
+      st.inh.lineweight,
+      st.inh.linetype,
+      p.alpha,
+      p.colorName,
+      p.plotStyleHandle,
+      p.expandBlock,
+      p.contentPlottable,
+      st.linetypeScale ?? 1,
+      st.stack,
+      extents,
+      display,
+    ]);
   }
 
   private drawInsert(e: InsertEntity, st: DrawState): void {

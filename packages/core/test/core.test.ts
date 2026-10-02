@@ -1,17 +1,14 @@
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import {
-  AsciiTagWriter,
-  BinaryTagWriter,
   Diagnostics,
   decodeCaret,
   decodeUnicodeEscapes,
-  formatDouble,
   parseAsciiNumber,
   readTags,
   tokenize,
-  writeStore,
 } from "../src/index.ts";
+import { binaryDxf, type TestTag } from "./binary-dxf.ts";
 
 const enc = new TextEncoder();
 
@@ -237,19 +234,10 @@ describe("numbers", () => {
       expect(parseAsciiNumber(b, 0, b.length)).toBeNaN();
     }
   });
-
-  it("formats doubles like AutoCAD", () => {
-    expect(formatDouble(0)).toBe("0.0");
-    expect(formatDouble(-0)).toBe("0.0");
-    expect(formatDouble(12)).toBe("12.0");
-    expect(formatDouble(1.570796326794896)).toBe("1.570796326794896");
-    expect(formatDouble(1e20)).toBe("100000000000000000000.0");
-    expect(formatDouble(1e21)).toBe("1e+21");
-  });
 });
 
-describe("writer round trips", () => {
-  const tags: [number, string | number | boolean | bigint | Uint8Array][] = [
+describe("binary tokenizer", () => {
+  const tags: TestTag[] = [
     [0, "SECTION"],
     [2, "ENTITIES"],
     [0, "LWPOLYLINE"],
@@ -270,30 +258,8 @@ describe("writer round trips", () => {
     [0, "EOF"],
   ];
 
-  function check(bytes: Uint8Array) {
-    const store = tokenize(bytes);
-    store.encoding = "utf-8";
-    const values: unknown[] = [];
-    for (let i = 0; i < store.count; i++) values.push([store.code(i), store.value(i)]);
-    return { store, values };
-  }
-
-  it("ascii → tokenize → ascii is identical", () => {
-    const w = new AsciiTagWriter();
-    for (const [c, v] of tags) w.write(c, v);
-    const bytes = w.toBytes();
-    const { store, values } = check(bytes);
-    expect(values).toContainEqual([160, 9007199254740993n]);
-    expect(values).toContainEqual([8, "Layer ä"]);
-    const w2 = new AsciiTagWriter();
-    writeStore(store, w2);
-    expect(new TextDecoder().decode(w2.toBytes())).toBe(new TextDecoder().decode(bytes));
-  });
-
-  it("binary (2-byte codes) round trips values", () => {
-    const w = new BinaryTagWriter(2);
-    for (const [c, v] of tags) w.write(c, v);
-    const store = tokenize(w.toBytes());
+  it("reads values with 2-byte codes", () => {
+    const store = tokenize(binaryDxf(tags, 2));
     store.encoding = "utf-8";
     expect(store.format).toBe("binary");
     expect(store.binaryCodeSize).toBe(2);
@@ -308,14 +274,19 @@ describe("writer round trips", () => {
   });
 
   it("binary (R12 1-byte codes with 0xFF escape) is detected", () => {
-    const w = new BinaryTagWriter(1);
-    w.write(0, "SECTION");
-    w.write(2, "ENTITIES");
-    w.write(1001, "ACAD");
-    w.write(1070, 7);
-    w.write(0, "ENDSEC");
-    w.write(0, "EOF");
-    const store = tokenize(w.toBytes());
+    const store = tokenize(
+      binaryDxf(
+        [
+          [0, "SECTION"],
+          [2, "ENTITIES"],
+          [1001, "ACAD"],
+          [1070, 7],
+          [0, "ENDSEC"],
+          [0, "EOF"],
+        ],
+        1,
+      ),
+    );
     expect(store.binaryCodeSize).toBe(1);
     expect(store.code(2)).toBe(1001);
     expect(store.value(3)).toBe(7);

@@ -31,7 +31,7 @@ function num(v: number): string {
   return String(Object.is(v, -0) ? 0 : v);
 }
 
-export class EntityWriter {
+export class BlockBuilder {
   private readonly out: string[] = [];
   readonly layer: string;
   readonly z: number;

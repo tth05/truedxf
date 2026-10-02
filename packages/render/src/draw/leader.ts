@@ -1,7 +1,7 @@
 /**
  * LEADER (research/notes/05-dimensions-leaders.md §11): the stored vertices as straight segments
  * or a fit-point spline, the DIMLDRBLK arrowhead and the unstored extension under MTEXT
- * annotations. Parts are built like dimension block content (dimension/writer.ts) and drawn
+ * annotations. Parts are built like dimension block content (dimension/block-builder.ts) and drawn
  * as content of the LEADER, so BYBLOCK resolves to the entity.
  */
 import { Matrix44, ocsToWcsMatrix, wcsToOcsMatrix } from "@truedxf/geometry";
@@ -15,9 +15,9 @@ import {
   type MultiLeaderEntity,
 } from "@truedxf/model";
 import { arrowLength } from "../dimension/arrows.ts";
+import { BlockBuilder, type Pt } from "../dimension/block-builder.ts";
 import { add, DimCtx, len, sub, unit, type Vec } from "../dimension/context.ts";
 import { DimStyleVars } from "../dimension/vars.ts";
-import { EntityWriter, type Pt } from "../dimension/writer.ts";
 import { type DrawState, type Frontend, registerDrawer } from "../frontend.ts";
 import { annotationFonts, drawGenerated, syntheticBlock } from "./dimension.ts";
 
@@ -31,7 +31,7 @@ function leaderEntities(fe: Frontend, ld: LeaderEntity) {
   });
   if (pts.length < 2) return undefined;
   const z = toOcs.transformPoint(ld.vertices[0]!).z;
-  const w = new EntityWriter(ld.layer, z, ld.linetypeScale);
+  const w = new BlockBuilder(ld.layer, z, ld.linetypeScale);
   const c = new DimCtx({ doc, fonts: annotationFonts(doc), lineweight: ld.lineweight }, v, w);
   // group 77 is ignored: DIMCLRD BYBLOCK shows the entity colour (VERIFIED-BY-ACAD
   // leaders/leader-77-color-*, Q-0588)
@@ -120,7 +120,7 @@ function mleaderEntities(fe: Frontend, ml: MultiLeaderEntity) {
   if (!(Math.abs(ctx.scale) > 1e-12)) return undefined;
   const doc = fe.doc;
   const v = new DimStyleVars(doc, "Standard", undefined);
-  const w = new EntityWriter(ml.layer, 0, ml.linetypeScale);
+  const w = new BlockBuilder(ml.layer, 0, ml.linetypeScale);
   const c = new DimCtx({ doc, fonts: annotationFonts(doc), lineweight: ml.lineweight }, v, w);
   const lc = rawPart(ml.leaderColor);
   const P = (p: { x: number; y: number }): Pt => ({ x: p.x, y: p.y });

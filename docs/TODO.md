@@ -86,7 +86,6 @@ Tick items off (or delete them) when done.
 - [ ] ACAD_TABLE cell decoding (only the `*T` block is drawn); MESH override data.
 - [ ] LARGE_RADIAL 13/15 and hatch ellipse-edge angle-vs-parameter questions (raw values stored).
 - [ ] Model load speed dropped from 64 to ~53 MB/s with the complex parsers — profile.
-- [ ] Writer / editing API (Phase 8).
 
 ## Failure triage backlog (2026-10-01)
 
@@ -171,7 +170,7 @@ default, FILLMODE for pattern hatches, extents edge tolerance.
 - [x] Phase 7 — viewer package and playground app (2026-10-01): `@truedxf/viewer` (worker
       pipeline, LOD, layouts, layers, picking, inspector, measure) and `apps/playground` (fixture
       compare, corpus browser). Follow-ups in "Viewer" below.
-- [ ] Phase 8 — writer, editing API, release.
+- [ ] Phase 8: release (docs site, examples, npm publishing).
 
 ## Viewer (packages/viewer, apps/playground)
 

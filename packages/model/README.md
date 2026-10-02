@@ -50,8 +50,8 @@ for (const d of doc.diagnostics.items) console.warn(d.code, d.message);
 ## Status
 
 - Not published to npm yet (version 0.0.0); consumed from source inside the workspace.
-- Read-only: no editing API and no model-level writer yet (Phase 8). The generated field spec
-  with dirty tracking described in PLAN.md Phase 2 does not exist; parsers are hand-written.
+- Read-only by design: truedxf reads and views DXF, it does not write or edit it. Parsers are
+  hand-written.
 - 182 corpus entities of 14 custom classes (KS_*, LIGHT, 3DLINE, REPEAT/ENDREP, ...) stay
   UNKNOWN. ACAD_TABLE cell content and MESH override data are not decoded.
 - Against ezdxf over the local corpus: 99.77 % attribute agreement over 50.8 M compared

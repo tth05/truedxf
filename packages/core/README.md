@@ -1,7 +1,6 @@
 # @truedxf/core
 
-The DXF tag layer: turns ASCII or binary DXF bytes into a lossless, lazily decoded tag store and
-writes tags back out.
+The DXF tag layer: turns ASCII or binary DXF bytes into a lossless, lazily decoded tag store.
 
 ## What it does
 
@@ -18,16 +17,13 @@ writes tags back out.
 - Group-code typing by range: `valueKind`, `ValueKind`, `isPointCode` (note 01 §1.2 table).
 - `decodeUnicodeEscapes` (`\U+XXXX`, `\M+NXXXX`) and `decodeCaret` (`^J` and friends) for the
   semantic layer; the store itself returns strings as written.
-- `AsciiTagWriter` (AutoCAD-style right-aligned codes, padded ints, `formatDouble`, optional
-  `\U+` escaping) and `BinaryTagWriter` (1- or 2-byte codes); `writeStore` re-emits a store by
-  value, `writeRaw` passes bytes through unchanged.
 - `Diagnostics` collects errors/warnings/info with stable codes and a per-code cap.
 - No DOM and no `node:*` imports: runs in browsers and Node.
 
 ## Usage
 
 ```ts
-import { AsciiTagWriter, readTags, writeStore } from "@truedxf/core";
+import { readTags } from "@truedxf/core";
 
 declare const bytes: Uint8Array; // contents of an ASCII or binary .dxf file
 
@@ -41,21 +37,14 @@ if (entities) {
   }
 }
 for (const d of diagnostics.items) console.warn(d.severity, d.code, d.message);
-
-// re-emit as ASCII by value (converts binary input)
-const out = new AsciiTagWriter({ encoding: "utf-8" });
-writeStore(store, out);
-const ascii: Uint8Array = out.toBytes();
 ```
 
 ## Status
 
 - Not published to npm yet (version 0.0.0); consumed from source inside the workspace.
-- The whole local corpus tokenizes without exceptions; `pnpm corpus:tags` also checks a by-value
-  round trip (write, re-tokenize, compare every tag). PLAN.md records ~140 MB/s tokenizing.
+- The whole local corpus tokenizes without exceptions (`pnpm corpus:tags`). PLAN.md records
+  ~140 MB/s tokenizing.
 - Input is one complete `Uint8Array`; there is no chunked or `ReadableStream` tokenizer.
-- The writers emit tags exactly as given: no splitting of long strings into chunks and no
-  version conversion. A model-level writer is Phase 8 (docs/TODO.md).
 
 ## See also
 

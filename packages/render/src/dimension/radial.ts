@@ -3,6 +3,8 @@
  * it (DXFOUT re-saves of the `dimensions` suite: type-radius/diameter/jogged-*, radius-*,
  * diameter-*, hdir-radius-*; note 05 §6.3).
  */
+
+import type { Pt } from "./block-builder.ts";
 import {
   add,
   angleOf,
@@ -17,7 +19,6 @@ import {
   unit,
   type Vec,
 } from "./context.ts";
-import type { Pt } from "./writer.ts";
 
 export interface RadialInput {
   /** Centre (radius: 10, diameter: midpoint of 10–15). */

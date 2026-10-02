@@ -2,8 +2,9 @@
  * Regressions for the parser fixes found by the ezdxf differential oracle
  * (tools/corpus/src/diff-ezdxf.ts, triage log in tools/corpus/README.md).
  */
-import { BinaryTagWriter, tokenize } from "@truedxf/core";
+import { tokenize } from "@truedxf/core";
 import { describe, expect, it } from "vitest";
+import { binaryDxf, type TestTag } from "../../core/test/binary-dxf.ts";
 import {
   DxfDocument,
   type InsertEntity,
@@ -269,7 +270,6 @@ describe("oracle fixes: document structure", () => {
   });
 
   it("reads binary-DXF bool header values (290)", () => {
-    const w = new BinaryTagWriter(2);
     const tags: Tag[] = [
       [0, "SECTION"],
       [2, "HEADER"],
@@ -282,8 +282,7 @@ describe("oracle fixes: document structure", () => {
       [0, "ENDSEC"],
       [0, "EOF"],
     ];
-    for (const [c, v] of tags) w.write(c, c === 290 ? v === 1 : v);
-    const bytes = w.toBytes();
+    const bytes = binaryDxf(tags.map(([c, v]): TestTag => [c, c === 290 ? v === 1 : v]));
     expect(tokenize(bytes).format).toBe("binary");
     const doc = DxfDocument.load(bytes);
     expect(doc.header.bool("$PSTYLEMODE", false)).toBe(true);

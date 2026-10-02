@@ -7,9 +7,9 @@
  */
 import { ocsToWcsMatrix, wcsToOcsMatrix } from "@truedxf/geometry";
 import type { ToleranceEntity } from "@truedxf/model";
+import { BlockBuilder } from "../dimension/block-builder.ts";
 import { add, angleOf, DimCtx, dirOf, left, type Vec } from "../dimension/context.ts";
 import { DimStyleVars } from "../dimension/vars.ts";
-import { EntityWriter } from "../dimension/writer.ts";
 import { type DrawState, type Frontend, registerDrawer } from "../frontend.ts";
 import { annotationFonts, drawGenerated, syntheticBlock } from "./dimension.ts";
 
@@ -19,7 +19,7 @@ function toleranceEntities(fe: Frontend, tol: ToleranceEntity) {
   const toOcs = wcsToOcsMatrix(tol.extrusion);
   const ins = toOcs.transformPoint(tol.insert);
   const dx = toOcs.transformDirection(tol.direction);
-  const w = new EntityWriter(tol.layer, ins.z, tol.linetypeScale);
+  const w = new BlockBuilder(tol.layer, ins.z, tol.linetypeScale);
   const c = new DimCtx({ doc, fonts: annotationFonts(doc), lineweight: tol.lineweight }, v, w);
   const t = v.scaled("DIMTXT");
   const rot = Math.hypot(dx.x, dx.y) > 1e-12 ? angleOf(dx) : 0;

@@ -4,7 +4,7 @@
  * SOLID directly into the block with half-width 1/6 of its length (VERIFIED-BY-ACAD S1/S2 and
  * every `-nb` reference of the dimensions suite).
  */
-import type { EntityWriter, PartProps, Pt } from "./writer.ts";
+import type { BlockBuilder, PartProps, Pt } from "./block-builder.ts";
 
 /** Upper-case name without the leading underscore ("" = closed filled). */
 export function arrowKey(name: string): string {
@@ -41,7 +41,7 @@ export interface ArrowOptions {
  * `_None` writes nothing (dimensions/arrow-none-nb).
  */
 export function writeArrow(
-  w: EntityWriter,
+  w: BlockBuilder,
   name: string,
   blockName: string,
   tip: Pt,
@@ -82,7 +82,7 @@ export function writeArrow(
  * but not defined in the file. Geometry from AutoCAD-written blocks where known, else ezdxf's
  * shapes (note 05 §10.3 table).
  */
-export function arrowBlockEntities(name: string, w: EntityWriter, p: PartProps): boolean {
+export function arrowBlockEntities(name: string, w: BlockBuilder, p: PartProps): boolean {
   const key = arrowKey(name);
   const L = (a: Pt, b: Pt) => w.line(a, b, p);
   const s = 1 / 6;

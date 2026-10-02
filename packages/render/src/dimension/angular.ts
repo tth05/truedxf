@@ -3,6 +3,8 @@
  * (DXFOUT re-saves of the `dimensions` suite: type-angular*, angular2l-*, angular3p-*, type-arc-*,
  * arc-*; note 05 §5.4, §5.5, §6.4).
  */
+
+import type { Pt } from "./block-builder.ts";
 import {
   add,
   angleOf,
@@ -16,7 +18,6 @@ import {
   unit,
   type Vec,
 } from "./context.ts";
-import type { Pt } from "./writer.ts";
 
 const DEG = 180 / Math.PI;
 

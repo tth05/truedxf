@@ -48,7 +48,7 @@ open work is listed in [docs/TODO.md](docs/TODO.md), and the method in [docs/PLA
 
 | Package | What |
 |---|---|
-| [`@truedxf/core`](packages/core) | Tokenizer for ASCII and binary DXF, encodings, lossless tag store, writer |
+| [`@truedxf/core`](packages/core) | Tokenizer for ASCII and binary DXF, encodings, lossless tag store |
 | [`@truedxf/model`](packages/model) | Typed document: header, tables, blocks, entities, objects, property resolution |
 | [`@truedxf/geometry`](packages/geometry) | OCS, arcs, ellipses, NURBS, flattening, stroking, dashing, hatching, clipping |
 | [`@truedxf/fonts`](packages/fonts) | SHX fonts (shape, unifont, bigfont), TrueType, AutoCAD's font resolution |

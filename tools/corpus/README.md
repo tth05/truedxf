@@ -6,7 +6,7 @@ Reports go to `samples/reports/` (not committed); runners take `--filter <regex>
 
 | Command | What |
 |---|---|
-| `pnpm corpus:tags` (`tools/corpus/src/parse-tags.ts`) | tokenize + by-value round trip (`core-tags.json`) |
+| `pnpm corpus:tags` (`tools/corpus/src/parse-tags.ts`) | tokenize and decode every value (`core-tags.json`) |
 | `pnpm corpus:model` (`tools/corpus/src/load-model.ts`) | load into `@truedxf/model`: exceptions, diagnostics, coverage (`model-load.json`) |
 | `node tools/corpus/src/diff-ezdxf.ts` | differential oracle vs ezdxf (`diff-ezdxf.json`, `diff-ezdxf.md`) |
 | `node tools/corpus/src/dump.ts FILE.dxf` | truedxf's normalized dump of one file (JSON on stdout) |
@@ -54,8 +54,8 @@ truedxf bugs found and fixed:
    `62 …`; QCAD/LibreCAD/QGIS): `readBase` recovers 8/6/62/420/430/440/370/48/60/67/390/347
    from other subclasses when absent from AcDbEntity, for types whose own subclasses never use
    those codes (not MTEXT: 48 = column width; ~239 k attributes). Same as ezdxf
-   `recover_graphic_attributes`; AutoCAD rejects such files (note 11c §1.3), so the writer's
-   intent is the only reference.
+   `recover_graphic_attributes`; AutoCAD rejects such files (note 11c §1.3), so the producing
+   program's intent is the only reference.
 2. **Entity data before the subclass markers** (VERTEX `10/20/30/70` before `100 AcDbVertex`,
    ACadSharp#421; ~250 k attributes): `fieldTable(defs, { lenient: true })` fills still-missing
    single fields from unconsumed tags of other parts. Used for the simple entities (LINE … SHAPE,

@@ -6,9 +6,9 @@
 import type { DxfDocument } from "@truedxf/model";
 import type { TextFontSource } from "@truedxf/text";
 import { type ArrowOptions, arrowBlockEntities, arrowKey, arrowLength, writeArrow } from "./arrows.ts";
+import type { BlockBuilder, PartProps, Pt } from "./block-builder.ts";
 import { measureText, type TextBox } from "./measure.ts";
 import type { DimStyleVars } from "./vars.ts";
-import type { EntityWriter, PartProps, Pt } from "./writer.ts";
 
 export interface Vec {
   x: number;
@@ -62,7 +62,7 @@ export interface GenInput {
 
 export class DimCtx {
   readonly v: DimStyleVars;
-  readonly w: EntityWriter;
+  readonly w: BlockBuilder;
   readonly fonts: TextFontSource | undefined;
   readonly doc: DxfDocument;
   readonly style: string;
@@ -85,7 +85,7 @@ export class DimCtx {
   readonly text: PartProps;
   readonly arrowNames: [string, string];
 
-  constructor(input: GenInput, v: DimStyleVars, w: EntityWriter) {
+  constructor(input: GenInput, v: DimStyleVars, w: BlockBuilder) {
     this.v = v;
     this.w = w;
     this.doc = input.doc;

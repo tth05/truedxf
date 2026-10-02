@@ -4,6 +4,7 @@
  * `dimensions` suite, 2026-09-30; note 05 §6.2 has the rules and case ids).
  */
 import { allowsExtension } from "./arrows.ts";
+import type { Pt } from "./block-builder.ts";
 import {
   add,
   angleOf,
@@ -19,7 +20,6 @@ import {
   type Vec,
 } from "./context.ts";
 import type { TextBox } from "./measure.ts";
-import type { Pt } from "./writer.ts";
 
 const DEG = Math.PI / 180;
 const EPS = 1e-9;

@@ -21,13 +21,3 @@ export {
 } from "./structure.ts";
 export { type DxfFormat, normalizeHandle, parseAsciiNumber, TagStore } from "./tagstore.ts";
 export { BINARY_SENTINEL, DxfFormatError, isBinaryDxf, type TokenizeOptions, tokenize } from "./tokenizer.ts";
-export {
-  AsciiTagWriter,
-  type AsciiWriterOptions,
-  BinaryTagWriter,
-  concat,
-  escapeNonAscii,
-  formatDouble,
-  type TagValue,
-  writeStore,
-} from "./writer.ts";

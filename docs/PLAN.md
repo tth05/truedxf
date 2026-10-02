@@ -13,7 +13,7 @@ update it when decisions change.
 | Phase | State |
 |---|---|
 | 0 Research | Done: knowledge base (research/notes), corpus of 5 542 files, 735-question backlog (docs/questions.md) |
-| 1 Core | Done: ASCII/binary tokenizer (~140 MB/s), encodings, lossless tag store, writers; whole corpus tokenizes without exceptions |
+| 1 Core | Done: ASCII/binary tokenizer (~140 MB/s), encodings, lossless tag store; whole corpus tokenizes without exceptions |
 | 2 Model | Done: typed parsers for all common entity/object types (182 corpus entities of 14 custom classes remain UNKNOWN), property resolution, DIMSTYLE resolution; 99.77 % attribute agreement with ezdxf over 50.8 M compared attributes, residuals classified |
 | 3 References | Done: AutoCAD 2027 harness (tools/acad), calibration (note 08 §10), generator with 3 734 fixtures in 29 suites (tools/gen) |
 | 4 Renderer | Done: frontend → display list, three.js renderer, visual harness (Chromium/SwiftShader) + CPU scorer, AutoCAD raster-rule emulation |
@@ -69,8 +69,8 @@ questions are in docs/questions.md):
 ### Goals
 1. **Read every DXF in the wild** — R10…R2018+ (AC1006…AC1032), ASCII and binary, any code page,
    broken files from third-party producers — without crashing, with diagnostics and a recover mode.
-2. **Lossless, typed data model** — every tag survives a read/write round trip (including unknown
-   entities, unknown tags inside known entities, XDATA, extension dictionaries, 102 groups).
+2. **Lossless, typed data model** — no tag is dropped (including unknown entities, unknown tags
+   inside known entities, XDATA, extension dictionaries, 102 groups).
    Typed accessors are *views* over the lossless store. Correct effective-property resolution
    (ByLayer/ByBlock/layer 0/viewport overrides) available without the renderer.
 3. **AutoCAD-exact rendering** — for a given DXF + page setup the renderer reproduces AutoCAD's plot:
@@ -78,10 +78,10 @@ questions are in docs/questions.md):
    draw order, same clipping. Deterministic across runs and OSes.
 4. **Web viewer** — an embeddable, fast viewer (WebGL, workers, instancing) and a playground app to
    inspect files and compare against reference renders.
-5. **Writer** (later) — produce DXF files AutoCAD opens without complaint.
 
-### Non-goals (for now)
-- DWG reading/writing (the corpus contains 709 DWGs; AutoCAD can convert them to DXF for tests).
+### Non-goals
+- Writing or editing DXF. truedxf reads and views; it never writes files.
+- DWG reading (the corpus contains 709 DWGs; AutoCAD can convert them to DXF for tests).
 - 3D rendering (shaded/hidden-line views). We render what a 2D plot shows (top/plan and
   parallel-projected viewports with wireframe; ACIS bodies via proxy graphics / isolines later).
 - Editing UI/CAD features in the viewer (measuring and picking are in; drawing tools are out).
@@ -91,7 +91,6 @@ questions are in docs/questions.md):
 |---|---|
 | Parser robustness | 100 % of the ~4 800 ASCII/binary DXFs in `samples/external` parse without exception; each failure is either fixed or classified as "file is garbage" with a diagnostic. Fuzzing finds no crashes. |
 | Parser correctness | Differential test against ezdxf: entity attribute dumps agree for ≥ 99.5 % of entities in the corpus (all disagreements triaged: truedxf bug / ezdxf bug / ambiguous). |
-| Round trip | read → write → read is tag-identical for the whole corpus; AutoCAD opens our re-written files (spot checks via accoreconsole). |
 | Rendering | Per feature suite: geometry-only fixtures **pixel-exact** vs AutoCAD (aliased), others within the tolerant metric (all ink pixels within r ≤ 1 px of same-colour ink). Scoreboard beats ezdxf's drawing add-on on every suite, measured on identical inputs and plot windows. |
 | Performance | Parse ≥ 50 MB/s ASCII in Node; 100 MB DXF loads in the browser viewer without OOM; 60 fps pan/zoom on 1 M segments on a mid-range laptop. |
 
@@ -135,8 +134,6 @@ questions are in docs/questions.md):
   TrueView/AutoCAD apply no TTF kerning and fall back to another font *per missing glyph*
   (e.g. CJK under an Arial style); AutoCAD's standard linetype definitions (measured from 120
   AutoCAD files) differ from ezdxf's table (note 11a).
-- **AutoCAD is a strict reader** (note 11c §1: ~60-item writer checklist incl. verbatim errors;
-  note 11a adds 21 more rejection causes).
 - **Browser performance:** string-splitting parsers die on big files; dxf-viewer's worker +
   transferable buffers + batching/instancing design is the model; rebase float32 to local origins.
 - **License traps:** dxf-json and libredwg-web are GPL; three-dxf pulls a GPL MTEXT parser;
@@ -164,7 +161,7 @@ questions are in docs/questions.md):
 7. **License hygiene.** Runtime deps MIT/ISC/BSD/Apache/BSL only; GPL code read for facts only;
    no Autodesk assets committed; the external corpus is never redistributed.
 8. **Spec as data.** Entity/table/object field definitions live in a neutral machine-readable spec
-   from which model code and round-trip tests are generated (committed output).
+   from which model code and tests are generated (committed output).
 
 ---
 
@@ -174,7 +171,7 @@ questions are in docs/questions.md):
 ```
 truedxf/
   packages/
-    core/            @truedxf/core        tag tokenizer (ASCII+binary), encodings, lossless TagList, writer
+    core/            @truedxf/core        tag tokenizer (ASCII+binary), encodings, lossless TagList
     spec/            @truedxf/spec        (dev) neutral field spec + codegen → model/src/generated
     model/           @truedxf/model       document, typed views, handles, resolution, audit, recover
     geometry/        @truedxf/geometry    vec/mat, OCS, arcs/bulge, ellipse, NURBS, flattening,
@@ -270,17 +267,14 @@ pipeline needs a working AutoCAD harness early, and AutoCAD time may be limited 
    280–289 are 2 bytes, 290–299 1 byte, 1004 binary); byte offsets/line numbers for diagnostics.
 3. **Encoding**: sniff `$ACADVER`/`$DWGCODEPAGE`; AC1021+ UTF-8; older via `TextDecoder` code-page
    map; "try strict UTF-8 first, then declared code page" heuristic for lying files; `\U+XXXX` and
-   `\M+nXXXX` decoding (after MTEXT chunk join); undecodable bytes kept raw for round trip.
+   `\M+nXXXX` decoding (after MTEXT chunk join); undecodable bytes kept raw.
 4. **Structure**: sections, objects split at code 0, `TagList` with subclass boundaries, 102 groups,
    XDATA, embedded objects (101) — lossless, lazily typed.
-5. **Writer (tag level)**: ASCII + binary emission, AutoCAD-compatible number formatting,
-   string chunking, streaming.
-6. **Corpus runner**: `pnpm corpus:parse` over `samples/external/manifest.jsonl` → JSON report
+5. **Corpus runner**: `pnpm corpus:parse` over `samples/external/manifest.jsonl` → JSON report
    (time, MB/s, diagnostics per file), stored for regression comparison.
 
-**Exit criteria**: whole corpus tokenizes; tag-level round trip is byte-identical (modulo line
-endings) for all ASCII files; binary ↔ ASCII conversions agree; fuzzing (mutated corpus files,
-random tag streams) finds no crash/hang; ≥ 50 MB/s tokenizing in Node.
+**Exit criteria**: whole corpus tokenizes; fuzzing (mutated corpus files, random tag streams)
+finds no crash/hang; ≥ 50 MB/s tokenizing in Node.
 
 ### Phase 2 — Data model (`spec`, `model`)
 **Deliverables**
@@ -289,8 +283,8 @@ random tag streams) finds no crash/hang; ≥ 50 MB/s tokenizing in Node.
    table records, objects. Seeded from ixmilia's XML (MIT, attributed) with the subclass partition
    from ACadSharp (MIT), corrected by the notes (every correction cites a note). Group-code audit
    script lists every (type, subclass, code) seen in the corpus that the spec doesn't describe.
-2. **Codegen** → typed view classes over `TagList` with dirty tracking (only changed fields
-   re-serialize); generated code committed; generated round-trip tests per type.
+2. **Codegen** → typed view classes over `TagList`; generated code committed; generated tests per
+   type.
 3. **Hand-written complex types**: HATCH (paths, edges, pattern lines, gradient), MTEXT (chunks,
    columns, embedded object), LWPOLYLINE, POLYLINE/VERTEX/SEQEND, INSERT/ATTRIB/SEQEND, DIMENSION
    subtypes, LTYPE elements, SPLINE, LEADER, MULTILEADER context data, ACAD_TABLE, DICTIONARY,
@@ -309,9 +303,8 @@ random tag streams) finds no crash/hang; ≥ 50 MB/s tokenizing in Node.
    disagreements. Disagreements are resolved from notes / AutoCAD (`DXFOUT`/LISP dumps), not by
    assuming ezdxf is right.
 
-**Exit criteria**: corpus parses into the model with no exceptions; round trip through the model
-is tag-identical; differential agreement ≥ 99.5 % with every residual classified; AutoCAD opens a
-sample of re-written files (accoreconsole open + `DXFOUT` works, no errors in log).
+**Exit criteria**: corpus parses into the model with no exceptions; differential agreement
+≥ 99.5 % with every residual classified.
 
 ### Phase 3 — Reference pipeline (`tools/gen`, `tools/acad`, `testkit` scaffolding)
 Starts in parallel with Phase 2 (harness calibration needs no truedxf code). The AutoCAD licence
@@ -343,7 +336,7 @@ fonts (identical file used by both sides); our own complex-linetype shape file; 
 fonts/patterns in fixtures (except dedicated "AutoCAD default font" suites that are compared with a
 tolerant metric and are not redistributed).
 
-**3c. Generator** (`tools/gen`, Python + ezdxf initially; our own writer takes over in Phase 8)
+**3c. Generator** (`tools/gen`, Python + ezdxf)
 1. Case = `(feature, variant, seed)` → deterministic DXF + `meta.json` (feature tags, parameters,
    plot window, expected-invariants). Window chosen with the canvas aspect ratio so Fit gives an
    exact, known scale. Each file passes an AutoCAD open check before it's accepted as a fixture.
@@ -446,11 +439,9 @@ first, frequency in the corpus second):
    scoreboard view, corpus browser (manifest search by entity type / producer / version).
 4. Performance work against large corpus files (budgets in §1).
 
-### Phase 8 — Writer, editing API, release
-1. Model-level writer with version conversion, the AutoCAD writer checklist (note 11c §1) as tests,
-   accoreconsole open-check in the harness.
-2. Builder/editing API; switch the generator from ezdxf to truedxf (keeps ezdxf as cross-check).
-3. Docs site, examples, npm publishing, license review (incl. Autodesk EULA question, §9).
+### Phase 8 — Release
+Docs site, examples, npm publishing (docs/RELEASING.md), license review (incl. Autodesk EULA
+question, §9).
 
 ---
 
@@ -479,8 +470,7 @@ first, frequency in the corpus second):
 |---|---|---|
 | Unit | Pure functions (tokenizer, codecs, geometry, SHX decoding, MTEXT parser) | `packages/*/test` (vitest) |
 | Property/fuzz | Tokenizer/recover never crash; geometry invariants (bbox contains curve, tessellation error bound) | fast-check |
-| Spec round-trip | Generated per type: build → write → read → equal | `packages/model/test/generated` |
-| Corpus | Parse + round trip + audit over `samples/external`; performance report | `pnpm corpus:*` (local; CI uses an MIT subset) |
+| Corpus | Parse + audit over `samples/external`; performance report | `pnpm corpus:*` (local; CI uses an MIT subset) |
 | Differential | truedxf vs ezdxf model dumps | `pnpm corpus:diff` |
 | Geometry (renderer-free) | Display list vs AutoCAD PDF vector paths (Hausdorff in paper mm) | `pnpm test:geometry` |
 | Visual (AutoCAD) | three.js renderer in headless Chromium vs AutoCAD PNG references; scoreboard + regression gate | `pnpm test:visual` |
@@ -506,7 +496,7 @@ plus a small, self-authored, MIT fixture set.
 | Font mismatch dominates text diffs | Same-file fonts for exactness suites; separate fallback suites; text metrics verified via TEXTBOX/DXFOUT, not just pixels. |
 | MTEXT / dimension layout rules unknown | AutoCAD re-save (`DXFOUT`) gives computed extents/measurements as numeric oracles; many small targeted cases. |
 | Overfitting to generated cases | Hold-out seeds, random mixed drawings, real-world references. |
-| Scope creep (3D, DWG, editing) | Explicit non-goals; revisit after Phase 5. |
+| Scope creep (3D, DWG, writing) | Explicit non-goals. |
 | Corpus licensing | Files gitignored; manifest records licenses; public CI uses the MIT subset only. |
 
 ---
@@ -516,7 +506,7 @@ plus a small, self-authored, MIT fixture set.
 1. AutoCAD 2027 licence: valid for one year.
 2. The repo becomes public later; all samples/fixtures/references stay local only.
 3. Licence: MIT. npm scope: `@truedxf/*`.
-4. Generator: Python + ezdxf first; our TS writer later.
+4. Generator: Python + ezdxf.
 5. Renderer: three.js only (no raster/SVG/canvas/Node render backends); renderer-agnostic display
    list kept as the seam. Visual tests run the three.js renderer in headless Chromium.
 6. Agent instructions live in `AGENTS.md`.

@@ -8,7 +8,7 @@ Read [docs/PLAN.md](docs/PLAN.md) first; it is the plan of record.
 
 | Path | What |
 |---|---|
-| `packages/core` | Tag layer: tokenizer (ASCII + binary), encodings, lossless `TagStore`, writer |
+| `packages/core` | Tag layer: tokenizer (ASCII + binary), encodings, lossless `TagStore` |
 | `packages/*` | Further packages per docs/PLAN.md §4.1 (model, geometry, fonts, text, plot, render, three, viewer, testkit) |
 | `apps/playground` | Vite demo/inspection app |
 | `tools/gen` | Python (ezdxf) test-file generator |

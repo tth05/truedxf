@@ -1,7 +1,7 @@
 {
   "name": "@truedxf/core",
   "version": "0.0.0",
-  "description": "DXF tag layer: tokenizer (ASCII + binary), encodings, lossless tag structure, writer",
+  "description": "DXF tag layer: tokenizer (ASCII + binary), encodings, lossless tag store",
   "license": "MIT",
   "repository": {
     "type": "git",

@@ -4,8 +4,9 @@
  * leader end (14), with a jog from 14 − 4·DIMASZ to 14 − 2·DIMASZ when 13 and 14 are not in line,
  * continued under the text (DIMGAP + text width). The local axes are rotated by −(group 51).
  */
+
+import type { Pt } from "./block-builder.ts";
 import { add, angleOf, type DimCtx, dirOf, dot, left, readable, sub } from "./context.ts";
-import type { Pt } from "./writer.ts";
 
 export interface OrdinateInput {
   readonly origin: Pt;

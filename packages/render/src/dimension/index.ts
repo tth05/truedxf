@@ -7,6 +7,7 @@
 import { type Matrix44, type Vec3, wcsToOcsMatrix } from "@truedxf/geometry";
 import type { DimensionEntity, Entity } from "@truedxf/model";
 import { layoutAngular } from "./angular.ts";
+import { BlockBuilder, type Pt } from "./block-builder.ts";
 import {
   angleOf,
   DimCtx,
@@ -25,7 +26,6 @@ import { layoutLinear } from "./linear.ts";
 import { layoutOrdinate } from "./ordinate.ts";
 import { layoutJogged, layoutRadial } from "./radial.ts";
 import { DimStyleVars } from "./vars.ts";
-import { EntityWriter, type Pt } from "./writer.ts";
 
 export type { GenInput } from "./context.ts";
 export { DimStyleVars } from "./vars.ts";
@@ -44,7 +44,7 @@ export function generateDimension(input: GenInput, dim: DimensionEntity): Entity
   v.paperSpace = input.paperSpace ?? dim.paperSpace;
   const toOcs = wcsToOcsMatrix(dim.extrusion);
   const z = dim.textMidpoint?.z ?? toOcs.transformPoint(dim.defPoint).z;
-  const w = new EntityWriter(dim.layer, z, dim.linetypeScale);
+  const w = new BlockBuilder(dim.layer, z, dim.linetypeScale);
   const c = new DimCtx({ ...input, lineweight: dim.lineweight }, v, w);
   const p10 = to2(toOcs, dim.defPoint)!;
   const p11 = dim.textMidpoint ? { x: dim.textMidpoint.x, y: dim.textMidpoint.y } : undefined;

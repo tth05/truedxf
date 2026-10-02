@@ -5,8 +5,10 @@
  *   node apps/playground/scripts/perf.ts [--count 5] [--max-mb 100] [--files <path,…>] [--gpu]
  *                                        [--timeout <s per file>] [--skip-build]
  *
- * Default Chromium runs WebGL on SwiftShader (CPU), so frame times are pessimistic; `--gpu` uses
- * the default (hardware) backend where available. Results: samples/reports/viewer-perf.json.
+ * Default Chromium runs WebGL on SwiftShader (CPU), so frame times are pessimistic; `--gpu` asks
+ * for the hardware GPU (headless Chromium falls back to SwiftShader without `--use-angle` and
+ * `--ignore-gpu-blocklist`); the WebGL renderer in use is printed and recorded.
+ * Results: samples/reports/viewer-perf.json.
  */
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
@@ -70,9 +72,18 @@ if (files.length === 0) {
 if (!a.skipBuild) await build({ configFile: join(APP, "vite.config.ts"), root: APP, logLevel: "warn" });
 const server = await preview({ configFile: join(APP, "vite.config.ts"), root: APP, preview: { port: 0 } });
 const url = server.resolvedUrls?.local[0] ?? "http://localhost:4173/";
-const browser = await chromium.launch({
-  args: a.gpu ? [] : ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"],
-});
+const browser = await chromium.launch(
+  a.gpu
+    ? {
+        args: [
+          process.platform === "win32" ? "--use-angle=d3d11" : "--use-angle=gl",
+          "--ignore-gpu-blocklist",
+        ],
+        ignoreDefaultArgs: ["--enable-unsafe-swiftshader"],
+      }
+    : { args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] },
+);
+let gpu = "";
 const results: Record<string, unknown>[] = [];
 try {
   for (const f of files) {
@@ -83,6 +94,14 @@ try {
       if (m.type() === "error") errors.push(m.text());
     });
     console.log(`… ${f.split("/").pop()}`);
+    if (!gpu) {
+      gpu = await page.evaluate(() => {
+        const gl = document.createElement("canvas").getContext("webgl2");
+        const ext = gl?.getExtension("WEBGL_debug_renderer_info");
+        return gl && ext ? String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)) : "unknown";
+      });
+      console.log(`WebGL: ${gpu}`);
+    }
     const t0 = Date.now();
     // corpus names contain '#', '%', spaces…: encode each path segment for the fetch URL
     const fileUrl = `api/samples/file/${f.split("/").map(encodeURIComponent).join("/")}`;
@@ -156,5 +175,5 @@ try {
 mkdirSync(join(SAMPLES, "reports"), { recursive: true });
 writeFileSync(
   join(SAMPLES, "reports", "viewer-perf.json"),
-  JSON.stringify({ date: new Date().toISOString(), swiftshader: !a.gpu, results }, null, 1),
+  JSON.stringify({ date: new Date().toISOString(), swiftshader: !a.gpu, gpu, results }, null, 1),
 );

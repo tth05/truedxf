@@ -33,6 +33,7 @@ export interface Task {
   positions?: string;
   saveDetail?: boolean;
   lod?: boolean;
+  blockReuse?: boolean;
 }
 
 const FONT_DIRS = [
@@ -196,6 +197,7 @@ export async function runTask(task: Task, oldHashes?: Partial<Record<Kind, strin
           const res = await core.render({
             ...BASE,
             lod: task.lod,
+            blockReuse: task.blockReuse,
             layout: info.activeLayout,
             area: { type: "extents" },
           });

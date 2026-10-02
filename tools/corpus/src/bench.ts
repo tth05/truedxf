@@ -46,6 +46,7 @@ function args() {
     zoomCull: false,
     byType: false,
     parseOnly: false,
+    blockReuse: true,
     json: undefined as string | undefined,
   };
   const v = process.argv.slice(2);
@@ -56,6 +57,7 @@ function args() {
     else if (v[i] === "--zoom") a.zoom = true;
     else if (v[i] === "--by-type") a.byType = true;
     else if (v[i] === "--parse-only") a.parseOnly = true;
+    else if (v[i] === "--no-block-reuse") a.blockReuse = false;
     else if (v[i] === "--json") a.json = v[++i];
   }
   if (a.zoomCull && !a.only)
@@ -77,6 +79,7 @@ const BASE: Omit<RenderParams, "area"> = {
 };
 
 const a = args();
+BASE.blockReuse = a.blockReuse;
 
 /** Exclusive (nested entities subtracted) time / vertices per entity type. */
 const byType = new Map<string, { ms: number; vertices: number; n: number }>();

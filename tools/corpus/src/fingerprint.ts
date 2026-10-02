@@ -20,6 +20,7 @@ interface Args {
   detail: boolean;
   lod?: boolean;
   outputDir: string;
+  blockReuse: boolean;
 }
 interface Baseline {
   version: 1;
@@ -46,6 +47,7 @@ function args(argv: string[]): Args {
     name: "baseline",
     detail: false,
     outputDir: join(REPORTS, "fingerprint"),
+    blockReuse: true,
   };
   let mode: string | undefined;
   for (let i = 0; i < argv.length; i++) {
@@ -72,6 +74,7 @@ function args(argv: string[]): Args {
     else if (flag === "--detail") a.detail = true;
     else if (flag === "--lod-off") a.lod = false;
     else if (flag === "--output-dir") a.outputDir = resolve(value());
+    else if (flag === "--no-block-reuse") a.blockReuse = false;
     else throw new Error(`unknown argument: ${flag}`);
   }
   if (!mode) throw new Error("specify --save or --check");
@@ -234,6 +237,12 @@ async function check(
     const replies = await pool(
       details.map((d) => ({
         task: { target: byId.get(d.id)!, kinds: [d.kind], lod: a.lod, positions: positionPath(base, d.id) },
+        task: {
+          target: byId.get(d.id)!,
+          kinds: [d.kind],
+          blockReuse: a.blockReuse,
+          positions: positionPath(base, d.id),
+        },
         oldHashes: { [d.kind]: d.old![d.kind]!.hash },
       })),
       a.jobs,
@@ -286,6 +295,7 @@ async function main(): Promise<void> {
           target,
           kinds: kindsFor(set),
           lod: a.lod,
+          blockReuse: a.blockReuse,
           saveDetail: a.mode === "save" && a.detail,
           positions: a.mode === "save" && a.detail ? positionPath(base, target.id) : undefined,
         },

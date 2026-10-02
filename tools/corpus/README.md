@@ -13,6 +13,46 @@ Reports go to `samples/reports/` (not committed); runners take `--filter <regex>
 | `tools/gen/.venv/Scripts/python tools/corpus/ezdxf_dump.py FILE.dxf` | ezdxf's normalized dump of one file |
 | `node tools/corpus/src/img-shift.ts OURS.png ACAD.png` | ink bounding boxes and the best whole-pixel shift (±3 px) between two plots |
 
+## Performance regression gate
+
+`pnpm fingerprint --save` saves parser, fixture plot, and viewer fingerprints before behaviour-neutral
+performance work; `pnpm fingerprint --check` compares afterwards and exits 1 on any difference.
+**Plot mode must stay identical.** This checks exact model values and display-list bytes, including
+colours, picking, clips and images; it does not compare rasterized screenshots to AutoCAD.
+
+```sh
+pnpm fingerprint --save --set all
+pnpm fingerprint --check --set all
+pnpm fingerprint --check --set fixtures --only lines-curves
+```
+
+Sets: `fixtures` covers every generated JSON/DXF pair (model + AutoCAD raster plot + smooth viewer);
+`corpus` covers about `--sample 300` unique DXFs below `--max-mb 15`, sampled in SHA order, plus
+the benchmark set except arch-cn, dense-hatch and huge-blocks (model + smooth viewer);
+`model-all` hashes every unique ASCII/binary corpus DXF. The default is `fixtures,corpus`.
+Corpus viewers omit external images like `bench.ts`; fixture viewers resolve images beside the DXF.
+Fonts use the benchmark's local font index. Keep inputs and installed fonts fixed between runs.
+Model hashes omit the store-backed header and raw record/store/tags fields; they include all tables and their
+entries, blocks/entities, layouts, objects, classes, and diagnostic counts.
+
+Baselines are local-only `samples/reports/fingerprint/<name>-<set>.json` (`--name baseline` by default).
+Each ID records hashes, entity count (all block entities), list shapes, elapsed milliseconds and
+per-stage errors. Identical error messages compare equal; failed stages remain visible in the
+record/error counts. Missing/new records differ too. `--only <regex>` filters IDs and benchmark
+names; saving with it replaces that set's baseline with the selected subset.
+
+Use `--save --detail` to also save batch origins and Float32 positions in
+`<name>-<set>.positions/<sha256-of-id>.bin`. `--check --detail` re-renders same-structure differences
+and reports maximum coordinate deltas in device pixels when matching snapshots exist. Without
+snapshots it reports "coordinates or colours differ"; zero delta means colours or other metadata
+changed. Saving without detail creates no snapshots; stale snapshots are rejected by their hash.
+
+`--jobs n` processes one file per worker (default min(8, cores − 2), at least one). The root script
+sets `--max-old-space-size=8192`; this is a **per-worker** heap limit, not a total memory budget.
+Reduce jobs on memory-constrained machines. Direct invocations should pass the same heap flag.
+The tool prints progress, per-kind comparisons, record/error counts, and wall-clock seconds.
+Run hashing/snapshot unit checks with `node --test tools/corpus/test/fingerprint.test.ts`.
+
 ## Differential oracle (docs/PLAN.md §5 Phase 2 item 7)
 
 `ezdxf_dump.py` (ezdxf 1.4.4; `ezdxf.readfile`, falling back to `ezdxf.recover.readfile`) and

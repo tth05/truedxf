@@ -5,7 +5,25 @@
     "composite": false,
     "declaration": false,
     "declarationMap": false,
-    "types": ["node"]
+    "types": ["node"],
+    "rewriteRelativeImportExtensions": false
   },
-  "include": ["src"]
+  "include": ["src", "test"],
+  "references": [
+    {
+      "path": "../../packages/core"
+    },
+    {
+      "path": "../../packages/model"
+    },
+    {
+      "path": "../../packages/render"
+    },
+    {
+      "path": "../../packages/viewer"
+    },
+    {
+      "path": "../../packages/testkit"
+    }
+  ]
 }

@@ -283,46 +283,67 @@ function hexToBytes(b: Uint8Array, s: number, e: number): Uint8Array {
  * whitespace is ignored; `1e+20`, `.5`, `-0`, `1.0E+20` are accepted. Returns NaN for empty or
  * invalid values. Lenient repairs (trailing garbage, decimal comma) are left to recover mode.
  */
+const POW10 = [
+  1, 1e1, 1e2, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8, 1e9, 1e10, 1e11, 1e12, 1e13, 1e14, 1e15, 1e16, 1e17, 1e18, 1e19,
+  1e20, 1e21, 1e22,
+];
+
 export function parseAsciiNumber(b: Uint8Array, s: number, e: number): number {
   while (s < e && (b[s] === 32 || b[s] === 9)) s++;
   while (e > s && (b[e - 1] === 32 || b[e - 1] === 9 || b[e - 1] === 13)) e--;
   if (s >= e) return Number.NaN;
-  // integer fast path
   let i = s;
   let neg = false;
   if (b[i] === 45) {
     neg = true;
     i++;
   } else if (b[i] === 43) i++;
-  let v = 0;
+  let mant = 0;
   const digitsStart = i;
   while (i < e) {
     const c = b[i]! - 48;
     if (c < 0 || c > 9) break;
-    v = v * 10 + c;
+    mant = mant * 10 + c;
     i++;
   }
-  const digits = i - digitsStart;
-  if (i === e)
-    return digits > 0 && digits < 16 ? (neg ? -v : v) : digits > 0 ? Number(latin1(b, s, e)) : Number.NaN;
-  // decimal fast path (Clinger): mantissa of ≤ 15 digits is exact, 10^k is exact, and one IEEE
-  // division is correctly rounded, so the result equals Number(str).
+  let digits = i - digitsStart;
+  if (i === e && digits > 0 && mant < 2 ** 53) return neg ? -mant : mant;
+  let exp10 = 0;
   if (b[i] === 46) {
-    let j = i + 1;
-    let mant = v;
-    let scale = 1;
-    while (j < e) {
-      const c = b[j]! - 48;
+    const start = ++i;
+    while (i < e) {
+      const c = b[i]! - 48;
       if (c < 0 || c > 9) break;
       mant = mant * 10 + c;
-      scale *= 10;
-      j++;
+      i++;
     }
-    const fracDigits = j - i - 1;
-    if (j === e && digits + fracDigits <= 15 && digits + fracDigits > 0) {
-      const r = mant / scale;
-      return neg ? -r : r;
+    const fraction = i - start;
+    digits += fraction;
+    exp10 = -fraction;
+  }
+  if (digits > 0 && (b[i] === 101 || b[i] === 69)) {
+    i++;
+    let expNeg = false;
+    if (b[i] === 45) {
+      expNeg = true;
+      i++;
+    } else if (b[i] === 43) i++;
+    const start = i;
+    let exponent = 0;
+    while (i < e) {
+      const c = b[i]! - 48;
+      if (c < 0 || c > 9) break;
+      exponent = exponent * 10 + c;
+      i++;
     }
+    if (i === start) return parseNumberString(latin1(b, s, e));
+    exp10 += expNeg ? -exponent : exponent;
+  }
+  // Clinger: an exact integer mantissa and an exact power of ten need only one
+  // correctly rounded operation. Digit count alone rejects useful 16-digit values.
+  if (i === e && digits > 0 && mant < 2 ** 53 && exp10 >= -22 && exp10 <= 22) {
+    const n = exp10 < 0 ? mant / POW10[-exp10]! : mant * POW10[exp10]!;
+    return neg ? -n : n;
   }
   return parseNumberString(latin1(b, s, e));
 }
@@ -335,7 +356,10 @@ const STRTOD_PREFIX = /^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?/;
  * "Infinity", which Number() would accept, are not DXF numbers.
  */
 function parseNumberString(str: string): number {
-  if (!/^[+-]?(?:0[xXbBoO]|Infinity)/.test(str)) {
+  const start = str.charCodeAt(0) === 43 || str.charCodeAt(0) === 45 ? 1 : 0;
+  const next = str.charCodeAt(start + 1) | 32;
+  const literal = str.charCodeAt(start) === 48 && (next === 120 || next === 98 || next === 111);
+  if (!literal && !str.startsWith("Infinity", start)) {
     const n = Number(str);
     if (!Number.isNaN(n)) return n;
   }
@@ -344,7 +368,10 @@ function parseNumberString(str: string): number {
 }
 
 function latin1(b: Uint8Array, s: number, e: number): string {
-  let out = "";
-  for (let k = s; k < e; k++) out += String.fromCharCode(b[k]!);
-  return out;
+  // fromCharCode preserves the old byte-to-codepoint mapping (TextDecoder's
+  // latin1 label uses Windows-1252); chunks also bound the argument count.
+  if (e - s <= 4096) return String.fromCharCode(...b.subarray(s, e));
+  const chunks: string[] = [];
+  for (let k = s; k < e; k += 4096) chunks.push(String.fromCharCode(...b.subarray(k, Math.min(k + 4096, e))));
+  return chunks.join("");
 }

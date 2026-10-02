@@ -80,17 +80,17 @@ describe("oracle fixes: misplaced subclass data", () => {
       [66, 1],
       [70, 8],
       [0, "VERTEX"],
-      [8, "contours"],
+      [8, "TERRAIN"],
       [70, 32],
-      [10, 376813.0958],
-      [20, 808722.4667],
-      [30, 64],
+      [10, 512345.25],
+      [20, 5401234.5],
+      [30, 87.5],
       [100, "AcDbVertex"],
       [100, "AcDb3dPolylineVertex"],
       [0, "SEQEND"],
     );
     const p = doc.modelSpace.entities[0] as PolylineEntity;
-    expect(p.vertices[0]!.location).toEqual({ x: 376813.0958, y: 808722.4667, z: 64 });
+    expect(p.vertices[0]!.location).toEqual({ x: 512345.25, y: 5401234.5, z: 87.5 });
     expect(p.vertices[0]!.flags).toBe(32);
   });
 

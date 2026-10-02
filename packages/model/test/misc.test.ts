@@ -11,111 +11,133 @@ import {
 } from "../src/index.ts";
 import { errors, loadEntities } from "./snippets.ts";
 
-// MLINE 38B and ACAD_TABLE 528 (header only) from ACadSharp sample_AC1032_ascii.dxf
+// MLINE generated with ezdxf 1.4.4 (R2018, 3 vertices, scale 2); the area fill parameters of
+// the second vertex's first element (75 1, 42) added by hand.
 const MLINE = `
   0 MLINE
-  5 38B
-330 1F
+  5 2F
+330 17
 100 AcDbEntity
   8 0
 100 AcDbMline
-  2 STANDARD
-340 18
- 40 1.5
- 70 1
+  2 Standard
+340 22
+ 40 2.0
+ 70 0
  71 1
- 72 2
+ 72 3
  73 2
- 10 137.8286153379725
- 20 1.014578449646279
+ 10 10.0
+ 20 5.0
  30 0.0
 210 0.0
 220 0.0
 230 1.0
- 11 137.8286153379725
- 21 1.014578449646279
+ 11 10.0
+ 21 5.0
  31 0.0
  12 0.0
  22 1.0
  32 0.0
  13 -1.0
- 23 1.224646799147353E-16
+ 23 6.123233995736766e-17
  33 0.0
  74 2
- 41 0.75
+ 41 0.0
  41 0.0
  75 0
  74 2
- 41 -0.75
+ 41 -2.0
  41 0.0
  75 0
- 11 137.8286153379725
- 21 8.931727104928427
+ 11 10.0
+ 21 25.0
  31 0.0
  12 1.0
  22 0.0
  32 0.0
- 13 -0.7071067811865474
- 23 0.7071067811865477
+ 13 -0.7071067811865475
+ 23 0.7071067811865475
  33 0.0
  74 4
- 41 1.060660171779821
  41 0.0
- 41 1.0
- 41 2.0
+ 41 0.0
+ 41 1.5
+ 41 3.0
  75 1
- 42 0.5
+ 42 0.25
  74 2
- 41 -1.060660171779821
+ 41 -2.82842712474619
+ 41 0.0
+ 75 0
+ 11 30.0
+ 21 25.0
+ 31 0.0
+ 12 1.0
+ 22 0.0
+ 32 0.0
+ 13 0.0
+ 23 1.0
+ 33 0.0
+ 74 2
+ 41 0.0
+ 41 0.0
+ 75 0
+ 74 2
+ 41 -2.0
  41 0.0
  75 0
 `;
 
+// Hand-written ACAD_TABLE header (ezdxf cannot create tables), stopping at the first cell:
+// the 141 inside the cell data must not become a row height.
 const TABLE = `
   0 ACAD_TABLE
-  5 528
+  5 60
 102 {ACAD_XDICTIONARY
-360 12CF
+360 61
 102 }
-330 1F
+330 17
 100 AcDbEntity
-  8 Layer1
+  8 TABLES
 100 AcDbBlockReference
-  2 *T9
- 10 774.8657236611279
- 20 48.53878603809858
+  2 *T1
+ 10 120.5
+ 20 -40.25
  30 0.0
 100 AcDbTable
 280 0
-342 87
-343 570
+342 51
+343 62
  11 1.0
  21 0.0
  31 0.0
  90 22
  91 2
  92 3
- 93 7340056
+ 93 0
  94 0
  95 0
  96 0
- 40 0.034198204937273
- 41 0.034198204937273
-140 0.1025946148118188
-141 7.491035367212169
-141 6.351095202636404
-142 34.19820493727295
-142 34.19820493727295
-142 34.19820493727295
+ 40 0.75
+ 41 0.5
+141 8.0
+141 6.5
+142 30.0
+142 20.0
+142 25.0
 171 1
 172 0
-141 99
-  1 Table sample
+141 42
+  1 Room
 `;
 
+// MESH and HELIX (quarter turn) generated with ezdxf 1.4.4; the HELIX 160/310 proxy graphics
+// added by hand.
 const MESH = `
   0 MESH
-  5 343
+  5 30
+330 17
 100 AcDbEntity
   8 0
 100 AcDbSubDMesh
@@ -123,18 +145,18 @@ const MESH = `
  72 0
  91 1
  92 4
- 10 0
- 20 0
- 30 0
- 10 1
- 20 0
- 30 0
- 10 1
- 20 1
- 30 0
- 10 0
- 20 1
- 30 0
+ 10 0.0
+ 20 0.0
+ 30 0.0
+ 10 4.0
+ 20 0.0
+ 30 0.0
+ 10 4.0
+ 20 3.0
+ 30 0.0
+ 10 0.0
+ 20 3.0
+ 30 1.0
  93 8
  90 3
  90 0
@@ -150,15 +172,15 @@ const MESH = `
  90 1
  90 2
  95 2
-140 0
-140 -1
+140 0.0
+140 -1.0
  90 0
 `;
 
 const HELIX = `
   0 HELIX
-  5 D5
-330 2
+  5 2F
+330 17
 100 AcDbEntity
   8 0
 160 4
@@ -169,89 +191,89 @@ const HELIX = `
  72 8
  73 4
  74 0
- 42 0.000000001
- 43 0.0000000001
- 40 0
- 40 0
- 40 0
- 40 0
- 40 1
- 40 1
- 40 1
- 40 1
- 10 10
- 20 0
- 30 0
- 10 10
- 20 5
- 30 0.2
- 10 5
- 20 10
- 30 0.4
- 10 0
- 20 10
- 30 0.6
+ 40 0.0
+ 40 0.0
+ 40 0.0
+ 40 0.0
+ 40 1.0
+ 40 1.0
+ 40 1.0
+ 40 1.0
+ 10 4.0
+ 20 0.0
+ 30 0.0
+ 10 4.0
+ 20 2.2091389993231734
+ 30 0.22236768652263827
+ 10 2.209138999323174
+ 20 4.0
+ 30 0.4026323134773617
+ 10 2.4492935982947064e-16
+ 20 4.0
+ 30 0.625
 100 AcDbHelix
- 90 31
- 91 125
+ 90 29
+ 91 63
  10 0.0
  20 0.0
  30 0.0
- 11 10.0
+ 11 4.0
  21 0.0
  31 0.0
  12 0.0
  22 0.0
  32 1.0
- 40 5
- 41 3.0
- 42 0.3333333333333333
+ 40 4.0
+ 41 0.25
+ 42 2.5
 290 1
 280 1
 `;
 
-// REGION D69 from ACadSharp sample_AC1015_ascii.dxf (first two SAT lines) and the R2013+ layout
+// REGION generated with ezdxf 1.4.4 for R2000 from our own three SAT lines (ezdxf encodes them);
+// the R2013+ 3DSOLID layout (SAT data in ACDSDATA, 290/2 and AcDb3dSolid 350) hand-written.
 const ACIS = `
   0 REGION
-  5 D69
-330 1F
+  5 2F
+330 17
 100 AcDbEntity
   8 0
 100 AcDbModelerGeometry
  70 1
-  1 koo km n o
-  1 ni ^ *+0;:,4 ^ *+0\\^ [ mo ^ LR mloqhqoqijjlj QK o
+  1 koo l n o
+  1 h +-*:;'9 g ^ \\VL kqo QK mk Y-6 P<+ om nmeooeoo momi
+  1 n fqfffffffffffffffj:rooh n:rono
   0 3DSOLID
-  5 D65
-330 1F
+  5 70
+330 17
 100 AcDbEntity
   8 0
 100 AcDbModelerGeometry
 290 1
-  2 {1a113328-eb6d-d44d-824d-78b33668f9e7}
+  2 {6c1d0e4a-2b3f-4a5d-9e8f-0a1b2c3d4e5f}
 100 AcDb3dSolid
-350 D66
+350 71
 `;
 
-// after libredwg example_r14.dxf (chunks shortened)
+// Hand-written proxy entity (class ids, graphics, entity data and object ids chosen freely).
 const PROXY = `
   0 ACAD_PROXY_ENTITY
-  5 640
-330 1F
+  5 80
+330 17
 100 AcDbEntity
-  8 TAVOLO_3
+  8 PROXIES
 100 AcDbProxyEntity
  90 498
- 91 532
+ 91 503
  92 8
-310 F002000018000000
- 93 16
-310 4072
-340 11
-340 2AF
+310 0C00000002000000
+ 93 24
+310 1A2B3C
+340 2A
+340 3F
 340 0
  94 0
- 95 1234
+ 95 33
  70 1
 `;
 
@@ -260,20 +282,20 @@ describe("MLINE", () => {
     const { doc, entities } = loadEntities(MLINE);
     const m = entities[0] as MLineEntity;
     expect(m.type).toBe("MLINE");
-    expect(m.styleName).toBe("STANDARD");
-    expect(m.styleHandle).toBe("18");
-    expect(m.scale).toBe(1.5);
-    expect(m.justification).toBe(1);
+    expect(m.styleName).toBe("Standard");
+    expect(m.styleHandle).toBe("22");
+    expect(m.scale).toBe(2);
+    expect(m.justification).toBe(0);
     expect(m.styleElementCount).toBe(2);
-    expect(m.start).toEqual({ x: 137.8286153379725, y: 1.014578449646279, z: 0 });
-    expect(m.vertices).toHaveLength(2);
+    expect(m.start).toEqual({ x: 10, y: 5, z: 0 });
+    expect(m.vertices).toHaveLength(3);
     expect(m.vertices[0]!.direction).toEqual({ x: 0, y: 1, z: 0 });
     expect(m.vertices[0]!.elements).toEqual([
-      { params: [0.75, 0], fillParams: [] },
-      { params: [-0.75, 0], fillParams: [] },
+      { params: [0, 0], fillParams: [] },
+      { params: [-2, 0], fillParams: [] },
     ]);
-    expect(m.vertices[1]!.miter.x).toBeCloseTo(-0.7071067811865474);
-    expect(m.vertices[1]!.elements[0]).toEqual({ params: [1.060660171779821, 0, 1, 2], fillParams: [0.5] });
+    expect(m.vertices[1]!.miter.x).toBeCloseTo(-0.7071067811865475);
+    expect(m.vertices[1]!.elements[0]).toEqual({ params: [0, 0, 1.5, 3], fillParams: [0.25] });
     expect(errors(doc)).toEqual([]);
   });
 });
@@ -282,16 +304,15 @@ describe("ACAD_TABLE", () => {
   it("reads the block reference and table geometry, stopping at the cell data", () => {
     const t = loadEntities(TABLE).entities[0] as AcadTableEntity;
     expect(t.type).toBe("ACAD_TABLE");
-    expect(t.blockName).toBe("*T9");
-    expect(t.insert.x).toBeCloseTo(774.8657236611278);
-    expect(t.insert.y).toBeCloseTo(48.53878603809858);
+    expect(t.blockName).toBe("*T1");
+    expect(t.insert).toEqual({ x: 120.5, y: -40.25, z: 0 });
     expect(t.scale).toEqual({ x: 1, y: 1, z: 1 });
-    expect(t.tableStyleHandle).toBe("87");
-    expect(t.blockRecordHandle).toBe("570");
+    expect(t.tableStyleHandle).toBe("51");
+    expect(t.blockRecordHandle).toBe("62");
     expect(t.rowCount).toBe(2);
     expect(t.columnCount).toBe(3);
-    expect(t.rowHeights).toEqual([7.491035367212169, 6.351095202636404]);
-    expect(t.columnWidths).toHaveLength(3);
+    expect(t.rowHeights).toEqual([8, 6.5]);
+    expect(t.columnWidths).toEqual([30, 20, 25]);
   });
 });
 
@@ -321,10 +342,10 @@ describe("HELIX", () => {
     expect(h.controlPoints).toHaveLength(4);
     expect(h.knots).toHaveLength(8);
     expect(h.axisBase).toEqual({ x: 0, y: 0, z: 0 });
-    expect(h.startPoint).toEqual({ x: 10, y: 0, z: 0 });
+    expect(h.startPoint).toEqual({ x: 4, y: 0, z: 0 });
     expect(h.axisVector).toEqual({ x: 0, y: 0, z: 1 });
-    expect(h.radius).toBe(5);
-    expect(h.turns).toBe(3);
+    expect(h.radius).toBe(4);
+    expect(h.turns).toBe(0.25);
     expect(h.rightHanded).toBe(true);
     expect(h.proxyGraphics).toEqual(new Uint8Array([10, 11, 12, 13]));
   });
@@ -335,19 +356,22 @@ describe("ACIS entities", () => {
     const [region, solid] = loadEntities(ACIS).entities as AcisEntity[];
     expect(region!.type).toBe("REGION");
     expect(region!.modelerVersion).toBe(1);
-    expect(region!.satLines[0]).toBe("400 42 1 0");
-    expect(region!.satLines[1]).toBe("16 Autodesk AutoCAD 20 ASM 230.7.0.65535 NT 0");
+    expect(region!.satLines).toEqual([
+      "400 3 1 0",
+      "7 truedxf 8 ACIS 4.0 NT 24 Fri Oct 02 12:00:00 2026",
+      "1 9.9999999999999995e-007 1e-010",
+    ]);
     expect(region!.acisInAcdsData).toBe(false);
     expect(solid!.type).toBe("3DSOLID");
     expect(solid!.satLines).toEqual([]);
     expect(solid!.acisInAcdsData).toBe(true);
-    expect(solid!.uid).toBe("{1a113328-eb6d-d44d-824d-78b33668f9e7}");
-    expect(solid!.historyHandle).toBe("D66");
+    expect(solid!.uid).toBe("{6c1d0e4a-2b3f-4a5d-9e8f-0a1b2c3d4e5f}");
+    expect(solid!.historyHandle).toBe("71");
   });
 
   it("decodeSatLine inverts 159 − c and drops the space after an encoded 'A'", () => {
-    expect(decodeSatLine("^ *+0\\^ [")).toBe("AutoCAD");
-    expect(decodeSatLine("koo km")).toBe("400 42");
+    expect(decodeSatLine("^ -:> jn")).toBe("Area 51");
+    expect(decodeSatLine("koo l")).toBe("400 3");
   });
 });
 
@@ -356,12 +380,12 @@ describe("ACAD_PROXY_ENTITY", () => {
     const p = loadEntities(PROXY).entities[0] as ProxyEntity;
     expect(p.type).toBe("ACAD_PROXY_ENTITY");
     expect(p.proxyClassId).toBe(498);
-    expect(p.applicationClassId).toBe(532);
-    expect(p.proxyGraphics).toEqual(new Uint8Array([0xf0, 0x02, 0, 0, 0x18, 0, 0, 0]));
-    expect(p.entityDataBits).toBe(16);
-    expect(p.entityData).toEqual(new Uint8Array([0x40, 0x72]));
-    expect(p.objectIds).toEqual(["11", "2AF", "0"]);
-    expect(p.dwgFormat).toBe(1234);
+    expect(p.applicationClassId).toBe(503);
+    expect(p.proxyGraphics).toEqual(new Uint8Array([0x0c, 0, 0, 0, 0x02, 0, 0, 0]));
+    expect(p.entityDataBits).toBe(24);
+    expect(p.entityData).toEqual(new Uint8Array([0x1a, 0x2b, 0x3c]));
+    expect(p.objectIds).toEqual(["2A", "3F", "0"]);
+    expect(p.dwgFormat).toBe(33);
     expect(p.originalFormat).toBe(1);
   });
 

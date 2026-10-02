@@ -2,44 +2,46 @@ import { describe, expect, it } from "vitest";
 import { type AttribEntity, type InsertEntity, type MTextEntity, parseEmbeddedMText } from "../src/index.ts";
 import { errors, loadEntities } from "./snippets.ts";
 
-// AutoCAD 2018 layout (ACadSharp sample_AC1032_ascii.dxf, MTEXT 3EC)
+// R2018 layout with embedded column data: generated with ezdxf 1.4.4 (dynamic columns with
+// manual heights); 73 line spacing style added by hand.
 const R2018_COLUMNS = `
   0 MTEXT
-  5 3EC
-330 1F
+  5 2F
+330 17
 100 AcDbEntity
   8 0
 100 AcDbMText
- 10 183.5889280790413
- 20 5.226370718413136
+ 10 40.0
+ 20 60.0
  30 0.0
- 40 1.0
- 41 15.74141424498748
+ 40 2.5
+ 41 12.0
  46 0.0
  71 1
  72 5
-  1 this is a Mtext^Jwith multiple lines in it
- 73 1
- 44 1.0
+  1 first column text\\Psecond column
+ 73 2
+ 44 1.25
 101 Embedded Object
  70 1
  10 1.0
  20 0.0
  30 0.0
- 11 183.5889280790413
- 21 5.226370718413136
+ 11 40.0
+ 21 60.0
  31 0.0
- 40 15.74141424498748
+ 40 12.0
  41 0.0
- 42 13.49522510231923
- 43 2.944292860391086
+ 42 25.5
+ 43 20
  71 2
- 72 1
- 44 15.74141424498748
- 45 110.2231670381195
+ 72 2
+ 44 12.0
+ 45 1.5
  73 0
  74 0
- 46 0.0
+ 46 20
+ 46 15
 `;
 
 describe("MTEXT", () => {
@@ -47,24 +49,26 @@ describe("MTEXT", () => {
     const { doc, entities } = loadEntities(R2018_COLUMNS);
     const m = entities[0] as MTextEntity;
     expect(m.type).toBe("MTEXT");
-    expect(m.insert).toEqual({ x: 183.5889280790413, y: 5.226370718413136, z: 0 });
-    expect(m.height).toBe(1);
-    expect(m.width).toBe(15.74141424498748);
+    expect(m.insert).toEqual({ x: 40, y: 60, z: 0 });
+    expect(m.height).toBe(2.5);
+    expect(m.width).toBe(12);
     expect(m.attachment).toBe(1);
     expect(m.flowDirection).toBe(5);
-    expect(m.text).toBe("this is a Mtext^Jwith multiple lines in it");
-    expect(m.lineSpacingStyle).toBe(1);
-    // embedded 10 is the direction and fills the absent 11; 40/41/42 must not overwrite 40/41
+    expect(m.text).toBe("first column text\\Psecond column");
+    // embedded 10 is the direction and fills the absent 11; 40/41/42 must not overwrite 40/41,
+    // embedded 44/73 not the line spacing
+    expect(m.lineSpacingStyle).toBe(2);
+    expect(m.lineSpacingFactor).toBe(1.25);
     expect(m.direction).toEqual({ x: 1, y: 0, z: 0 });
-    expect(m.rectWidth).toBeCloseTo(13.49522510231923);
-    expect(m.rectHeight).toBeCloseTo(2.944292860391086);
+    expect(m.rectWidth).toBe(25.5);
+    expect(m.rectHeight).toBe(20);
     expect(m.columns).toMatchObject({
       type: 2,
-      count: 1,
-      width: 15.74141424498748,
-      gutter: 110.2231670381195,
+      count: 2,
+      width: 12,
+      gutter: 1.5,
       autoHeight: false,
-      heights: [0],
+      heights: [20, 15],
       source: "embedded",
     });
     expect(errors(doc)).toEqual([]);
@@ -119,15 +123,15 @@ describe("MTEXT", () => {
   it("reads pre-R2018 column info from XDATA ACAD", () => {
     const { entities } = loadEntities(`
   0 MTEXT
-  5 3EC
+  5 2F
 100 AcDbEntity
   8 0
 100 AcDbMText
- 10 183.5
- 20 5.2
+ 10 40.0
+ 20 60.0
  30 0.0
- 40 1.0
- 41 15.7
+ 40 2.5
+ 41 15.5
  71 1
   1 col 1
 1001 ACAD
@@ -188,33 +192,33 @@ describe("MTEXT", () => {
 100 AcDbEntity
   8 0
 100 AcDbText
- 10 574.8
- 20 961.1
+ 10 120.25
+ 20 48.5
  40 3.0
-  1 TEST VENUE
-  7 Arial_3 NARROW
+  1 ROOM 2.14
+  7 Labels Narrow
  72 1
- 11 592.3
- 21 962.6
+ 11 131.75
+ 21 50
 100 AcDbAttribute
-  2 DRAWING-NAME
+  2 ROOM-NAME
  70 0
  74 2
 280 0
  71 2
  72 0
- 11 592.3
- 21 962.6
+ 11 131.75
+ 21 50
 101 Embedded Object
- 10 592.3
- 20 962.6
+ 10 131.75
+ 20 50
  40 3.0
  41 0.0
  46 0.0
  71 5
  72 5
-  1 TEST VENUE\\PTEST FLOOR PLAN
-  7 Arial_3 NARROW
+  1 ROOM 2.14\\PSTORAGE
+  7 Labels Narrow
  73 1
  44 1.0
   0 SEQEND
@@ -226,10 +230,10 @@ describe("MTEXT", () => {
     const att = ins.attribs[0] as AttribEntity;
     const m = parseEmbeddedMText(att.record);
     expect(m).toBeDefined();
-    expect(m?.text).toBe("TEST VENUE\\PTEST FLOOR PLAN");
-    expect(m?.insert).toEqual({ x: 592.3, y: 962.6, z: 0 });
+    expect(m?.text).toBe("ROOM 2.14\\PSTORAGE");
+    expect(m?.insert).toEqual({ x: 131.75, y: 50, z: 0 });
     expect(m?.attachment).toBe(5);
     expect(m?.flowDirection).toBe(5);
-    expect(m?.style).toBe("Arial_3 NARROW");
+    expect(m?.style).toBe("Labels Narrow");
   });
 });

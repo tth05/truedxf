@@ -8,61 +8,62 @@ import {
 } from "../src/index.ts";
 import { errors, loadEntities } from "./snippets.ts";
 
-// AutoCAD 2018 (ACadSharp sample_AC1032_ascii.dxf: LEADER 512, TOLERANCE 822, MULTILEADER 7B8
-// without its 310 proxy graphic chunks)
+// Generated with ezdxf 1.4.4 (R2018). Added by hand as AutoCAD writes them: the LEADER
+// 73/74/75 flags, 40/41 annotation size, a fourth (hook) vertex and the 340 annotation handle;
+// the MULTILEADER 160/310 proxy graphics. TOLERANCE without its 11 (default direction).
 const LEADER = `
   0 LEADER
-  5 512
-330 1F
+  5 2F
+330 17
 100 AcDbEntity
-  8 Layer1
+  8 0
 100 AcDbLeader
-  3 ISO-25
+  3 Standard
  73 0
  74 0
  75 1
- 40 1.844821309997272
- 41 16.37400410337938
+ 40 2.5
+ 41 18.0
  76 4
- 10 717.8687154323397
- 20 2.941179455067986
+ 10 10.0
+ 20 10.0
  30 0.0
- 10 729.2681170780972
- 20 48.53878603809858
+ 10 25.0
+ 20 30.0
  30 0.0
- 10 737.8987500252849
- 20 14.07181240225556
+ 10 40.0
+ 20 30.0
  30 0.0
- 10 740.3987500252849
- 20 14.07181240225556
+ 10 43.5
+ 20 30.0
  30 0.0
-340 513
+340 3C
 1001 ACAD
 1000 DSTYLE
 1002 {
 1070 41
-1040 3.5
+1040 2.5
 1002 }
 `;
 
 const TOLERANCE = `
   0 TOLERANCE
-  5 822
-330 1F
+  5 30
+330 17
 100 AcDbEntity
   8 0
 100 AcDbFcf
   3 Standard
- 10 214.1752393775127
- 20 -4.320437747060623
+ 10 50.0
+ 20 12.0
  30 0.0
-  1 {\\Fgdt;j}%%v{\\Fgdt;n}%%v%%v%%v%%v^J{\\Fgdt;d}%%v%%v%%v%%v%%v^J.5^J5
+  1 {\\Fgdt;p}%%v0.2%%vA^J{\\Fgdt;r}%%v0.05
 `;
 
 const MLEADER = `
   0 MULTILEADER
-  5 7B8
-330 1F
+  5 31
+330 17
 100 AcDbEntity
   8 0
 160 4
@@ -71,38 +72,38 @@ const MLEADER = `
 270 2
 300 CONTEXT_DATA{
  40 1.0
- 10 1083.681045165763
- 20 23.23924387283501
+ 10 78.0
+ 20 49.0
  30 0.0
- 41 0.18
-140 0.18
-145 0.09
+ 41 2.0
+140 4.0
+145 2.0
 174 1
 175 1
 176 0
 177 0
 290 1
-304 MLeader text, hello!
+304 Hello leader
  11 0.0
  21 0.0
  31 1.0
-340 11
- 12 1083.771045165763
- 22 23.34704741990185
+340 29
+ 12 80.0
+ 22 50.0
  32 0.0
  13 1.0
  23 0.0
  33 0.0
  42 0.0
- 43 1.447121418826739
+ 43 0.0
  44 0.0
  45 1.0
 170 1
- 90 -1073741824
+ 90 -1056964608
 171 1
-172 5
- 91 -1073741824
-141 0.0
+172 1
+ 91 -939524096
+141 1.5
  92 0
 291 0
 292 0
@@ -111,10 +112,10 @@ const MLEADER = `
 142 0.0
 143 0.0
 294 0
-295 0
+295 1
 296 0
-110 1050.241562773277
-120 8.17554702864777
+110 0.0
+120 0.0
 130 0.0
 111 1.0
 121 0.0
@@ -126,37 +127,38 @@ const MLEADER = `
 302 LEADER{
 290 1
 291 1
- 10 1083.321045165764
- 20 23.23924387283501
+ 10 70.0
+ 20 49.0
  30 0.0
  11 1.0
  21 0.0
  31 0.0
  90 0
- 40 0.36
+ 40 8.0
 304 LEADER_LINE{
- 10 1050.241562773277
- 20 8.17554702864777
+ 10 60.0
+ 20 40.0
  30 0.0
  91 0
+ 92 -1056964608
 305 }
 271 0
 303 }
 272 9
 273 9
 301 }
-340 D8
- 90 279552
+340 2C
+ 90 2147483647
 170 1
  91 -1056964608
-341 14
+341 25
 171 -2
 290 1
 291 1
- 41 0.36
- 42 0.18
+ 41 8.0
+ 42 4.0
 172 2
-343 11
+343 29
 173 1
  95 1
 174 1
@@ -287,17 +289,17 @@ describe("LEADER", () => {
     const { doc, entities } = loadEntities(LEADER);
     const l = entities[0] as LeaderEntity;
     expect(l.type).toBe("LEADER");
-    expect(l.dimStyle).toBe("ISO-25");
+    expect(l.dimStyle).toBe("Standard");
     expect(l.arrowhead).toBe(true);
     expect(l.creationFlag).toBe(0);
     expect(l.hookDirection).toBe(0);
     expect(l.hasHook).toBe(true);
-    expect(l.textHeight).toBeCloseTo(1.844821309997272);
+    expect(l.textHeight).toBe(2.5);
     expect(l.vertices).toHaveLength(4);
-    expect(l.vertices[3]).toEqual({ x: 740.3987500252849, y: 14.07181240225556, z: 0 });
-    expect(l.annotationHandle).toBe("513");
+    expect(l.vertices[3]).toEqual({ x: 43.5, y: 30, z: 0 });
+    expect(l.annotationHandle).toBe("3C");
     expect(l.horizontalDirection).toEqual({ x: 1, y: 0, z: 0 });
-    expect(l.overrides.get(41)).toBe(3.5);
+    expect(l.overrides.get(41)).toBe(2.5);
     expect(errors(doc)).toEqual([]);
   });
 });
@@ -306,8 +308,8 @@ describe("TOLERANCE", () => {
   it("reads the frame string and placement", () => {
     const t = loadEntities(TOLERANCE).entities[0] as ToleranceEntity;
     expect(t.type).toBe("TOLERANCE");
-    expect(t.text).toBe("{\\Fgdt;j}%%v{\\Fgdt;n}%%v%%v%%v%%v^J{\\Fgdt;d}%%v%%v%%v%%v%%v^J.5^J5");
-    expect(t.insert).toEqual({ x: 214.1752393775127, y: -4.320437747060623, z: 0 });
+    expect(t.text).toBe("{\\Fgdt;p}%%v0.2%%vA^J{\\Fgdt;r}%%v0.05");
+    expect(t.insert).toEqual({ x: 50, y: 12, z: 0 });
     expect(t.direction).toEqual({ x: 1, y: 0, z: 0 });
   });
 });
@@ -320,36 +322,36 @@ describe("MULTILEADER", () => {
     expect(m.proxyGraphics).toEqual(new Uint8Array([1, 2, 3, 4]));
     const c = m.context;
     expect(c.scale).toBe(1);
-    expect(c.basePoint).toEqual({ x: 1083.681045165763, y: 23.23924387283501, z: 0 });
-    expect(c.textHeight).toBe(0.18);
-    expect(c.arrowSize).toBe(0.18);
-    expect(c.landingGap).toBe(0.09);
+    expect(c.basePoint).toEqual({ x: 78, y: 49, z: 0 });
+    expect(c.textHeight).toBe(2);
+    expect(c.arrowSize).toBe(4);
+    expect(c.landingGap).toBe(2);
     expect(c.block).toBeUndefined();
-    expect(c.mtext?.text).toBe("MLeader text, hello!");
-    expect(c.mtext?.insert).toEqual({ x: 1083.771045165763, y: 23.34704741990185, z: 0 });
-    expect(c.mtext?.width).toBeCloseTo(1.447121418826739);
+    expect(c.mtext?.text).toBe("Hello leader");
+    expect(c.mtext?.insert).toEqual({ x: 80, y: 50, z: 0 });
+    expect(c.mtext?.width).toBe(0);
     expect(c.mtext?.attachment).toBe(1);
-    expect(c.mtext?.flowDirection).toBe(5);
-    expect(c.mtext?.styleHandle).toBe("11");
-    expect(c.planeOrigin).toEqual({ x: 1050.241562773277, y: 8.17554702864777, z: 0 });
+    expect(c.mtext?.flowDirection).toBe(1);
+    expect(c.mtext?.styleHandle).toBe("29");
+    expect(c.planeOrigin).toEqual({ x: 0, y: 0, z: 0 });
     expect(c.leaders).toHaveLength(1);
     const leader = c.leaders[0]!;
     expect(leader.hasLastLeaderLine).toBe(true);
-    expect(leader.lastLeaderPoint).toEqual({ x: 1083.321045165764, y: 23.23924387283501, z: 0 });
-    expect(leader.doglegLength).toBe(0.36);
+    expect(leader.lastLeaderPoint).toEqual({ x: 70, y: 49, z: 0 });
+    expect(leader.doglegLength).toBe(8);
     expect(leader.lines).toHaveLength(1);
-    expect(leader.lines[0]!.vertices).toEqual([{ x: 1050.241562773277, y: 8.17554702864777, z: 0 }]);
+    expect(leader.lines[0]!.vertices).toEqual([{ x: 60, y: 40, z: 0 }]);
     expect(c.topAttachment).toBe(9);
-    expect(m.styleHandle).toBe("D8");
-    expect(m.overrideFlags).toBe(279552);
+    expect(m.styleHandle).toBe("2C");
+    expect(m.overrideFlags).toBe(2147483647);
     expect(m.leaderType).toBe(1);
     expect(m.leaderColor).toBe(BY_BLOCK_RAW);
-    expect(m.leaderLinetypeHandle).toBe("14");
+    expect(m.leaderLinetypeHandle).toBe("25");
     expect(m.leaderLineweight).toBe(-2);
-    expect(m.doglegLength).toBe(0.36);
-    expect(m.arrowSize).toBe(0.18);
+    expect(m.doglegLength).toBe(8);
+    expect(m.arrowSize).toBe(4);
     expect(m.contentType).toBe(2);
-    expect(m.textStyleHandle).toBe("11");
+    expect(m.textStyleHandle).toBe("29");
     expect(m.blockScale).toEqual({ x: 1, y: 1, z: 1 });
     expect(m.textAttachmentPoint).toBe(1);
     expect(errors(doc)).toEqual([]);

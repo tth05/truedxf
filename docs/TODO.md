@@ -132,8 +132,10 @@ default, FILLMODE for pattern hatches, extents edge tolerance.
 - [x] Hangs: (0,0)-(0,0) header extents count as unset, layout probes start from LAYOUT 14/15,
       max 65 536 chords per circle (03affd0); dense dashes on wide polylines (cf75a0c).
 - [ ] Performance: ezdxf issue-574/7495047 still ~26 s / 105 M vertices from dense hatches;
-      viewer `visibleBounds` (packages/viewer/src/protocol.ts) could use the clip-aware
-      `list.bounds`; leader-r14 MLEADER proxy "proxy-text" unsupported.
+      leader-r14 MLEADER proxy "proxy-text" unsupported.
+- [x] Viewer visible bounds: reuse pick-index batch boxes to avoid a second vertex scan
+      (2026-10-02). `list.bounds` is not equivalent: primitive vs batch clipping and float64
+      vs float32 coordinates (note 08 §10.16). Incomplete pick coverage still scans.
 - [x] SHAPE entities (2026-10-01, 092dbcf; corpus files lack their .shx files and now report
       `shape-not-found` / `shape-missing-file`).
 - [x] Vertical TEXT (STYLE flag 4) and MTEXT flow direction 3 (2acb863, 746652c).
@@ -185,6 +187,9 @@ default, FILLMODE for pattern hatches, extents edge tolerance.
       highlight geometry in the worker (2026-10-02).
 - [x] 2: frontend memoization (properties, text layouts), viewer first render without probe pass
       when stored extents pass the scale check (2026-10-02). [Results](perf-render-results.md).
+- [x] Repair render regressions: retain one current property entry per inheritance/viewport
+      context and skip speculative first fits for grossly stale-large header hints
+      (2026-10-02). [Results](perf-regress-results.md).
 - [ ] 3: viewer LOD: dense hatch patterns, sub-pixel text and narrow lineweights implemented
       (2026-10-02); view culling remains open.
 - [x] Density-preserving text greeking: cached TTF ink area / SHX stroke length, one opaque

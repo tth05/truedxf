@@ -186,7 +186,9 @@ default, FILLMODE for pattern hatches, extents edge tolerance.
 - [x] 2: frontend memoization (properties, text layouts), viewer first render without probe pass
       when stored extents pass the scale check (2026-10-02). [Results](perf-render-results.md).
 - [ ] 3: viewer LOD: dense hatch patterns, sub-pixel text and narrow lineweights implemented
-      (2026-10-02); view culling remains open; greeked text loses the density of text blocks.
+      (2026-10-02); view culling remains open.
+- [x] Density-preserving text greeking: cached TTF ink area / SHX stroke length, one opaque
+      run quad, explicit viewer LOD switch and hardware-AA 4×4 density comparison (2026-10-02).
 - [x] 4: parser (2026-10-02): tokenizer, exact numbers, direct binary reads, compiled fields and lazy TTF parsing; all fingerprint gates identical. [Results](perf-parser-results.md).
 - [ ] 5: memory and transfer (compact display list, picking in the worker, model per-entity size).
 

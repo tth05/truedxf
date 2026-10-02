@@ -23,7 +23,15 @@ import {
   type OutlineGlyph,
   type StrokeGlyph,
 } from "@truedxf/fonts";
-import { Affine2, FillRule, Matrix44, ocsToWcsMatrix, triangulateFill } from "@truedxf/geometry";
+import {
+  Affine2,
+  FillRule,
+  Matrix44,
+  normalizePolygons,
+  ocsToWcsMatrix,
+  polygonsArea,
+  triangulateFill,
+} from "@truedxf/geometry";
 import {
   type AttribEntity,
   type DxfDocument,
@@ -36,6 +44,7 @@ import {
 import {
   type BackgroundColor,
   type ColorOverride,
+  type GlyphPlacement,
   type InlineFontSpec,
   inlineFonts,
   layoutMText,
@@ -305,6 +314,136 @@ registerPreparer(async (doc, env) => {
 
 const strokeCache = new WeakMap<StrokeGlyph, Map<number, Float64Array[]>>();
 const fillCache = new WeakMap<OutlineGlyph, Map<number, Float64Array>>();
+const inkAreaCache = new WeakMap<OutlineGlyph, number>();
+const inkLengthCache = new WeakMap<StrokeGlyph, number>();
+const transformedLengthCache = new WeakMap<StrokeGlyph, { transform: Affine2; length: number }>();
+
+/** Fine reference geometry is independent of the viewer's zoom/tolerance octave. */
+function referenceTolerance(g: OutlineGlyph | StrokeGlyph): number {
+  const b = g.bounds;
+  return b ? Math.max(b.xMax - b.xMin, b.yMax - b.yMin) / 1024 || 1e-6 : 1e-6;
+}
+
+function outlineInkArea(g: OutlineGlyph): number {
+  let area = inkAreaCache.get(g);
+  if (area !== undefined) return area;
+  const [, tolerance] = bucketTolerance(referenceTolerance(g));
+  const rings = flattenPath(g.path, { tolerance })
+    .filter((r) => r.length >= 6)
+    .map((r) => Float64Array.from(r));
+  // The same nonzero union as glyph triangulation resolves overlaps/self-intersections and
+  // holes. Summing normalized polygon areas avoids earcut and retaining fine reference meshes
+  // that will never be drawn at this zoom; a raw signed-contour sum would double-count overlap.
+  area = rings.length ? polygonsArea(normalizePolygons(rings, FillRule.NonZero, { tolerance })) : 0;
+  inkAreaCache.set(g, area);
+  return area;
+}
+
+function strokeInkLength(g: StrokeGlyph, t: Affine2): number {
+  const sx = Math.hypot(t.a, t.b);
+  const sy = Math.hypot(t.c, t.d);
+  const uniform = Math.abs(sx - sy) <= sx * 1e-10 && Math.abs(t.a * t.c + t.b * t.d) <= sx * sy * 1e-10;
+  const cached = inkLengthCache.get(g);
+  if (uniform && cached !== undefined) return cached * sx;
+  const previous = !uniform && transformedLengthCache.get(g);
+  if (
+    previous &&
+    previous.transform.a === t.a &&
+    previous.transform.b === t.b &&
+    previous.transform.c === t.c &&
+    previous.transform.d === t.d
+  )
+    return previous.length;
+  let length = 0;
+  let transformed = 0;
+  for (const pl of glyphPolylines(g, referenceTolerance(g))) {
+    for (let i = 2; i < pl.length; i += 2) {
+      const dx = pl[i]! - pl[i - 2]!;
+      const dy = pl[i + 1]! - pl[i - 1]!;
+      length += Math.hypot(dx, dy);
+      if (!uniform) transformed += Math.hypot(t.a * dx + t.c * dy, t.b * dx + t.d * dy);
+    }
+  }
+  if (cached === undefined) inkLengthCache.set(g, length);
+  if (!uniform) transformedLengthCache.set(g, { transform: t, length: transformed });
+  // Nonuniform INSERTs/shears scale each stroke direction differently. Reuse cached reference
+  // polylines in that case; a scalar singular value would overestimate their ink density.
+  return uniform ? length * sx : transformed;
+}
+
+interface GreekRun {
+  placement: GlyphPlacement;
+  transform: Affine2;
+  color: Rgba;
+  ux: number;
+  uy: number;
+  minX: number;
+  maxX: number;
+  minY: number;
+  maxY: number;
+  area: number;
+}
+
+function sameGreekRun(run: GreekRun, g: GlyphPlacement, t: Affine2, color: Rgba): boolean {
+  const a = run.transform;
+  const along = (t.e - a.e) * run.ux + (t.f - a.f) * run.uy;
+  const across = -(t.e - a.e) * run.uy + (t.f - a.f) * run.ux;
+  return (
+    run.placement.font === g.font &&
+    run.placement.run?.run === g.run?.run &&
+    a.a === t.a &&
+    a.b === t.b &&
+    a.c === t.c &&
+    a.d === t.d &&
+    Math.abs(across) <= Math.hypot(t.a, t.b) * g.font.capHeight * 1e-8 &&
+    along >= 0 &&
+    run.color[0] === color[0] &&
+    run.color[1] === color[1] &&
+    run.color[2] === color[2] &&
+    run.color[3] === color[3]
+  );
+}
+
+function addGreekInk(run: GreekRun, g: GlyphPlacement, t: Affine2, area: number, padding: number): void {
+  const b = g.glyph.bounds!;
+  // Project the affine ink box analytically; visiting four allocated corner pairs per tiny
+  // glyph creates avoidable garbage in dense CJK/attribute drawings.
+  const dx = t.e - run.transform.e;
+  const dy = t.f - run.transform.f;
+  const u = dx * run.ux + dy * run.uy;
+  const v = -dx * run.uy + dy * run.ux;
+  const ax = (t.a * run.ux + t.b * run.uy) * b.xMin;
+  const bx = (t.a * run.ux + t.b * run.uy) * b.xMax;
+  const cx = (t.c * run.ux + t.d * run.uy) * b.yMin;
+  const ex = (t.c * run.ux + t.d * run.uy) * b.yMax;
+  const ay = (-t.a * run.uy + t.b * run.ux) * b.xMin;
+  const by = (-t.a * run.uy + t.b * run.ux) * b.xMax;
+  const cy = (-t.c * run.uy + t.d * run.ux) * b.yMin;
+  const ey = (-t.c * run.uy + t.d * run.ux) * b.yMax;
+  run.minX = Math.min(run.minX, u + Math.min(ax, bx) + Math.min(cx, ex) - padding);
+  run.maxX = Math.max(run.maxX, u + Math.max(ax, bx) + Math.max(cx, ex) + padding);
+  run.minY = Math.min(run.minY, v + Math.min(ay, by) + Math.min(cy, ey) - padding);
+  run.maxY = Math.max(run.maxY, v + Math.max(ay, by) + Math.max(cy, ey) + padding);
+  run.area += area;
+}
+
+function emitGreekRun(fe: Frontend, run: GreekRun): void {
+  const length = run.maxX - run.minX;
+  if (!(length > 0) || !(run.area > 0)) return;
+  const height = Math.min(run.area / length, run.maxY - run.minY);
+  const center = (run.minY + run.maxY) / 2;
+  const frame = new Affine2(run.ux, run.uy, -run.uy, run.ux, run.transform.e, run.transform.f);
+  const y0 = center - height / 2;
+  const y1 = center + height / 2;
+  // Opaque geometry lets the viewer merge tiny text with ordinary fills. Sub-pixel coverage
+  // comes from AA, not alpha or a minimum-height hairline (note 04 §0, viewer approximation).
+  fe.fillTriangles(
+    frame.applyPoints(
+      Float64Array.of(run.minX, y0, run.maxX, y0, run.maxX, y1, run.minX, y0, run.maxX, y1, run.minX, y1),
+    ),
+    run.color,
+  );
+}
 
 /** Power-of-two tolerance buckets so that glyphs are flattened once per scale octave. */
 function bucketTolerance(tol: number): [number, number] {
@@ -632,26 +771,54 @@ export function drawLayout(fe: Frontend, layout: TextLayout, e: Entity, m: Matri
     fe.grid && layout.runs
       ? layout.runs.map((run) => pixelRunShifts(run, toTarget, fe.pixelSize))
       : undefined;
+  let greek: GreekRun | undefined;
+  const flushGreek = () => {
+    if (greek) emitGreekRun(fe, greek);
+    greek = undefined;
+  };
   for (const g of layout.glyphs) {
     const sh = g.run && shifts?.[g.run.run]?.[g.run.index];
     const t = toTarget.multiply(sh ? Affine2.translation(sh.x, sh.y).multiply(g.matrix) : g.matrix);
     const sigma = t.singularValues()[0];
-    if (!(sigma > 0)) continue;
+    if (!(sigma > 0)) {
+      flushGreek();
+      continue;
+    }
     const tolFu = tol / sigma;
     const glyph = g.glyph;
     if (fe.lod && g.font.capHeight * sigma < 1.5 * fe.pixelSize) {
       // Cap height is measured in font units (note 04 §4.4–4.5). The largest singular value
       // keeps stretched/sheared glyphs detailed until every direction is sub-pixel.
       if (glyph.bounds) {
-        const y = g.font.capHeight / 2;
-        fe.builder.polyline(
-          t.applyPoints(Float64Array.of(0, y, glyph.advance, y)),
-          g.color ? resolveColor(fe, r, g.color, inh) : baseColor,
-          false,
-        );
+        const color = g.color ? resolveColor(fe, r, g.color, inh) : baseColor;
+        const baseline = Math.hypot(t.a, t.b);
+        if (!(baseline > 0)) {
+          flushGreek();
+          continue;
+        }
+        if (greek && !sameGreekRun(greek, g, t, color)) flushGreek();
+        greek ??= {
+          placement: g,
+          transform: t,
+          color,
+          ux: t.a / baseline,
+          uy: t.b / baseline,
+          minX: Infinity,
+          maxX: -Infinity,
+          minY: Infinity,
+          maxY: -Infinity,
+          area: 0,
+        };
+        const width = glyph.kind === "strokes" ? fe.strokeWidth(colored(g.color)) || fe.pixelSize : 0;
+        const area =
+          glyph.kind === "outline"
+            ? outlineInkArea(glyph) * Math.abs(t.determinant())
+            : strokeInkLength(glyph, t) * width;
+        addGreekInk(greek, g, t, area, width / 2);
       }
       continue;
     }
+    flushGreek();
     if (glyph.kind === "strokes") {
       const rr = colored(g.color);
       for (const pl of glyphPolylines(glyph, tolFu)) fe.strokeFlat(t.applyPoints(pl), false, rr);
@@ -661,6 +828,7 @@ export function drawLayout(fe: Frontend, layout: TextLayout, e: Entity, m: Matri
         fe.fillTriangles(t.applyPoints(tri), g.color ? resolveColor(fe, r, g.color, inh) : baseColor);
     }
   }
+  flushGreek();
   for (const l of layout.lines) {
     fe.strokeFlat(toTarget.applyPoints(Float64Array.of(l.x0, l.y0, l.x1, l.y1)), false, colored(l.color));
   }

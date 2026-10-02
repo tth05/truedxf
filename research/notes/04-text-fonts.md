@@ -16,9 +16,22 @@ dxf-viewer = vagran__dxf-viewer, ACadSharp = DomCR__ACadSharp, netDxf = haplokuo
 
 Interactive LOD (2026-10-02, renderer performance task; **viewer approximation**, not an
 AutoCAD rule): with `lod: true` and smooth raster only, glyphs whose cap height times the
-largest transform singular value is below 1.5 device pixels become one hairline at half cap
-height spanning the glyph advance. Glyphs without ink remain blank; backgrounds, inline colour
-and decorations keep their normal paths. Entity-plane layouts are cached per frontend, font
+largest transform singular value is below 1.5 device pixels become one filled quad per consecutive
+run/colour/baseline. Its height is total transformed ink area divided by the run's ink width,
+clamped to the ink box height and centred on that box. This replaces the earlier half-cap-height
+hairlines, which visibly lost the density of dense text columns (mtext-elec-35). TTF ink area is
+the area of normalized nonzero-fill reference polygons, flattened at an ink-box-size / 1024
+tolerance (power-of-two bucket). This uses the same fixed-point union as triangulation, including
+holes and overlapping/self-intersecting contours, but avoids earcut and retained fine meshes.
+SHX caches reference stroke length, applies the
+frontend's target lineweight (one device pixel for hairlines) at draw time, and pads its ink box
+by half that width. Nonuniform transforms sum transformed reference segment lengths; uniform
+transforms reuse the scalar length; a one-entry linear-transform cache covers repeated nonuniform
+instances without caching width. No alpha/minimum-height boost is added: GPU antialiasing
+supplies sub-pixel coverage, and opaque text still merges into opaque viewer draw calls. Entity
+transparency is preserved. This conserves summed ink, not the union of overlapping strokes;
+the ink-box clamp limits saturation. Glyphs without ink remain blank; backgrounds, inline colour
+and decorations keep their normal paths. Plot/LOD-off geometry is unchanged. Entity-plane layouts are cached per frontend, font
 identity, text, header layout options, dimension handling and linked-column wrap width.
 
 1. **Text height = cap height.** TTF: scale = h / yMax(glyph "A") in font units (Arial 1466, *not*

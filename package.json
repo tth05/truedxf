@@ -10,7 +10,7 @@
     "build": "tsc -b && node --disable-warning=ExperimentalWarning scripts/package-dist.ts",
     "packages:check": "node --disable-warning=ExperimentalWarning scripts/check-packages.ts",
     "typecheck": "tsc -b",
-    "test": "vitest run",
+    "test": "vitest run && node --disable-warning=ExperimentalWarning --test tools/corpus/test/fingerprint.test.ts",
     "test:watch": "vitest",
     "lint": "biome check .",
     "format": "biome check --write .",

@@ -15,6 +15,9 @@ Reports go to `samples/reports/` (not committed); runners take `--filter <regex>
 
 ## Performance regression gate
 
+Use `node tools/corpus/src/bench.ts --runs 3 --parse-only` to measure tokenizer throughput and
+model loading without rendering, picking, or zoom work. The model timing includes tokenization.
+
 `pnpm fingerprint --save` saves parser, fixture plot, and viewer fingerprints before behaviour-neutral
 performance work; `pnpm fingerprint --check` compares afterwards and exits 1 on any difference.
 **Plot mode must stay identical.** This checks exact model values and display-list bytes, including

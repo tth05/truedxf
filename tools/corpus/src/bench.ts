@@ -2,7 +2,7 @@
  * Pipeline benchmark over a fixed set of large, varied corpus files: the viewer worker's work
  * (tokenize → model → renderPlot → pick data) in Node, per stage, median of `--runs`.
  *
- *   node tools/corpus/src/bench.ts [--runs 3] [--only <regex>] [--zoom] [--by-type] [--json out.json]
+ *   node tools/corpus/src/bench.ts [--runs 3] [--only <regex>] [--parse-only] [--zoom] [--by-type] [--json out.json]
  *
  * `--by-type`: exclusive frontend time and emitted vertices per entity type (all render passes).
  *
@@ -44,6 +44,7 @@ function args() {
     only: undefined as RegExp | undefined,
     zoom: false,
     byType: false,
+    parseOnly: false,
     json: undefined as string | undefined,
   };
   const v = process.argv.slice(2);
@@ -52,6 +53,7 @@ function args() {
     else if (v[i] === "--only") a.only = new RegExp(v[++i]!, "i");
     else if (v[i] === "--zoom") a.zoom = true;
     else if (v[i] === "--by-type") a.byType = true;
+    else if (v[i] === "--parse-only") a.parseOnly = true;
     else if (v[i] === "--json") a.json = v[++i];
   }
   return a;
@@ -136,6 +138,7 @@ for (const [name, path] of files) {
       s = performance.now();
       DxfDocument.load(bytes);
       t.model.push(performance.now() - s);
+      if (a.parseOnly) continue;
       // fresh core per run: no font/glyph caches carried over (the viewer loads a file once)
       const core = new ViewerCore(loadFont, loadImage);
       const doc = core.load(bytes, name);

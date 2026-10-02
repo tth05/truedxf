@@ -212,9 +212,11 @@ default, FILLMODE for pattern hatches, extents edge tolerance.
   - [ ] Stretch memory target: circles ≤400 B/entity; the retained implementation uses ~421 B.
         Frozen-default sharing needs a separately approved baseline migration: the existing
         model already shares frozen points, so a value-only frozen walker changes old hashes.
-  - [ ] Loaded-model performance acceptance: resolve the dimensions frontend regression
-        (530 → 607 ms in the final three-run pair) and control splines/proxy-hatch load timing
-        outliers before claiming no slowdown. [Measurements](perf-memory-results.md).
+  - [x] Loaded-model performance acceptance for circles/dimensions/splines/architecture/proxy/R12:
+        unqualified record lookups no longer rebuild released parts, including app/XDATA ranges.
+        Two alternating five-run pairs against rebased master keep all frontend cases below
+        master while circles remain ~421 B/entity; smaller model timings vary within noise
+        (2026-10-03). [Measurements](perf-memory-followup-results.md).
 
 ## Viewer (packages/viewer, apps/playground)
 

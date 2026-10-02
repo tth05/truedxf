@@ -1461,3 +1461,26 @@ an R12 profile attributed ~158 ms to this assembly and load rose from ~402 to ~5
 Reading the smaller attribute field object and assembling the result once removed the
 regression (~372 ms for five runs), without changing fields or default precedence for
 external parser callers. Property layout therefore needs timing checks as well as heap checks.
+
+### Frontend lookup follow-up (2026-10-03)
+
+After rebasing the memory work onto master `30a06b7`, CPU profiles identified a remaining
+reconstruction path: property resolution calls unqualified `find(380)` on every entity
+(plot-style type, note 06 §6.2). Released R13+ geometry records rebuilt subclass parts and
+interned names even when no 380 existed. Circle `find` inclusive samples rose from 115.8 ms
+on master to 244.7 ms on the memory branch; dimensions rose from 3.2 to 43.2 ms.
+
+Already-scanned, released records can answer unqualified data lookups without parts:
+scan codes directly for base/subclass-only records; otherwise use retained app ranges to
+skip 102 groups and stop at the first XDATA or recognized embedded-object marker. Neither
+section can return to ordinary data; an unrecognized 101 remains data. Code 100 queries
+and subclass-qualified queries retain the full view. Differential tests compare released
+lookups before any other getter rebuilds the cache, including 380, duplicate fields and
+all boundaries. This adds no per-record storage and preserves the original structural rules.
+
+Two alternating five-run pairs now put circles at 1149/1128 ms versus master 1276/1275,
+and dimensions at 423/423 versus 435/433; all six selected frontend cases are faster.
+Loaded circle heap remains 421.23 B/entity. Sparse circle shapes, primitive string pools,
+handle indexing and default identities need no changes. See docs/perf-memory-followup-results.md
+for sampled self/inclusive times, retained heap and inherited viewer-baseline differences.
+These are implementation measurements, not additional AutoCAD verification.

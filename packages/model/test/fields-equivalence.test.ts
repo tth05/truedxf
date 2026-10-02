@@ -1,6 +1,6 @@
 import { Diagnostics, tokenize } from "@truedxf/core";
 import fc from "fast-check";
-import { expect, it } from "vitest";
+import { expect, it, vi } from "vitest";
 import { DxfDocument } from "../src/document.ts";
 import { ENTITY_PARSERS, readBase, simpleParser } from "../src/entities/common.ts";
 import { type FieldDef, type FieldKind, fieldTable, readFields } from "../src/fields.ts";
@@ -50,6 +50,12 @@ function check(defs: readonly FieldDef[], tags: readonly Tag[], lenient: boolean
   else expect(readFields(rec, table)).toEqual(expected);
   for (let pass = 0; pass < 2; pass++) {
     rec.releaseParts();
+    // Check released lookups before another accessor reconstructs their part cache.
+    for (const code of [5, 8, 10, 100, 101, 102, 310, 330, 380, 999, 1001])
+      for (const subclass of [undefined, "", "A", "B"]) {
+        expect(rec.find(code, subclass)).toBe(old.find(code, subclass));
+        rec.releaseParts();
+      }
     expect(rec.handle).toBe(old.handle);
     expect(rec.owner).toBe(old.owner);
     expect(rec.hasSubclasses).toBe(old.hasSubclasses);
@@ -63,6 +69,79 @@ function check(defs: readonly FieldDef[], tags: readonly Tag[], lenient: boolean
     for (const code of [5, 8, 10, 310, 330, 999]) expect(rec.find(code)).toBe(old.find(code));
   }
 }
+
+it("reads released geometry data without rebuilding parts and excludes structural markers", () => {
+  const rec = record([
+    [5, "ABC"],
+    [100, "AcDbEntity"],
+    [8, "layer"],
+    [100, "AcDbCircle"],
+    [40, "7"],
+  ]);
+  const old = new DxfRecordOracle(rec.store, rec.start, rec.end, rec.id);
+  expect(rec.parts).toEqual(old.parts);
+  rec.releaseParts();
+  const parts = vi.spyOn(rec, "parts", "get");
+  for (const code of [5, 8, 40, 380]) expect(rec.find(code)).toBe(old.find(code));
+  expect(parts).not.toHaveBeenCalled();
+  // Qualified lookups still select their subclass, and 100 markers aren't data tags.
+  expect(rec.find(8, "AcDbCircle")).toBe(-1);
+  expect(rec.find(8, "AcDbEntity")).toBe(old.find(8, "AcDbEntity"));
+  expect(rec.find(100)).toBe(-1);
+  parts.mockRestore();
+});
+
+it("skips app data and stops at embedded/XDATA boundaries without rebuilding released parts", () => {
+  const cases: Tag[][] = [
+    [
+      [102, "{APP"],
+      [380, "9"],
+      [102, "}"],
+      [8, "layer"],
+    ],
+    [
+      [8, "layer"],
+      [1001, "APP"],
+      [380, "9"],
+      [8, "hidden"],
+    ],
+    [
+      [8, "layer"],
+      [101, "Other"],
+      [101, "Embedded Object"],
+      [380, "9"],
+      [100, "B"],
+      [8, "hidden"],
+    ],
+    [
+      [102, "{APP"],
+      [380, "9"],
+      [102, "}"],
+      [8, "layer"],
+      [1001, "APP"],
+      [380, "7"],
+    ],
+    [
+      [380, "1"],
+      [102, "{APP"],
+      [380, "9"],
+      [102, "}"],
+      [380, "2"],
+      [1001, "APP"],
+      [380, "7"],
+    ],
+  ];
+  for (const tags of cases) {
+    const rec = record([[100, "A"], ...tags]);
+    const old = new DxfRecordOracle(rec.store, rec.start, rec.end, rec.id);
+    expect(rec.parts).toEqual(old.parts);
+    rec.releaseParts();
+    const parts = vi.spyOn(rec, "parts", "get");
+    for (const code of [8, 101, 102, 380, 1001]) expect(rec.find(code)).toBe(old.find(code));
+    expect(parts).not.toHaveBeenCalled();
+    parts.mockRestore();
+  }
+});
 
 it("preserves definition identity/order, coordinate consumption, app ranges, and lenient recovery", () => {
   const point: FieldDef = { name: "point", code: 10, kind: "p3", subclass: "A" };
@@ -154,6 +233,7 @@ it("matches the old field reader and structural scan on randomized records and d
     310,
     330,
     360,
+    380,
     999,
     1001,
     1004,

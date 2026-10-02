@@ -299,9 +299,29 @@ export class DxfRecord {
 
   /** Index of the first tag with `code` in the data parts, optionally within a subclass. */
   find(code: number, subclass?: string): number {
-    // Plain R12 records need no reconstructed helper graph for frontend text lookups.
-    if (!this._parts && this.#flags & 16) {
-      for (let i = this.start + 1; i < this.end; i++) if (this.store.codes[i] === code) return i;
+    // Unqualified lookups need only codes when every part is base/subclass data. In
+    // particular, plot-style resolution reads 380 for every entity (note 06 section 6.2);
+    // rebuilding released geometry caches here moved load-time work into rendering.
+    // Qualified lookups and subclass marker queries still need the full view.
+    if (
+      !this._parts &&
+      (this.#flags & 16 ||
+        (this.#flags & 1 && subclass === undefined && code !== 100 && !(this.#flags & (32 | 64 | 128))))
+    ) {
+      const codes = this.store.codes;
+      for (let i = this.start + 1; i < this.end; i++) if (codes[i] === code) return i;
+      return -1;
+    }
+    if (!this._parts && this.#flags & 1 && subclass === undefined && code !== 100) {
+      // App ranges survive release, so skip them without allocating parts. Embedded and
+      // XDATA markers permanently end ordinary data (note 01 section 6); an unrecognized
+      // 101 value is still a data tag, just as in computeParts.
+      const s = this.store;
+      for (let i = this.nextDataTag(this.start + 1); i < this.end; i = this.nextDataTag(i + 1)) {
+        const c = s.codes[i]!;
+        if (c === 1001 || (c === 101 && s.str(i).trim() === "Embedded Object")) break;
+        if (c === code) return i;
+      }
       return -1;
     }
     for (const p of this.parts) {

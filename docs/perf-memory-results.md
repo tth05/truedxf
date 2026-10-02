@@ -1,5 +1,8 @@
 # Loaded-model memory results — 2026-10-02
 
+After this work was committed and rebased onto `30a06b7`, the rendering regressions were
+repaired without increasing loaded heap. See [the follow-up measurements](perf-memory-followup-results.md).
+
 Worktree: `truedxf-wt-model`, branch `perf/memory`, compared with its current HEAD/master,
 after the parser work recorded in `perf-parser-results.md`. Only model representation,
 model tests and corpus measurement tools changed; core, renderer, viewer and three sources

@@ -1168,6 +1168,20 @@ leftmost pen origin, rightmost advance end; the MTEXT frame/mask box counts too 
 
 ### 6.3 Interactive view culling (2026-10-02)
 
+#### Initial viewer fit: stale-large hints (2026-10-02)
+
+Implementation measurement, **not an AutoCAD verification**: `3dface-civil-13` stores model
+extents from (0,0) to (552656.62,6140343.68), while the smooth geometric probe measures
+(546788.16,6138690.80) to (552656.65,6139957.27). A speculative LOD render therefore fails
+the 4× scale check and adds a third pass. The viewer now samples at most 32 evenly spaced
+top-level entities, using only explicit WCS LINE, POINT and 3DFACE vertices. With at least
+eight usable entities and a sampled span smaller than 1/64 of both header spans, it goes
+straight to the existing accurate probe. This is a path-selection heuristic, not a bound:
+unsampled geometry, symbols, thickness and blocks still participate in the full probe.
+Plots and paper layouts retain their existing fit path. A false positive can trade a valid
+one-pass viewer approximation for an accurate two-pass fit; a false negative retains the
+three-pass fallback. Fingerprints and measurements are in `docs/perf-regress-results.md`.
+
 This is a viewer implementation choice, not an AutoCAD rule. After a complete smooth render,
 ViewerCore unions each top-level pick's output vertices across batches, adding their float64
 origins. INSERT children share the parent's pick. Repeated model handles in paper viewports

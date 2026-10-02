@@ -18,6 +18,35 @@ const vertices = (r: Awaited<ReturnType<typeof renderPlot>>) =>
   r.displayList.batches.reduce((n, b) => n + b.positions.length / 2, 0);
 
 describe("viewer LOD", () => {
+  it("skips speculation for grossly stale-large extents but still fits the accurate probe", async () => {
+    const doc = modelDoc({
+      entities: Array.from({ length: 32 }, (_, i) =>
+        line((i + 10).toString(16), 1000, 1000, 1010, 1010),
+      ).join("\n"),
+      header: "9 $EXTMIN\n10 0\n20 0\n9 $EXTMAX\n10 100000\n20 100000",
+    });
+    const spy = vi.spyOn(Frontend.prototype, "drawBlock");
+    try {
+      const result = await renderPlot(doc, request, { raster: "smooth", lod: true });
+      expect(spy).toHaveBeenCalledTimes(2);
+      expect(result.view).toEqual({ minX: 1000, minY: 1000, maxX: 1010, maxY: 1010 });
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it("never treats a clustered sample as the bounds of unsampled geometry", async () => {
+    const doc = modelDoc({
+      entities: [
+        ...Array.from({ length: 32 }, (_, i) => line((i + 10).toString(16), 1000, 1000, 1010, 1010)),
+        line("FF", 90000, 90000, 100000, 100000),
+      ].join("\n"),
+      header: "9 $EXTMIN\n10 0\n20 0\n9 $EXTMAX\n10 100000\n20 100000",
+    });
+    const result = await renderPlot(doc, request, { raster: "smooth", lod: true });
+    expect(result.view).toEqual({ minX: 1000, minY: 1000, maxX: 100000, maxY: 100000 });
+  });
+
   it("uses one pass for plausible extents and two accurate passes after a rejected guess", async () => {
     const spy = vi.spyOn(Frontend.prototype, "drawBlock");
     try {

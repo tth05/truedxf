@@ -1131,7 +1131,13 @@ export async function renderPlot(
         [Math.max(ext.x, exn.x + 1e-9), Math.max(ext.y, exn.y + 1e-9)],
         request.canvas,
       );
-      if (env.lod && env.raster === "smooth" && w > 0 && h > 0) {
+      if (
+        env.lod &&
+        env.raster === "smooth" &&
+        w > 0 &&
+        h > 0 &&
+        !(space.isModel && preferExtentsProbe(space.block.entities, w, h))
+      ) {
         // The viewer can refine the list on its next scale octave. Use stored extents only
         // when the actual geometry confirms their scale; plots still probe (note 03 §6.2).
         const fast = new Frontend(doc, request, guess, calibration, env);
@@ -1165,6 +1171,43 @@ export async function renderPlot(
   const contrast = fe.contrastNote();
   if (contrast) notes.push(contrast);
   return { displayList: fe.build(), view, unsupported: fe.unsupported, ...(notes.length ? { notes } : {}) };
+}
+
+/**
+ * Avoid a speculative full render when a bounded sample suggests grossly stale-large header
+ * extents (note 03 §6.2). This only selects the accurate probe path: sampled anchors are never
+ * used as fit bounds. A 64× discrepancy on both axes leaves ordinary 4× checks to the fast pass.
+ */
+function preferExtentsProbe(entities: readonly Entity[], width: number, height: number): boolean {
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  let sampled = 0;
+  const count = Math.min(32, entities.length);
+  for (let i = 0; i < count; i++) {
+    const e = entities[Math.floor((i * entities.length) / count)]!;
+    // Only WCS geometry with explicit vertices: an OCS anchor or block insertion alone says
+    // nothing about the size/location of its output (note 03 §2, note 07 §3).
+    const points =
+      e.type === "LINE"
+        ? [e.start, e.end]
+        : e.type === "3DFACE"
+          ? [e.v0, e.v1, e.v2, e.v3]
+          : e.type === "POINT"
+            ? [e.location]
+            : undefined;
+    if (!points) continue;
+    sampled++;
+    for (const p of points) {
+      if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) return false;
+      minX = Math.min(minX, p.x);
+      minY = Math.min(minY, p.y);
+      maxX = Math.max(maxX, p.x);
+      maxY = Math.max(maxY, p.y);
+    }
+  }
+  return sampled >= 8 && maxX - minX < width / 64 && maxY - minY < height / 64;
 }
 
 /**

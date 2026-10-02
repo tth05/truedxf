@@ -29,6 +29,8 @@ import type { PickHit } from "./pick.ts";
 import { isValidRect, type Rect } from "./view.ts";
 import { documentWarnings, renderWarnings, type ViewerWarning } from "./warnings.ts";
 
+export { visibleBounds } from "./bounds.ts";
+
 // ---- public data shapes ------------------------------------------------------------------------
 
 export interface LayoutInfo {
@@ -416,7 +418,7 @@ export class ViewerCore {
       generation: this.generation,
       ...(covered ? { covered } : {}),
       view: { ...res.view },
-      bounds: visibleBounds(res.displayList),
+      bounds: drawing.bounds,
       unsupported: res.unsupported,
       warnings,
       ms: { frontend: t1 - t0, pick: t2 - t1, merge: t3 - t2 },
@@ -490,66 +492,6 @@ export class ViewerCore {
     if (!this.doc) throw new Error("no document loaded");
     return this.doc;
   }
-}
-
-/** Display-list bounds with clipped batches limited to their clip region (see RenderResult.bounds). */
-export function visibleBounds(list: Pick<DisplayList, "batches" | "clips">): Rect | undefined {
-  let out: Rect | undefined;
-  const clipBox = new Map<number, Rect>();
-  for (const b of list.batches) {
-    const p = b.positions;
-    // infinite XLINE/RAY extensions don't count for fitting
-    if (p.length < 2 || b.unbounded) continue;
-    let minX = Number.POSITIVE_INFINITY;
-    let minY = Number.POSITIVE_INFINITY;
-    let maxX = Number.NEGATIVE_INFINITY;
-    let maxY = Number.NEGATIVE_INFINITY;
-    for (let i = 0; i + 1 < p.length; i += 2) {
-      const x = p[i]!;
-      const y = p[i + 1]!;
-      if (x < minX) minX = x;
-      if (x > maxX) maxX = x;
-      if (y < minY) minY = y;
-      if (y > maxY) maxY = y;
-    }
-    let r: Rect = {
-      minX: minX + b.originX,
-      minY: minY + b.originY,
-      maxX: maxX + b.originX,
-      maxY: maxY + b.originY,
-    };
-    if (b.clip >= 0) {
-      let c = clipBox.get(b.clip);
-      if (!c) {
-        c = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
-        for (const ring of list.clips[b.clip]?.rings ?? []) {
-          for (let i = 0; i + 1 < ring.length; i += 2) {
-            c.minX = Math.min(c.minX, ring[i]!);
-            c.maxX = Math.max(c.maxX, ring[i]!);
-            c.minY = Math.min(c.minY, ring[i + 1]!);
-            c.maxY = Math.max(c.maxY, ring[i + 1]!);
-          }
-        }
-        clipBox.set(b.clip, c);
-      }
-      r = {
-        minX: Math.max(r.minX, c.minX),
-        minY: Math.max(r.minY, c.minY),
-        maxX: Math.min(r.maxX, c.maxX),
-        maxY: Math.min(r.maxY, c.maxY),
-      };
-      if (!(r.maxX >= r.minX && r.maxY >= r.minY)) continue;
-    }
-    out = out
-      ? {
-          minX: Math.min(out.minX, r.minX),
-          minY: Math.min(out.minY, r.minY),
-          maxX: Math.max(out.maxX, r.maxX),
-          maxY: Math.max(out.maxY, r.maxY),
-        }
-      : r;
-  }
-  return out;
 }
 
 function formatValue(v: string | number | bigint | boolean | Uint8Array): string {

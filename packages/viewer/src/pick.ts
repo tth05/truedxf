@@ -45,7 +45,10 @@ export interface PickRange {
   count: number;
 }
 
-export function buildPickData(list: Pick<DisplayList, "batches">): PickData {
+export function buildPickData(
+  list: Pick<DisplayList, "batches">,
+  batchBounds?: (Rect | undefined)[],
+): PickData {
   let n = 0;
   for (const b of list.batches) n += b.pick.length / 3;
   const items = new Uint32Array(n * 4);
@@ -54,6 +57,11 @@ export function buildPickData(list: Pick<DisplayList, "batches">): PickData {
   let k = 0;
   list.batches.forEach((b, bi) => {
     const p = b.positions;
+    let covered = 0;
+    let batchMinX = Infinity;
+    let batchMinY = Infinity;
+    let batchMaxX = -Infinity;
+    let batchMaxY = -Infinity;
     for (let r = 0; r + 2 < b.pick.length; r += 3) {
       const first = b.pick[r]!;
       const count = b.pick[r + 1]!;
@@ -69,6 +77,15 @@ export function buildPickData(list: Pick<DisplayList, "batches">): PickData {
         if (y < minY) minY = y;
         if (y > maxY) maxY = y;
       }
+      if (batchBounds) {
+        // Reuse relative float32 bounds before adding the origin, exactly as visibleBounds
+        // does. Only contiguous, complete pick coverage can replace its vertex scan.
+        covered = first === covered ? first + count : -1;
+        if (minX < batchMinX) batchMinX = minX;
+        if (minY < batchMinY) batchMinY = minY;
+        if (maxX > batchMaxX) batchMaxX = maxX;
+        if (maxY > batchMaxY) batchMaxY = maxY;
+      }
       if (!(maxX >= minX)) minX = maxX = minY = maxY = 0;
       fb.add(minX + b.originX, minY + b.originY, maxX + b.originX, maxY + b.originY);
       items[k * 4] = bi;
@@ -76,6 +93,14 @@ export function buildPickData(list: Pick<DisplayList, "batches">): PickData {
       items[k * 4 + 2] = count;
       items[k * 4 + 3] = b.pick[r + 2]!;
       k++;
+    }
+    if (batchBounds && covered === p.length / 2 && p.length > 0) {
+      batchBounds[bi] = {
+        minX: batchMinX + b.originX,
+        minY: batchMinY + b.originY,
+        maxX: batchMaxX + b.originX,
+        maxY: batchMaxY + b.originY,
+      };
     }
   });
   fb.finish();

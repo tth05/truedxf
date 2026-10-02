@@ -1514,6 +1514,15 @@ plus frames. Before, the unclipped model content made ~75 corpus layouts plot as
 UNVERIFIED: whether AutoCAD's model-space extents also clip XCLIPped references exactly (we
 use the clip's bounding box).
 
+Viewer implementation audit (2026-10-02, **not AutoCAD verification**): `list.bounds` and
+`visibleBounds` are not interchangeable. The builder unions float64 primitive boxes after
+clipping each one; the viewer unions float32-relative batch boxes after clipping each batch.
+Two disconnected primitives on opposite sides of a clip can make the latter nonempty while
+the former is empty, and float32 rounding changes endpoints. The viewer reuses relative
+batch boxes accumulated during pick-index construction, adding the float64 origin only
+after the union. Incomplete/noncontiguous pick coverage falls back to the original vertex
+scan. Clipping and exclusion of unbounded XLINE/RAY batches remain unchanged.
+
 ---
 
 ## 11. Never-activated layouts

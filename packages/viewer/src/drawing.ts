@@ -1,6 +1,7 @@
 /** Worker-owned list and spatial index; only upload buffers and requested highlights leave it. */
 import type { DisplayList } from "@truedxf/render";
 import { MAX_DEPTH_ORDERS, type MergedDisplayList, mergedGroups, orderCount } from "@truedxf/three/merge";
+import { visibleBounds } from "./bounds.ts";
 import { buildPickData, type PickBatch, type PickHit, PickIndex } from "./pick.ts";
 import type { Rect } from "./view.ts";
 
@@ -17,11 +18,15 @@ export interface DrawingUpload {
 
 export class DrawingState {
   readonly list: DisplayList;
+  readonly bounds: Rect | undefined;
   private readonly index: PickIndex;
 
   constructor(list: DisplayList) {
     this.list = list;
-    this.index = new PickIndex(list.batches, list.entities, buildPickData(list), list.clips);
+    const batchBounds: (Rect | undefined)[] = [];
+    const data = buildPickData(list, batchBounds);
+    this.bounds = visibleBounds(list, batchBounds);
+    this.index = new PickIndex(list.batches, list.entities, data, list.clips);
   }
 
   pick(x: number, y: number, tolerance: number): PickHit | undefined {

@@ -30,6 +30,7 @@ import {
 } from "@truedxf/geometry";
 import type { Block, DxfDocument, Entity, InsertEntity } from "@truedxf/model";
 import { plotAciToRgb } from "./aci.ts";
+import { BlockRecorder, type BlockStream, replayBlockStream, splitBlockTransform } from "./block-stream.ts";
 import { type DisplayList, DisplayListBuilder, type Rgba } from "./displaylist.ts";
 import { DrawOrder } from "./draworder.ts";
 import { drawSpace, findLayout, layoutAreaView } from "./layout.ts";
@@ -85,6 +86,8 @@ export interface RenderEnv {
   raster?: "autocad" | "smooth";
   /** Approximate sub-pixel geometry for interactive viewing; honoured only with smooth raster. */
   lod?: boolean;
+  /** Disable viewer block reuse for fidelity/performance comparisons; ignored without LOD. */
+  blockReuse?: boolean;
   /** Viewer-only rejection of top-level picks, including model entities in paper viewports. */
   topLevelFilter?: (e: Entity) => boolean;
   /**
@@ -165,6 +168,7 @@ const DRAWERS = new Map<string, EntityDrawer>();
 let attribDrawer: AttribDrawer | undefined;
 let complexDrawer: ComplexElementDrawer | undefined;
 let blockClipHook: BlockClipHook | undefined;
+let staticBlockClips = false;
 const PREPARERS: Preparer[] = [];
 
 export function registerDrawer(types: string | readonly string[], drawer: EntityDrawer): void {
@@ -179,8 +183,16 @@ export function setAttribDrawer(d: AttribDrawer): void {
   attribDrawer = d;
 }
 
-export function setBlockClipHook(h: BlockClipHook): void {
+/**
+ * `staticContent` is reserved for the built-in metadata-based XCLIP hook: the eligibility walk
+ * rejects extension dictionaries. Arbitrary hooks can depend on the current pick/transform,
+ * even when the first reference has no clip, so they disable block reuse throughout a render.
+ */
+export function setBlockClipHook(h: BlockClipHook, staticContent = false): BlockClipHook | undefined {
+  const previous = blockClipHook;
   blockClipHook = h;
+  staticBlockClips = staticContent;
+  return previous;
 }
 
 /** Async preparation before drawing (e.g. loading all fonts a document needs). */
@@ -269,6 +281,14 @@ export class Frontend {
    * AutoCAD's selection picks the block reference or dimension, not its parts.
    */
   pickOwner: string | undefined;
+  private readonly blockStreams = new Map<Block, Map<string, BlockStream>>();
+  private readonly reusableBlocks = new Map<Block, boolean>();
+  private recordedVertices = 0;
+  private recordedCommands = 0;
+  private recordedEntries = 0;
+  private recordingBlock = false;
+  private blockCacheFull = false;
+  private readonly blockReplayWorkspace = { xy: new Float64Array(0) };
 
   /** Pick identity of an entity: the top-level entity it is drawn in, its handle, or "#id". */
   pickId(e: Entity): string {
@@ -417,13 +437,153 @@ export class Frontend {
     const inh = this.props.inherit(parent, st.inh);
     const m = st.m.multiply(local);
     const done = blockClipHook?.(this, parent, st);
-    this.drawEntities(this.drawOrder.entities(block), {
+    if (done && this.builder instanceof BlockRecorder) this.builder.unsafe = true;
+    const contentState = {
       m,
       inh,
       stack: [...st.stack, key],
       linetypeScale: st.linetypeScale,
-    });
-    done?.();
+    };
+    try {
+      if (done || !this.reuseBlock(block, contentState))
+        this.drawEntities(this.drawOrder.entities(block), contentState);
+    } finally {
+      done?.();
+    }
+    return true;
+  }
+
+  private reusableBlock(block: Block, visiting = new Set<Block>()): boolean {
+    const cached = this.reusableBlocks.get(block);
+    if (cached !== undefined) return cached;
+    if (visiting.has(block) || visiting.size > MAX_BLOCK_DEPTH) return false;
+    visiting.add(block);
+    let reusable = true;
+    for (const e of block.entities) {
+      // Clips and gradients are defined in the target frame (notes 07 §7, 06 §1.7).
+      // Infinite-line reach depends on the view and start position; keep its existing path.
+      if (
+        e.extensionDictionary ||
+        e.type === "VIEWPORT" ||
+        e.type === "RAY" ||
+        e.type === "XLINE" ||
+        ((e.type === "HATCH" || e.type === "MPOLYGON") && e.gradient?.kind === 1)
+      ) {
+        reusable = false;
+        break;
+      }
+      if (e.type === "INSERT" || e.type === "ACAD_TABLE" || e.type === "DIMENSION") {
+        const child = e.blockName ? this.doc.getBlock(e.blockName) : undefined;
+        if (child && !this.reusableBlock(child, visiting)) {
+          reusable = false;
+          break;
+        }
+      }
+    }
+    visiting.delete(block);
+    this.reusableBlocks.set(block, reusable);
+    return reusable;
+  }
+
+  private reuseBlock(block: Block, st: DrawState): boolean {
+    if (
+      !this.lod ||
+      this.env.blockReuse === false ||
+      this.recordingBlock ||
+      (blockClipHook !== undefined && !staticBlockClips) ||
+      this.props.viewport ||
+      this.entityFilters.length ||
+      this.clipStack.length ||
+      !this.reusableBlock(block)
+    )
+      return false;
+    // Absolute-angle complex elements do not rotate with a rigid replay (note 06 §2.3).
+    // A document-level fallback also covers inherited/inline complex linetypes and proxy data.
+    let absolute = this.caches.get("block-reuse:absolute-linetypes") as boolean | undefined;
+    if (absolute === undefined) {
+      absolute = [...this.doc.tables.linetypes].some((lt) =>
+        lt.elements.some((el) => (el.flags & 7) > 1 && (el.flags & 1) !== 0),
+      );
+      this.caches.set("block-reuse:absolute-linetypes", absolute);
+    }
+    if (absolute) return false;
+    const split = splitBlockTransform(st.m);
+    if (!split) return false;
+    // The resolver folds the ByBlock chain into the innermost resolved parent (note 07 §3).
+    // Include visibility/plot propagation and alpha as well as the drawer-facing Inherited.
+    const p = st.inh.parents[st.inh.parents.length - 1]!.resolved;
+    const key = JSON.stringify([
+      split.scale,
+      split.mirror,
+      st.m.m[10],
+      st.inh.layer,
+      st.inh.aci,
+      st.inh.trueColor,
+      st.inh.lineweight,
+      st.inh.linetype,
+      p.alpha,
+      p.colorName,
+      p.plotStyleHandle,
+      p.expandBlock,
+      p.contentPlottable,
+      st.linetypeScale ?? 1,
+      st.stack,
+      this.props.extents,
+      this.props.display,
+    ]);
+    let entries = this.blockStreams.get(block);
+    const stream = entries?.get(key);
+    if (stream) {
+      replayBlockStream(stream, this.builder, split.r, this.blockReplayWorkspace);
+      for (const [what, count] of Object.entries(stream.notes))
+        this.unsupported[what] = (this.unsupported[what] ?? 0) + count;
+      return true;
+    }
+    // Stop admitting entries at deterministic per-render limits, retaining hot definitions.
+    // Command/entry limits also bound tiny or empty streams, not just coordinate storage.
+    if (
+      this.blockCacheFull ||
+      this.recordedEntries >= 4096 ||
+      this.recordedVertices >= 32_000_000 ||
+      this.recordedCommands >= 262_144
+    )
+      return false;
+    const out = this.builder;
+    const recorder = new BlockRecorder(
+      this.pixelSize,
+      32_000_000 - this.recordedVertices,
+      262_144 - this.recordedCommands,
+    );
+    const before = { ...this.unsupported };
+    this.builder = recorder;
+    this.recordingBlock = true;
+    try {
+      this.drawEntities(this.drawOrder.entities(block), { ...st, m: split.s });
+    } finally {
+      this.builder = out;
+      this.recordingBlock = false;
+    }
+    if (recorder.overflow || recorder.unsafe) {
+      if (recorder.overflow) this.blockCacheFull = true;
+      // Nothing was emitted to the real builder; undo captured counters before the fallback.
+      for (const what of Object.keys(this.unsupported)) {
+        if (before[what] === undefined) delete this.unsupported[what];
+        else this.unsupported[what] = before[what]!;
+      }
+      return false;
+    }
+    const notes: Record<string, number> = {};
+    for (const [what, count] of Object.entries(this.unsupported)) {
+      const delta = count - (before[what] ?? 0);
+      if (delta) notes[what] = delta;
+    }
+    const recorded: BlockStream = { commands: recorder.commands, vertices: recorder.vertices, notes };
+    if (!entries) this.blockStreams.set(block, (entries = new Map()));
+    entries.set(key, recorded);
+    this.recordedVertices += recorder.vertices;
+    this.recordedCommands += recorder.commands.length;
+    this.recordedEntries++;
+    replayBlockStream(recorded, out, split.r, this.blockReplayWorkspace);
     return true;
   }
 

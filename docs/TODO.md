@@ -191,6 +191,9 @@ default, FILLMODE for pattern hatches, extents edge tolerance.
       run quad, explicit viewer LOD switch and hardware-AA 4×4 density comparison (2026-10-02).
 - [x] 4: parser (2026-10-02): tokenizer, exact numbers, direct binary reads, compiled fields and lazy TTF parsing; all fingerprint gates identical. [Results](perf-parser-results.md).
 - [ ] 5: memory and transfer (compact display list, picking in the worker, model per-entity size).
+- [x] Viewer block tessellation reuse (2026-10-02): bounded per-frontend Float64 primitive
+      streams at exact scale/inherited properties, rigid replay with current picks; clips,
+      viewports and unsupported transforms fall back. [Results](perf-block-results.md).
 
 ## Viewer (packages/viewer, apps/playground)
 

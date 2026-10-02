@@ -185,4 +185,4 @@ export function depthOverlaps(
   return max >= lo - 1e-9 && min <= hi + 1e-9;
 }
 
-setBlockClipHook(clipHook);
+setBlockClipHook(clipHook, true);

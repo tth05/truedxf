@@ -253,8 +253,10 @@ checks select clipped model content in `problematic_viewports.dxf`'s paper layou
 
 ### Later / only if needed
 
-- Tessellate block definitions once per (block, inherited properties, pixel size) and reuse
-  them per INSERT, or GPU instancing of block geometry (display-list format change).
+- Block primitive reuse is implemented for viewer LOD: exact scale/parity/inherited properties
+  and stack context, per-render bounded Float64 recordings, rigid replay per INSERT. Clips,
+  viewports and non-similarity projections fall back. [Results](perf-block-results.md).
+  GPU instancing of block geometry (display-list format change) remains a possible follow-up.
 - Parallel frontend over several workers (entity ranges, lists concatenated in order).
 - Progressive display (first list for the visible area, rest streamed).
 

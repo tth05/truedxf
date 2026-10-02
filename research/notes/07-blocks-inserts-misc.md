@@ -271,7 +271,7 @@ consistent with how AutoCAD EXPLODE behaves and with the matrix model):
 | LWPOLYLINE/POLYLINE bulges | elliptical segments; widths are geometry → stretched anisotropically |
 | TEXT/MTEXT/ATTDEF(const) | glyphs affinely distorted (stretched/sheared) — ezdxf warns its virtual entities are wrong here (insert.py:614-617) |
 | HATCH | boundary transformed; **pattern lines are computed in block space and then transformed** (so pattern spacing/angles distort). **UNKNOWN / needs AutoCAD test** |
-| linetype dashes | **ASSUMPTION**: generated in block space along the untransformed curve, then transformed → dash lengths scale with the insert scale and stretch with direction. Needs test (and interplay with PSLTSCALE/CELTSCALE, see linetype note) |
+| linetype dashes | **VERIFIED-BY-ACAD** (2026-09-30, `linetypes/insert-scale-*`, note 06 §2.5): apply the pattern in target units after transforming the centre line; INSERT scale and INSERT group 48 do not scale child dashes |
 | lineweight | never scaled (plot pen width) |
 | POINT (PDMODE glyphs) | **UNKNOWN**: PDSIZE-based point glyphs are view/absolute sized, probably not distorted |
 | nested INSERT | composed matrix (possibly shear) |
@@ -284,6 +284,35 @@ consistent with how AutoCAD EXPLODE behaves and with the matrix model):
   mirrored when the block is mirrored, regardless of MIRRTEXT.
 - Renderer: **ignore MIRRTEXT**. Mirrored block content is mirrored by `M`; ATTRIBs carry their own
   orientation (the editor already applied MIRRTEXT when it updated them).
+
+### 2.6 Viewer block primitive reuse (implementation measurements, 2026-10-02)
+
+This is a viewer optimization, **not a new AutoCAD verification**. With smooth raster and LOD,
+the frontend may record a block's builder calls in Float64 at its exact uniform target scale
+(and mirror parity), then replay under the remaining rotation/translation. Lineweights and
+linetype patterns stay in target units (note 06 §2.5), so scale is keyed exactly, never rounded
+into tolerance buckets. The nearest resolved parent's layer/colour/true colour/lineweight/
+linetype/alpha/plot style/visibility propagation captures the folded ByBlock chain (§3.1);
+the entire block-name stack and linetypeScale are also keyed. Pixel size, document/layer toggles,
+background, fonts and calibration are fixed for the lifetime of the per-frontend cache.
+
+Nonuniform/sheared/tilted/perspective transforms, paper viewport contexts, entity filters,
+active clips, nested extension dictionaries, gradients, infinite lines and documents with
+absolute-angle complex linetypes use normal traversal. Arbitrary registered clip hooks also
+disable reuse: a hook can be inactive for the first reference and active for a later one.
+Nested INSERTs are part of the outer recording; nested cache fills are disabled while recording
+to avoid duplicating retained geometry. ATTRIBs remain outside their own INSERT's content
+stream. Replay uses the current top-level pick and builder clip state, derives bounds from
+actual emitted vertices, and repeats unsupported counts once per reference.
+
+The existing tessellator is not bit-equivariant under rigid transforms. Inherited block fixture
+strokes (`blocks/inherit-*`) gain/lose nearly zero-area round-cap fan triangles because
+`triangulateConvex` tests the floating cross product against zero; removing the INSERT
+translation changes that rounding. Filled wide polylines/hatches normalize on a target-aligned
+fixed-point grid and can choose different diagonals/order after rotation. All 88 block fixtures
+have identical CPU raster pixels at the fixed viewer view despite seven vertex-count changes.
+See [the measurements](../../docs/perf-block-results.md) for coordinate bounds, exceptions and
+the complete bench comparison; plot mode and LOD-off viewing never enter this path.
 
 ---------------------------------------------------------------------------------------------------
 
@@ -324,8 +353,9 @@ Notes:
 - BYBLOCK is resolved against the parent INSERT's already-resolved value — an INSERT with
   BYLAYER color gives its BYBLOCK children the INSERT layer's color.
 - The INSERT's own ltscale (48) does **not** multiply into child linetype scales in ezdxf
-  (`resolve_linetype_scale` uses only entity ltscale × global). **UNKNOWN** whether AutoCAD combines
-  INSERT 48 with children (probably not; linetype scale is per-entity). Needs test.
+  (`resolve_linetype_scale` uses only entity ltscale × global). **VERIFIED-BY-ACAD** (2026-09-30,
+  `linetypes/insert-ltscale-vs-child`, `byblock-ltscale2`, note 06 §2.5): AutoCAD uses child 48
+  and global LTSCALE only.
 - Attributes: ezdxf draws the INSERT's ATTRIBs inside the pushed state → layer-0 ATTRIB takes the
   INSERT's layer, BYBLOCK ATTRIB takes the INSERT's color (`frontend.py:915-917` inside
   `push_state`). **ASSUMPTION** (plausible, AutoCAD attributes follow the block ref).

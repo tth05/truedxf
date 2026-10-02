@@ -23,6 +23,7 @@ export class TagStore {
   fallbackDecodes = 0;
 
   private lineIndex: Uint32Array | undefined;
+  private readonly binaryView: DataView | undefined;
 
   readonly bytes: Uint8Array;
   readonly format: DxfFormat;
@@ -56,6 +57,7 @@ export class TagStore {
     this.valueEnds = valueEnds;
     this.end = end;
     this.binaryCodeSize = binaryCodeSize;
+    this.binaryView = format === "binary" ? new DataView(bytes.buffer, bytes.byteOffset) : undefined;
   }
 
   code(i: number): number {
@@ -116,9 +118,24 @@ export class TagStore {
   /** Value as number (double or integer). NaN if it can't be parsed. */
   num(i: number): number {
     if (this.format === "binary") {
-      const v = this.value(i);
-      if (typeof v === "boolean") return v ? 1 : 0; // binary 290-299 (was NaN → header bools false)
-      return typeof v === "number" ? v : typeof v === "bigint" ? Number(v) : Number.NaN;
+      const s = this.valueStarts[i]!;
+      const dv = this.binaryView!;
+      switch (valueKind(this.codes[i]!)) {
+        case ValueKind.Double:
+          return dv.getFloat64(s, true);
+        case ValueKind.Int16:
+          return dv.getInt16(s, true);
+        case ValueKind.Int32:
+          return dv.getInt32(s, true);
+        case ValueKind.Int64:
+          return Number(dv.getBigInt64(s, true));
+        case ValueKind.Bool:
+          return this.bytes[s] !== 0 ? 1 : 0;
+        default:
+          // Preserve string decoding/fallback accounting for nonnumeric access.
+          this.value(i);
+          return Number.NaN;
+      }
     }
     return parseAsciiNumber(this.bytes, this.valueStarts[i]!, this.valueEnds[i]!);
   }
@@ -183,7 +200,7 @@ export class TagStore {
       }
     }
     const s = this.valueStarts[i]!;
-    const dv = new DataView(this.bytes.buffer, this.bytes.byteOffset);
+    const dv = this.binaryView!;
     switch (kind) {
       case ValueKind.Double:
         return dv.getFloat64(s, true);

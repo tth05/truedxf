@@ -181,7 +181,8 @@ default, FILLMODE for pattern hatches, extents edge tolerance.
 - [x] Bench set, `tools/corpus/src/bench.ts`, baselines and profiles (2026-10-02); `perf:viewer
       --gpu` now really uses the GPU.
 - [ ] 0: fingerprint gate (model dump + display-list hashes, plot and viewer mode).
-- [ ] 1: renderer batch merging, shared materials, GPU buffers built in the worker.
+- [x] 1a: opt-in renderer batch merging and shared materials; viewer defaults on (2026-10-02).
+- [ ] 1b: GPU buffers built in the worker.
 - [ ] 2: frontend memoization (properties, text layouts), viewer first render without probe pass.
 - [ ] 3: viewer LOD (dense hatch patterns, sub-pixel text, view culling).
 - [ ] 4: parser (tokenizer, number fast path, `readFields` rewrite, lazy TTF parsing).
@@ -208,11 +209,9 @@ default, FILLMODE for pattern hatches, extents edge tolerance.
 - [ ] Layers panel: per-layout VP-freeze state, layer colour / linetype overrides; xref layers.
 - [ ] Picking inside block references returns the innermost entity; offer "select parent INSERT".
 - [ ] Measure: object snaps (endpoint, midpoint, intersection) and a thicker overlay line.
-- [ ] Batch fragmentation: the builder starts a new batch at every Lines ↔ Triangles switch, so
-      drawings mixing hairlines and widened strokes / fills get thousands of draw calls (1972 and
-      3976 batches in two corpus files: 180–240 ms per frame on SwiftShader, ~15 ms on a real
-      GPU). Options: hairlines as thin triangles in smooth mode, or reorder when primitives do
-      not overlap.
+- [x] Batch fragmentation: viewer merges opaque geometry by kind per clip run with global depth
+      order (2026-10-02); 89 903 frontend batches → 23 calls, RX 9070 XT frame 701 → 4.4 ms.
+      Original plot path remains the default in `@truedxf/three`; `?merge=0` disables viewer merging.
 - [ ] WebGPU renderer trial (PLAN Phase 7.1).
 - [x] Public site (2026-10-01): `vite build --mode public` without samples code / sourcemaps,
       landing content + meta / Open Graph / JSON-LD, robots.txt, sitemap.xml, Cloudflare

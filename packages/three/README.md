@@ -24,6 +24,18 @@ three.js (WebGL) renderer for the display lists that `@truedxf/render` produces.
   alpha blending.
 - `overlay` and `underlay` groups take host content in world coordinates, drawn above or below the
   drawing. The viewer puts selection highlights and the paper sheet there.
+- `mergeBatches: true` with `exactBlend: false` merges opaque geometry by primitive kind within
+  each consecutive clip run, with buffers capped at four million vertices. Pick ranges and
+  uncovered vertex ranges receive increasing global z values; `LessEqualDepth` preserves painter
+  order, including primitive order within a range. The four-million-order limit leaves distinct
+  24-bit depth values after float32 rounding; larger lists fall back to the original path.
+  `mergeBatches` defaults to false and is ignored with `exactBlend: true`.
+- Merged opaque materials are shared by kind and clipping state. Unclipped opaque objects use
+  the opaque queue; clipped ones use the transparent queue with blending disabled, keeping each
+  stencil reset/mask ahead of its content. Individual alpha/image batches follow the opaque
+  content of their clip run, with normal blending and depth writes. Underlay, drawing and overlay
+  render in separate stages; stencil masks never write depth. Group origins are computed in
+  float64 from all vertex bounds, then subtracted from the camera centre in `render()`.
 - `readPixels()` returns RGBA, top row first (needs `preserveDrawingBuffer`, or a call right after
   `render`). `releaseArrays: true` drops the renderer's CPU copies of vertex arrays after GPU upload.
 
@@ -53,9 +65,10 @@ Call `clear()` before dropping a list and `dispose()` when done.
 ## Limitations
 
 - WebGL only; the WebGPU trial (docs/PLAN.md Phase 7) has not started.
-- No instancing: the display list has no symbol/instance structure yet, so block references
-  arrive flattened and every batch is its own draw call. Drawings that mix hairlines with widened
-  strokes fragment into thousands of batches (docs/TODO.md, "Batch fragmentation").
+- No instancing: block references arrive flattened. The original path draws each batch
+  separately; merging reduces opaque draw calls but does not merge alpha/image batches.
+- Changing from per-batch origins to a common clip-run origin changes float32 rounding: aliased
+  edge pixels can differ from the original path. Keep merging off for exact plot comparisons.
 - `exactBlend` costs one framebuffer copy per transparent batch; interactive hosts turn it off.
 - Importing the module sets `THREE.ColorManagement.enabled = false` globally, which also affects
   other three.js content on the page.

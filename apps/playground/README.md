@@ -110,6 +110,16 @@ domain in Google Search Console (a DNS record in Cloudflare) and submit `sitemap
 - `pnpm perf:viewer [--count 5] [--files external/…] [--gpu]`: opens the largest ASCII DXFs of
   the corpus in the built app and reports parse / frontend / upload / first-frame / frame times
   (SwiftShader by default, so pessimistic). Results: `samples/reports/viewer-perf.json`.
+- `--files-from samples/reports/prof/perf-files.txt` reads the comma-separated UTF-8 file list
+  without shell encoding problems. Performance results include renderer draw calls.
+- The viewer merges batches by default; `?merge=0` uses the original path for comparison and
+  `?aa=0` disables antialiasing. The plot comparison renderer keeps its original path.
+- `pnpm exec node apps/playground/scripts/merge-check.ts` compares fitted views with merging on
+  and off, with antialiasing disabled on the real D3D11 GPU. It reads that same UTF-8 file list
+  and writes `samples/reports/prof/merge-check.json`. Synthetic checks cover painter order,
+  clipping, blending, images, host layers, released arrays and fallback paths. Optional
+  `--only circles_large --diagnose` compares against the original renderer with rebased batch
+  origins to isolate coordinate-rounding differences; `--skip-build` reuses the build.
 
 Measured 2026-10-01 (`pnpm perf:viewer --count 6`, headless Chromium on SwiftShader, 1600×1000,
 worker backend; the 75.8 MB file renders at ~15 ms per frame on this machine's GPU):

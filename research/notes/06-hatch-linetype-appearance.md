@@ -1513,6 +1513,34 @@ VERIFIED-BY-ACAD (draworder suite, AutoCAD 2027, 2026-09-30):
 - Solid fills (HATCH, SOLID, TRACE, wide polylines) keep plain draw order
   (`hatch-before/after-lines`, `mixed-fills-order`, `hatch-*-mtext`).
 
+### 8.2a Interactive renderer order (GPU verification, 2026-10-02)
+
+This is an implementation observation, not an additional AutoCAD rule. The exact plot renderer
+retains its original painter sequence. The interactive renderer can merge opaque batches within
+each consecutive stencil clip run and encode that sequence in depth. With the renderer's
+orthographic camera (`near=-1`, `far=1`, camera z=0), **positive world z is nearer**. The real
+RX 9070 XT / Chromium D3D11 checks confirm that later ranges win, including across primitive kinds;
+`LessEqualDepth` allows overlapping primitives of one range to retain buffer order. Four million
+orders mapped into (-0.999, 0.999) remain distinct after float32 projection and 24-bit quantization;
+larger lists fall back to the original path. See `packages/three/test/merge.test.ts` and
+`apps/playground/scripts/merge-check.ts`.
+
+three.js renders its opaque queue before its transparent queue. Clipped merged opaque objects
+therefore use the transparent queue with **NoBlending**, alongside resets/masks and individual
+alpha/image batches. Each clip run emits masks, opaque content, then alpha/image content in
+source order. Unclipped opaque content may run first because global depth rejects earlier
+fragments. Underlays and overlays need separate render stages to preserve their host order;
+resets/masks disable both depth testing and depth writes, including highlight masks.
+
+Common float64 group origins still require a new float32 relative-position copy. On the fitted
+1600×1000 browser viewport (1016×924 drawing buffer) aliased corpus comparison, six of eleven
+drawings match exactly; the other five differ by six edge pixels in total: `circles_large` (1),
+`spline_points_large` (2), issue-847 (1), `zhangmabeng1` (1), issue-574/test.dxf (1). For every
+one of those drawings the differences are reproduced by the **original unmerged renderer** using
+only rebased origins; merged versus rebased-unmerged is pixel-identical. This isolates
+coordinate/raster-edge rounding rather than painter order. Keep merging off for exact pixel
+comparisons. The nine synthetic checks, including transparency and clipped highlights, match.
+
 ### 8.3 Special entities
 
 - **WIPEOUT**: a polygon filled with the *background color* (paper color when plotting) that masks

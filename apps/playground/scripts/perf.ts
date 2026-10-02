@@ -3,7 +3,7 @@
  * and opens files in headless Chromium, reporting load / first frame / frame times.
  *
  *   node apps/playground/scripts/perf.ts [--count 5] [--max-mb 100] [--files <path,…>] [--gpu]
- *                                        [--timeout <s per file>] [--skip-build]
+ *                                        [--files-from <UTF-8 path>] [--timeout <s per file>] [--skip-build]
  *
  * Default Chromium runs WebGL on SwiftShader (CPU), so frame times are pessimistic; `--gpu` asks
  * for the hardware GPU (headless Chromium falls back to SwiftShader without `--use-angle` and
@@ -33,6 +33,7 @@ function args() {
     if (k === "--count") a.count = Number(v[++i]);
     else if (k === "--max-mb") a.maxMb = Number(v[++i]);
     else if (k === "--files") a.files = v[++i]!.split(",");
+    else if (k === "--files-from") a.files = readFileSync(v[++i]!, "utf8").trim().split(",");
     else if (k === "--gpu") a.gpu = true;
     else if (k === "--skip-build") a.skipBuild = true;
     else if (k === "--timeout") a.timeout = Number(v[++i]);
@@ -132,7 +133,9 @@ try {
                 viewer: {
                   zoom(f: number): void;
                   renderNow(): void;
-                  renderer: { renderer: { getContext(): WebGLRenderingContext } };
+                  renderer: {
+                    renderer: { getContext(): WebGLRenderingContext; info: { render: { calls: number } } };
+                  };
                 };
               };
             }
@@ -154,6 +157,7 @@ try {
             median: t[t.length >> 1]!,
             max: t[t.length - 1]!,
             heapMb: heap ? heap / 2 ** 20 : undefined,
+            calls: v.renderer.renderer.info.render.calls,
           };
         })
       : undefined;
@@ -163,7 +167,7 @@ try {
     console.log(
       `${f.split("/").pop()} ${mb} MB: ` +
         (metric
-          ? `parse ${Math.round(Number(metric.parse))} ms, frontend ${Math.round(Number(metric.frontend))} ms, upload ${Math.round(Number(metric.upload))} ms, first frame ${Math.round(Number(metric.firstFrame))} ms, ${metric.vertices} vertices / ${metric.batches} batches, frame median ${frames?.median.toFixed(1)} ms (max ${frames?.max.toFixed(1)}), main heap ${frames?.heapMb?.toFixed(0)} MB`
+          ? `parse ${Math.round(Number(metric.parse))} ms, frontend ${Math.round(Number(metric.frontend))} ms, upload ${Math.round(Number(metric.upload))} ms, first frame ${Math.round(Number(metric.firstFrame))} ms, ${metric.vertices} vertices / ${metric.batches} batches, frame median ${frames?.median.toFixed(1)} ms (max ${frames?.max.toFixed(1)}), ${frames?.calls} draw calls, main heap ${frames?.heapMb?.toFixed(0)} MB`
           : `FAILED ${errors[0] ?? ""}`),
     );
     await page.close();

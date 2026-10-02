@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, rmdirSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import test from "node:test";
 import { DxfDocument } from "@truedxf/model";
 import type { DisplayList } from "@truedxf/render";
+import { test } from "vitest";
 import { fingerprint, modelFingerprint, shape } from "../src/fingerprint-hash.ts";
 import { coordinateDelta, runTask } from "../src/fingerprint-pipeline.ts";
 

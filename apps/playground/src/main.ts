@@ -262,6 +262,8 @@ const fallbackFont = new URLSearchParams(location.search).get("fallbackFont")?.s
 const fontsFolder = new FontFolder();
 const viewer = new DxfViewer(viewerHost, {
   background: "dark",
+  mergeBatches: new URLSearchParams(location.search).get("merge") !== "0",
+  antialias: new URLSearchParams(location.search).get("aa") !== "0",
   loadFont: fontLoader(fontsFolder),
   ...(fallbackFont?.length ? { fallbackFont } : {}),
   loadImage: async (path) => {

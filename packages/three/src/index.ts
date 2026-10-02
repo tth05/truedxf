@@ -10,6 +10,7 @@
  */
 import type { Batch, ClipRegion, DisplayList, RasterImage } from "@truedxf/render";
 import * as THREE from "three";
+import { MAX_DEPTH_ORDERS, type MergedPart, mergedGroups, orderCount } from "./merge.ts";
 
 // raw sRGB byte values in, the same values out
 THREE.ColorManagement.enabled = false;
@@ -38,6 +39,8 @@ export interface RendererOptions {
    * copy per transparent batch). false: ordinary alpha blending, for interactive viewers.
    */
   exactBlend?: boolean;
+  /** Merge opaque batches using depth for painter order (default false). Ignored with exactBlend. */
+  mergeBatches?: boolean;
   /**
    * Drop the renderer's references to vertex arrays after they are uploaded to the GPU (PLAN
    * §4.2b memory budget). The caller's DisplayList still references them; release it too to free
@@ -88,6 +91,10 @@ export class DisplayListRenderer {
   readonly underlay = new THREE.Group();
   private readonly exactBlend: boolean;
   private readonly releaseArrays: boolean;
+  private readonly mergeBatches: boolean;
+  private merged = false;
+  private readonly underlayScene = new THREE.Scene();
+  private readonly overlayScene = new THREE.Scene();
   private centerX = 0;
   private centerY = 0;
 
@@ -111,6 +118,7 @@ export class DisplayListRenderer {
     this.scene.add(this.underlay);
     this.exactBlend = options.exactBlend ?? true;
     this.releaseArrays = options.releaseArrays ?? false;
+    this.mergeBatches = (options.mergeBatches ?? false) && !this.exactBlend;
   }
 
   setDisplayList(list: DisplayList): void {
@@ -118,6 +126,16 @@ export class DisplayListRenderer {
     this.list = list;
     const [r, g, b] = list.background;
     this.renderer.setClearColor(new THREE.Color(r / 255, g / 255, b / 255), 1);
+    const count = this.mergeBatches ? orderCount(list) : 0;
+    this.merged = this.mergeBatches && count <= MAX_DEPTH_ORDERS;
+    if (this.merged) {
+      this.underlayScene.add(this.underlay);
+      this.overlayScene.add(this.overlay);
+      this.setMergedList(list, count);
+      if (this.releaseArrays) this.list = undefined;
+      return;
+    }
+    if (this.underlay.parent !== this.scene) this.scene.add(this.underlay, this.overlay);
     let order = 0;
     let activeClip = -1;
     for (const batch of list.batches) {
@@ -134,6 +152,70 @@ export class DisplayListRenderer {
     }
     // the list is only needed while building (images, clips)
     if (this.releaseArrays) this.list = undefined;
+  }
+
+  private setMergedList(list: DisplayList, count: number): void {
+    const materials = new Map<string, THREE.Material>();
+    let order = 0;
+    let activeClip = -1;
+    for (const group of mergedGroups(list, count)) {
+      if (group.clip !== activeClip) {
+        this.addStencilReset(order++);
+        if (group.clip >= 0) order = this.addClipMask(group.clip, order);
+        activeClip = group.clip;
+      }
+      for (const part of group.parts) {
+        const clipped = group.clip >= 0;
+        const geom = new THREE.BufferGeometry();
+        geom.boundingSphere = UNBOUNDED.clone();
+        geom.setAttribute("position", this.attribute(part.positions, 3));
+        geom.setAttribute("color", this.attribute(part.colors, 4, true));
+        const key = `${part.kind}/${clipped}/${!!part.batch}`;
+        let mat = part.kind === IMAGE ? undefined : materials.get(key);
+        if (!mat) {
+          const common = {
+            vertexColors: true,
+            // Clip masks and their opaque content must share the transparent queue.
+            // Unclipped opaque content can run first: global depth rejects anything behind it.
+            transparent: clipped || !!part.batch,
+            blending: part.batch ? THREE.NormalBlending : THREE.NoBlending,
+            depthTest: true,
+            depthWrite: true,
+            depthFunc: THREE.LessEqualDepth,
+            ...CLIPPED_STENCIL,
+            stencilWrite: clipped,
+          };
+          mat =
+            part.kind === TRIANGLES || part.kind === IMAGE
+              ? new THREE.MeshBasicMaterial({ ...common, side: THREE.DoubleSide })
+              : part.kind === LINES
+                ? new THREE.LineBasicMaterial(common)
+                : new THREE.PointsMaterial({ ...common, size: 1, sizeAttenuation: false });
+          if (part.kind !== IMAGE) materials.set(key, mat);
+        }
+        this.setImage(part, geom, mat);
+        const obj =
+          part.kind === TRIANGLES || part.kind === IMAGE
+            ? new THREE.Mesh(geom, mat)
+            : part.kind === LINES
+              ? new THREE.LineSegments(geom, mat)
+              : new THREE.Points(geom, mat);
+        // Avoid three.js's extra back/front passes for double-sided transparent meshes.
+        mat.forceSinglePass = true;
+        obj.frustumCulled = false;
+        obj.renderOrder = order++;
+        this.scene.add(obj);
+        this.objects.push({ object: obj, originX: group.originX, originY: group.originY });
+      }
+    }
+  }
+
+  private setImage(part: MergedPart, geom: THREE.BufferGeometry, mat: THREE.Material): void {
+    const batch = part.batch;
+    if (batch?.kind === IMAGE && batch.uvs && batch.image !== undefined) {
+      geom.setAttribute("uv", this.attribute(batch.uvs, 2));
+      (mat as THREE.MeshBasicMaterial).map = this.texture(this.list!.images[batch.image]!);
+    }
   }
 
   private createBatch(batch: Batch, clipped: boolean): THREE.Object3D {
@@ -356,7 +438,24 @@ void main() {
       this.under = new THREE.FramebufferTexture(w, h);
       this.underSize.value.set(w, h);
     }
-    this.renderer.render(this.scene, cam);
+    if (this.merged) {
+      // Explicit stages preserve host underlays/overlays regardless of their material queue.
+      // Stencil passes (including clipped highlights) never write depth.
+      const autoClear = this.renderer.autoClear;
+      const autoReset = this.renderer.info.autoReset;
+      this.renderer.info.autoReset = false;
+      this.renderer.info.reset();
+      try {
+        this.renderer.render(this.underlayScene, cam);
+        this.renderer.autoClear = false;
+        this.renderer.clearDepth();
+        this.renderer.render(this.scene, cam);
+        this.renderer.render(this.overlayScene, cam);
+      } finally {
+        this.renderer.autoClear = autoClear;
+        this.renderer.info.autoReset = autoReset;
+      }
+    } else this.renderer.render(this.scene, cam);
   }
 
   /** RGBA pixels of the drawing buffer, top row first. Requires preserveDrawingBuffer or a call right after render(). */
@@ -380,13 +479,16 @@ void main() {
   }
 
   clear(): void {
+    const disposed = new Set<THREE.Material>();
     for (const o of this.objects) {
       this.scene.remove(o.object);
       const m = o.object as THREE.Mesh;
       m.geometry?.dispose();
       const mat = m.material as THREE.Material | THREE.Material[] | undefined;
-      if (Array.isArray(mat)) for (const x of mat) x.dispose();
-      else mat?.dispose();
+      for (const x of Array.isArray(mat) ? mat : mat ? [mat] : []) {
+        if (!disposed.has(x)) x.dispose();
+        disposed.add(x);
+      }
     }
     this.objects = [];
     for (const t of this.textures.values()) t.dispose();

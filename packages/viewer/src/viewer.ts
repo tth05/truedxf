@@ -88,6 +88,8 @@ export interface DxfViewerOptions {
   lineweights?: boolean;
   /** Antialiasing (default true). */
   antialias?: boolean;
+  /** Merge opaque display-list batches to reduce draw calls (default true). */
+  mergeBatches?: boolean;
   lod?: LodOptions;
   /** Debounce before a new level of detail is requested (ms, default 150). */
   lodDelay?: number;
@@ -368,6 +370,7 @@ export class DxfViewer {
       antialias: options.antialias ?? true,
       preserveDrawingBuffer: options.preserveDrawingBuffer ?? false,
       exactBlend: false,
+      mergeBatches: options.mergeBatches ?? true,
       releaseArrays: true,
     });
     // nested groups set their own three.js groupOrder: keep them above / below the drawing, each

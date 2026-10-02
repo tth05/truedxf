@@ -408,8 +408,41 @@ function singleLine<T extends TextEntity | AttribEntity>(e: T, text: string = e.
   return { ...e, text, generationFlags: has71 ? e.generationFlags : undefined };
 }
 
-function attributeLayout(fe: Frontend, fonts: TextFonts, a: AttribEntity, text: string): TextLayout {
+/** Layout is in the entity plane, before any INSERT transform (note 04 §1, §3). */
+function cachedLayout(
+  fe: Frontend,
+  e: Entity,
+  fonts: TextFonts,
+  inputs: readonly (string | number | boolean | undefined)[],
+  build: (opts: ReturnType<typeof layoutOptions>) => TextLayout,
+): TextLayout {
+  let cache = fe.caches.get("text:layouts") as
+    | WeakMap<Entity, WeakMap<TextFonts, Map<string, TextLayout>>>
+    | undefined;
+  if (!cache) fe.caches.set("text:layouts", (cache = new WeakMap()));
+  let byFont = cache.get(e);
+  if (!byFont) cache.set(e, (byFont = new WeakMap()));
+  let byInput = byFont.get(fonts);
+  if (!byInput) byFont.set(fonts, (byInput = new Map()));
   const opts = layoutOptions(fe);
+  const key = JSON.stringify([...inputs, opts.defaultHeight, opts.quickText]);
+  let layout = byInput.get(key);
+  if (!layout) byInput.set(key, (layout = build(opts)));
+  return layout;
+}
+
+function attributeLayout(fe: Frontend, fonts: TextFonts, a: AttribEntity, text: string): TextLayout {
+  return cachedLayout(fe, a, fonts, ["attribute", text], (opts) =>
+    uncachedAttributeLayout(fonts, a, text, opts),
+  );
+}
+
+function uncachedAttributeLayout(
+  fonts: TextFonts,
+  a: AttribEntity,
+  text: string,
+  opts: ReturnType<typeof layoutOptions>,
+): TextLayout {
   // R2018 attribute type 71 = 1 (single line) draws group 1 even with an embedded MTEXT
   // (VERIFIED-BY-ACAD attribs/multiline-attrib-type1)
   const sub = a.type === "ATTDEF" ? "AcDbAttributeDefinition" : "AcDbAttribute";
@@ -427,26 +460,27 @@ registerDrawer(["TEXT", "MTEXT", "ATTDEF"], (fe, e, st) => {
   const fonts = fontsOf(fe);
   if (!fonts) return;
   if (e.type === "TEXT") {
-    drawLayout(fe, layoutText(singleLine(e as TextEntity), fonts, layoutOptions(fe)), e, st.m, st.inh);
+    const layout = cachedLayout(fe, e, fonts, ["text", (e as TextEntity).text], (opts) =>
+      layoutText(singleLine(e as TextEntity), fonts, opts),
+    );
+    drawLayout(fe, layout, e, st.m, st.inh);
   } else if (e.type === "MTEXT") {
-    let mt = e as MTextEntity;
-    // 11 and 50 both present: the later one wins (VERIFIED-BY-ACAD mtext/rot-both-*)
-    if (mt.direction) {
-      const i11 = mt.record.find(11, "AcDbMText");
-      const i50 = mt.record.find(50, "AcDbMText");
-      if (i11 >= 0 && i50 > i11) mt = { ...mt, direction: undefined };
-    }
+    const mt = e as MTextEntity;
     const wrapWidth = linkedColumnWidths(fe).get(mt.handle.toUpperCase());
     // dimension blocks (*D…): \X wraps at the dimension line
     const dimension = (st.stack[st.stack.length - 1] ?? "").toUpperCase().startsWith("*D");
-    const opts = { ...layoutOptions(fe), dimension };
-    drawLayout(
-      fe,
-      layoutMText(mt, fonts, wrapWidth !== undefined ? { ...opts, wrapWidth } : opts),
-      e,
-      st.m,
-      st.inh,
-    );
+    const layout = cachedLayout(fe, e, fonts, ["mtext", mt.text, dimension, wrapWidth], (options) => {
+      let input = mt;
+      // 11 and 50 both present: the later one wins (VERIFIED-BY-ACAD mtext/rot-both-*)
+      if (mt.direction) {
+        const i11 = mt.record.find(11, "AcDbMText");
+        const i50 = mt.record.find(50, "AcDbMText");
+        if (i11 >= 0 && i50 > i11) input = { ...mt, direction: undefined };
+      }
+      const opts = { ...options, dimension };
+      return layoutMText(input, fonts, wrapWidth !== undefined ? { ...opts, wrapWidth } : opts);
+    });
+    drawLayout(fe, layout, e, st.m, st.inh);
   } else {
     const a = e as AttribEntity;
     if (st.stack.length > 1) {

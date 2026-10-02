@@ -19,6 +19,8 @@ import {
   orderCount,
 } from "./merge.ts";
 
+import { coverageScissors } from "./scissor.ts";
+
 // raw sRGB byte values in, the same values out
 THREE.ColorManagement.enabled = false;
 
@@ -86,6 +88,13 @@ export class DisplayListRenderer {
   readonly scene = new THREE.Scene();
   readonly camera = new THREE.OrthographicCamera(-1, 1, 1, -1, -1, 1);
   private objects: BatchObject[] = [];
+  private baseObjects: BatchObject[] = [];
+  private baseTextures = new Map<RasterImage, THREE.DataTexture>();
+  private readonly baseScene = new THREE.Scene();
+  private covered: View | undefined;
+  /** Viewer highlights are drawn only where the detail list is visible. */
+  readonly detailOverlay = new THREE.Group();
+  private readonly detailOverlayScene = new THREE.Scene();
   private list: Omit<DisplayList, "batches"> | undefined;
   /** Textures of DisplayList.images (shared by the batches of one list). */
   private textures = new Map<RasterImage, THREE.DataTexture>();
@@ -120,6 +129,7 @@ export class DisplayListRenderer {
     this.renderer.autoClearStencil = true;
     this.overlay.renderOrder = Number.MAX_SAFE_INTEGER;
     this.scene.add(this.overlay);
+    this.overlay.add(this.detailOverlay);
     // group render order sorts before the batches' renderOrder (three.js groupOrder)
     this.underlay.renderOrder = -1;
     this.scene.add(this.underlay);
@@ -173,6 +183,29 @@ export class DisplayListRenderer {
     this.overlayScene.add(this.overlay);
     this.setMergedGroups(list.groups);
     if (this.releaseArrays) this.list = undefined;
+  }
+
+  /** Retain GPU resources of the current complete list before replacing it with detail. */
+  preserveBase(): void {
+    if (this.exactBlend) throw new Error("detail layers require exactBlend: false");
+    this.clearBase();
+    this.baseObjects = this.objects;
+    this.baseTextures = this.textures;
+    for (const o of this.baseObjects) this.baseScene.add(o.object);
+    this.objects = [];
+    this.textures = new Map();
+  }
+
+  setCoverage(covered: View | undefined): void {
+    this.covered = covered;
+  }
+
+  clearBase(): void {
+    this.disposeObjects(this.baseObjects);
+    this.baseObjects = [];
+    for (const t of this.baseTextures.values()) t.dispose();
+    this.baseTextures.clear();
+    this.covered = undefined;
   }
 
   private setMergedGroups(groups: Iterable<MergedGroup>): void {
@@ -443,7 +476,7 @@ void main() {
     cam.bottom = -hh;
     cam.position.set(0, 0, 0);
     cam.updateProjectionMatrix();
-    for (const o of this.objects) {
+    for (const o of [...this.baseObjects, ...this.objects]) {
       if (Number.isNaN(o.originX)) continue;
       // float64 subtraction on the CPU keeps precision for large world coordinates
       o.object.position.set(o.originX - this.centerX, o.originY - this.centerY, 0);
@@ -458,7 +491,9 @@ void main() {
       this.under = new THREE.FramebufferTexture(w, h);
       this.underSize.value.set(w, h);
     }
-    if (this.merged) {
+    if (this.covered) {
+      this.renderCovered(view);
+    } else if (this.merged) {
       // Explicit stages preserve host underlays/overlays regardless of their material queue.
       // Stencil passes (including clipped highlights) never write depth.
       const autoClear = this.renderer.autoClear;
@@ -476,6 +511,51 @@ void main() {
         this.renderer.info.autoReset = autoReset;
       }
     } else this.renderer.render(this.scene, cam);
+  }
+
+  private renderCovered(view: View): void {
+    const r = this.renderer;
+    const size = r.getSize(new THREE.Vector2());
+    // WebGLRenderer scissor coordinates are CSS units (it applies pixelRatio internally).
+    const partitions = coverageScissors(view, this.covered!, size.x, size.y);
+    const autoClear = r.autoClear;
+    const autoReset = r.info.autoReset;
+    const scissorTest = r.getScissorTest();
+    const scissor = r.getScissor(new THREE.Vector4());
+    this.underlayScene.add(this.underlay);
+    this.overlayScene.add(this.overlay);
+    this.detailOverlayScene.add(this.detailOverlay);
+    try {
+      r.info.autoReset = false;
+      r.info.reset();
+      r.setScissorTest(false);
+      r.autoClear = true;
+      r.render(this.underlayScene, this.camera);
+      r.autoClear = false;
+      r.setScissorTest(true);
+      for (const box of partitions.outside) {
+        r.setScissor(...box);
+        r.clear(false, true, true);
+        r.render(this.baseScene, this.camera);
+      }
+      const box = partitions.inside;
+      if (box[2] > 0 && box[3] > 0) {
+        r.setScissor(...box);
+        r.clear(false, true, true);
+        r.render(this.scene, this.camera);
+        this.detailOverlayScene.position.set(-this.centerX, -this.centerY, 0);
+        r.render(this.detailOverlayScene, this.camera);
+      }
+      r.setScissorTest(false);
+      r.render(this.overlayScene, this.camera);
+    } finally {
+      this.overlay.add(this.detailOverlay);
+      if (!this.merged) this.scene.add(this.underlay, this.overlay);
+      r.autoClear = autoClear;
+      r.info.autoReset = autoReset;
+      r.setScissor(scissor);
+      r.setScissorTest(scissorTest);
+    }
   }
 
   /** RGBA pixels of the drawing buffer, top row first. Requires preserveDrawingBuffer or a call right after render(). */
@@ -498,10 +578,10 @@ void main() {
     return { width, height, data };
   }
 
-  clear(): void {
+  private disposeObjects(objects: BatchObject[]): void {
     const disposed = new Set<THREE.Material>();
-    for (const o of this.objects) {
-      this.scene.remove(o.object);
+    for (const o of objects) {
+      o.object.removeFromParent();
       const m = o.object as THREE.Mesh;
       m.geometry?.dispose();
       const mat = m.material as THREE.Material | THREE.Material[] | undefined;
@@ -510,6 +590,11 @@ void main() {
         disposed.add(x);
       }
     }
+  }
+
+  clear(): void {
+    this.covered = undefined;
+    this.disposeObjects(this.objects);
     this.objects = [];
     for (const t of this.textures.values()) t.dispose();
     this.textures.clear();
@@ -517,6 +602,7 @@ void main() {
   }
 
   dispose(): void {
+    this.clearBase();
     this.clear();
     this.under?.dispose();
     this.renderer.dispose();

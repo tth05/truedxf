@@ -23,9 +23,10 @@ import {
   transferables,
 } from "@truedxf/render";
 import type { MergedDisplayList } from "@truedxf/three/merge";
+import { entityBounds, intersects } from "./cull.ts";
 import { DrawingState, drawingUpload, type EntityGeometry } from "./drawing.ts";
 import type { PickHit } from "./pick.ts";
-import type { Rect } from "./view.ts";
+import { isValidRect, type Rect } from "./view.ts";
 import { documentWarnings, renderWarnings, type ViewerWarning } from "./warnings.ts";
 
 // ---- public data shapes ------------------------------------------------------------------------
@@ -83,6 +84,8 @@ export interface DocumentInfo {
 export interface RenderParams {
   /** Build merged GPU buffers in the backend (default false for explicit/exact renders). */
   mergeBatches?: boolean;
+  /** Viewer detail coverage, in the list's world (paper for layouts) coordinates. */
+  cull?: Rect;
   /** False for auxiliary plot previews: preserve the displayed list's interaction state. */
   retain?: boolean;
   layout: string;
@@ -127,6 +130,8 @@ export interface RenderResult {
   /** Present when merged; list.batches is empty in that case. */
   merged?: MergedDisplayList;
   generation: number;
+  /** Absent for a complete list, including plots and extents renders. */
+  covered?: Rect;
   stats: { batches: number; vertices: number };
   view: Rect;
   /**
@@ -242,6 +247,10 @@ export type AssetLoader = (name: string) => Promise<Uint8Array | undefined>;
 export class ViewerCore {
   private drawing: DrawingState | undefined;
   private generation = 0;
+  private boundsKey: string | undefined;
+  private entityBounds = new Map<string, Rect>();
+  private boundsPixelSize = 0;
+  private fullWarnings: ViewerWarning[] = [];
   private doc: DxfDocument | undefined;
   private byId: Map<number, Entity> | undefined;
   private byHandle: Map<string, Entity> | undefined;
@@ -280,6 +289,9 @@ export class ViewerCore {
 
   load(bytes: Uint8Array, name: string): DocumentInfo {
     this.drawing = undefined;
+    this.boundsKey = undefined;
+    this.entityBounds.clear();
+    this.fullWarnings = [];
     this.generation++;
     const t0 = performance.now();
     const doc = loadDxf(bytes);
@@ -299,6 +311,34 @@ export class ViewerCore {
       this.loadFont = (name) => this.baseFont(name);
       this.loadImage = (name) => this.baseImage(name);
     }
+    // Area/resolution affect tessellation, not which entities are eligible. Auxiliary plots
+    // must not replace the interactive cache (nor its retained pick generation).
+    const {
+      area: _area,
+      canvas: _canvas,
+      cull: _cull,
+      mergeBatches: _merge,
+      retain: _retain,
+      ...settings
+    } = p;
+    const key = JSON.stringify(settings);
+    if (p.retain !== false && key !== this.boundsKey) {
+      this.boundsKey = key;
+      this.entityBounds.clear();
+      this.fullWarnings = [];
+    }
+    const covered =
+      p.raster === "smooth" &&
+      p.area.type !== "extents" &&
+      p.cull &&
+      isValidRect(p.cull) &&
+      key === this.boundsKey &&
+      this.entityBounds.size > 0
+        ? { ...p.cull }
+        : undefined;
+    // Coarse curves/greeked text can grow slightly on refinement. Keep a fit-pixel guard;
+    // unknown and unbounded entities always draw, rather than trusting incomplete bounds.
+    const padding = this.boundsPixelSize * 4;
     const t0 = performance.now();
     const toggles = new Map(Object.entries(p.layers).map(([k, v]) => [k.toUpperCase(), v]));
     const res = await renderPlot(
@@ -318,6 +358,14 @@ export class ViewerCore {
         loadImage: this.loadImage,
         raster: p.raster,
         lod: true,
+        ...(covered
+          ? {
+              topLevelFilter: (e: Entity) => {
+                const bounds = this.entityBounds.get(e.handle || `#${e.id}`);
+                return !bounds || intersects(bounds, covered, padding);
+              },
+            }
+          : {}),
         background: p.background,
         layerVisibility: toggles,
         rasterEntities: p.rasterEntities === false ? "omit" : "draw",
@@ -335,6 +383,10 @@ export class ViewerCore {
     );
     const t1 = performance.now();
     const drawing = new DrawingState(res.displayList);
+    if (!covered && p.retain !== false && p.raster === "smooth") {
+      this.entityBounds = entityBounds(res.displayList);
+      this.boundsPixelSize = res.displayList.pixelSize;
+    }
     const t2 = performance.now();
     const upload = drawingUpload(res.displayList, p.mergeBatches ?? false);
     const t3 = performance.now();
@@ -342,20 +394,26 @@ export class ViewerCore {
       this.drawing = drawing;
       this.generation++;
     }
+    // Layout-wide empty/invisible diagnostics must not describe just an empty zoom window.
+    const warnings = covered
+      ? this.fullWarnings
+      : renderWarnings(doc, {
+          layout: p.layout,
+          toggles,
+          visibility: p.visibility ?? "display",
+          list: res.displayList,
+          unsupported: res.unsupported,
+          notes: res.notes,
+        });
+    if (!covered && p.retain !== false && p.raster === "smooth") this.fullWarnings = warnings;
     return {
       ...upload,
       generation: this.generation,
+      ...(covered ? { covered } : {}),
       view: { ...res.view },
       bounds: visibleBounds(res.displayList),
       unsupported: res.unsupported,
-      warnings: renderWarnings(doc, {
-        layout: p.layout,
-        toggles,
-        visibility: p.visibility ?? "display",
-        list: res.displayList,
-        unsupported: res.unsupported,
-        notes: res.notes,
-      }),
+      warnings,
       ms: { frontend: t1 - t0, pick: t2 - t1, merge: t3 - t2 },
     };
   }

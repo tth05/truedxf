@@ -12,6 +12,7 @@ import type { ClipRegion } from "@truedxf/render";
 import { CLIPPED_STENCIL, DisplayListRenderer } from "@truedxf/three";
 import * as THREE from "three";
 import { type Backend, LocalBackend, WorkerBackend } from "./backend.ts";
+import { contains, expandView, needsCoverage } from "./cull.ts";
 import type { EntityGeometry } from "./drawing.ts";
 import {
   type AssetKind,
@@ -93,6 +94,8 @@ export interface DxfViewerOptions {
   /** Merge opaque display-list batches to reduce draw calls (default true). */
   mergeBatches?: boolean;
   lod?: LodOptions;
+  /** Cull zoomed detail lists (default true); false supports full-list comparisons. */
+  viewCulling?: boolean;
   /** Debounce before a new level of detail is requested (ms, default 150). */
   lodDelay?: number;
   /** Pick tolerance in CSS pixels (default 6). */
@@ -229,6 +232,7 @@ interface CurrentList {
   pixelSize: number;
   bounds: Rect | undefined;
   generation: number;
+  covered?: Rect;
   /** Clip regions of the list (highlights of viewport content are clipped like it). */
   clips: readonly ClipRegion[];
 }
@@ -287,6 +291,7 @@ export class DxfViewer {
   private view: ViewState | undefined;
   private dpr = 1;
   private current: CurrentList | undefined;
+  private base: CurrentList | undefined;
   private clickRevision = 0;
   private readonly geometryCache = new Map<string, Promise<EntityGeometry | undefined>>();
   private readonly highlightRevision = new Map<THREE.Group, number>();
@@ -390,7 +395,8 @@ export class DxfViewer {
       g.renderOrder = Number.MAX_SAFE_INTEGER - 2 + i;
     });
     this.paperGroup.renderOrder = -1;
-    this.renderer.overlay.add(this.hoverGroup, this.selectGroup, this.measureGroup);
+    this.renderer.detailOverlay.add(this.hoverGroup, this.selectGroup);
+    this.renderer.overlay.add(this.measureGroup);
     this.renderer.underlay.add(this.paperGroup);
     this.applyClearColor();
     this.resizeObserver = new ResizeObserver(() => this.handleResize());
@@ -805,6 +811,8 @@ export class DxfViewer {
   async pickAt(x: number, y: number): Promise<string | undefined> {
     if (!this.view || !this.current) return undefined;
     const [wx, wy] = screenToWorld(this.view, x, y);
+    // Coarse fallback is display-only: outside detail coverage wait for the next list.
+    if (this.current.covered && !contains(this.current.covered, wx, wy)) return undefined;
     const tol = (this.options.pickTolerance ?? 6) * this.view.scale;
     const cur = this.current;
     const hit = await this.backend.call({
@@ -916,6 +924,8 @@ export class DxfViewer {
   private async refit(): Promise<void> {
     this.fitPending = this.autoFit !== false || !this.view;
     this.current = undefined;
+    this.base = undefined;
+    this.renderer.clearBase();
     this.hoverQuery.cancel();
     this.clickRevision++;
     this.geometryCache.clear();
@@ -939,7 +949,11 @@ export class DxfViewer {
     const cur = this.current;
     if (!this.view || !cur) return;
     const target = targetPixelSize(this.view.scale, this.dpr, this.fitRectangle(), this.options.lod);
-    if (needsRetessellation(cur.pixelSize, target, this.options.lod)) this.requestList();
+    if (
+      needsRetessellation(cur.pixelSize, target, this.options.lod) ||
+      (cur.covered && needsCoverage(viewRect(this.view), cur.covered))
+    )
+      this.requestList();
   }
 
   private renderParams(): RenderParams {
@@ -969,12 +983,17 @@ export class DxfViewer {
       const r = viewRect(this.fitView(frame));
       return { ...base, area: { type: "window", min: [r.minX, r.minY], max: [r.maxX, r.maxY] } };
     }
-    // the frontend tessellates the whole drawing; the window only sets the pixel size
+    // The window sets pixel size; coverage is independent of the LOD resolution clamp.
     const px = targetPixelSize(this.view.scale, this.dpr, this.fitRectangle(), this.options.lod);
     const hw = (w * px) / 2;
     const hh = (h * px) / 2;
     return {
       ...base,
+      ...(this.options.viewCulling !== false &&
+      this.base?.key === this.contentKey() &&
+      px < this.base.pixelSize
+        ? { cull: expandView(viewRect(this.view)) }
+        : {}),
       area: {
         type: "window",
         min: [this.view.cx - hw, this.view.cy - hh],
@@ -1000,7 +1019,12 @@ export class DxfViewer {
     const t0 = performance.now();
     try {
       const res = await this.backend.call({ type: "render", params });
-      if (docGen === this.docGen && layout === this.layoutName && !this.disposed) {
+      if (
+        docGen === this.docGen &&
+        layout === this.layoutName &&
+        key === this.contentKey() &&
+        !this.disposed
+      ) {
         this.show(res, key, fit, performance.now() - t0);
       }
     } catch (e) {
@@ -1016,11 +1040,17 @@ export class DxfViewer {
   private show(res: RenderResult, key: string, fit: boolean, roundTrip: number): void {
     const list = res.list;
     const t0 = performance.now();
+    if (res.covered) {
+      if (!this.current?.covered) this.renderer.preserveBase();
+    } else {
+      this.renderer.clearBase();
+    }
     if (res.merged) this.renderer.setMergedDisplayList(res.merged);
     else this.renderer.setDisplayList(list);
+    this.renderer.setCoverage(res.covered);
     this.applyClearColor();
     // clipped bounds: viewport content outside its viewport does not count (fit, LOD clamp)
-    const bounds = res.bounds;
+    const bounds = res.covered ? this.base?.bounds : res.bounds;
     this.hoverQuery.cancel();
     this.clickRevision++;
     this.geometryCache.clear();
@@ -1030,7 +1060,9 @@ export class DxfViewer {
       bounds,
       generation: res.generation,
       clips: list.clips,
+      covered: res.covered,
     };
+    if (!res.covered) this.base = this.current;
     if (fit) {
       this.fitPending = false;
       const r = this.fitRectangle();

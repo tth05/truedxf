@@ -85,6 +85,8 @@ export interface RenderEnv {
   raster?: "autocad" | "smooth";
   /** Approximate sub-pixel geometry for interactive viewing; honoured only with smooth raster. */
   lod?: boolean;
+  /** Viewer-only rejection of top-level picks, including model entities in paper viewports. */
+  topLevelFilter?: (e: Entity) => boolean;
   /**
    * Background (paper) colour, default white. ACI 7 contrasts with it; with `raster: "smooth"`
    * (near-)white / (near-)black colours do too (interactive viewers); plots are on white paper.
@@ -337,6 +339,7 @@ export class Frontend {
       this.drawEntityContent(e, st);
       return;
     }
+    if (this.env.topLevelFilter && !this.env.topLevelFilter(e)) return;
     // a top-level entity: one pick entity for all of its output
     const id = this.pickId(e);
     this.builder.beginEntity(id);

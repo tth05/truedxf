@@ -82,7 +82,9 @@ export class TtfFont implements Font {
 
   constructor(bytes: Uint8Array, name = "", options: TtfFontOptions = {}) {
     const face = extractFace(bytes, options.face ?? 0);
-    this.ot = opentype.parse(toArrayBuffer(face));
+    // Resolve only requested glyphs. Layout uses cmap + plain hmtx advances and
+    // explicit outlines, without GSUB shaping or kerning (note 04 section 4.5).
+    this.ot = opentype.parse(toArrayBuffer(face), { lowMemory: true });
     this.names = readNames(face);
     this.name = name || this.names.family;
     const ot = this.ot;

@@ -1024,6 +1024,14 @@ AutoCAD 2027 keeps text as Unicode. For a style with a bigfont, each character i
 
 ### 4.5 TrueType rendering rules (VERIFIED-BY-ACAD unless noted)
 
+Implementation check (2026-10-02, unit tests + corpus/fixture fingerprints): truedxf uses
+opentype.js `lowMemory: true`, which defers glyph materialization. Eager/lazy parsing agrees for
+cmap indices, outlines, hmtx advances, cap-height/other metrics, GSUB tables and kerning pairs
+in `packages/fonts/test/ttf-lazy.test.ts`; every plot/viewer fingerprint is unchanged. Our font
+and text packages use cmap lookup and explicit glyph outlines/advances, with no GSUB shaping
+or kerning calls. Font initialization improved 2.6–5.5× in the local constructor benchmark;
+glyph work is deferred. See [parser performance results](../../docs/perf-parser-results.md).
+
 - **Scale = height / yMax(glyph "A")** in font units, baseline at font y = 0. Not OS/2 sCapHeight,
   not ascender, not em. Verified to 4–6 digits for Arial (A 1466, sCap 1467), **Times (A.yMax 1387 vs
   capHeight 1356 — decisive: "H" top measured 9.7765 = 1356/1387·10)**, Calibri (1300 vs 1294, no

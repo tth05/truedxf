@@ -185,7 +185,7 @@ default, FILLMODE for pattern hatches, extents edge tolerance.
 - [ ] 1b: GPU buffers built in the worker.
 - [ ] 2: frontend memoization (properties, text layouts), viewer first render without probe pass.
 - [ ] 3: viewer LOD (dense hatch patterns, sub-pixel text, view culling).
-- [ ] 4: parser (tokenizer, number fast path, `readFields` rewrite, lazy TTF parsing).
+- [x] 4: parser (2026-10-02): tokenizer, exact numbers, direct binary reads, compiled fields and lazy TTF parsing; all fingerprint gates identical. [Results](perf-parser-results.md).
 - [ ] 5: memory and transfer (compact display list, picking in the worker, model per-entity size).
 
 ## Viewer (packages/viewer, apps/playground)

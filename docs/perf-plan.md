@@ -10,7 +10,7 @@ Analysis date: 2026-10-02, Ryzen 7 9700X, Radeon RX 9070 XT, Node 23.10, Chromiu
 
 | Command | What |
 |---|---|
-| `node tools/corpus/src/bench.ts [--runs 3] [--zoom] [--by-type] [--only re] [--json f]` | Node pipeline per stage over the bench set (below): tokenize, model, frontend (`renderPlot` as the viewer calls it), pick data, a 4× zoom LOD render; `--by-type` = exclusive frontend ms / vertices per entity type |
+| `node tools/corpus/src/bench.ts [--runs 3] [--zoom] [--zoom-cull] [--by-type] [--only re] [--json f]` | Node pipeline per stage over the bench set (below): tokenize, model, frontend (`renderPlot` as the viewer calls it), pick data, a 4× zoom LOD render; `--by-type` = exclusive frontend ms / vertices per entity type |
 | `node --cpu-prof --cpu-prof-dir=… tools/corpus/src/bench.ts --runs 1 --only re` | CPU profile of one file |
 | `pnpm perf:viewer --gpu --files …` | end to end in Chromium: parse, frontend, upload, first frame, frame time, main heap |
 
@@ -265,3 +265,16 @@ checks select clipped model content in `problematic_viewports.dxf`'s paper layou
 - Frames ≤ 16 ms on the RX 9070 XT for every file, ≤ 50 ms on SwiftShader for all but arch-cn.
 - Model load ≥ 50 MB/s for every file (today 16–145 MB/s; 11 of 17 files are below 50).
 - Fingerprint gate: plot mode identical for every step; viewer mode identical for steps 2 and 4.
+
+## Completed: view culling (2026-10-02)
+
+Step 3's remaining item now uses complete-list pick bounds in ViewerCore, top-level frontend
+filtering, three-view detail coverage, and LOD-debounced pan requests. Paper viewport output
+is unioned per handle in paper coordinates. The GPU keeps the complete list as a scissored
+fallback outside detail coverage; detail picks/highlights stay inside coverage. Extents and
+plots remain complete. `bench.ts --zoom-cull` defaults to the six culling benchmark drawings
+and compares explicit 8×/64× centre windows with/without culling. The real-GPU Playwright check
+is `pnpm exec node apps/playground/scripts/cull-check.ts`; `--synthetic-only` checks held-in-flight
+pan screenshots, `--timings-only` measures arch-cn zoom/pan and settled screenshots. Reports
+are written under `.codex-out/` by default, never to shared sample baselines. Results and
+limitations: [perf-cull-results.md](perf-cull-results.md).

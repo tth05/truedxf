@@ -263,6 +263,7 @@ const fontsFolder = new FontFolder();
 const viewer = new DxfViewer(viewerHost, {
   background: "dark",
   mergeBatches: new URLSearchParams(location.search).get("merge") !== "0",
+  viewCulling: new URLSearchParams(location.search).get("cull") !== "0",
   antialias: new URLSearchParams(location.search).get("aa") !== "0",
   loadFont: fontLoader(fontsFolder),
   ...(fallbackFont?.length ? { fallbackFont } : {}),

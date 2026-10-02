@@ -201,9 +201,11 @@ default, FILLMODE for pattern hatches, extents edge tolerance.
 - [ ] Missing complex-linetype shape files reported only for linetypes in use (ltypeshp.shx);
       `pdf-missing` note for PDF underlays; scan stored TTF name tables so family names resolve;
       xref loading from the file store; optionally show which stored file served a request.
-- [ ] Frontend view culling: every LOD step re-tessellates the whole drawing (a window only sets
-      the pixel size), so deep zoom into large files costs a full render each time. Cull entities
-      (block references by bounds) outside the requested window + margin and re-request on pan.
+- [x] Frontend view culling: cache complete-list top-level pick bounds in the worker; cull finer
+      smooth lists to 3× visible coverage and re-request on pan with the LOD debounce. Retain the
+      complete GPU list outside detail coverage with disjoint scissors; coarse fallback is
+      display-only for picking. Extents/plots stay identical (2026-10-02; perf/cull worktree patches,
+      docs/perf-cull-results.md).
 - [ ] Hairlines while navigating: lineweight-widened strokes scale with the list until the next
       LOD step (up to 2× too thick / thin).
 - [ ] Publishable worker entry: the default worker URL (`./worker.ts`) only works when the

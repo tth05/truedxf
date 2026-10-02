@@ -2,7 +2,7 @@
  * Pipeline benchmark over a fixed set of large, varied corpus files: the viewer worker's work
  * (tokenize → model → renderPlot → pick data) in Node, per stage, median of `--runs`.
  *
- *   node tools/corpus/src/bench.ts [--runs 3] [--only <regex>] [--parse-only] [--zoom] [--by-type] [--json out.json]
+ *   node tools/corpus/src/bench.ts [--runs 3] [--only <regex>] [--parse-only] [--zoom] [--zoom-cull] [--by-type] [--json out.json]
  *
  * `--by-type`: exclusive frontend time and emitted vertices per entity type (all render passes).
  *
@@ -43,6 +43,7 @@ function args() {
     runs: 3,
     only: undefined as RegExp | undefined,
     zoom: false,
+    zoomCull: false,
     byType: false,
     parseOnly: false,
     json: undefined as string | undefined,
@@ -51,11 +52,14 @@ function args() {
   for (let i = 0; i < v.length; i++) {
     if (v[i] === "--runs") a.runs = Number(v[++i]);
     else if (v[i] === "--only") a.only = new RegExp(v[++i]!, "i");
+    else if (v[i] === "--zoom-cull") a.zoomCull = true;
     else if (v[i] === "--zoom") a.zoom = true;
     else if (v[i] === "--by-type") a.byType = true;
     else if (v[i] === "--parse-only") a.parseOnly = true;
     else if (v[i] === "--json") a.json = v[++i];
   }
+  if (a.zoomCull && !a.only)
+    a.only = /^(arch-cn-114|dense-hatch-21|circles-117|dims-rumah-34|hatch-gdal-31|viewports-24)$/;
   return a;
 }
 
@@ -128,6 +132,7 @@ for (const [name, path] of files) {
     pick: [] as number[],
     zoom: [] as number[],
   };
+  const cullRows = new Map<string, { ms: number[]; vertices: number[] }>();
   let info: Record<string, unknown> = {};
   let error: string | undefined;
   try {
@@ -145,6 +150,34 @@ for (const [name, path] of files) {
       const res = await core.render({ ...BASE, layout: doc.activeLayout, area: { type: "extents" } });
       t.render.push(res.ms.frontend);
       t.pick.push(res.ms.pick);
+      if (a.zoomCull) {
+        for (const factor of [8, 64]) {
+          // Reset to the same fit bounds before each pair; an unculled fine render also
+          // updates the core's cache, so reusing it would give the next cull an unfair map.
+          if (factor !== 8)
+            await core.render({ ...BASE, layout: doc.activeLayout, area: { type: "extents" } });
+          const b = res.view;
+          const cx = (b.minX + b.maxX) / 2,
+            cy = (b.minY + b.maxY) / 2;
+          const hw = (b.maxX - b.minX) / (factor * 2),
+            hh = (b.maxY - b.minY) / (factor * 2);
+          for (const culled of [true, false]) {
+            const z = await core.render({
+              ...BASE,
+              layout: doc.activeLayout,
+              area: { type: "window", min: [cx - hw, cy - hh], max: [cx + hw, cy + hh] },
+              ...(culled
+                ? { cull: { minX: cx - hw * 3, minY: cy - hh * 3, maxX: cx + hw * 3, maxY: cy + hh * 3 } }
+                : {}),
+            });
+            const k = `${factor}/${culled ? "culled" : "full"}`;
+            const row = cullRows.get(k) ?? { ms: [], vertices: [] };
+            row.ms.push(z.ms.frontend);
+            row.vertices.push(z.stats.vertices);
+            cullRows.set(k, row);
+          }
+        }
+      }
       if (a.zoom && res.bounds) {
         // 4× zoom into the centre: a new LOD list (the frontend re-tessellates everything)
         const b = res.bounds;
@@ -190,6 +223,19 @@ for (const [name, path] of files) {
     pickMs: t.pick.length ? Math.round(median(t.pick)) : undefined,
     zoomMs: t.zoom.length ? Math.round(median(t.zoom)) : undefined,
     ...info,
+    ...(a.zoomCull
+      ? {
+          zoomCull: Object.fromEntries(
+            [...cullRows].map(([k, v]) => [
+              k,
+              {
+                frontendMs: Math.round(median(v.ms)),
+                vertices: median(v.vertices),
+              },
+            ]),
+          ),
+        }
+      : {}),
     error,
   };
   rows.push(row);

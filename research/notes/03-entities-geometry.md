@@ -1166,6 +1166,30 @@ leftmost pen origin, rightmost advance end; the MTEXT frame/mask box counts too 
 
 ---
 
+### 6.3 Interactive view culling (2026-10-02)
+
+This is a viewer implementation choice, not an AutoCAD rule. After a complete smooth render,
+ViewerCore unions each top-level pick's output vertices across batches, adding their float64
+origins. INSERT children share the parent's pick. Repeated model handles in paper viewports
+union in paper coordinates (note 08 §3.5); retaining unclipped bounds is conservative and avoids
+trusting a particular viewport's clip as the entity's extent. The union may retain an entity in
+more viewports than necessary. Unknown/empty and unbounded XLINE/RAY picks always draw.
+
+The cache belongs to the document and render settings (layout, layers, visibility, lineweights,
+assets, fonts, raster/style/system-variable options); resolution and window are excluded.
+Auxiliary plots do not replace it. Only explicit smooth window requests may cull; extents and
+AutoCAD raster requests stay complete. A four-cached-pixel guard accounts for curve refinement
+and Greeked text; it is a conservative practical margin, not an analytic bound on arbitrary
+font overhang. View-dependent infinite extensions must never acquire finite culling bounds.
+
+Detail lists cover three view widths/heights and refresh when the visible view reaches the
+inner 25% coverage margin, with the existing LOD debounce. The complete GPU list draws only
+outside detail coverage using disjoint integer scissor rectangles; depth/stencil are reset per
+partition. Detail picks/highlights are confined to coverage; the coarse fallback is display-only.
+Host measurements remain a full-view overlay. Keeping complete fit bounds prevents detail
+extents from changing navigation limits. See docs/perf-cull-results.md for measured checks and
+limitations; no new AutoCAD experiment was made for this optimization.
+
 ## 7. Implementation checklist (derived)
 
 1. A `Vec3`/`Mat4` math core with AAA (strict 1/64), OCS↔WCS, and elliptical-arc primitives `(C, U, V, t0, t1)`.

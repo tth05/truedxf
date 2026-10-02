@@ -120,7 +120,7 @@ S1/S2 (subclass markers match). ezdxf notes a DXF-reference error: the spec list
 | 75 | flip arrow 2 (bool) | | R2007+ |
 | 1 | text override (§1.5) | | |
 | 52 | oblique angle (deg) of extension lines, linear dims | | spec says `AcDbAlignedDimension`, written in `AcDbDimension` by ezdxf ("DXF reference error") |
-| 53 | text rotation (deg), user-defined, away from default | | absent ⇒ automatic orientation |
+| 53 | text rotation (deg), user-defined, away from default | | absent or 0 ⇒ automatic orientation (§1.6) |
 | 51 | "horizontal direction": negative of angle between OCS X and UCS X at creation | | always in OCS xy-plane; used for text "horizontal" (DIMTIH/DIMTOH) and ordinate axes |
 | 54 | clone insertion rotation (DWG `ins_rotation`) | | libredwg only (`dwg.spec:1698`), rarely in DXF |
 | 210 | extrusion | | default 0,0,1 |
@@ -231,6 +231,10 @@ From spec (`spec L3931-3934`) plus AutoCAD behaviour:
 
 - 53 text rotation: absolute angle (deg) of the text in OCS, overriding everything incl. DIMTIH/
   DIMTOH (ezdxf: "user defined text rotation – overrides everything", `dim_base.py:434-436`).
+  **53 = 0 means automatic, like absent** (DIMTEDIT angle 0 restores the default): a vertical
+  DIMTIH 0 / DIMTAD 1 dimension written by netDxf with `53 0.0` (no block) gets text aligned with
+  the dimension line, above it. VERIFIED-BY-ACAD user/dimblk-issue80 (corpus
+  vagran__dxf-viewer issue-80 DIMBLK.dxf), 2026-10-02.
 - 51 horizontal direction: ezdxf *ignores* it for linear dims (`dim_base.py:417-419`) but uses
   `-51` as the ordinate local x-axis (`dim_ordinate.py:32-38`). For DIMTIH/DIMTOH "horizontal"
   means horizontal in the UCS of creation, i.e. rotated by `-51` relative to OCS X

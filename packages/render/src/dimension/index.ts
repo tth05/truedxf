@@ -54,7 +54,9 @@ export function generateDimension(input: GenInput, dim: DimensionEntity): Entity
     p10,
     p11,
     userText: dim.userTextPosition,
-    textRotation: dim.textRotation !== undefined ? dim.textRotation * DEG : undefined,
+    // 53 = 0 is automatic orientation, like absent (vagran__dxf-viewer issue-80 DIMBLK.dxf:
+    // vertical DIMTIH 0 dimension written with 53 0.0, AutoCAD aligns the text; note 05 §1.6)
+    textRotation: dim.textRotation ? dim.textRotation * DEG : undefined,
     horizontal: -dim.horizontalDirection * DEG,
     flip1: dim.flipArrow1,
     flip2: dim.flipArrow2,

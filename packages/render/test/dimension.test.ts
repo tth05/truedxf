@@ -1,8 +1,16 @@
-import type { DimensionEntity, DimValue, Entity, LineEntity, SolidEntity } from "@truedxf/model";
+import {
+  type DimensionEntity,
+  type DimValue,
+  DxfDocument,
+  type Entity,
+  type LineEntity,
+  type MTextEntity,
+  type SolidEntity,
+} from "@truedxf/model";
 import { describe, expect, it } from "vitest";
 import { dimensionText, formatAngle, formatLinear, linearFormat } from "../src/dimension/format.ts";
 import { DimStyleVars, generateDimension } from "../src/dimension/index.ts";
-import { modelDoc } from "./helpers.ts";
+import { dxfBytes, modelDoc } from "./helpers.ts";
 
 const doc = modelDoc({ entities: "" });
 const vars = (o: Record<number, DimValue>) =>
@@ -121,6 +129,50 @@ describe("dimension block regeneration", () => {
     expect(lines).toContainEqual([38, 80, 159.35, 80]);
     expect(lines).toContainEqual([155.35, 78, 159.35, 82]);
     expect(lines).toContainEqual([38, 78, 42, 82]);
+  });
+
+  it("53 = 0 is automatic text rotation (vagran__dxf-viewer issue-80 DIMBLK.dxf)", () => {
+    const d = dimension({
+      angle: 90,
+      defPoint: { x: 20, y: 50, z: 0 },
+      defPoint2: { x: 40, y: 0, z: 0 },
+      defPoint3: { x: 40, y: 100, z: 0 },
+      textRotation: 0,
+    });
+    const o = new Map(d.overrides);
+    o.set(73, 0); // DIMTIH off: text aligned with the vertical dimension line
+    o.set(340, "11");
+    const styled = DxfDocument.load(
+      dxfBytes(`0 SECTION
+2 HEADER
+9 $ACADVER
+1 AC1032
+0 ENDSEC
+0 SECTION
+2 TABLES
+0 TABLE
+2 STYLE
+5 3
+70 1
+0 STYLE
+5 11
+330 3
+100 AcDbSymbolTableRecord
+100 AcDbTextStyleTableRecord
+2 Standard
+70 0
+40 0
+41 1
+3 txt
+0 ENDTAB
+0 ENDSEC
+0 EOF
+`),
+    );
+    const ents = generateDimension({ doc: styled, fonts: undefined }, { ...d, overrides: o })!;
+    const text = ents.find((e) => e.type === "MTEXT") as MTextEntity;
+    expect(text.direction?.x).toBeCloseTo(0, 9);
+    expect(text.direction?.y).toBeCloseTo(1, 9);
   });
 });
 

@@ -119,6 +119,15 @@ const FAMILY_FILES: Record<string, readonly string[]> = {
     "CascadiaMonoItalic.ttf",
   ],
   simsun: ["simsun.ttc", "simsun.ttc", "simsun.ttc", "simsun.ttc"],
+  // CJK families as styles name them in XDATA, English and localized (text-probes/cjk-*)
+  "microsoft yahei": ["msyh.ttc", "msyhbd.ttc", "msyh.ttc", "msyhbd.ttc"],
+  微软雅黑: ["msyh.ttc", "msyhbd.ttc", "msyh.ttc", "msyhbd.ttc"],
+  "microsoft jhenghei": ["msjh.ttc", "msjhbd.ttc", "msjh.ttc", "msjhbd.ttc"],
+  宋体: ["simsun.ttc", "simsun.ttc", "simsun.ttc", "simsun.ttc"],
+  simhei: ["simhei.ttf", "simhei.ttf", "simhei.ttf", "simhei.ttf"],
+  黑体: ["simhei.ttf", "simhei.ttf", "simhei.ttf", "simhei.ttf"],
+  kaiti: ["simkai.ttf", "simkai.ttf", "simkai.ttf", "simkai.ttf"],
+  fangsong: ["simfang.ttf", "simfang.ttf", "simfang.ttf", "simfang.ttf"],
   isocpeur: ["isocpeur.ttf", "isocpeur.ttf", "isocpeui.ttf", "isocpeui.ttf"],
 };
 

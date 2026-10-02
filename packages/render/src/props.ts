@@ -66,6 +66,12 @@ export interface Resolved {
   props?: ResolvedProperties;
 }
 
+interface PropertyEntry {
+  entity: EntityBase;
+  properties: ResolvedProperties;
+  resolved?: Resolved;
+}
+
 const DEFAULT_LAYER: Omit<LayerEntry, "record"> = {
   type: "LAYER",
   name: "0",
@@ -107,11 +113,9 @@ export class PropertyResolver {
   private readonly vpContexts = new WeakMap<ViewportLayers, ViewportContext>();
   // INSERT inheritance and viewport overrides are part of resolution (note 06 §7). Keep caches
   // local to this resolver so independent renders cannot reuse stale document/layer state.
-  private readonly propertiesCache = new WeakMap<
-    Inherited,
-    Map<ViewportLayers | undefined, WeakMap<EntityBase, ResolvedProperties>>
-  >();
-  private readonly resolvedCache = new WeakMap<ResolvedProperties, Resolved>();
+  // Consecutive visibility/colour/inheritance queries reuse the current entity. Retaining all
+  // entities makes distinct top-level circles pay for large WeakMaps without any later hits.
+  private readonly propertiesCache = new WeakMap<Inherited, Map<ViewportLayers | undefined, PropertyEntry>>();
 
   /**
    * `lwDefault`: the LWDEFAULT system variable (registry; default: $LWDEFAULT or 25).
@@ -179,16 +183,18 @@ export class PropertyResolver {
 
   /** Full model resolution of an entity in an insert context. */
   properties(e: EntityBase, inh: Inherited): ResolvedProperties {
+    return this.propertyEntry(e, inh).properties;
+  }
+
+  private propertyEntry(e: EntityBase, inh: Inherited): PropertyEntry {
     let contexts = this.propertiesCache.get(inh);
     if (!contexts) this.propertiesCache.set(inh, (contexts = new Map()));
-    let entities = contexts.get(this.viewport);
-    if (!entities) contexts.set(this.viewport, (entities = new WeakMap()));
-    let p = entities.get(e);
-    if (!p) {
-      p = this.model.resolve(e, inh.parents, this.viewportContext());
-      entities.set(e, p);
+    let entry = contexts.get(this.viewport);
+    if (entry?.entity !== e) {
+      entry = { entity: e, properties: this.model.resolve(e, inh.parents, this.viewportContext()) };
+      contexts.set(this.viewport, entry);
     }
-    return p;
+    return entry;
   }
 
   /**
@@ -206,10 +212,8 @@ export class PropertyResolver {
   }
 
   resolve(e: EntityBase, inh: Inherited): Resolved {
-    const p = this.properties(e, inh);
-    let r = this.resolvedCache.get(p);
-    if (!r) this.resolvedCache.set(p, (r = toResolved(p)));
-    return r;
+    const entry = this.propertyEntry(e, inh);
+    return (entry.resolved ??= toResolved(entry.properties));
   }
 
   /** Properties an INSERT passes to its block content. */

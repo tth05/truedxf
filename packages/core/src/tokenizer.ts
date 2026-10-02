@@ -70,33 +70,6 @@ class TagBuffer {
   }
 }
 
-/**
- * Parses a group code line: optional blanks, optional sign, digits, optional blanks, then
- * optionally anything after a blank — AutoCAD reads ` 10   // insertion point x` as code 10
- * (VERIFIED-BY-ACAD user/text-frame-annotated, note 01 §8.1). NaN if invalid.
- */
-function parseCode(b: Uint8Array, s: number, e: number): number {
-  while (s < e && (b[s] === 32 || b[s] === 9)) s++;
-  if (s >= e) return Number.NaN;
-  let neg = false;
-  if (b[s] === 45) {
-    neg = true;
-    s++;
-  } else if (b[s] === 43) s++;
-  let i = s;
-  let v = 0;
-  while (i < e) {
-    const c = b[i]! - 48;
-    if (c < 0 || c > 9) break;
-    v = v * 10 + c;
-    i++;
-  }
-  if (i === s || i - s > 6) return Number.NaN;
-  // trailing text is accepted only after a blank (a comment); "10abc" stays invalid
-  if (i < e && b[i] !== 32 && b[i] !== 9) return Number.NaN;
-  return neg ? -v : v;
-}
-
 function isEofValue(b: Uint8Array, s: number, e: number): boolean {
   while (s < e && (b[s] === 32 || b[s] === 9)) s++;
   while (e > s && (b[e - 1] === 32 || b[e - 1] === 9)) e--;
@@ -118,29 +91,38 @@ function tokenizeAscii(bytes: Uint8Array, diag: Diagnostics): TagStore {
   let end = len;
   let sawEof = false;
 
-  /** Returns [contentEnd, next]; next = -1 at end of data. */
-  const lineEnd = (start: number): [number, number] => {
-    const p = bytes.indexOf(nl, start);
-    if (p < 0) return [len, len];
-    let ce = p;
-    if (stripCr && ce > start && bytes[ce - 1] === 13) ce--;
-    return [ce, p + 1];
-  };
-
   while (pos < len) {
     const codeStart = pos;
-    const [ce, afterCode] = lineEnd(pos);
-    const code = parseCode(bytes, codeStart, ce);
+    let code = 0;
+    let digits = 0;
+    let neg = false;
+    // 0: leading blanks, 1: sign, 2: digits, 3: comment, 4: invalid.
+    let state = 0;
+    let blank = true;
+    while (pos < len && bytes[pos] !== nl) {
+      const c = bytes[pos++]!;
+      // Strip CR only before an actual LF, just as the old line splitter did.
+      if (stripCr && c === 13 && bytes[pos] === nl) break;
+      if (c !== 32 && c !== 9 && c !== 13 && c !== 26 && c !== 0) blank = false;
+      if (state >= 3) continue;
+      if (c >= 48 && c <= 57) {
+        code = code * 10 + c - 48;
+        digits++;
+        state = 2;
+      } else if (c === 32 || c === 9) {
+        if (state === 2)
+          state = 3; // annotated group codes: note 01 §8.1
+        else if (state === 1) state = 4;
+      } else if (state === 0 && (c === 43 || c === 45)) {
+        neg = c === 45;
+        state = 1;
+      } else state = 4;
+    }
+    const afterCode = pos < len ? pos + 1 : len;
+    if (state === 4 || digits === 0 || digits > 6) code = Number.NaN;
+    else if (neg) code = -code;
     if (Number.isNaN(code)) {
       // blank trailing lines / garbage after the last tag
-      let blank = true;
-      for (let k = codeStart; k < ce; k++) {
-        const c = bytes[k]!;
-        if (c !== 32 && c !== 9 && c !== 13 && c !== 26 && c !== 0) {
-          blank = false;
-          break;
-        }
-      }
       if (!(blank && afterCode >= len)) {
         diag.error("invalid-group-code", "invalid group code line, skipping one line to resync", {
           offset: codeStart,
@@ -154,7 +136,11 @@ function tokenizeAscii(bytes: Uint8Array, diag: Diagnostics): TagStore {
       break;
     }
     const vs = afterCode;
-    const [ve, afterValue] = lineEnd(vs);
+    pos = vs;
+    while (pos < len && bytes[pos] !== nl) pos++;
+    let ve = pos;
+    if (pos < len && stripCr && ve > vs && bytes[ve - 1] === 13) ve--;
+    const afterValue = pos < len ? pos + 1 : len;
     buf.push(code, codeStart, vs, ve);
     pos = afterValue;
     if (code === 0 && isEofValue(bytes, vs, ve)) {

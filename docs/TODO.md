@@ -176,6 +176,17 @@ default, FILLMODE for pattern hatches, extents edge tolerance.
       compare, corpus browser). Follow-ups in "Viewer" below.
 - [ ] Phase 8: release (docs site, examples, npm publishing).
 
+## Performance (docs/perf-plan.md)
+
+- [x] Bench set, `tools/corpus/src/bench.ts`, baselines and profiles (2026-10-02); `perf:viewer
+      --gpu` now really uses the GPU.
+- [ ] 0: fingerprint gate (model dump + display-list hashes, plot and viewer mode).
+- [ ] 1: renderer batch merging, shared materials, GPU buffers built in the worker.
+- [ ] 2: frontend memoization (properties, text layouts), viewer first render without probe pass.
+- [ ] 3: viewer LOD (dense hatch patterns, sub-pixel text, view culling).
+- [ ] 4: parser (tokenizer, number fast path, `readFields` rewrite, lazy TTF parsing).
+- [ ] 5: memory and transfer (compact display list, picking in the worker, model per-entity size).
+
 ## Viewer (packages/viewer, apps/playground)
 
 - [x] Additional files: `viewer.addFiles` / `openFiles` / `openDrawing`, loose name matching

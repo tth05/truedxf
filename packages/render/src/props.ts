@@ -105,6 +105,13 @@ export class PropertyResolver {
    */
   display = false;
   private readonly vpContexts = new WeakMap<ViewportLayers, ViewportContext>();
+  // INSERT inheritance and viewport overrides are part of resolution (note 06 §7). Keep caches
+  // local to this resolver so independent renders cannot reuse stale document/layer state.
+  private readonly propertiesCache = new WeakMap<
+    Inherited,
+    Map<ViewportLayers | undefined, WeakMap<EntityBase, ResolvedProperties>>
+  >();
+  private readonly resolvedCache = new WeakMap<ResolvedProperties, Resolved>();
 
   /**
    * `lwDefault`: the LWDEFAULT system variable (registry; default: $LWDEFAULT or 25).
@@ -172,7 +179,16 @@ export class PropertyResolver {
 
   /** Full model resolution of an entity in an insert context. */
   properties(e: EntityBase, inh: Inherited): ResolvedProperties {
-    return this.model.resolve(e, inh.parents, this.viewportContext());
+    let contexts = this.propertiesCache.get(inh);
+    if (!contexts) this.propertiesCache.set(inh, (contexts = new Map()));
+    let entities = contexts.get(this.viewport);
+    if (!entities) contexts.set(this.viewport, (entities = new WeakMap()));
+    let p = entities.get(e);
+    if (!p) {
+      p = this.model.resolve(e, inh.parents, this.viewportContext());
+      entities.set(e, p);
+    }
+    return p;
   }
 
   /**
@@ -190,7 +206,10 @@ export class PropertyResolver {
   }
 
   resolve(e: EntityBase, inh: Inherited): Resolved {
-    return toResolved(this.properties(e, inh));
+    const p = this.properties(e, inh);
+    let r = this.resolvedCache.get(p);
+    if (!r) this.resolvedCache.set(p, (r = toResolved(p)));
+    return r;
   }
 
   /** Properties an INSERT passes to its block content. */

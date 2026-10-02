@@ -81,8 +81,10 @@ which Vite, webpack and Rollup bundle. Vite's dependency pre-bundling breaks tha
 - **Layers.** Any layer can be toggled, including ones off or frozen in the file
   (`RenderEnv.layerVisibility`). No-plot and Defpoints layers are shown (display, not plot).
 - **Picking.** A flatbush index over the display list's pick ranges, built in the worker. Strokes
-  near the cursor win over filled areas under it, then the topmost area. Hover and selection are
-  highlighted in the renderer's overlay.
+  near the cursor win over filled areas under it, then the topmost area. Like AutoCAD's selection,
+  the unit is the top-level entity: a block reference, dimension or leader picks and highlights as
+  a whole (block content, ATTRIBs, arrows and text included), everywhere it is drawn (several
+  viewports). Hover and selection are highlighted in the renderer's overlay.
 - **Measure.** `setTool("measure")`: two clicks give distance, Δx, Δy and angle (`measure` event).
 - **Memory.** The renderer runs with `releaseArrays: true`; after GPU upload the viewer keeps only
   positions (for picking and highlighting).

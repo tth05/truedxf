@@ -701,8 +701,7 @@ export class DxfViewer {
   zoomToEntity(handle: string, margin = ENTITY_MARGIN): boolean {
     const cur = this.current;
     if (!cur || !this.view) return false;
-    const e = cur.pick.entityOf(handle);
-    const r = e < 0 ? undefined : cur.pick.bounds(e);
+    const r = cur.pick.bounds(handle);
     if (!r) return false;
     if (r.maxX === r.minX && r.maxY === r.minY) this.setView({ cx: r.minX, cy: r.minY });
     else this.fitTo(r, margin);
@@ -1185,9 +1184,7 @@ export class DxfViewer {
     disposeChildren(g);
     const cur = this.current;
     if (!handle || !cur) return;
-    const e = cur.pick.entityOf(handle);
-    if (e < 0) return;
-    for (const r of cur.pick.ranges(e)) {
+    for (const r of cur.pick.ranges(handle)) {
       const b = cur.batches[r.batch];
       if (!b) continue;
       const pos = b.positions.slice(r.first * 2, (r.first + r.count) * 2);

@@ -178,7 +178,10 @@ export class DisplayListBuilder {
   private col = new GrowU8();
   private pick: number[] = [];
   private vertexCount = 0;
+  /** Index of the open entity in `entities` (-1: none, or not yet added). */
   private entity = -1;
+  /** The open entity, added to `entities` with its first output (no entries for empty ones). */
+  private entityId: string | undefined;
   private entityStart = 0;
   /** Maximum vertices per batch (keeps GPU buffers bounded). */
   readonly maxBatchVertices: number;
@@ -191,18 +194,23 @@ export class DisplayListBuilder {
   /** Starts attributing subsequent primitives to an entity (for picking). */
   beginEntity(id: string): void {
     this.closePick();
-    this.entity = this.entities.length;
-    this.entities.push(id);
+    this.entity = -1;
+    this.entityId = id;
     this.entityStart = this.vertexCount;
   }
 
   endEntity(): void {
     this.closePick();
     this.entity = -1;
+    this.entityId = undefined;
   }
 
   private closePick(): void {
-    if (this.entity >= 0 && this.vertexCount > this.entityStart) {
+    if (this.entityId !== undefined && this.vertexCount > this.entityStart) {
+      if (this.entity < 0) {
+        this.entity = this.entities.length;
+        this.entities.push(this.entityId);
+      }
       this.pick.push(this.entityStart, this.vertexCount - this.entityStart, this.entity);
     }
     this.entityStart = this.vertexCount;

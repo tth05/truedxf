@@ -85,7 +85,7 @@ export class PickIndex {
   private readonly entities: readonly string[];
   private readonly items: Uint32Array;
   private readonly index: Flatbush | undefined;
-  private byEntity: Map<number, PickRange[]> | undefined;
+  private byHandle: Map<string, PickRange[]> | undefined;
 
   constructor(batches: readonly PickBatch[], entities: readonly string[], data: PickData) {
     this.batches = batches;
@@ -127,30 +127,28 @@ export class PickIndex {
     return { entity: best.entity, handle: this.entities[best.entity] ?? "", distance: best.d };
   }
 
-  /** The pick ranges of an entity (for highlighting). */
-  ranges(entity: number): readonly PickRange[] {
-    if (!this.byEntity) {
-      const m = new Map<number, PickRange[]>();
+  /**
+   * The pick ranges of an entity (for highlighting): of every list entity with that handle, as
+   * an entity may occur more than once (model space drawn in several viewports).
+   */
+  ranges(handle: string): readonly PickRange[] {
+    if (!this.byHandle) {
+      const m = new Map<string, PickRange[]>();
       for (let k = 0; k < this.items.length; k += 4) {
-        const e = this.items[k + 3]!;
-        let a = m.get(e);
-        if (!a) m.set(e, (a = []));
+        const h = this.entities[this.items[k + 3]!] ?? "";
+        let a = m.get(h);
+        if (!a) m.set(h, (a = []));
         a.push({ batch: this.items[k]!, first: this.items[k + 1]!, count: this.items[k + 2]! });
       }
-      this.byEntity = m;
+      this.byHandle = m;
     }
-    return this.byEntity.get(entity) ?? [];
-  }
-
-  /** Entity index of a handle (first occurrence), or -1. */
-  entityOf(handle: string): number {
-    return this.entities.indexOf(handle);
+    return this.byHandle.get(handle) ?? [];
   }
 
   /** World bounds of an entity's pick ranges (what highlighting draws), or undefined. */
-  bounds(entity: number): Rect | undefined {
+  bounds(handle: string): Rect | undefined {
     let r: Rect | undefined;
-    for (const { batch, first, count } of this.ranges(entity)) {
+    for (const { batch, first, count } of this.ranges(handle)) {
       const b = this.batches[batch];
       if (!b) continue;
       const p = b.positions;

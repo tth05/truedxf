@@ -47,14 +47,32 @@ describe("pick index", () => {
   });
 
   it("lists the ranges of an entity for highlighting", () => {
-    expect(index.ranges(index.entityOf("LINE"))).toEqual([{ batch: 1, first: 0, count: 4 }]);
-    expect(index.entityOf("nope")).toBe(-1);
+    expect(index.ranges("LINE")).toEqual([{ batch: 1, first: 0, count: 4 }]);
+    expect(index.ranges("nope")).toEqual([]);
   });
 
   it("bounds an entity over all of its ranges (zoomToEntity)", () => {
-    expect(index.bounds(index.entityOf("LINE"))).toEqual({ minX: 10, minY: 50, maxX: 1100, maxY: 1000 });
-    expect(index.bounds(index.entityOf("DOT"))).toEqual({ minX: 500, minY: 500, maxX: 500, maxY: 500 });
-    expect(index.bounds(-1)).toBeUndefined();
+    expect(index.bounds("LINE")).toEqual({ minX: 10, minY: 50, maxX: 1100, maxY: 1000 });
+    expect(index.bounds("DOT")).toEqual({ minX: 500, minY: 500, maxX: 500, maxY: 500 });
+    expect(index.bounds("nope")).toBeUndefined();
+  });
+
+  it("joins the ranges of an entity drawn more than once (viewports); empty entities add nothing", () => {
+    const b = new DisplayListBuilder(1);
+    const black = [0, 0, 0, 255] as const;
+    b.beginEntity("A");
+    b.triangles([0, 0, 10, 0, 10, 10], black);
+    b.endEntity();
+    b.beginEntity("OFF");
+    b.endEntity();
+    b.beginEntity("A");
+    b.triangles([100, 100, 110, 100, 110, 110], black);
+    b.endEntity();
+    const l = b.build();
+    expect(l.entities).toEqual(["A", "A"]);
+    const ix = new PickIndex(l.batches, l.entities, buildPickData(l));
+    expect(ix.ranges("A")).toHaveLength(2);
+    expect(ix.bounds("A")).toEqual({ minX: 0, minY: 0, maxX: 110, maxY: 110 });
   });
 
   it("handles empty lists", () => {

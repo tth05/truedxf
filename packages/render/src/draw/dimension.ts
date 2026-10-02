@@ -56,8 +56,10 @@ export function drawGenerated(
   parent: Entity,
   st: DrawState,
 ): void {
+  // generated entities have no document handles: they pick as the generating entity (the
+  // top-level pick owner while drawn from drawEntity, see Frontend.pickOwner)
   const owner = fe.pickOwner;
-  fe.pickOwner = parent.handle || `#${parent.id}`;
+  fe.pickOwner ??= parent.handle || `#${parent.id}`;
   try {
     drawGeneratedContent(fe, block, local, parent, st);
   } finally {
@@ -91,9 +93,7 @@ function drawGeneratedContent(
         continue;
       }
       if (!fe.props.isPlotted(e, inh)) continue;
-      fe.builder.beginEntity(fe.pickId(e));
       drawLayout(fe, layoutMText(e as MTextEntity, fonts, { dimension: true }), e, sub.m, inh);
-      fe.builder.endEntity();
     } catch (err) {
       fe.note(`error:${e.type}:${err instanceof Error ? err.message : String(err)}`);
     }

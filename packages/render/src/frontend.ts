@@ -259,15 +259,15 @@ export class Frontend {
   }[] = [];
   private readonly pixelScratch: number[] = [];
   /**
-   * Pick identity for entities without a handle while drawing generated content (dimension /
-   * leader / tolerance geometry parsed from a synthetic document, whose ids are not document
-   * ids): the generating entity (draw/dimension.ts drawGenerated).
+   * Pick identity of the top-level entity being drawn. Everything drawn inside it (block
+   * content, ATTRIBs, generated dimension / leader geometry, arrow blocks) belongs to it, like
+   * AutoCAD's selection picks the block reference or dimension, not its parts.
    */
   pickOwner: string | undefined;
 
-  /** Pick identity of an entity (handle, generating entity, or "#id"). */
+  /** Pick identity of an entity: the top-level entity it is drawn in, its handle, or "#id". */
   pickId(e: Entity): string {
-    return e.handle || this.pickOwner || `#${e.id}`;
+    return this.pickOwner ?? (e.handle || `#${e.id}`);
   }
 
   constructor(
@@ -329,6 +329,23 @@ export class Frontend {
   }
 
   drawEntity(e: Entity, st: DrawState): void {
+    if (this.pickOwner !== undefined) {
+      this.drawEntityContent(e, st);
+      return;
+    }
+    // a top-level entity: one pick entity for all of its output
+    const id = this.pickId(e);
+    this.builder.beginEntity(id);
+    this.pickOwner = id;
+    try {
+      this.drawEntityContent(e, st);
+    } finally {
+      this.pickOwner = undefined;
+      this.builder.endEntity();
+    }
+  }
+
+  private drawEntityContent(e: Entity, st: DrawState): void {
     if (droppedOnLoad(this.doc, e)) return;
     for (const f of this.entityFilters) if (!f(e, st)) return;
     if (e.type === "INSERT") {
@@ -346,11 +363,9 @@ export class Frontend {
       this.note(`entity:${e.dxfType}`);
       return;
     }
-    this.builder.beginEntity(this.pickId(e));
     if (this.transparency && this.grid && this.alpha(this.resolve(e, st)) < 255)
       this.drawTransparent(e, st, drawer);
     else drawer(this, e, st);
-    this.builder.endEntity();
   }
 
   /**

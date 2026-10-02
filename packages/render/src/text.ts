@@ -457,7 +457,6 @@ setAttribDrawer((fe, insert, st) => {
   if (!fonts) return;
   // ByBlock / layer-0 attributes inherit from their INSERT
   const inh = fe.props.inherit(insert, st.inh);
-  const b = fe.builder;
   // MINSERT: the ATTRIBs (stored for cell 0,0) repeat in every cell (VERIFIED-BY-ACAD
   // attribs/minsert-*): translate by the cell offset in the insert's rotated OCS frame
   const cells: Matrix44[] = [];
@@ -477,14 +476,13 @@ setAttribDrawer((fe, insert, st) => {
   }
   for (const a of insert.attribs) {
     if (!attribVisible(fe, a) || !fe.props.isPlotted(a, inh)) continue;
-    b.beginEntity(a.handle || `#${a.id}`);
+    // an ATTRIB picks as its block reference (Frontend.pickOwner)
     try {
       const layout = attributeLayout(fe, fonts, a, a.text);
       for (const m of cells) drawLayout(fe, layout, a, m, inh);
     } catch (err) {
       fe.note(`error:ATTRIB:${err instanceof Error ? err.message : String(err)}`);
     }
-    b.endEntity();
   }
 });
 

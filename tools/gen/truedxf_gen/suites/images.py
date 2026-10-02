@@ -1,5 +1,5 @@
 """IMAGE / IMAGEDEF / RASTERVARIABLES, WIPEOUT / WIPEOUTVARIABLES and PDF underlays
-(note 07 §8–§10, note 06 §8.3, note 02 §3.6/§3.14/§3.15, note 11a §7, note 11c §1).
+(note 07 §8–§10, note 06 §8.3, note 02 §3.6/§3.14/§3.15, note 11a §7, note 11c §12).
 
 Raster sources are small deterministic PNG/TIFF files written next to each case
 (`<case>-img.png`); IMAGEDEF paths are the absolute canonical paths returned by `c.add_file`

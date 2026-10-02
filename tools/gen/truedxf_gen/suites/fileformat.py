@@ -1,5 +1,5 @@
 """DXF container format: syntax variants, versions, encodings, header, handles, XDATA, tables,
-objects and the AutoCAD writer checklist (notes 01, 02, 11a §18, 11c §1-2).
+objects and malformed input: what AutoCAD opens, rejects or repairs (notes 01, 02, 11a, 11c).
 
 Almost every case is the same small reference drawing (frame, diagonals, circle, TEXT label =
 case name; ``base_drawing``) plus ONE variation or deliberate defect applied to the serialised
@@ -95,7 +95,7 @@ def _objects_first(t: Tags) -> tuple[int, int]:
 
 @suite(
     "fileformat",
-    "DXF container: syntax, versions, encodings, header, handles, XDATA, tables, objects, writer checklist",
+    "DXF container: syntax, versions, encodings, header, handles, XDATA, tables, objects, malformed input",
     description="One small reference drawing per case plus one deliberate variation/defect; answered by the AutoCAD open log, plot and DXFOUT.",
 )
 def build(s: SuiteBuilder) -> None:
@@ -120,7 +120,7 @@ def build(s: SuiteBuilder) -> None:
     _tables(s, mk)
     _objects(s, mk)
     _entities(s, mk)
-    _checklist(s, mk)
+    _malformed_misc(s, mk)
     _binary_chunks(s, mk)
     _corpus(s, mk)
 
@@ -536,7 +536,7 @@ def _structure(s, mk) -> None:
             if t.code(i + 1) == 281:
                 t.pairs[i], t.pairs[i + 1] = t.pairs[i + 1], t.pairs[i]
 
-    c, h = mk("class-281-before-280", "Malformed: AC1015 CLASS records with 281 written before 280", ["Q-0043", "Q-0049"], ver="R2000", malformed=True, tags=["CLASS"])
+    c, h = mk("class-281-before-280", "Malformed: AC1015 CLASS records with 281 written before 280", ["Q-0043"], ver="R2000", malformed=True, tags=["CLASS"])
     c.byte_filters.append(tagfilter(swap_280_281))
 
     def class_without_280_281(t: Tags):
@@ -544,7 +544,7 @@ def _structure(s, mk) -> None:
         for i in reversed(t.find_all(280, None, cs, ce) + t.find_all(281, None, cs, ce)):
             t.remove(i)
 
-    c, h = mk("class-no-280-281", "Malformed: R2018 CLASS records without 280/281 (checklist 10)", ["Q-0049"], malformed=True, tags=["CLASS", "checklist"])
+    c, h = mk("class-no-280-281", "Malformed: R2018 CLASS records without 280/281", [], malformed=True, tags=["CLASS"])
     c.byte_filters.append(tagfilter(class_without_280_281))
 
     def class_91_r2000(t: Tags):
@@ -552,8 +552,8 @@ def _structure(s, mk) -> None:
         for i in reversed(t.find_all(90, None, cs, ce)):
             t.insert(i + 1, [(91, 0)])
 
-    c, h = mk("class-91-in-r2000", "Malformed: AC1015 CLASS records with a 91 instance count (valid only from AC1018)", ["Q-0049"], ver="R2000",
-              malformed=True, tags=["CLASS", "checklist"])
+    c, h = mk("class-91-in-r2000", "Malformed: AC1015 CLASS records with a 91 instance count (valid only from AC1018)", [], ver="R2000",
+              malformed=True, tags=["CLASS"])
     c.byte_filters.append(tagfilter(class_91_r2000))
 
     c, h = mk("r2000-acadver-missing", "Malformed: AC1015 file with the $ACADVER header variable removed", ["Q-0071"], ver="R2000", malformed=True, tags=["header", "version"])
@@ -684,7 +684,7 @@ def _xdata(s, mk) -> None:
                   malformed=True, tags=["undefined-code"], params={"code": code})
         c.byte_filters.append(tagfilter(lambda t, h=h, code=code: _after(t, h["line"], 31, [(code, "1")])))
     for code, val in ((61, "0"), (63, "1"), (5005, "x"), (999, "comment")):
-        c, h = mk(f"undef-code-{code}-acdbentity", f"R2018 LINE with group code {code} in AcDbEntity (undocumented)", ["Q-0025", "Q-0049"],
+        c, h = mk(f"undef-code-{code}-acdbentity", f"R2018 LINE with group code {code} in AcDbEntity (undocumented)", ["Q-0025"],
                   malformed=True, tags=["undefined-code"], params={"code": code})
         c.byte_filters.append(tagfilter(lambda t, h=h, code=code, val=val: _after(t, h["line"], 8, [(code, val)])))
 
@@ -723,11 +723,11 @@ def _xdata(s, mk) -> None:
         dim.render()
         if wrong:
             c.byte_filters.append(replace_bytes(b"\nAcDb3PointAngularDimension\n", b"\n" + wrong.encode() + b"\n"))
-    c, h = mk("subclass-line-none", "Malformed: R2018 LINE without any 100 subclass markers", ["Q-0028", "Q-0049"], malformed=True, tags=["subclass"])
+    c, h = mk("subclass-line-none", "Malformed: R2018 LINE without any 100 subclass markers", ["Q-0028"], malformed=True, tags=["subclass"])
     c.byte_filters.append(tagfilter(lambda t, h=h: _drop(t, h["line"], 100)))
     c, h = mk("subclass-line-no-acdbline", "Malformed: R2018 LINE without 100 AcDbLine (AcDbEntity kept)", ["Q-0028"], malformed=True, tags=["subclass"])
     c.byte_filters.append(tagfilter(lambda t, h=h: _drop(t, h["line"], 100, "AcDbLine")))
-    c, h = mk("subclass-line-wrong-name", "Malformed: R2018 LINE with 100 AcDbLines (wrong subclass name)", ["Q-0028", "Q-0049"], malformed=True, tags=["subclass"])
+    c, h = mk("subclass-line-wrong-name", "Malformed: R2018 LINE with 100 AcDbLines (wrong subclass name)", ["Q-0028"], malformed=True, tags=["subclass"])
     c.byte_filters.append(tagfilter(lambda t, h=h: _setv(t, h["line"], 100, "AcDbLines", 1)))
 
     # app-data placement (Q-0029, Q-0030)
@@ -777,7 +777,7 @@ def _xdata(s, mk) -> None:
     c.doc.entitydb[h["line"]].set_xdata("TRUEDXF", [(1000, "first")])
     c.byte_filters.append(tagfilter(lambda t, h=h: _end(t, h["line"], [(1001, "TRUEDXF"), (1000, "second")])))
     for v in ("R2000", "R2018"):
-        c, h = mk(f"xdata-unregistered-appid-{v.lower()}", f"Malformed: LINE XDATA 1001 UNREG_APP not in the APPID table ({v})", ["Q-0034", "Q-0049"],
+        c, h = mk(f"xdata-unregistered-appid-{v.lower()}", f"Malformed: LINE XDATA 1001 UNREG_APP not in the APPID table ({v})", ["Q-0034"],
                   ver=v, malformed=True, tags=["XDATA", "APPID"])
         c.byte_filters.append(tagfilter(lambda t, h=h: _end(t, h["line"], [(1001, "UNREG_APP"), (1000, "test")])))
     for kb in (15, 17, 20, 64):
@@ -790,7 +790,7 @@ def _xdata(s, mk) -> None:
 
     # embedded object vs XDATA order (Q-0036)
     for n in ("ezdxf-order", "embedded-after-xdata"):
-        c, h = mk(f"mtext-columns-xdata-{n}", f"MTEXT with static columns (101 Embedded Object) and XDATA; {n}", ["Q-0036", "Q-0049"],
+        c, h = mk(f"mtext-columns-xdata-{n}", f"MTEXT with static columns (101 Embedded Object) and XDATA; {n}", ["Q-0036"],
                   malformed=n != "ezdxf-order", tags=["MTEXT", "XDATA", "embedded-object"])
         m = c.msp.add_mtext_static_columns(["Column one text", "Column two text"], width=50, gutter_width=10, height=40,
                                            dxfattribs={"insert": (30, 110), "char_height": 5})
@@ -805,11 +805,11 @@ def _xdata(s, mk) -> None:
                 xd = t.pairs[j:e0]
                 t.pairs[i:e0] = xd + emb
             c.byte_filters.append(tagfilter(swap))
-    c, h = mk("mtext-embedded-70-ne-71", "Malformed: MTEXT embedded object with 70 != 71 column count (checklist 6)", ["Q-0049"], malformed=True, tags=["MTEXT", "embedded-object", "checklist"])
+    c, h = mk("mtext-embedded-70-ne-71", "Malformed: MTEXT embedded object with 70 != 71 column count", [], malformed=True, tags=["MTEXT", "embedded-object"])
     m = c.msp.add_mtext_static_columns(["Column one", "Column two"], width=50, gutter_width=10, height=40, dxfattribs={"insert": (30, 110), "char_height": 5})
     c.byte_filters.append(tagfilter(lambda t, hh=m.dxf.handle: _setv(t, hh, 70, "3")))
-    c, h = mk("mtext-group1-after-101", "Malformed: MTEXT whose group 1 text is written after the 101 embedded object (checklist 6)", ["Q-0049"],
-              malformed=True, tags=["MTEXT", "embedded-object", "checklist"])
+    c, h = mk("mtext-group1-after-101", "Malformed: MTEXT whose group 1 text is written after the 101 embedded object", [],
+              malformed=True, tags=["MTEXT", "embedded-object"])
     m = c.msp.add_mtext_static_columns(["Column one", "Column two"], width=50, gutter_width=10, height=40, dxfattribs={"insert": (30, 110), "char_height": 5})
 
     def g1_after(t: Tags, hh=m.dxf.handle):
@@ -894,7 +894,7 @@ def _handles(s, mk) -> None:
     c.byte_filters.append(tagfilter(no_acad))
 
     for n in ("10", "max", "max-plus-1", "zero", "huge"):
-        c, h = mk(f"handseed-{n}", f"$HANDSEED = {n} relative to the largest handle (AC1015)", ["Q-0074", "Q-0049"], ver="R2000",
+        c, h = mk(f"handseed-{n}", f"$HANDSEED = {n} relative to the largest handle (AC1015)", [], ver="R2000",
                   malformed=n in ("10", "max", "zero"), tags=["handles", "HANDSEED"], params={"handseed": n})
 
         def seed(t: Tags, n=n):
@@ -1052,7 +1052,7 @@ def _encoding(s, mk) -> None:
 def _header(s, mk) -> None:
     for v in ("R2000", "R2004", "R2010", "R2013", "R2018"):
         for code in (70, 90):
-            c, h = mk(f"acadmaintver-{code}-{v.lower()}", f"$ACADMAINTVER written with group {code} in a {v} file", ["Q-0073", "Q-0049"], ver=v,
+            c, h = mk(f"acadmaintver-{code}-{v.lower()}", f"$ACADMAINTVER written with group {code} in a {v} file", ["Q-0073"], ver=v,
                       malformed=(code == 90) != (v == "R2018"), tags=["header", "ACADMAINTVER"], params={"code": code})
             c.byte_filters.append(tagfilter(lambda t, code=code: t.set_header("$ACADMAINTVER", (code, "4"))))
     c, h = mk("r12-pucs-zero", "Malformed: R12 header $PUCSXDIR = $PUCSYDIR = (0,0,0)", ["Q-0076"], ver="R12", malformed=True, tags=["header"])
@@ -1098,7 +1098,7 @@ def _header(s, mk) -> None:
     c.byte_filters.append(tagfilter(pts2d))
     for n, code, val, ver in (("290-1-r2018", 290, "1", "R2018"), ("280-1-r2018", 280, "1", "R2018"), ("280-2-r2018", 280, "2", "R2018"),
                               ("290-1-r2004", 290, "1", "R2004"), ("280-2-r2004", 280, "2", "R2004"), ("280-1-r2004", 280, "1", "R2004")):
-        c, h = mk(f"xclipframe-{n}", f"$XCLIPFRAME written as group {code} value {val} ({ver}) with an XCLIPped INSERT", ["Q-0080", "Q-0049"], ver=ver,
+        c, h = mk(f"xclipframe-{n}", f"$XCLIPFRAME written as group {code} value {val} ({ver}) with an XCLIPped INSERT", ["Q-0080"], ver=ver,
                   malformed=n in ("290-1-r2018", "280-2-r2004", "280-1-r2004"), tags=["header", "XCLIP"])
         _xclip_insert(c)
         c.byte_filters.append(tagfilter(lambda t, code=code, val=val: t.set_header("$XCLIPFRAME", (code, val))))
@@ -1115,9 +1115,9 @@ def _header(s, mk) -> None:
         t.remove(i, j)
         t.insert(i, [(9, "$DIMFAC"), (40, "0.5")])
     c.byte_filters.append(tagfilter(dimfac))
-    c, h = mk("header-unknown-var", "Header with an unknown variable $TRUEDXFTEST (warning only?)", ["Q-0049"], malformed=True, tags=["header"])
+    c, h = mk("header-unknown-var", "Header with an unknown variable $TRUEDXFTEST (warning only?)", [], malformed=True, tags=["header"])
     c.byte_filters.append(tagfilter(lambda t: t.set_header("$TRUEDXFTEST", (70, "1"))))
-    c, h = mk("header-no-tilemode", "R2018 header without $TILEMODE (opens in paper space?)", ["Q-0049"], malformed=True, tags=["header", "checklist"])
+    c, h = mk("header-no-tilemode", "R2018 header without $TILEMODE (opens in paper space?)", [], malformed=True, tags=["header"])
     c.byte_filters.append(tagfilter(lambda t: t.del_header("$TILEMODE")))
 
     # stale extents (Q-0106)
@@ -1191,7 +1191,7 @@ def _tables(s, mk) -> None:
     for tbl, n, fn in (("LAYER", "minus1", lambda k: k - 1), ("LAYER", "plus1", lambda k: k + 1), ("LAYER", "negative", lambda k: -5), ("LAYER", "zero", lambda k: 0),
                        ("VPORT", "plus1", lambda k: k + 1), ("VPORT", "zero", lambda k: 0), ("BLOCK_RECORD", "minus1", lambda k: k - 1),
                        ("BLOCK_RECORD", "plus1", lambda k: k + 1), ("LTYPE", "wrapped", lambda k: -24493)):
-        c, h = mk(f"table-count-{tbl.lower().replace('_', '-')}-{n}", f"{tbl} table head 70 entry count = {n} (AC1018)", ["Q-0086"], ver="R2004",
+        c, h = mk(f"table-count-{tbl.lower().replace('_', '-')}-{n}", f"{tbl} table head 70 entry count = {n} (AC1018)", [], ver="R2004",
                   malformed=True, tags=["table-count"], params={"table": tbl, "count": n})
 
         def cnt(t: Tags, tbl=tbl, fn=fn):
@@ -1200,15 +1200,15 @@ def _tables(s, mk) -> None:
             t.set(i, str(fn(int(t.value(i)))))
         c.byte_filters.append(tagfilter(cnt))
 
-    c, h = mk("no-defpoints-layer", "No Defpoints layer in the LAYER table (no dimensions)", ["Q-0087"], ver="R2004", tags=["LAYER", "Defpoints"])
+    c, h = mk("no-defpoints-layer", "No Defpoints layer in the LAYER table (no dimensions)", [], ver="R2004", tags=["LAYER", "Defpoints"])
     c.byte_filters.append(tagfilter(_remove_layer("Defpoints")))
-    c, h = mk("no-defpoints-layer-dimension", "No Defpoints layer, but a linear DIMENSION whose *D block points are on Defpoints", ["Q-0087"], ver="R2004",
+    c, h = mk("no-defpoints-layer-dimension", "No Defpoints layer, but a linear DIMENSION whose *D block points are on Defpoints", [], ver="R2004",
               malformed=True, tags=["LAYER", "Defpoints", "DIMENSION"])
     c.msp.add_linear_dim(base=(100, 25), p1=(40, 18), p2=(160, 18)).render()
     c.byte_filters.append(tagfilter(_remove_layer("Defpoints")))
     for n, plot in (("plot-1", "1"), ("no-290", None)):
-        c, h = mk(f"defpoints-{n}", f"Defpoints layer written with {'290 1 (plottable)' if plot else 'no 290 flag'} (checklist: invalid plot flag?)", ["Q-0049"],
-                  ver="R2004", malformed=True, tags=["LAYER", "Defpoints", "checklist"])
+        c, h = mk(f"defpoints-{n}", f"Defpoints layer written with {'290 1 (plottable)' if plot else 'no 290 flag'} (invalid plot flag?)", [],
+                  ver="R2004", malformed=True, tags=["LAYER", "Defpoints"])
         c.msp.add_line((20, 60), (180, 60), dxfattribs={"layer": "Defpoints"})
 
         def dp(t: Tags, plot=plot):
@@ -1220,19 +1220,19 @@ def _tables(s, mk) -> None:
             else:
                 t.remove(j)
         c.byte_filters.append(tagfilter(dp))
-    c, h = mk("layer-name-slash", "Layer 'A/B' holding one LINE", ["Q-0088"], ver="R2004", malformed=True, tags=["LAYER", "names"])
+    c, h = mk("layer-name-slash", "Layer 'A/B' holding one LINE", [], ver="R2004", malformed=True, tags=["LAYER", "names"])
     c.layer("SLASHPH", color=7)
     c.msp.add_line((20, 60), (180, 60), dxfattribs={"layer": "SLASHPH"})
     c.byte_filters.append(replace_bytes(b"\nSLASHPH\n", b"\nA/B\n"))
-    c, h = mk("layer-name-bar-not-dependent", "Malformed: layer 'X|L1' (vertical bar) without the xref-dependent flag", ["Q-0049"], malformed=True, tags=["LAYER", "names", "checklist"])
+    c, h = mk("layer-name-bar-not-dependent", "Malformed: layer 'X|L1' (vertical bar) without the xref-dependent flag", [], malformed=True, tags=["LAYER", "names"])
     c.layer("XBARL1", color=7)
     c.msp.add_line((20, 60), (180, 60), dxfattribs={"layer": "XBARL1"})
     c.byte_filters.append(replace_bytes(b"\nXBARL1\n", b"\nX|L1\n"))
-    c, h = mk("layer-name-empty", "Malformed: LAYER record with an empty name", ["Q-0049"], malformed=True, tags=["LAYER", "names", "checklist"])
+    c, h = mk("layer-name-empty", "Malformed: LAYER record with an empty name", [], malformed=True, tags=["LAYER", "names"])
     c.layer("EMPTYPH", color=7)
     c.byte_filters.append(tagfilter(lambda t: t.replace_values("EMPTYPH", "", code=2)))
     for v in ("R12", "R2000", "R2007", "R2018"):
-        c, h = mk(f"block-name-space-{v.lower()}", f"BLOCK named 'Shape 0_M' (contains a space) and one INSERT ({v})", ["Q-0089", "Q-0049"], ver=v,
+        c, h = mk(f"block-name-space-{v.lower()}", f"BLOCK named 'Shape 0_M' (contains a space) and one INSERT ({v})", ["Q-0089"], ver=v,
                   malformed=v == "R12", tags=["BLOCK", "names"])
         blk = c.doc.blocks.new("Shape 0_M")
         blk.add_polyline2d([(-10, -10), (10, -10), (10, 10), (-10, 10)], close=True)
@@ -1251,7 +1251,7 @@ def _tables(s, mk) -> None:
         c.msp.add_line((20, 60), (180, 60), dxfattribs={"layer": "GHOST"})
         c.byte_filters.append(tagfilter(_remove_layer("GHOST")))
     for v in ("R12", "R2000"):
-        c, h = mk(f"undefined-linetype-entity-{v.lower()}", f"LINE with 6 = NOSUCH (no LTYPE record) on a CONTINUOUS layer ({v})", ["Q-0296", "Q-0049"], ver=v,
+        c, h = mk(f"undefined-linetype-entity-{v.lower()}", f"LINE with 6 = NOSUCH (no LTYPE record) on a CONTINUOUS layer ({v})", ["Q-0296"], ver=v,
                   malformed=True, tags=["LTYPE", "undefined"])
         c.msp.add_line((20, 60), (180, 60), dxfattribs={"linetype": c.linetype("DASHED")})
         c.byte_filters.append(tagfilter(lambda t: [t.set(i, "NOSUCH") for i in t.find_all(6, "DASHED", t.section("ENTITIES")[0])]))
@@ -1260,8 +1260,8 @@ def _tables(s, mk) -> None:
     c.msp.add_line((20, 60), (180, 60), dxfattribs={"linetype": c.linetype("DASHED")})
     c.byte_filters.append(tagfilter(lambda t: [t.set(i, "dashed") for i in t.find_all(6, "DASHED", t.section("ENTITIES")[0])]))
     for v in ("R12", "R2018"):
-        c, h = mk(f"undefined-linetype-layer-{v.lower()}", f"LAYER with 6 = NOSUCH_LT (undefined linetype), LINE BYLAYER on it ({v}; checklist 1)",
-                  ["Q-0297", "Q-0049"], ver=v, malformed=True, tags=["LTYPE", "LAYER", "undefined", "checklist"])
+        c, h = mk(f"undefined-linetype-layer-{v.lower()}", f"LAYER with 6 = NOSUCH_LT (undefined linetype), LINE BYLAYER on it ({v})",
+                  ["Q-0297"], ver=v, malformed=True, tags=["LTYPE", "LAYER", "undefined"])
         c.layer("BADLT", color=7, linetype="DASHED")
         c.msp.add_line((20, 60), (180, 60), dxfattribs={"layer": "BADLT"})
 
@@ -1270,8 +1270,8 @@ def _tables(s, mk) -> None:
             i = t.must(2, "BADLT", a, b)
             t.set(t.must(6, None, i), "NOSUCH_LT")
         c.byte_filters.append(tagfilter(badlt))
-    c, h = mk("linetype-named-none", "LAYER whose linetype is named 'None' (LTYPE record 'None' defined as continuous; checklist 1)", ["Q-0049"],
-              malformed=True, tags=["LTYPE", "checklist"])
+    c, h = mk("linetype-named-none", "LAYER whose linetype is named 'None' (LTYPE record 'None' defined as continuous)", [],
+              malformed=True, tags=["LTYPE"])
     c.doc.linetypes.add("NONEPH", pattern=[0.0])
     c.layer("NL", color=7, linetype="NONEPH")
     c.msp.add_line((20, 60), (180, 60), dxfattribs={"layer": "NL"})
@@ -1288,11 +1288,11 @@ def _tables(s, mk) -> None:
     c.byte_filters.append(tagfilter(drop_table("BLOCK_RECORD")))
     c, h = mk("r2000-no-model-space-block", "Malformed: AC1015 without the *Model_Space BLOCK/ENDBLK (record kept)", ["Q-0606"], ver="R2000", malformed=True, tags=["BLOCK", "structure"])
     c.byte_filters.append(tagfilter(_remove_block("*Model_Space")))
-    c, h = mk("r2000-no-paper-space-block", "Malformed: AC1015 without the *Paper_Space BLOCK/ENDBLK (record kept)", ["Q-0606", "Q-0049"], ver="R2000",
-              malformed=True, tags=["BLOCK", "structure", "checklist"])
+    c, h = mk("r2000-no-paper-space-block", "Malformed: AC1015 without the *Paper_Space BLOCK/ENDBLK (record kept)", ["Q-0606"], ver="R2000",
+              malformed=True, tags=["BLOCK", "structure"])
     c.byte_filters.append(tagfilter(_remove_block("*Paper_Space")))
-    c, h = mk("r2018-model-space-only", "Malformed: R2018 with only *Model_Space (no *Paper_Space record, block and LAYOUT) (checklist 18)", ["Q-0606", "Q-0049"],
-              malformed=True, tags=["BLOCK", "LAYOUT", "structure", "checklist"])
+    c, h = mk("r2018-model-space-only", "Malformed: R2018 with only *Model_Space (no *Paper_Space record, block and LAYOUT)", ["Q-0606"],
+              malformed=True, tags=["BLOCK", "LAYOUT", "structure"])
 
     def model_only(t: Tags):
         _remove_block("*Paper_Space")(t)
@@ -1368,14 +1368,14 @@ def _objects(s, mk) -> None:
         j = t.next0(s0 + 2)
         t.pairs[j:j] = nod
     c.byte_filters.append(tagfilter(nod_second))
-    c, h = mk("fieldlist-as-dictionary", "NOD key ACAD_FIELDLIST pointing at a plain DICTIONARY", ["Q-0092"], ver="R2004", malformed=True, tags=["DICTIONARY"])
+    c, h = mk("fieldlist-as-dictionary", "NOD key ACAD_FIELDLIST pointing at a plain DICTIONARY", [], ver="R2004", malformed=True, tags=["DICTIONARY"])
     c.byte_filters.append(tagfilter(lambda t: _nod_add(t, "ACAD_FIELDLIST", [(100, "AcDbDictionary"), (281, "1")], "DICTIONARY", "F000")))
-    c, h = mk("dict-empty-material", "ACAD_MATERIAL dictionary emptied (MATERIAL objects and layer 347 refs removed)", ["Q-0093"], ver="R2004",
+    c, h = mk("dict-empty-material", "ACAD_MATERIAL dictionary emptied (MATERIAL objects and layer 347 refs removed)", [], ver="R2004",
               malformed=True, tags=["DICTIONARY", "MATERIAL"])
     c.byte_filters.append(tagfilter(_empty_material))
-    c, h = mk("dict-empty-key", "Malformed: NOD entry with an empty group-3 key pointing at an XRECORD", ["Q-0093", "Q-0049"], ver="R2004", malformed=True, tags=["DICTIONARY"])
+    c, h = mk("dict-empty-key", "Malformed: NOD entry with an empty group-3 key pointing at an XRECORD", [], ver="R2004", malformed=True, tags=["DICTIONARY"])
     c.byte_filters.append(tagfilter(lambda t: _nod_add(t, "", [(100, "AcDbXrecord"), (280, "1"), (1, "empty key")], "XRECORD", "F001")))
-    c, h = mk("xrecord-written-twice", "Malformed: one XRECORD (same handle) emitted twice, owned by two dictionary entries", ["Q-0093"], ver="R2004", malformed=True,
+    c, h = mk("xrecord-written-twice", "Malformed: one XRECORD (same handle) emitted twice, owned by two dictionary entries", [], ver="R2004", malformed=True,
               tags=["DICTIONARY", "XRECORD", "duplicate"])
 
     def twice(t: Tags):
@@ -1387,7 +1387,7 @@ def _objects(s, mk) -> None:
         st, en = t.entity("F002")
         t.pairs[en:en] = [list(p) for p in t.pairs[st:en]]
     c.byte_filters.append(tagfilter(twice))
-    c, h = mk("r2007-no-visualstyle-material", "AC1021 without ACAD_VISUALSTYLE and ACAD_MATERIAL dictionaries/objects", ["Q-0094"], ver="R2007",
+    c, h = mk("r2007-no-visualstyle-material", "AC1021 without ACAD_VISUALSTYLE and ACAD_MATERIAL dictionaries/objects", [], ver="R2007",
               malformed=True, tags=["DICTIONARY", "VISUALSTYLE", "MATERIAL"])
 
     def no_vs(t: Tags):
@@ -1399,7 +1399,7 @@ def _objects(s, mk) -> None:
                 ("group-member", "GROUP 340 member handle that does not exist"), ("nod-350", "NOD entry 350 -> missing object"),
                 ("empty-330", "LINE with an empty 330 owner value")]
     for n, title in dangling:
-        c, h = mk(f"dangling-{n}", f"Malformed: {title}", ["Q-0095", "Q-0049"], ver="R2004", malformed=True, tags=["handles", "dangling"])
+        c, h = mk(f"dangling-{n}", f"Malformed: {title}", ["Q-0095"], ver="R2004", malformed=True, tags=["handles", "dangling"])
         if n == "group-member":
             grp = c.doc.groups.new("G1")
             grp.extend([c.doc.entitydb[h["line"]]])
@@ -1463,7 +1463,7 @@ def _objects(s, mk) -> None:
     c, h = mk("xrecord-app-data-payload", "XRECORD whose AcDbXrecord data contains 102 {FOO / 1 bar / 102 } as payload", ["Q-0100"], ver="R2004", tags=["XRECORD"])
     c.byte_filters.append(tagfilter(lambda t: _nod_add(t, "TRUEDXF_XREC", [(100, "AcDbXrecord"), (280, "1"), (102, "{FOO"), (1, "bar"), (102, "}"), (70, "5")],
                                                        "XRECORD", "F003")))
-    c, h = mk("xrecord-112-without-122", "Malformed: XRECORD with a 112 point X not followed by 122", ["Q-0049"], ver="R2004", malformed=True, tags=["XRECORD", "checklist"])
+    c, h = mk("xrecord-112-without-122", "Malformed: XRECORD with a 112 point X not followed by 122", [], ver="R2004", malformed=True, tags=["XRECORD"])
     c.byte_filters.append(tagfilter(lambda t: _nod_add(t, "TRUEDXF_XREC", [(100, "AcDbXrecord"), (280, "1"), (112, "1.0"), (1, "x")], "XRECORD", "F004")))
     c, h = mk("extension-dicts", "XCLIPped INSERT, SORTENTSTABLE draw order, VIEWPORT layer override: extension dictionaries on DXFOUT", ["Q-0101"],
               tags=["xdict", "XCLIP", "SORTENTS", "VIEWPORT"])
@@ -1581,7 +1581,7 @@ def _entities(s, mk) -> None:
     c.doc.appids.add("TRUEDXF")
     p3.set_xdata("TRUEDXF", [(1000, "keep me")])
     for n, zero in (("zero-tangents", True), ("no-tangents", False)):
-        c, h = mk(f"spline-fit-{n}", f"AC1018 fit-point SPLINE {'with 12/13 tangents = (0,0,0)' if zero else 'without 12/13 tangents'}", ["Q-0174", "Q-0049"], ver="R2004",
+        c, h = mk(f"spline-fit-{n}", f"AC1018 fit-point SPLINE {'with 12/13 tangents = (0,0,0)' if zero else 'without 12/13 tangents'}", ["Q-0174"], ver="R2004",
                   malformed=zero, tags=["SPLINE"])
         sp = c.msp.add_spline([(30, 40), (70, 110), (110, 50), (160, 100)])
         if zero:
@@ -1613,7 +1613,7 @@ def _entities(s, mk) -> None:
                 c.byte_filters.append(tagfilter(lambda t, hh=mp.dxf.handle: None if _find_in(t, hh, 63) >= 0 else _before(t, hh, 11, [(63, "3")])))
             else:
                 c.byte_filters.append(tagfilter(lambda t, hh=mp.dxf.handle: _drop(t, hh, 63)))
-    c, h = mk("hatch-assoc-dangling", "Malformed: associative HATCH (71=1) whose path 330 names a non-existent boundary entity", ["Q-0370", "Q-0049"], ver="R2004",
+    c, h = mk("hatch-assoc-dangling", "Malformed: associative HATCH (71=1) whose path 330 names a non-existent boundary entity", ["Q-0370"], ver="R2004",
               malformed=True, tags=["HATCH", "associative"])
     ht = c.msp.add_hatch(color=3)
     ht.paths.add_polyline_path([(40, 30), (160, 30), (160, 110), (40, 110)], is_closed=True)
@@ -1627,7 +1627,7 @@ def _entities(s, mk) -> None:
                                          ("honey-derived-with-47", "HONEY", True, True), ("honey-derived-without-47", "HONEY", True, False),
                                          ("solid-with-47", "SOLID", False, True)):
         c, h = mk(f"hatch-47-{n}", f"{pattern} HATCH, {'derived (92=7)' if derived else 'non-derived'} polyline path, {'with' if with47 else 'without'} group 47",
-                  ["Q-0371", "Q-0049"], ver="R2018", malformed=True, tags=["HATCH", "pattern"])
+                  [], ver="R2018", malformed=True, tags=["HATCH", "pattern"])
         ht = c.msp.add_hatch()
         if pattern == "SOLID":
             ht.set_solid_fill(color=7)
@@ -1649,21 +1649,21 @@ def _entities(s, mk) -> None:
     c.byte_filters.append(tagfilter(lambda t, hh=ht.dxf.handle: [_drop(t, hh, code) for code in (210, 220, 230)]))
     for v in ("R2004", "R2007", "R2010", "R2013", "R2018"):
         for n in ("with-97", "without-97"):
-            c, h = mk(f"hatch-spline-{v.lower()}-{n}", f"HATCH with a spline edge (no fit points) {n.replace('-', ' ')} group 97 ({v})", ["Q-0373", "Q-0049"], ver=v,
+            c, h = mk(f"hatch-spline-{v.lower()}-{n}", f"HATCH with a spline edge (no fit points) {n.replace('-', ' ')} group 97 ({v})", ["Q-0373"], ver=v,
                       malformed=True, tags=["HATCH", "spline-edge"])
             _spline_hatch(c, fit=False, want97=n == "with-97")
     for n in ("with-97", "without-97"):
         c, h = mk(f"hatch-spline-fit-r2018-{n}", f"HATCH spline edge with 4 fit points, {n.replace('-', ' ')} group 97 (R2018)", ["Q-0373"], malformed=True, tags=["HATCH", "spline-edge"])
         _spline_hatch(c, fit=True, want97=n == "with-97")
     for n, raw in (("lone-cr", b"AB\rCD"), ("raw-lf", None), ("raw-crlf", b"AB\r\nCD")):
-        c, h = mk(f"text-raw-{n}", f"Malformed: AC1018 TEXT whose value contains a raw {n.replace('raw-', '').replace('-', ' ').upper()} between two words", ["Q-0377", "Q-0049"], ver="R2004",
+        c, h = mk(f"text-raw-{n}", f"Malformed: AC1018 TEXT whose value contains a raw {n.replace('raw-', '').replace('-', ' ').upper()} between two words", ["Q-0377"], ver="R2004",
                   malformed=True, tags=["TEXT", "control-char"])
         c.msp.add_text("RAWPLACEHOLDER", height=10, dxfattribs={"insert": (30, 60)})
         c.byte_filters.append(replace_bytes(b"\nRAWPLACEHOLDER\n", b"\n" + (raw if raw else b"AB\nCD") + b"\n"))
-    c, h = mk("text-trailing-caret", "Malformed: TEXT value ending in a single '^' (checklist 12)", ["Q-0049"], malformed=True, tags=["TEXT", "caret", "checklist"])
+    c, h = mk("text-trailing-caret", "Malformed: TEXT value ending in a single '^'", [], malformed=True, tags=["TEXT", "caret"])
     c.msp.add_text("CARETEND", height=10, dxfattribs={"insert": (30, 60)})
     c.byte_filters.append(replace_bytes(b"\nCARETEND\n", b"\nABC^\n"))
-    c, h = mk("text-style-in-acdbentity", "Malformed: AC1015 TEXT with group 7 (style) written in AcDbEntity instead of AcDbText", ["Q-0388", "Q-0049"], ver="R2000",
+    c, h = mk("text-style-in-acdbentity", "Malformed: AC1015 TEXT with group 7 (style) written in AcDbEntity instead of AcDbText", ["Q-0388"], ver="R2000",
               malformed=True, tags=["TEXT", "tag-order"])
     c.style("LIB", font=TTF_FONTS["sans"])
     te = c.msp.add_text("STYLED", height=10, dxfattribs={"insert": (30, 60), "style": "LIB"})
@@ -1678,7 +1678,7 @@ def _entities(s, mk) -> None:
     c, h = mk("text-width-zero", "AC1018 TEXT with width factor 41 = 0.0", ["Q-0402"], ver="R2004", malformed=True, tags=["TEXT"])
     te = c.msp.add_text("WIDTHZERO", height=10, dxfattribs={"insert": (30, 60), "width": 0.5})
     c.byte_filters.append(tagfilter(lambda t, hh=te.dxf.handle: _setv(t, hh, 41, "0.0")))
-    c, h = mk("text-undefined-style", "Malformed: TEXT referencing STYLE 'NOSUCHSTYLE' (checklist 2)", ["Q-0049"], malformed=True, tags=["TEXT", "STYLE", "checklist"])
+    c, h = mk("text-undefined-style", "Malformed: TEXT referencing STYLE 'NOSUCHSTYLE'", [], malformed=True, tags=["TEXT", "STYLE"])
     c.style("LIB", font=TTF_FONTS["sans"])
     te = c.msp.add_text("UNDEFINED STYLE", height=10, dxfattribs={"insert": (30, 60), "style": "LIB"})
     c.byte_filters.append(tagfilter(lambda t, hh=te.dxf.handle: _setv(t, hh, 7, "NOSUCHSTYLE")))
@@ -1700,7 +1700,7 @@ def _entities(s, mk) -> None:
         c.msp.add_text(k, height=8, dxfattribs={"insert": (20, 100 - i * 20), "style": k.upper()})
     for n in ("no-attribs", "flag-128"):
         c, h = mk(f"insert-66-{n}", "Malformed: INSERT 66=1 directly followed by the next entity (no ATTRIB/SEQEND)" if n == "no-attribs"
-                  else "Malformed: INSERT with 66 = 128 and valid ATTRIB + SEQEND", ["Q-0501", "Q-0049"], malformed=True, tags=["INSERT", "ATTRIB"])
+                  else "Malformed: INSERT with 66 = 128 and valid ATTRIB + SEQEND", ["Q-0501"], malformed=True, tags=["INSERT", "ATTRIB"])
         blk = c.doc.blocks.new("ATTBLK")
         blk.add_circle((0, 0), 10)
         blk.add_attdef("TAG", (0, -20), dxfattribs={"height": 5})
@@ -1712,7 +1712,7 @@ def _entities(s, mk) -> None:
             ins.add_auto_attribs({"TAG": "VALUE"})
             c.byte_filters.append(tagfilter(lambda t, hh=ins.dxf.handle: _setv(t, hh, 66, "128")))
     for n in ("both-280", "lock-only", "swapped", "ezdxf"):
-        c, h = mk(f"attrib-280-{n}", f"R2018 ATTRIB with 280 layout: {n}", ["Q-0502", "Q-0049"], malformed=n in ("swapped",), tags=["ATTRIB"])
+        c, h = mk(f"attrib-280-{n}", f"R2018 ATTRIB with 280 layout: {n}", ["Q-0502"], malformed=n in ("swapped",), tags=["ATTRIB"])
         blk = c.doc.blocks.new("ATTBLK")
         blk.add_circle((0, 0), 10)
         blk.add_attdef("TAG", (0, -20), dxfattribs={"height": 5})
@@ -1732,13 +1732,13 @@ def _entities(s, mk) -> None:
                 t.insert(j + 1, [(280, "0")])
                 t.insert(i + 1, [(280, "1")])
         c.byte_filters.append(tagfilter(a280))
-    c, h = mk("attrib-74-wrong-subclass", "Malformed: ATTRIB 74 written in AcDbText instead of AcDbAttribute", ["Q-0049"], malformed=True, tags=["ATTRIB", "checklist"])
+    c, h = mk("attrib-74-wrong-subclass", "Malformed: ATTRIB 74 written in AcDbText instead of AcDbAttribute", [], malformed=True, tags=["ATTRIB"])
     blk = c.doc.blocks.new("ATTBLK")
     blk.add_attdef("TAG", (0, 0), dxfattribs={"height": 5})
     ins = c.msp.add_blockref("ATTBLK", (100, 75))
     att = ins.add_attrib("TAG", "VALUE", (100, 55), dxfattribs={"height": 5})
     c.byte_filters.append(tagfilter(lambda t, hh=att.dxf.handle: _after(t, hh, 1, [(74, "2")])))
-    c, h = mk("block-attdef-no-flag-2", "BLOCK with ATTDEFs but BLOCK flag bit 2 cleared (checklist 16)", ["Q-0049"], malformed=True, tags=["BLOCK", "ATTDEF", "checklist"])
+    c, h = mk("block-attdef-no-flag-2", "BLOCK with ATTDEFs but BLOCK flag bit 2 cleared", [], malformed=True, tags=["BLOCK", "ATTDEF"])
     blk = c.doc.blocks.new("ATTBLK")
     blk.add_circle((0, 0), 10)
     blk.add_attdef("TAG", (0, -20), dxfattribs={"height": 5})
@@ -1754,7 +1754,7 @@ def _entities(s, mk) -> None:
         j = t.must(70, None, st, t.next0(st))
         t.set(j, "0")
     c.byte_filters.append(tagfilter(noflag))
-    c, h = mk("dimstyle-340-name", "Malformed: DIMSTYLE 340 (DIMTXSTY) holding the style name 'Standard' instead of a handle (may crash AutoCAD)", ["Q-0510", "Q-0049"],
+    c, h = mk("dimstyle-340-name", "Malformed: DIMSTYLE 340 (DIMTXSTY) holding the style name 'Standard' instead of a handle (may crash AutoCAD)", ["Q-0510"],
               ver="R2004", malformed=True, tags=["DIMSTYLE"])
     c.msp.add_linear_dim(base=(100, 25), p1=(40, 18), p2=(160, 18)).render()
 
@@ -1787,8 +1787,8 @@ def _entities(s, mk) -> None:
         ds.dxf.dimpost = "<> mm"
         ds.dxf.dimapost = "[] in"
         c.msp.add_linear_dim(base=(100, 40), p1=(40, 30), p2=(160, 30), dimstyle="POSTS").render()
-    c, h = mk("dimstyle-table-with-71-340", "DIMSTYLE table head written AutoCAD-style with 71 count + 340 record handles (ezdxf omits them; checklist)", ["Q-0049"],
-              tags=["DIMSTYLE", "checklist"])
+    c, h = mk("dimstyle-table-with-71-340", "DIMSTYLE table head written AutoCAD-style with 71 count + 340 record handles (ezdxf omits them)", [],
+              tags=["DIMSTYLE"])
 
     def dshead(t: Tags):
         a, b = t.table("DIMSTYLE")
@@ -1796,17 +1796,17 @@ def _entities(s, mk) -> None:
         recs = [t.svalue(i + 1) for i in t.find_all(0, "DIMSTYLE", a + 1, b) if t.code(i + 1) == 105]
         t.insert(j, [(71, str(len(recs)))] + [(340, r) for r in recs])
     c.byte_filters.append(tagfilter(dshead))
-    c, h = mk("dimension-bad-block-name", "Malformed: DIMENSION whose block name 2 is 'NOSUCH*D' (checklist: invalid dimension block name)", ["Q-0049"], malformed=True,
-              tags=["DIMENSION", "checklist"])
+    c, h = mk("dimension-bad-block-name", "Malformed: DIMENSION whose block name 2 is 'NOSUCH*D' (invalid dimension block name)", [], malformed=True,
+              tags=["DIMENSION"])
     d = c.msp.add_linear_dim(base=(100, 40), p1=(40, 30), p2=(160, 30))
     d.render()
     c.byte_filters.append(tagfilter(lambda t, hh=d.dimension.dxf.handle: _setv(t, hh, 2, "NOSUCH*D")))
-    c, h = mk("rotated-dim-no-subclass", "Malformed: rotated linear DIMENSION without 100 AcDbRotatedDimension", ["Q-0049"], malformed=True, tags=["DIMENSION", "subclass", "checklist"])
+    c, h = mk("rotated-dim-no-subclass", "Malformed: rotated linear DIMENSION without 100 AcDbRotatedDimension", [], malformed=True, tags=["DIMENSION", "subclass"])
     d = c.msp.add_linear_dim(base=(100, 40), p1=(40, 30), p2=(160, 30), angle=10)
     d.render()
     c.byte_filters.append(tagfilter(lambda t, hh=d.dimension.dxf.handle: _drop(t, hh, 100, "AcDbRotatedDimension")))
     for n, nv in (("one-vertex", 1), ("zero-vertices", 0)):
-        c, h = mk(f"leader-{n}", f"Malformed: AC1018 LEADER with 76 = {nv}", ["Q-0580", "Q-0049"], ver="R2004", malformed=True, tags=["LEADER"])
+        c, h = mk(f"leader-{n}", f"Malformed: AC1018 LEADER with 76 = {nv}", ["Q-0580"], ver="R2004", malformed=True, tags=["LEADER"])
         ld = c.msp.add_leader([(40, 40), (100, 100), (140, 100)])
 
         def lv(t: Tags, hh=ld.dxf.handle, nv=nv):
@@ -1818,11 +1818,11 @@ def _entities(s, mk) -> None:
                 t.remove(i)
         c.byte_filters.append(tagfilter(lv))
     for v in ("R2004", "R2007", "R2010"):
-        c, h = mk(f"mleader-{v.lower()}", f"MULTILEADER in a {v} file (AutoCAD writes it only from AC1021/AC1024?)", ["Q-0589", "Q-0049"], ver=v,
+        c, h = mk(f"mleader-{v.lower()}", f"MULTILEADER in a {v} file (AutoCAD writes it only from AC1021/AC1024?)", ["Q-0589"], ver=v,
                   malformed=v != "R2010", tags=["MULTILEADER", "version"])
         _mleader(c)
-    c, h = mk("insert-in-paper-space-block", "Malformed: modelspace-style entity written inside the *Paper_Space BLOCK definition (checklist)", ["Q-0049"],
-              malformed=True, tags=["BLOCK", "checklist"])
+    c, h = mk("insert-in-paper-space-block", "Malformed: modelspace-style entity written inside the *Paper_Space BLOCK definition", [],
+              malformed=True, tags=["BLOCK"])
     ps = c.doc.layouts.get("Layout1")
     ps.add_line((0, 0), (100, 100))
 
@@ -1838,20 +1838,20 @@ def _entities(s, mk) -> None:
                 t.pairs[j:j] = ent
                 break
     c.byte_filters.append(tagfilter(ps_block))
-    c, h = mk("ellipse-ratio-above-1", "Malformed: ELLIPSE with ratio 40 = 1.5 (> 1)", ["Q-0049"], malformed=True, tags=["ELLIPSE", "checklist"])
+    c, h = mk("ellipse-ratio-above-1", "Malformed: ELLIPSE with ratio 40 = 1.5 (> 1)", [], malformed=True, tags=["ELLIPSE"])
     el = c.msp.add_ellipse((100, 75), major_axis=(50, 0), ratio=0.5)
     c.byte_filters.append(tagfilter(lambda t, hh=el.dxf.handle: _setv(t, hh, 40, "1.5")))
-    c, h = mk("mesh-empty", "Malformed: MESH with no vertices and no faces (checklist 11)", ["Q-0049"], malformed=True, tags=["MESH", "checklist"])
+    c, h = mk("mesh-empty", "Malformed: MESH with no vertices and no faces", [], malformed=True, tags=["MESH"])
     c.msp.add_mesh()
-    c, h = mk("spline-no-knots", "Malformed: SPLINE with control points but 72 = 0 knots", ["Q-0049"], malformed=True, tags=["SPLINE", "checklist"])
+    c, h = mk("spline-no-knots", "Malformed: SPLINE with control points but 72 = 0 knots", [], malformed=True, tags=["SPLINE"])
     sp = c.msp.add_open_spline([(30, 40), (70, 110), (110, 50), (160, 100)])
 
     def noknots(t: Tags, hh=sp.dxf.handle):
         _setv(t, hh, 72, "0")
         _drop(t, hh, 40)
     c.byte_filters.append(tagfilter(noknots))
-    c, h = mk("lwpolyline-90-outside", "Malformed: LWPOLYLINE with 90/70 written in AcDbEntity instead of AcDbPolyline (checklist 9)", ["Q-0049"], malformed=True,
-              tags=["LWPOLYLINE", "tag-order", "checklist"])
+    c, h = mk("lwpolyline-90-outside", "Malformed: LWPOLYLINE with 90/70 written in AcDbEntity instead of AcDbPolyline", [], malformed=True,
+              tags=["LWPOLYLINE", "tag-order"])
     pl = c.msp.add_lwpolyline([(40, 40), (160, 40), (100, 110)], close=True)
 
     def lw90(t: Tags, hh=pl.dxf.handle):
@@ -1864,7 +1864,7 @@ def _entities(s, mk) -> None:
         j = t.must(8, None, s0, e0)
         t.pairs[j + 1:j + 1] = tags_
     c.byte_filters.append(tagfilter(lw90))
-    c, h = mk("polyline3d-vertex-no-subclass", "Malformed: 3D POLYLINE vertices without 100 AcDb3dPolylineVertex", ["Q-0049"], malformed=True, tags=["POLYLINE", "subclass", "checklist"])
+    c, h = mk("polyline3d-vertex-no-subclass", "Malformed: 3D POLYLINE vertices without 100 AcDb3dPolylineVertex", [], malformed=True, tags=["POLYLINE", "subclass"])
     p3 = c.msp.add_polyline3d([(30, 30, 0), (170, 30, 10), (100, 120, 20)])
 
     def v3(t: Tags, hh=p3.dxf.handle):
@@ -1877,7 +1877,7 @@ def _entities(s, mk) -> None:
                 t.remove(k)
             i = t.next0(i)
     c.byte_filters.append(tagfilter(v3))
-    c, h = mk("vertex-bad-visibility", "Malformed: 2D POLYLINE VERTEX with 60 = 2 (bad visibility value)", ["Q-0049"], ver="R2004", malformed=True, tags=["POLYLINE", "checklist"])
+    c, h = mk("vertex-bad-visibility", "Malformed: 2D POLYLINE VERTEX with 60 = 2 (bad visibility value)", [], ver="R2004", malformed=True, tags=["POLYLINE"])
     p2 = c.msp.add_polyline2d([(30, 30), (170, 30), (100, 120)])
 
     def vis(t: Tags, hh=p2.dxf.handle):
@@ -1886,16 +1886,16 @@ def _entities(s, mk) -> None:
         k = t.must(8, None, e0, j)
         t.insert(k + 1, [(60, "2")])
     c.byte_filters.append(tagfilter(vis))
-    c, h = mk("hatch-two-72-flags", "Malformed: HATCH polyline path with two 72 has-bulge flags", ["Q-0049"], malformed=True, tags=["HATCH", "checklist"])
+    c, h = mk("hatch-two-72-flags", "Malformed: HATCH polyline path with two 72 has-bulge flags", [], malformed=True, tags=["HATCH"])
     ht = c.msp.add_hatch(color=3)
     ht.paths.add_polyline_path([(40, 30), (160, 30), (160, 110), (40, 110)], is_closed=True)
     c.byte_filters.append(tagfilter(lambda t, hh=ht.dxf.handle: _after(t, hh, 72, [(72, "0")])))
-    c, h = mk("hatch-arc-360-as-0", "HATCH circle edge written with start 0 / end 0 instead of 0 / 360", ["Q-0049"], malformed=True, tags=["HATCH", "checklist"])
+    c, h = mk("hatch-arc-360-as-0", "HATCH circle edge written with start 0 / end 0 instead of 0 / 360", [], malformed=True, tags=["HATCH"])
     ht = c.msp.add_hatch(color=3)
     ep = ht.paths.add_edge_path()
     ep.add_arc((100, 75), 40, 0, 360)
     c.byte_filters.append(tagfilter(lambda t, hh=ht.dxf.handle: _setv(t, hh, 51, "0.0")))
-    c, h = mk("image-no-clip-vertices", "Malformed: IMAGE with 91 = 0 clip vertices", ["Q-0049"], malformed=True, tags=["IMAGE", "checklist"])
+    c, h = mk("image-no-clip-vertices", "Malformed: IMAGE with 91 = 0 clip vertices", [], malformed=True, tags=["IMAGE"])
     img = _image(c)
 
     def noclip(t: Tags, hh=img.dxf.handle):
@@ -1907,7 +1907,7 @@ def _entities(s, mk) -> None:
                 t.remove(k)
     c.byte_filters.append(tagfilter(noclip))
     for n, fn in (("image", _image), ("wipeout", None)):
-        c, h = mk(f"{n}-clip-open-polygon", f"{n.upper()} with a polygon clip boundary whose last vertex != first (not closed)", ["Q-0642", "Q-0049"],
+        c, h = mk(f"{n}-clip-open-polygon", f"{n.upper()} with a polygon clip boundary whose last vertex != first (not closed)", ["Q-0642"],
                   malformed=True, tags=[n.upper(), "clip"])
         if n == "image":
             e = _image(c, clip=[(2, 2), (14, 2), (14, 10), (2, 10), (2, 2)])
@@ -1922,8 +1922,8 @@ def _entities(s, mk) -> None:
             t.set(i91, str(len(i14) - 1))
             t.set(t.must(71, None, s0, e0), "2")
         c.byte_filters.append(tagfilter(openclip))
-    c, h = mk("image-relative-path", "IMAGE whose IMAGEDEF path is relative ('fileformat-rel.png', file next to the DXF) (checklist 20)", ["Q-0049"],
-              tags=["IMAGE", "path", "checklist"], style_table="acad.ctb")
+    c, h = mk("image-relative-path", "IMAGE whose IMAGEDEF path is relative ('fileformat-rel.png', file next to the DXF)", [],
+              tags=["IMAGE", "path"], style_table="acad.ctb")
     _image(c, fname="fileformat-rel.png", relative=True)
     c, h = mk("wipeout-no-variables", "WIPEOUT without ACAD_WIPEOUT_VARS dictionary / WIPEOUTVARIABLES object", ["Q-0668"], ver="R2018", malformed=True, tags=["WIPEOUT"])
     c.msp.add_wipeout([(60, 50), (140, 50), (140, 100), (60, 100)])
@@ -1932,7 +1932,7 @@ def _entities(s, mk) -> None:
               "inverted-ezdxf": "Inverted XCLIP as written by ezdxf (ACAD_INVERTEDCLIP_ROUNDTRIP xrecord; ezdxf warns AutoCAD rejects it)",
               "inverted-truncated": "Inverted XCLIP whose ACAD_INVERTEDCLIP_ROUNDTRIP XRECORD data is truncated"}
     for n, title in titles.items():
-        c, h = mk(f"spatial-filter-{n}", title, ["Q-0639", "Q-0049"], malformed=True, tags=["XCLIP", "SPATIAL_FILTER"])
+        c, h = mk(f"spatial-filter-{n}", title, ["Q-0639"], malformed=True, tags=["XCLIP", "SPATIAL_FILTER"])
         ins = _xclip_insert(c)
         if n.startswith("disabled"):
             def sf40(t: Tags):
@@ -1980,7 +1980,7 @@ def _entities(s, mk) -> None:
                 i = t.must(62, None, ms, me)
                 t.insert(i + 1, [(420, str(0xFF8000))])
     c.byte_filters.append(tagfilter(f420))
-    c, h = mk("mlinestyle-bad-start-angle", "Malformed: MLINESTYLE with start angle 51 = 200 (checklist: bad mlstyle start angle)", ["Q-0049"], malformed=True, tags=["MLINESTYLE", "checklist"])
+    c, h = mk("mlinestyle-bad-start-angle", "Malformed: MLINESTYLE with start angle 51 = 200 (bad mlstyle start angle)", [], malformed=True, tags=["MLINESTYLE"])
     c.msp.add_mline([(30, 60), (170, 60)])
     c.byte_filters.append(tagfilter(lambda t: [t.set(i, "200.0") for i in t.find_all(51, None, *t.section("OBJECTS"))[:1]]))
 
@@ -2022,7 +2022,7 @@ def _spline_hatch(c, fit: bool, want97: bool) -> None:
 
 
 # --------------------------------------------------------------------------------------------
-# writer-checklist items not covered above (Q-0049)
+# further malformed-input cases
 
 
 def _dib(w: int = 16, h: int = 12) -> bytes:
@@ -2054,9 +2054,9 @@ def _binary_chunks(s, mk) -> None:
         c.byte_filters.append(tagfilter(thumb))
 
 
-def _checklist(s, mk) -> None:
-    c, h = mk("block-record-xdata-unregistered", "Malformed: BLOCK_RECORD XDATA AcDbDynamicBlockGUID without APPID record (checklist 4)", ["Q-0049"],
-              malformed=True, tags=["BLOCK_RECORD", "XDATA", "checklist"])
+def _malformed_misc(s, mk) -> None:
+    c, h = mk("block-record-xdata-unregistered", "Malformed: BLOCK_RECORD XDATA AcDbDynamicBlockGUID without APPID record", [],
+              malformed=True, tags=["BLOCK_RECORD", "XDATA"])
     blk = c.doc.blocks.new("DYN")
     blk.add_circle((0, 0), 10)
     c.msp.add_blockref("DYN", (100, 75))
@@ -2066,11 +2066,11 @@ def _checklist(s, mk) -> None:
         i = t.must(2, "DYN", a, b)
         t.insert(t.next0(i), [(1001, "AcDbDynamicBlockGUID"), (1000, "{00000000-0000-0000-0000-000000000000}")])
     c.byte_filters.append(tagfilter(dynguid))
-    c, h = mk("dict-hard-owner-flag-0", "Root and ACAD_GROUP dictionaries written with 281 = 0 instead of 1 (checklist 15)", ["Q-0049"], ver="R2004", malformed=True,
-              tags=["DICTIONARY", "checklist"])
+    c, h = mk("dict-hard-owner-flag-0", "Root and ACAD_GROUP dictionaries written with 281 = 0 instead of 1", [], ver="R2004", malformed=True,
+              tags=["DICTIONARY"])
     c.byte_filters.append(tagfilter(lambda t: [t.set(i, "0") for i in t.find_all(281, "1", *t.section("OBJECTS"))[:2]]))
-    c, h = mk("vport-view-far-away", "*Active VPORT centred far away from the content (opens 'empty'; plot window unaffected) (checklist 19)", ["Q-0049"],
-              tags=["VPORT", "checklist"])
+    c, h = mk("vport-view-far-away", "*Active VPORT centred far away from the content (opens 'empty'; plot window unaffected)", [],
+              tags=["VPORT"])
 
     def vport(t: Tags):
         a, b = t.table("VPORT")
@@ -2078,18 +2078,18 @@ def _checklist(s, mk) -> None:
         t.set(i, "100000.0")
         t.set(i + 1, "100000.0")
     c.byte_filters.append(tagfilter(vport))
-    c, h = mk("layer-390-dangling", "LAYER 390 plot-style handle pointing at a non-existent object (Copy-to-clipboard failure)", ["Q-0049"], malformed=True, tags=["LAYER", "checklist"])
+    c, h = mk("layer-390-dangling", "LAYER 390 plot-style handle pointing at a non-existent object (Copy-to-clipboard failure)", [], malformed=True, tags=["LAYER"])
     c.byte_filters.append(tagfilter(lambda t: [t.set(i, "FFF9") for i in t.find_all(390, None, *t.table("LAYER"))]))
-    c, h = mk("appid-garbage-name", "Malformed: APPID record name with garbage characters ('TRUE<DXF>*?')", ["Q-0049"], malformed=True, tags=["APPID", "checklist"])
+    c, h = mk("appid-garbage-name", "Malformed: APPID record name with garbage characters ('TRUE<DXF>*?')", [], malformed=True, tags=["APPID"])
     c.doc.appids.add("GARBAGEPH")
     c.byte_filters.append(tagfilter(lambda t: t.replace_values("GARBAGEPH", "TRUE<DXF>*?", code=2)))
-    c, h = mk("shape-style-named", "Malformed: shape-file STYLE record (flag 1) with a made-up name 'SHAPE$0$REF' instead of an empty name", ["Q-0049"], malformed=True,
-              tags=["STYLE", "checklist"])
+    c, h = mk("shape-style-named", "Malformed: shape-file STYLE record (flag 1) with a made-up name 'SHAPE$0$REF' instead of an empty name", [], malformed=True,
+              tags=["STYLE"])
     st = c.doc.styles.add_shx("truedxf-missing-shapes.shx")
     c.byte_filters.append(tagfilter(lambda t, hh=st.dxf.handle: _setv(t, hh, 2, "SHAPE$0$REF")))
-    c, h = mk("plotsettings-no-subclass", "Malformed: LAYOUT without 100 AcDbPlotSettings", ["Q-0049"], malformed=True, tags=["LAYOUT", "subclass", "checklist"])
+    c, h = mk("plotsettings-no-subclass", "Malformed: LAYOUT without 100 AcDbPlotSettings", [], malformed=True, tags=["LAYOUT", "subclass"])
     c.byte_filters.append(tagfilter(lambda t: [t.remove(i) for i in reversed(t.find_all(100, "AcDbPlotSettings", *t.section("OBJECTS"))[:1])]))
-    c, h = mk("r2018-3dsolid-no-subclass", "Malformed: R2018 3DSOLID without 100 AcDb3dSolid / 350", ["Q-0049", "Q-0188"], malformed=True, tags=["3DSOLID", "subclass", "checklist"])
+    c, h = mk("r2018-3dsolid-no-subclass", "Malformed: R2018 3DSOLID without 100 AcDb3dSolid / 350", ["Q-0188"], malformed=True, tags=["3DSOLID", "subclass"])
     so = c.msp.add_3dsolid()
     export_acis(so, [acis.body_from_mesh(forms.cube().scale_uniform(40).translate(100, 75, 0))])
 

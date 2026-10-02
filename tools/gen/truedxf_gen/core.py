@@ -52,7 +52,7 @@ DXFVERSIONS = {
     "R2018": "AC1032",
 }
 
-# Header defaults every fixture starts from (AutoCAD metric template values; see note 01 §9 and
+# Header defaults every fixture starts from (AutoCAD metric template values; see note 01 §7.2 and
 # note 06 §2.5). Suites override per case via new_doc(header=...).
 BASE_HEADER: dict[str, Any] = {
     "$MEASUREMENT": 1,

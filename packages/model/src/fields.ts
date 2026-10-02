@@ -148,8 +148,8 @@ function matchesSubclass(def: FieldDef, subclass: string, strict: boolean): bool
 }
 
 /**
- * Reads fields into a plain object. Unmatched tags are ignored (they remain in the record for
- * round-tripping). Returns the object with defaults applied for absent single fields.
+ * Reads fields into a plain object. Unmatched tags are ignored (they remain in the record: the
+ * model is lossless). Returns the object with defaults applied for absent single fields.
  */
 export function readFields<T>(rec: DxfRecord, table: FieldTable, into: Record<string, unknown> = {}): T {
   const strict = rec.hasSubclasses;

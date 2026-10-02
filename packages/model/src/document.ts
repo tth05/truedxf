@@ -4,14 +4,7 @@
  * Ownership is derived from file position (ENTITIES → model space or the active paper space by
  * group 67; BLOCKS → enclosing BLOCK), not from 330 (note 02 §4.2 rule 12).
  */
-import {
-  Diagnostics,
-  type DxfTags,
-  type ReadTagsOptions,
-  readTags,
-  recordStarts,
-  type SectionInfo,
-} from "@truedxf/core";
+import { Diagnostics, type DxfTags, type ReadTagsOptions, readTags, type SectionInfo } from "@truedxf/core";
 import {
   type ChildRecords,
   ENTITY_PARSERS,
@@ -19,6 +12,7 @@ import {
   type EntityBase,
   type ParseContext,
   readBase,
+  SIMPLE_ENTITY_FIELDS,
 } from "./entities/index.ts";
 import { fieldTable, readFields } from "./fields.ts";
 import { Header } from "./header.ts";
@@ -178,17 +172,24 @@ export class DxfDocument {
   // ---- loading -----------------------------------------------------------------------------
 
   private records(section: SectionInfo): DxfRecord[] {
-    const starts = recordStarts(this.tags.store, section.start, section.end);
+    const store = this.tags.store;
+    const codes = store.codes;
     const out: DxfRecord[] = [];
-    for (let k = 0; k < starts.length; k++) {
-      const rec = new DxfRecord(this.tags.store, starts[k]!, starts[k + 1] ?? section.end, this.nextId++);
-      const h = rec.handle;
-      if (h && h !== "0") {
-        if (this.byHandle.has(h))
-          this.diagnostics.warn("duplicate-handle", `duplicate handle ${h}`, { tag: rec.start });
-        else this.byHandle.set(h, rec);
+    let start = -1;
+    // The final sentinel closes the last record without a temporary array of starts.
+    for (let i = section.start; i <= section.end; i++) {
+      if (i !== section.end && codes[i] !== 0) continue;
+      if (start >= 0) {
+        const rec = new DxfRecord(store, start, i, this.nextId++);
+        const h = rec.handle;
+        if (h && h !== "0") {
+          if (this.byHandle.has(h))
+            this.diagnostics.warn("duplicate-handle", `duplicate handle ${h}`, { tag: rec.start });
+          else this.byHandle.set(h, rec);
+        }
+        out.push(rec);
       }
-      out.push(rec);
+      start = i;
     }
     return out;
   }
@@ -410,9 +411,27 @@ export class DxfDocument {
     }
     const parser = ENTITY_PARSERS.get(rec.type);
     if (!parser) return { ...base, type: "UNKNOWN" };
+    const simple = SIMPLE_ENTITY_FIELDS.get(parser);
     try {
+      if (simple) {
+        // This base has not escaped: extend it directly instead of cloning 21 properties.
+        // Calling the registered parser externally still uses its copying public path.
+        const into = base as unknown as Record<string, unknown>;
+        into.type = simple.type;
+        const entity = readFields<Entity>(rec, simple.table, into);
+        return (simple.finish ? simple.finish(entity) : entity) as Entity;
+      }
       return parser(rec, base, this.ctx, children) as Entity;
     } catch (e) {
+      if (simple) {
+        // A failed field read can leave partial properties. Rebuild the original base only
+        // on this exceptional path so UNKNOWN retains exactly the former fallback shape.
+        try {
+          base = readBase(rec);
+        } catch {
+          base = { ...readBase(new DxfRecord(rec.store, rec.start, rec.start + 1, rec.id)), record: rec };
+        }
+      }
       this.diagnostics.error("entity", `failed to parse ${rec.type}: ${String(e)}`, { tag: rec.start });
       return { ...base, type: "UNKNOWN" };
     }

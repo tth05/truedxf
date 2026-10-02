@@ -5,7 +5,7 @@
 import { type FieldDef, fieldTable, readFields } from "../fields.ts";
 import type { DxfRecord } from "../record.ts";
 import type { Point3 } from "../types.ts";
-import { type EntityBase, readBase, registerEntity } from "./common.ts";
+import { type EntityBase, readBase, registerEntity, simpleParser } from "./common.ts";
 
 const Z = Object.freeze({ x: 0, y: 0, z: 1 });
 const O = Object.freeze({ x: 0, y: 0, z: 0 });
@@ -69,11 +69,7 @@ const textFields = (valignCode: number, valignSubclass: string | string[]): Fiel
   { name: "valign", code: valignCode, kind: "int", subclass: valignSubclass, def: 0 },
 ];
 
-const TEXT = fieldTable(textFields(73, TEXT_SUB), { lenient: true });
-
-registerEntity<TextEntity>("TEXT", (rec, base) =>
-  readFields<TextEntity>(rec, TEXT, { ...base, type: "TEXT" } as Record<string, unknown>),
-);
+registerEntity<TextEntity>("TEXT", simpleParser<TextEntity>("TEXT", textFields(73, TEXT_SUB)));
 
 const ATTRIB = fieldTable([
   ...textFields(74, ["AcDbAttribute"]),

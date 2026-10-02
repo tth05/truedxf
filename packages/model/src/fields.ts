@@ -147,66 +147,194 @@ function matchesSubclass(def: FieldDef, subclass: string, strict: boolean): bool
   return def.subclass.includes(subclass);
 }
 
+/** Write a field directly; return the next data tag after adjacent coordinates. */
+export function writeFieldAt(
+  rec: DxfRecord,
+  i: number,
+  end: number,
+  def: FieldDef,
+  into: Record<string, unknown>,
+  scan = false,
+): number {
+  const s = rec.store;
+  let next = rec.nextDataTag(i + 1);
+  let value: Value;
+  switch (def.kind) {
+    case "str":
+      value = s.str(i);
+      break;
+    case "name":
+      value = decodeUnicodeEscapes(s.str(i));
+      break;
+    case "num":
+      value = finite(s.num(i));
+      break;
+    case "int":
+      value = finite(s.int(i));
+      break;
+    case "bool":
+      value = s.bool(i);
+      break;
+    case "handle":
+      value = s.handle(i);
+      break;
+    case "bigint":
+      value = s.bigint(i);
+      break;
+    case "binary":
+      value = s.binary(i);
+      break;
+    case "p2":
+    case "p3": {
+      const code = s.codes[i]!;
+      const x = finite(s.num(i));
+      let y = 0;
+      let z = 0;
+      if (next < end && s.codes[next] === code + 10) {
+        y = finite(s.num(next));
+        next = rec.nextDataTag(next + 1);
+        if (def.kind === "p3" && next < end && s.codes[next] === code + 20) {
+          z = finite(s.num(next));
+          next = rec.nextDataTag(next + 1);
+        } else if (def.kind === "p3" && scan) {
+          const m = scanRange(rec, next, end, code + 20, code);
+          if (m >= 0) z = finite(s.num(m));
+        }
+      } else if (scan) {
+        const m = scanRange(rec, next, end, code + 10, code);
+        if (m >= 0) {
+          y = finite(s.num(m));
+          const l = def.kind === "p3" ? scanRange(rec, next, end, code + 20, code) : -1;
+          if (l >= 0) z = finite(s.num(l));
+        }
+      }
+      value = def.kind === "p2" ? { x, y } : { x, y, z };
+      break;
+    }
+  }
+  if (def.many) {
+    let arr = into[def.name] as Value[] | undefined;
+    if (!arr) into[def.name] = arr = [];
+    arr.push(value);
+  } else into[def.name] = value;
+  return next;
+}
+
+function scanRange(rec: DxfRecord, from: number, end: number, code: number, stop: number): number {
+  const codes = rec.store.codes;
+  for (let i = from; i < end; i = rec.nextDataTag(i + 1)) {
+    if (codes[i] === code) return i;
+    if (codes[i] === stop) return -1;
+  }
+  return -1;
+}
+
+interface CompiledDef {
+  readonly def: FieldDef;
+  readonly index: number;
+}
+interface CompiledTable {
+  readonly low: (readonly CompiledDef[] | undefined)[];
+  readonly high: Map<number, readonly CompiledDef[]>;
+  readonly subclasses: Set<string>;
+  readonly anywhere: boolean;
+  readonly count: number;
+  readonly pool: Uint8Array[];
+}
+const compiledTables = new WeakMap<FieldTable, CompiledTable>();
+
+function compile(table: FieldTable): CompiledTable {
+  const cached = compiledTables.get(table);
+  if (cached) return cached;
+  const low = new Array<readonly CompiledDef[] | undefined>(1072).fill(undefined);
+  const high = new Map<number, readonly CompiledDef[]>();
+  const indices = new Map<FieldDef, number>();
+  const subclasses = new Set<string>();
+  let anywhere = false;
+  for (const [code, defs] of table.byCode) {
+    const entries: CompiledDef[] = [];
+    for (const def of defs) {
+      let index = indices.get(def);
+      if (index === undefined) {
+        index = indices.size;
+        indices.set(def, index);
+      }
+      entries.push({ def, index });
+      if (def.subclass === undefined) anywhere = true;
+      else if (typeof def.subclass === "string") subclasses.add(def.subclass);
+      else for (const name of def.subclass) subclasses.add(name);
+    }
+    if (code >= 0 && code < low.length) low[code] = entries;
+    else high.set(code, entries);
+  }
+  const result = { low, high, subclasses, anywhere, count: indices.size, pool: [] as Uint8Array[] };
+  compiledTables.set(table, result);
+  return result;
+}
+
 /**
- * Reads fields into a plain object. Unmatched tags are ignored (they remain in the record: the
- * model is lossless). Returns the object with defaults applied for absent single fields.
+ * Reads fields into a plain object. Unmatched tags remain in the lossless record.
+ * Definition order, first matches, repeated fields, and subclass constraints follow
+ * note 01 §6.3. Only adjacent coordinates are consumed; scanned coordinates are not.
  */
 export function readFields<T>(rec: DxfRecord, table: FieldTable, into: Record<string, unknown> = {}): T {
   const strict = rec.hasSubclasses;
-  const filled = new Set<FieldDef>();
+  const c = compile(table);
+  // A pool, rather than one global scratch buffer, also permits recursive reads from setters.
+  const filled = c.pool.pop() ?? new Uint8Array(c.count);
   const codes = rec.store.codes;
   const lenient = strict && table.lenient;
-  const skipped: number[][] = [];
-  for (const part of rec.parts) {
-    if (part.kind !== 0 && part.kind !== 1) continue;
-    const subclass = part.kind === 0 ? "" : part.name;
-    const tags = [...rec.partTags(part)];
-    let unmatched: number[] | undefined;
-    for (let k = 0; k < tags.length; ) {
-      const defs = table.byCode.get(codes[tags[k]!]!);
-      let def: FieldDef | undefined;
-      if (defs) {
-        for (const d of defs) {
-          if (!matchesSubclass(d, subclass, strict)) continue;
-          if (d.many || !filled.has(d)) {
-            def = d;
-            break;
+  let skipped: number[] | undefined;
+  try {
+    for (const part of rec.parts) {
+      if (part.kind !== 0 && part.kind !== 1) continue;
+      const subclass = part.kind === 0 ? "" : part.name;
+      if (strict && !lenient && !c.anywhere && !c.subclasses.has(subclass)) continue;
+      for (let i = rec.nextDataTag(part.start); i < part.end; ) {
+        const code = codes[i]!;
+        const defs = code >= 0 && code < c.low.length ? c.low[code] : c.high.get(code);
+        let entry: CompiledDef | undefined;
+        if (defs)
+          for (const d of defs) {
+            if (matchesSubclass(d.def, subclass, strict) && (d.def.many || !filled[d.index])) {
+              entry = d;
+              break;
+            }
           }
+        if (!entry) {
+          // Store only unmatched starting tags, in part order. Adjacent point components
+          // consumed in the strict pass must never become lenient candidates.
+          if (lenient && defs) (skipped ??= []).push(i, part.end);
+          i = rec.nextDataTag(i + 1);
+          continue;
+        }
+        i = writeFieldAt(rec, i, part.end, entry.def, into, !entry.def.many);
+        if (!entry.def.many) filled[entry.index] = 1;
+      }
+    }
+    // Only the strict pass's unconsumed tags are eligible. Do not consume further
+    // candidates here: the old lenient pass also visited each saved starting tag.
+    if (skipped)
+      for (let k = 0; k < skipped.length; k += 2) {
+        const i = skipped[k]!;
+        const code = codes[i]!;
+        const defs = (code >= 0 && code < c.low.length ? c.low[code] : c.high.get(code))!;
+        for (const entry of defs) {
+          if (entry.def.many || filled[entry.index]) continue;
+          writeFieldAt(rec, i, skipped[k + 1]!, entry.def, into, true);
+          filled[entry.index] = 1;
+          break;
         }
       }
-      if (!def) {
-        if (lenient && defs) (unmatched ??= []).push(k);
-        k++;
-        continue;
-      }
-      const [v, n] = readValueAt(rec, tags, k, def.kind, !def.many);
-      k += n;
-      if (def.many) {
-        let arr = into[def.name] as Value[] | undefined;
-        if (!arr) into[def.name] = arr = [];
-        arr.push(v);
-      } else {
-        into[def.name] = v;
-        filled.add(def);
-      }
+    for (const d of table.defs) {
+      if (d.many) into[d.name] ??= [];
+      else if (!(d.name in into) && d.def !== undefined) into[d.name] = d.def;
     }
-    if (unmatched) skipped.push(tags, unmatched);
+    return into as T;
+  } finally {
+    filled.fill(0);
+    c.pool.push(filled);
   }
-  // lenient pass: misplaced single-valued fields (e.g. VERTEX data before `100 AcDbVertex`)
-  for (let p = 0; p < skipped.length; p += 2) {
-    const tags = skipped[p]!;
-    for (const k of skipped[p + 1]!) {
-      const def = table.byCode.get(codes[tags[k]!]!)!.find((d) => !d.many && !filled.has(d));
-      if (!def) continue;
-      into[def.name] = readValueAt(rec, tags, k, def.kind, true)[0];
-      filled.add(def);
-    }
-  }
-  for (const d of table.defs) {
-    if (d.many) into[d.name] ??= [];
-    else if (!(d.name in into) && d.def !== undefined) into[d.name] = d.def;
-  }
-  return into as T;
 }
 
 /** All data tags of a record as [code, index] pairs within an optional subclass, in order. */

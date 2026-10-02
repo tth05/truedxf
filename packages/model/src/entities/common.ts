@@ -3,7 +3,7 @@
  * (R12, and some third-party files) or in `AcDbEntity` (note 03 §1).
  */
 import type { Diagnostics } from "@truedxf/core";
-import { type FieldDef, fieldTable, readFields, readValueAt } from "../fields.ts";
+import { type FieldDef, fieldTable, readFields, writeFieldAt } from "../fields.ts";
 import { type DxfRecord, PartKind } from "../record.ts";
 
 export interface EntityBase {
@@ -87,10 +87,9 @@ function recoverMisplaced(rec: DxfRecord, f: Record<string, unknown>): void {
   const codes = rec.store.codes;
   for (const p of rec.parts) {
     if (p.kind !== PartKind.Subclass || p.name === "AcDbEntity") continue;
-    const tags = [...rec.partTags(p)];
-    for (let k = 0; k < tags.length; k++) {
-      const d = RECOVER_CODES.get(codes[tags[k]!]!);
-      if (d && !(d.name in f)) f[d.name] = readValueAt(rec, tags, k, d.kind)[0];
+    for (let i = rec.nextDataTag(p.start); i < p.end; i = rec.nextDataTag(i + 1)) {
+      const d = RECOVER_CODES.get(codes[i]!);
+      if (d && !(d.name in f)) writeFieldAt(rec, i, p.end, d, f);
     }
   }
 }
@@ -116,7 +115,7 @@ export type EntityParser<E extends EntityBase = EntityBase> = (
 
 export function readBase(rec: DxfRecord): EntityBase {
   const f = readFields<Record<string, unknown>>(rec, COMMON);
-  if (rec.hasSubclasses && RECOVER_TYPES.has(rec.type)) recoverMisplaced(rec, f);
+  if (rec.hasMisplacedCommon && RECOVER_TYPES.has(rec.type)) recoverMisplaced(rec, f);
   for (const d of COMMON_FIELDS) if (!(d.name in f) && d.def !== undefined) f[d.name] = d.def;
   const layer = (f.layer as string) || "0";
   const linetype = ((f.linetype as string) || "BYLAYER").trim();
@@ -150,21 +149,14 @@ export function readBase(rec: DxfRecord): EntityBase {
  * The version-to-length-code rule is unreliable (ezdxf#978), so both are accepted (note 07 §15.1).
  */
 export function readProxyGraphics(rec: DxfRecord, subclass: string): Uint8Array | undefined {
+  if (!rec.hasProxyGraphics) return undefined;
   const p = rec.hasSubclasses ? rec.subclass(subclass) : undefined;
   if (!p) return undefined;
   const s = rec.store;
   const codes = s.codes;
-  // fast path: most entities carry no 310 at all (avoids the partTags generator)
-  let any = false;
-  for (let i = p.start; i < p.end; i++)
-    if (codes[i] === 310) {
-      any = true;
-      break;
-    }
-  if (!any) return undefined;
   let chunks: Uint8Array[] | undefined;
   let prev = -1;
-  for (const i of rec.partTags(p)) {
+  for (let i = rec.nextDataTag(p.start); i < p.end; i = rec.nextDataTag(i + 1)) {
     const c = codes[i]!;
     if (chunks) {
       if (c !== 310) break;
@@ -198,9 +190,28 @@ export function registerEntity<E extends EntityBase>(
     ENTITY_PARSERS.set(t, parser as unknown as EntityParser);
 }
 
+/** Tables of simple parsers whose document-owned base can become the final entity. */
+export const SIMPLE_ENTITY_FIELDS = new WeakMap<
+  EntityParser,
+  { type: string; table: ReturnType<typeof fieldTable>; finish?: (entity: EntityBase) => EntityBase }
+>();
+
 /** Helper for simple spec-driven entities: base properties + fields from a table. */
-export function simpleParser<E extends EntityBase>(type: string, defs: readonly FieldDef[]): EntityParser<E> {
-  // simple entities have unambiguous codes: lenient about misplaced subclass data (note 01 §6.3)
+export function simpleParser<E extends EntityBase>(
+  type: string,
+  defs: readonly FieldDef[],
+  finish?: (entity: E) => E,
+): EntityParser<E> {
+  // Simple entities have unambiguous codes (note 01 section 6.3).
   const table = fieldTable(defs, { lenient: true });
-  return (rec, base) => readFields<E>(rec, table, { ...base, type } as Record<string, unknown>);
+  const parser: EntityParser<E> = (rec, base) => {
+    const entity = readFields<E>(rec, table, { ...base, type } as Record<string, unknown>);
+    return finish ? finish(entity) : entity;
+  };
+  SIMPLE_ENTITY_FIELDS.set(parser as EntityParser, {
+    type,
+    table,
+    finish: finish as ((entity: EntityBase) => EntityBase) | undefined,
+  });
+  return parser;
 }

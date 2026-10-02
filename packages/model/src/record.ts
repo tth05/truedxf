@@ -44,6 +44,13 @@ export class DxfRecord {
   readonly id: number;
   private _parts: RecordPart[] | undefined;
   private _type: string | undefined;
+  #hasSubclasses = false;
+  #hasProxyGraphics = false;
+  #hasMisplacedCommon = false;
+  #handleIndex = -1;
+  #ownerIndex = -1;
+  #handle: string | undefined;
+  #owner: string | undefined;
 
   constructor(store: TagStore, start: number, end: number, id: number) {
     this.store = store;
@@ -65,54 +72,97 @@ export class DxfRecord {
 
   /** True if the record has at least one subclass marker (R13+ structure). */
   get hasSubclasses(): boolean {
-    return this.parts.some((p) => p.kind === PartKind.Subclass);
+    this.parts;
+    return this.#hasSubclasses;
+  }
+
+  /** Conservative presence flags computed during the structural scan. */
+  get hasProxyGraphics(): boolean {
+    this.parts;
+    return this.#hasProxyGraphics;
+  }
+
+  get hasMisplacedCommon(): boolean {
+    this.parts;
+    return this.#hasMisplacedCommon;
   }
 
   private computeParts(): RecordPart[] {
     const s = this.store;
-    const parts: RecordPart[] = [];
-    const isXrecord = this.type === "XRECORD";
+    const type = this.type;
+    const isXrecord = type === "XRECORD";
+    const handleCode = type === "DIMSTYLE" ? 105 : 5;
     let cur: RecordPart = { kind: PartKind.Base, name: "", start: this.start + 1, end: this.end };
-    const begin = (kind: PartKind, name: string, i: number) => {
-      cur.end = i;
-      parts.push(cur);
-      cur = { kind, name, start: i + 1, end: this.end };
-    };
+    const parts: RecordPart[] = [cur];
     for (let i = this.start + 1; i < this.end; i++) {
       const code = s.codes[i]!;
-      if (cur.kind === PartKind.XData) {
-        if (code === 1001) begin(PartKind.XData, s.str(i).trim(), i);
-        continue;
+      if (cur.kind === PartKind.Base) {
+        if (code === handleCode && this.#handleIndex < 0) this.#handleIndex = i;
+        if (code === 330 && this.#ownerIndex < 0) this.#ownerIndex = i;
       }
-      if (code === 1001) {
-        begin(PartKind.XData, s.str(i).trim(), i);
+      if (cur.kind === PartKind.Base || cur.kind === PartKind.Subclass) {
+        if (code === 310) this.#hasProxyGraphics = true;
+        if (cur.kind === PartKind.Subclass && cur.name !== "AcDbEntity") {
+          // Recovery candidates from note 01 section 6.3, excluding ambiguous layout code 410.
+          switch (code) {
+            case 8:
+            case 6:
+            case 62:
+            case 420:
+            case 430:
+            case 440:
+            case 370:
+            case 48:
+            case 60:
+            case 67:
+            case 390:
+            case 347:
+              this.#hasMisplacedCommon = true;
+          }
+        }
+      }
+      let kind: PartKind;
+      let name: string;
+      if (cur.kind === PartKind.XData) {
+        if (code !== 1001) continue;
+        kind = PartKind.XData;
+        name = s.str(i).trim();
+      } else if (code === 1001) {
+        kind = PartKind.XData;
+        name = s.str(i).trim();
       } else if (code === 100 && cur.kind !== PartKind.Embedded) {
-        begin(PartKind.Subclass, s.str(i).trim(), i);
+        kind = PartKind.Subclass;
+        name = s.str(i).trim();
+        this.#hasSubclasses = true;
       } else if (code === 101 && cur.kind !== PartKind.Embedded && s.str(i).trim() === "Embedded Object") {
-        begin(PartKind.Embedded, "", i);
+        kind = PartKind.Embedded;
+        name = "";
       } else if (code === 102 && !(isXrecord && cur.kind === PartKind.Subclass)) {
-        // in XRECORD payload, 102 is ordinary data (note 01 §6.2)
+        // XRECORD payload 102 is ordinary data (note 01 section 6.2).
         const v = s.str(i).trim();
         if (!v.startsWith("{")) continue;
-        // app-data groups are recorded separately; the enclosing part continues around them
         let j = i + 1;
         while (j < this.end && s.codes[j] !== 102 && s.codes[j] !== 0) j++;
         parts.push({ kind: PartKind.AppData, name: v.slice(1), start: i + 1, end: j });
         this.appRanges.push(i, Math.min(j + 1, this.end));
-        i = j; // skip the closing 102
-      }
+        i = j;
+        continue;
+      } else continue;
+      cur.end = i;
+      cur = { kind, name, start: i + 1, end: this.end };
+      // Append the enclosing part before any app-data children: already in source order.
+      parts.push(cur);
     }
     cur.end = this.end;
-    parts.push(cur);
-    // app-data parts were pushed out of order; keep parts sorted by position
-    return parts.sort((a, b) => a.start - b.start);
+    return parts;
   }
 
   /** Pairs [from, to) of tag ranges covered by 102 groups including their brace tags. */
   private readonly appRanges: number[] = [];
 
   /** Next data tag index ≥ i that is not inside an app-data group. */
-  private skipApp(i: number): number {
+  nextDataTag(i: number): number {
+    if (!this._parts) this.parts;
     const r = this.appRanges;
     for (let k = 0; k < r.length; k += 2) if (i >= r[k]! && i < r[k + 1]!) return r[k + 1]!;
     return i;
@@ -120,29 +170,19 @@ export class DxfRecord {
 
   /** Handle (code 5 in the base part; 105 for DIMSTYLE). "" if absent. */
   get handle(): string {
-    const code = this.type === "DIMSTYLE" ? 105 : 5;
-    const i = this.findInBase(code);
-    return i < 0 ? "" : this.store.handle(i);
+    this.parts;
+    return (this.#handle ??= this.#handleIndex < 0 ? "" : this.store.handle(this.#handleIndex));
   }
 
   /** Owner handle (the 330 in the base part outside app data). "" if absent. Advisory only. */
   get owner(): string {
-    const i = this.findInBase(330);
-    return i < 0 ? "" : this.store.handle(i);
-  }
-
-  private findInBase(code: number): number {
-    for (const p of this.parts) {
-      if (p.kind === PartKind.AppData) continue;
-      if (p.kind !== PartKind.Base) break;
-      for (let i = this.skipApp(p.start); i < p.end; i = this.skipApp(i + 1))
-        if (this.store.codes[i] === code) return i;
-    }
-    return -1;
+    this.parts;
+    return (this.#owner ??= this.#ownerIndex < 0 ? "" : this.store.handle(this.#ownerIndex));
   }
 
   appData(name: string): RecordPart | undefined {
-    return this.parts.find((p) => p.kind === PartKind.AppData && p.name === name);
+    for (const p of this.parts) if (p.kind === PartKind.AppData && p.name === name) return p;
+    return undefined;
   }
 
   /** Handle of the extension dictionary ({ACAD_XDICTIONARY 360). */
@@ -185,13 +225,13 @@ export class DxfRecord {
   *dataTags(): Generator<number> {
     for (const p of this.parts) {
       if (p.kind !== PartKind.Base && p.kind !== PartKind.Subclass) continue;
-      for (let i = this.skipApp(p.start); i < p.end; i = this.skipApp(i + 1)) yield i;
+      for (let i = this.nextDataTag(p.start); i < p.end; i = this.nextDataTag(i + 1)) yield i;
     }
   }
 
   /** Data tag indices of one part, skipping app-data groups inside it. */
   *partTags(p: RecordPart): Generator<number> {
-    for (let i = this.skipApp(p.start); i < p.end; i = this.skipApp(i + 1)) yield i;
+    for (let i = this.nextDataTag(p.start); i < p.end; i = this.nextDataTag(i + 1)) yield i;
   }
 
   /** Index of the first tag with `code` in the data parts, optionally within a subclass. */
@@ -199,7 +239,7 @@ export class DxfRecord {
     for (const p of this.parts) {
       if (p.kind !== PartKind.Base && p.kind !== PartKind.Subclass) continue;
       if (subclass !== undefined && this.hasSubclasses && p.name !== subclass) continue;
-      for (let i = this.skipApp(p.start); i < p.end; i = this.skipApp(i + 1))
+      for (let i = this.nextDataTag(p.start); i < p.end; i = this.nextDataTag(i + 1))
         if (this.store.codes[i] === code) return i;
     }
     return -1;

@@ -10,7 +10,14 @@
  */
 import type { Batch, ClipRegion, DisplayList, RasterImage } from "@truedxf/render";
 import * as THREE from "three";
-import { MAX_DEPTH_ORDERS, type MergedPart, mergedGroups, orderCount } from "./merge.ts";
+import {
+  MAX_DEPTH_ORDERS,
+  type MergedDisplayList,
+  type MergedGroup,
+  type MergedPart,
+  mergedGroups,
+  orderCount,
+} from "./merge.ts";
 
 // raw sRGB byte values in, the same values out
 THREE.ColorManagement.enabled = false;
@@ -79,7 +86,7 @@ export class DisplayListRenderer {
   readonly scene = new THREE.Scene();
   readonly camera = new THREE.OrthographicCamera(-1, 1, 1, -1, -1, 1);
   private objects: BatchObject[] = [];
-  private list: DisplayList | undefined;
+  private list: Omit<DisplayList, "batches"> | undefined;
   /** Textures of DisplayList.images (shared by the batches of one list). */
   private textures = new Map<RasterImage, THREE.DataTexture>();
   /** Copy of the frame below a transparent batch (sized in render()). */
@@ -131,7 +138,7 @@ export class DisplayListRenderer {
     if (this.merged) {
       this.underlayScene.add(this.underlay);
       this.overlayScene.add(this.overlay);
-      this.setMergedList(list, count);
+      this.setMergedGroups(mergedGroups(list, count));
       if (this.releaseArrays) this.list = undefined;
       return;
     }
@@ -154,11 +161,25 @@ export class DisplayListRenderer {
     if (this.releaseArrays) this.list = undefined;
   }
 
-  private setMergedList(list: DisplayList, count: number): void {
+  /** Upload buffers built in a worker; painter depths and rebasing are already baked in. */
+  setMergedDisplayList(list: MergedDisplayList): void {
+    if (this.exactBlend) throw new Error("pre-merged lists require exactBlend: false");
+    this.clear();
+    this.list = list;
+    const [r, g, b] = list.background;
+    this.renderer.setClearColor(new THREE.Color(r / 255, g / 255, b / 255), 1);
+    this.merged = true;
+    this.underlayScene.add(this.underlay);
+    this.overlayScene.add(this.overlay);
+    this.setMergedGroups(list.groups);
+    if (this.releaseArrays) this.list = undefined;
+  }
+
+  private setMergedGroups(groups: Iterable<MergedGroup>): void {
     const materials = new Map<string, THREE.Material>();
     let order = 0;
     let activeClip = -1;
-    for (const group of mergedGroups(list, count)) {
+    for (const group of groups) {
       if (group.clip !== activeClip) {
         this.addStencilReset(order++);
         if (group.clip >= 0) order = this.addClipMask(group.clip, order);
@@ -170,15 +191,15 @@ export class DisplayListRenderer {
         geom.boundingSphere = UNBOUNDED.clone();
         geom.setAttribute("position", this.attribute(part.positions, 3));
         geom.setAttribute("color", this.attribute(part.colors, 4, true));
-        const key = `${part.kind}/${clipped}/${!!part.batch}`;
+        const key = `${part.kind}/${clipped}/${!!part.individual}`;
         let mat = part.kind === IMAGE ? undefined : materials.get(key);
         if (!mat) {
           const common = {
             vertexColors: true,
             // Clip masks and their opaque content must share the transparent queue.
             // Unclipped opaque content can run first: global depth rejects anything behind it.
-            transparent: clipped || !!part.batch,
-            blending: part.batch ? THREE.NormalBlending : THREE.NoBlending,
+            transparent: clipped || !!part.individual,
+            blending: part.individual ? THREE.NormalBlending : THREE.NoBlending,
             depthTest: true,
             depthWrite: true,
             depthFunc: THREE.LessEqualDepth,
@@ -211,10 +232,9 @@ export class DisplayListRenderer {
   }
 
   private setImage(part: MergedPart, geom: THREE.BufferGeometry, mat: THREE.Material): void {
-    const batch = part.batch;
-    if (batch?.kind === IMAGE && batch.uvs && batch.image !== undefined) {
-      geom.setAttribute("uv", this.attribute(batch.uvs, 2));
-      (mat as THREE.MeshBasicMaterial).map = this.texture(this.list!.images[batch.image]!);
+    if (part.kind === IMAGE && part.uvs && part.image !== undefined) {
+      geom.setAttribute("uv", this.attribute(part.uvs, 2));
+      (mat as THREE.MeshBasicMaterial).map = this.texture(this.list!.images[part.image]!);
     }
   }
 

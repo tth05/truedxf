@@ -102,9 +102,21 @@ try {
     }
   }
 
+  // The merge subpath must stay worker/Node-importable without loading three.js's entry point.
+  writeFileSync(
+    join(app, "import.mjs"),
+    'const m = await import("@truedxf/three/merge");\nif (typeof m.mergedGroups !== "function") process.exit(1);\n',
+  );
+  try {
+    sh("node", ["import.mjs"], app);
+  } catch (e) {
+    errors.push(`@truedxf/three/merge: import in Node failed: ${String(e)}`);
+  }
+
   writeFileSync(
     join(app, "check.ts"),
-    packed.map((p, i) => `import * as m${i} from "${p.name}";\nvoid m${i};`).join("\n"),
+    packed.map((p, i) => `import * as m${i} from "${p.name}";\nvoid m${i};`).join("\n") +
+      '\nimport { mergedGroups } from "@truedxf/three/merge";\nvoid mergedGroups;\n',
   );
   for (const moduleResolution of ["bundler", "nodenext"]) {
     const module = moduleResolution === "bundler" ? "esnext" : "nodenext";

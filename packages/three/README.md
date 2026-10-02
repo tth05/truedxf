@@ -30,6 +30,11 @@ three.js (WebGL) renderer for the display lists that `@truedxf/render` produces.
   order, including primitive order within a range. The four-million-order limit leaves distinct
   24-bit depth values after float32 rounding; larger lists fall back to the original path.
   `mergeBatches` defaults to false and is ignored with `exactBlend: true`.
+- `setMergedDisplayList(list)` uploads pre-merged GPU buffers (`exactBlend: false`). Workers can
+  import `mergedGroups`, `orderCount` and `MAX_DEPTH_ORDERS` from `@truedxf/three/merge` without
+  loading three.js or touching the DOM. The payload contains metadata and clip-run groups with
+  xyz positions, RGBA colours, and individual alpha/image parts (UVs and image indices).
+  Keep the ordinary path when `orderCount(list) > MAX_DEPTH_ORDERS`.
 - Merged opaque materials are shared by kind and clipping state. Unclipped opaque objects use
   the opaque queue; clipped ones use the transparent queue with blending disabled, keeping each
   stencil reset/mask ahead of its content. Individual alpha/image batches follow the opaque

@@ -22,13 +22,18 @@
     "./dist/index.js"
   ],
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./merge": "./src/merge.ts"
   },
   "publishConfig": {
     "exports": {
       ".": {
         "types": "./dist/index.d.ts",
         "default": "./dist/index.js"
+      },
+      "./merge": {
+        "types": "./dist/merge.d.ts",
+        "default": "./dist/merge.js"
       }
     }
   },

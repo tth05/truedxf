@@ -68,7 +68,7 @@ describe("depth-ordered merging", () => {
     ]);
     const groups = [...mergedGroups(input, orderCount(input))];
     expect(groups.map((g) => g.clip)).toEqual([-1, 0, -1]);
-    expect(groups[0]!.parts.map((p) => [p.kind, p.positions.length / 3, !!p.batch])).toEqual([
+    expect(groups[0]!.parts.map((p) => [p.kind, p.positions.length / 3, !!p.individual])).toEqual([
       [0, 3, false],
       [1, 4, false],
       [0, 3, true],
@@ -89,5 +89,24 @@ describe("depth-ordered merging", () => {
     const [group] = [...mergedGroups(input, 1)];
     expect(group!.parts.map((p) => p.positions.length / 3)).toEqual([3_999_999, 3]);
     expect(group!.parts[1]!.positions[2]).toBe(Math.fround(orderZ(0, 1)));
+  });
+
+  it("copies individual alpha/image data without retaining their original batches", () => {
+    const image = { ...batch(3, 3), uvs: new Float32Array([0, 0, 1, 0, 1, 1]), image: 0 };
+    const alpha = batch(1, 2, -1, 128);
+    const input = list([alpha, image]);
+    const parts = [...mergedGroups(input, orderCount(input))][0]!.parts;
+    expect(parts[0]!.individual).toBe(true);
+    expect(parts[1]!.image).toBe(0);
+    expect(parts[1]!.uvs).toEqual(image.uvs);
+    const buffers = parts.flatMap((p) => [
+      p.positions.buffer,
+      p.colors.buffer,
+      ...(p.uvs ? [p.uvs.buffer] : []),
+    ]);
+    structuredClone(parts, { transfer: buffers });
+    expect(alpha.colors.byteLength).toBeGreaterThan(0);
+    expect(image.positions.byteLength).toBeGreaterThan(0);
+    expect(image.uvs.byteLength).toBeGreaterThan(0);
   });
 });

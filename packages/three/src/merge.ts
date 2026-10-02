@@ -34,7 +34,9 @@ export interface MergedPart {
   positions: Float32Array;
   colors: Uint8Array;
   /** Present for individual alpha/image batches. */
-  batch?: Batch;
+  individual?: boolean;
+  uvs?: Float32Array;
+  image?: number;
 }
 
 export interface MergedGroup {
@@ -42,6 +44,11 @@ export interface MergedGroup {
   originX: number;
   originY: number;
   parts: MergedPart[];
+}
+
+/** Worker-built GPU buffers. No original batch positions or pick ranges cross this seam. */
+export interface MergedDisplayList extends Omit<DisplayList, "batches"> {
+  groups: MergedGroup[];
 }
 
 function opaque(batch: Batch): boolean {
@@ -107,8 +114,10 @@ export function* mergedGroups(list: DisplayList, total: number): Generator<Merge
         : {
             kind: b.kind,
             positions: new Float32Array((b.positions.length / 2) * 3),
-            colors: b.colors,
-            batch: b,
+            colors: b.colors.slice(),
+            individual: true,
+            uvs: b.uvs?.slice(),
+            image: b.image,
           };
       if (individual) parts.push(individual);
       orderRanges(b, (first, count) => {

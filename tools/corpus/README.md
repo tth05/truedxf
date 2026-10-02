@@ -29,6 +29,17 @@ contain off/on/diff images. The CPU rasterizer has no antialiasing, so this meas
 aliasing as well as the approximations; it is not a browser screenshot comparison. `--expose-gc`
 releases large fit/off lists between stages; measured frontend intervals exclude explicit GC.
 
+For sub-pixel text density, use the hardware-AA comparison instead:
+`node apps/playground/scripts/lod-check.ts [--only regex] [--label name] [--out directory]
+[--skip-build]`. It renders both modes at the same LOD-off fit in Chromium on D3D11 (rejects
+SwiftShader and disabled AA). The 1600×1000 browser viewport leaves a 1016×924 drawing canvas
+with the current playground panels. Reports contain mean absolute RGB difference after 4×4
+box downsampling and the percentage of cells differing by more than 24 in any channel, over
+all complete cells. The comparison includes all viewer LOD approximations. JSON and mtext/arch-cn
+off/on PNGs go to `.codex-out/` by default (`--images-all` saves every selected PNG pair); no
+shared sample reports are overwritten. `?lod=0`
+disables viewer approximations in the playground; zoom still re-tessellates curves normally.
+
 `pnpm fingerprint --save` saves parser, fixture plot, and viewer fingerprints before behaviour-neutral
 performance work; `pnpm fingerprint --check` compares afterwards and exits 1 on any difference.
 **Plot mode must stay identical.** This checks exact model values and display-list bytes, including
@@ -66,6 +77,11 @@ sets `--max-old-space-size=8192`; this is a **per-worker** heap limit, not a tot
 Reduce jobs on memory-constrained machines. Direct invocations should pass the same heap flag.
 The tool prints progress, per-kind comparisons, record/error counts, and wall-clock seconds.
 The hashing/snapshot unit checks (`tools/corpus/test/fingerprint.test.ts`) run with `pnpm test`.
+
+`--lod-off` disables viewer approximations while leaving plot/model hashes unchanged.
+`--output-dir directory` puts save/check baselines in that directory instead of shared samples;
+use a separate `--name` for LOD-off before/after checks. Ordinary checks still default to the
+saved `baseline` in `samples/reports/fingerprint/`.
 
 ## Differential oracle (docs/PLAN.md §5 Phase 2 item 7)
 

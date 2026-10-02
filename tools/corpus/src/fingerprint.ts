@@ -2,7 +2,7 @@
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { cpus, endianness } from "node:os";
-import { basename, join, relative } from "node:path";
+import { basename, join, relative, resolve } from "node:path";
 import { isMainThread, parentPort, Worker } from "node:worker_threads";
 import { resolveBenchPaths } from "./bench-set.ts";
 import { EXTERNAL, loadManifest, REPORTS, ROOT } from "./common.ts";
@@ -18,6 +18,8 @@ interface Args {
   only?: RegExp;
   name: string;
   detail: boolean;
+  lod?: boolean;
+  outputDir: string;
 }
 interface Baseline {
   version: 1;
@@ -30,7 +32,6 @@ interface Work {
 }
 const SETS: SetName[] = ["fixtures", "corpus", "model-all"];
 const KINDS: Kind[] = ["model", "plot", "viewer"];
-const OUT = join(REPORTS, "fingerprint");
 const compare = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 const kindsFor = (set: SetName): Kind[] =>
   set === "fixtures" ? KINDS : set === "corpus" ? ["model", "viewer"] : ["model"];
@@ -44,6 +45,7 @@ function args(argv: string[]): Args {
     maxMb: 15,
     name: "baseline",
     detail: false,
+    outputDir: join(REPORTS, "fingerprint"),
   };
   let mode: string | undefined;
   for (let i = 0; i < argv.length; i++) {
@@ -68,6 +70,8 @@ function args(argv: string[]): Args {
     else if (flag === "--only") a.only = new RegExp(value(), "i");
     else if (flag === "--name") a.name = value();
     else if (flag === "--detail") a.detail = true;
+    else if (flag === "--lod-off") a.lod = false;
+    else if (flag === "--output-dir") a.outputDir = resolve(value());
     else throw new Error(`unknown argument: ${flag}`);
   }
   if (!mode) throw new Error("specify --save or --check");
@@ -229,7 +233,7 @@ async function check(
     );
     const replies = await pool(
       details.map((d) => ({
-        task: { target: byId.get(d.id)!, kinds: [d.kind], positions: positionPath(base, d.id) },
+        task: { target: byId.get(d.id)!, kinds: [d.kind], lod: a.lod, positions: positionPath(base, d.id) },
         oldHashes: { [d.kind]: d.old![d.kind]!.hash },
       })),
       a.jobs,
@@ -263,14 +267,14 @@ async function main(): Promise<void> {
   for (const set of a.sets) {
     const setStart = performance.now();
     const selected = targets(set, a);
-    const base = join(OUT, `${a.name}-${set}`);
+    const base = join(a.outputDir, `${a.name}-${set}`);
     let baseline: Baseline | undefined;
     if (a.mode === "check") {
       baseline = JSON.parse(readFileSync(`${base}.json`, "utf8")) as Baseline;
       if (baseline.version !== 1 || baseline.set !== set || !baseline.records)
         throw new Error(`invalid baseline: ${base}.json`);
     } else {
-      mkdirSync(OUT, { recursive: true });
+      mkdirSync(a.outputDir, { recursive: true });
       if (a.detail) mkdirSync(`${base}.positions`, { recursive: true });
     }
     const priorSelected = baseline && Object.keys(baseline.records).some((id) => !a.only || a.only.test(id));
@@ -281,6 +285,7 @@ async function main(): Promise<void> {
         task: {
           target,
           kinds: kindsFor(set),
+          lod: a.lod,
           saveDetail: a.mode === "save" && a.detail,
           positions: a.mode === "save" && a.detail ? positionPath(base, target.id) : undefined,
         },

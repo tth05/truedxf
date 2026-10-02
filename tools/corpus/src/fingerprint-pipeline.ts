@@ -32,6 +32,7 @@ export interface Task {
   kinds: Kind[];
   positions?: string;
   saveDetail?: boolean;
+  lod?: boolean;
 }
 
 const FONT_DIRS = [
@@ -192,7 +193,12 @@ export async function runTask(task: Task, oldHashes?: Partial<Record<Kind, strin
             : async () => undefined;
           const core = new ViewerCore(loadFont, loadImage);
           const info = core.load(bytes, task.target.name);
-          const res = await core.render({ ...BASE, layout: info.activeLayout, area: { type: "extents" } });
+          const res = await core.render({
+            ...BASE,
+            lod: task.lod,
+            layout: info.activeLayout,
+            area: { type: "extents" },
+          });
           list = res.list;
           hash = fingerprint(
             {

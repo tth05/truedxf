@@ -2,9 +2,10 @@
  * Pipeline benchmark over a fixed set of large, varied corpus files: the viewer worker's work
  * (tokenize → model → renderPlot → pick data) in Node, per stage, median of `--runs`.
  *
- *   node tools/corpus/src/bench.ts [--runs 3] [--only <regex>] [--parse-only] [--zoom] [--zoom-cull] [--by-type] [--json out.json]
+ *   node tools/corpus/src/bench.ts [--runs 3] [--only <regex>] [--parse-only] [--zoom] [--zoom-cull] [--by-type] [--gc] [--json out.json]
  *
  * `--by-type`: exclusive frontend time and emitted vertices per entity type (all render passes).
+ * `--gc`: with --expose-gc, collect before drawing to exclude garbage from the extra load measurements.
  *
  * Profile one file: node --cpu-prof --cpu-prof-dir=samples/reports/prof tools/corpus/src/bench.ts --only Network
  */
@@ -47,6 +48,7 @@ function args() {
     byType: false,
     parseOnly: false,
     blockReuse: true,
+    gc: false,
     json: undefined as string | undefined,
   };
   const v = process.argv.slice(2);
@@ -58,6 +60,7 @@ function args() {
     else if (v[i] === "--by-type") a.byType = true;
     else if (v[i] === "--parse-only") a.parseOnly = true;
     else if (v[i] === "--no-block-reuse") a.blockReuse = false;
+    else if (v[i] === "--gc") a.gc = true;
     else if (v[i] === "--json") a.json = v[++i];
   }
   if (a.zoomCull && !a.only)
@@ -80,6 +83,8 @@ const BASE: Omit<RenderParams, "area"> = {
 
 const a = args();
 BASE.blockReuse = a.blockReuse;
+const gc = (globalThis as typeof globalThis & { gc?: () => void }).gc;
+if (a.gc && !gc) throw new Error("--gc requires node --expose-gc");
 
 /** Exclusive (nested entities subtracted) time / vertices per entity type. */
 const byType = new Map<string, { ms: number; vertices: number; n: number }>();
@@ -132,6 +137,7 @@ for (const [name, path] of files) {
     tags: [] as number[],
     model: [] as number[],
     render: [] as number[],
+    renderCpu: [] as number[],
     pick: [] as number[],
     zoom: [] as number[],
   };
@@ -150,7 +156,16 @@ for (const [name, path] of files) {
       // fresh core per run: no font/glyph caches carried over (the viewer loads a file once)
       const core = new ViewerCore(loadFont, loadImage);
       const doc = core.load(bytes, name);
+      if (a.gc) {
+        // Exclude garbage from the two extra parser measurements when isolating drawing.
+        gc!();
+        gc!();
+      }
+      const cpuStart = process.cpuUsage();
       const res = await core.render({ ...BASE, layout: doc.activeLayout, area: { type: "extents" } });
+      const cpu = process.cpuUsage(cpuStart);
+      // CPU time separates this process's render/pick work from unrelated scheduler load.
+      t.renderCpu.push((cpu.user + cpu.system) / 1000);
       t.render.push(res.ms.frontend);
       t.pick.push(res.ms.pick);
       if (a.zoomCull) {
@@ -223,6 +238,7 @@ for (const [name, path] of files) {
     modelMs: Math.round(median(t.model)),
     tagsMbS: +(mb / (median(t.tags) / 1000)).toFixed(0),
     renderMs: t.render.length ? Math.round(median(t.render)) : undefined,
+    renderCpuMs: t.renderCpu.length ? Math.round(median(t.renderCpu)) : undefined,
     pickMs: t.pick.length ? Math.round(median(t.pick)) : undefined,
     zoomMs: t.zoom.length ? Math.round(median(t.zoom)) : undefined,
     ...info,

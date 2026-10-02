@@ -1416,3 +1416,48 @@ Small DXF files to pin behaviour down against AutoCAD (open, and PLOT to PNG/PDF
     (not an AutoCAD test).
 30. **empty_lines.dxf**: a blank line in code position (ezdxf#1289), and a blank line as a
     legitimate empty string value → AutoCAD refuses the former, accepts the latter.
+
+## 11. Loaded-model memory (2026-10-02, implementation evidence)
+
+This is a representation finding, not a new AutoCAD rule. Record splitting and lookup
+semantics remain those of section 6. Node v23.10.0 heap snapshots of r12-network-16 show
+267,272 DxfRecord objects (36.35 MB shallow), 680,375 array objects (21.77 MB), property
+arrays (20.38 MB), and 267,279 part-like objects with a `name` reference (14.97 MB). Point
+coordinates and other numeric values also retain heap-number boxes; shallow snapshot sizes
+exclude transitive storage. See docs/perf-memory-results.md for retained deltas and timings.
+
+Expanded parts can be discarded after a record group is parsed: preserve scan flags and
+handle/owner offsets, skip absent app/XDATA/embedded sections by presence flags, and
+reconstruct ordered parts from the lossless tags on demand. A plain, single-part R12 record
+can answer `find` and `dataTags` directly. Compact 11-bit relative handle/owner offsets use
+2047 as a sentinel for a full base-part scan, so unusually late tags remain lossless and
+app-data owners never shadow base owners. Differential tests include both offset boundaries
+and repeated release/rebuild cycles. Raw SEQEND records retain their enumerable cache fields
+because those values are directly exposed on compound entities and hashed by the gate.
+Subclass-based text and dimension records retain their small part caches: CPU profiles
+showed rebuilding these on first drawing shifted structural work into the frontend.
+
+Missing optional circle base fields may be absent own properties while still reading as undefined;
+explicit zero, false, empty strings and zero handles must remain. Interning primitive strings
+changes no values or object reference relationships. The string pool belongs to a TagStore,
+is bounded to 4096 distinct strings, and dies with the document. The deferred entity index
+retains first registration order, including public parseEntities calls, independently of the
+mutable public byHandle map. It retains a smaller reference list and caches the first eight
+distinct queried handles (including misses); subsequent distinct queries build the full index.
+General entity base shapes retain their undefined slots because restoring those shapes
+improved frontend timings. Absent application groups are skipped by a presence bit before
+accessing the lazily allocated app-range property, avoiding a prototype lookup on every tag.
+
+The frozen-value fingerprint experiment is incompatible with the saved baseline: basic,
+polyline and other parsers already share Object.freeze defaults. Expanding those values at
+each visit instead of writing reference markers changed 4012 of 4833 model-all hashes with
+no model edits. This experiment was rejected; the strict walker and old default identities
+remain unchanged. New shared object defaults require resolving that baseline migration first.
+
+Sparse bases can also change V8's fast-property transition budget. ATTRIB/ATTDEF previously
+expanded a copied base with all text fields, then copied that large temporary object again.
+After omitting undefined base fields, the temporary normalized to dictionary properties:
+an R12 profile attributed ~158 ms to this assembly and load rose from ~402 to ~550 ms.
+Reading the smaller attribute field object and assembling the result once removed the
+regression (~372 ms for five runs), without changing fields or default precedence for
+external parser callers. Property layout therefore needs timing checks as well as heap checks.

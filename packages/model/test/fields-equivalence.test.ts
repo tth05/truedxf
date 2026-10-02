@@ -30,7 +30,7 @@ function check(defs: readonly FieldDef[], tags: readonly Tag[], lenient: boolean
   expect(rec.reactors).toEqual(old.reactors);
   expect([...rec.dataTags()]).toEqual([...old.dataTags()]);
   // SEQEND is exposed directly on compound entities; its enumerable shape is hashed too.
-  expect({ ...rec }).toEqual({ ...old });
+  if (type === "SEQEND") expect({ ...rec }).toEqual({ ...old });
   const table = fieldTable(defs, { lenient });
   const expected: Record<string, unknown> = {};
   const actual: Record<string, unknown> = {};
@@ -48,6 +48,20 @@ function check(defs: readonly FieldDef[], tags: readonly Tag[], lenient: boolean
   // Scratch flags must be reset when the same compiled table is reused.
   if (failure) expect(() => readFields(rec, table)).toThrow(failure.message);
   else expect(readFields(rec, table)).toEqual(expected);
+  for (let pass = 0; pass < 2; pass++) {
+    rec.releaseParts();
+    expect(rec.handle).toBe(old.handle);
+    expect(rec.owner).toBe(old.owner);
+    expect(rec.hasSubclasses).toBe(old.hasSubclasses);
+    expect(rec.parts).toEqual(old.parts);
+    expect([...rec.dataTags()]).toEqual([...old.dataTags()]);
+    expect(rec.extensionDictionary).toBe(old.extensionDictionary);
+    expect(rec.reactors).toEqual(old.reactors);
+    expect(rec.embedded).toEqual(old.embedded);
+    expect(rec.xdataAppIds).toEqual(old.xdataAppIds);
+    for (const appId of old.xdataAppIds) expect(rec.xdata(appId)).toEqual(old.xdata(appId));
+    for (const code of [5, 8, 10, 310, 330, 999]) expect(rec.find(code)).toBe(old.find(code));
+  }
 }
 
 it("preserves definition identity/order, coordinate consumption, app ranges, and lenient recovery", () => {
@@ -102,6 +116,16 @@ it("preserves definition identity/order, coordinate consumption, app ranges, and
     ],
   ] as Tag[][])
     for (const lenient of [false, true]) check(defs, tags, lenient, "TEST");
+});
+
+it("keeps late base handles and owners lossless beyond the compact offset range", () => {
+  for (const count of [2045, 2046, 2047, 4096]) {
+    const tags: Tag[] = Array.from({ length: count }, () => [999, "padding"]);
+    tags.push([102, "{APP"], [330, "BAD"], [102, "}"], [5, "abc"], [330, "def"]);
+    check([], tags, false, "TEST");
+    tags[tags.length - 2] = [105, "abc"];
+    check([], tags, false, "DIMSTYLE");
+  }
 });
 
 it("matches the old field reader and structural scan on randomized records and definitions", () => {

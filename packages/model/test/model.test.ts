@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { ENTITY_PARSERS, readBase } from "../src/entities/common.ts";
 import {
   DxfDocument,
   type InsertEntity,
@@ -30,6 +31,120 @@ const R2000_HEADER = [
 ];
 
 describe("DxfDocument", () => {
+  it("preserves external attribute base extras and their absent-default precedence", () => {
+    const doc = DxfDocument.load(
+      dxf([0, "SECTION"], [2, "ENTITIES"], [0, "ATTDEF"], [2, "tag"], [0, "ENDSEC"], [0, "EOF"]),
+    );
+    const rec = doc.modelSpace.entities[0]!.record;
+    const base = { ...readBase(rec), text: "base text", height: 99, prompt: "ignored", custom: 7 };
+    const parsed = ENTITY_PARSERS.get("ATTDEF")!(
+      rec,
+      base,
+      {
+        diagnostics: doc.diagnostics,
+        acadver: doc.acadver,
+      },
+      undefined,
+    ) as unknown as Record<string, unknown>;
+    expect(parsed.text).toBe("base text");
+    expect(parsed.height).toBe(99);
+    expect(parsed.prompt).toBe("");
+    expect(parsed.custom).toBe(7);
+    expect(parsed.tag).toBe("tag");
+  });
+
+  it("retains first entity registration across lazy lookup and public parsing", () => {
+    const load = (handles: string[]) =>
+      DxfDocument.load(
+        dxf(
+          [0, "SECTION"],
+          [2, "ENTITIES"],
+          ...handles.flatMap((handle, index) => [
+            [0, "LINE"],
+            [5, handle],
+            [10, index],
+            [20, 0],
+            [11, 1],
+            [21, 1],
+          ]),
+          [0, "ENDSEC"],
+          [0, "EOF"],
+        ),
+      );
+    const doc = load(["A", "A", "0"]);
+    const first = doc.modelSpace.entities[0]!;
+    // The public raw-record index is mutable; entity registration stays independent.
+    doc.byHandle.clear();
+    const b = load(["B"]).modelSpace.entities[0]!;
+    const parsed = doc.parseEntities([b.record])[0]!;
+    expect(doc.getEntity("A")).toBe(first);
+    expect(doc.getEntity("0")).toBe(doc.modelSpace.entities[2]);
+    expect(doc.getEntity("B")).toBe(parsed);
+    expect(doc.getEntity("D")).toBeUndefined();
+    const c = load(["C"]).modelSpace.entities[0]!;
+    const later = doc.parseEntities([c.record])[0]!;
+    expect(doc.getEntity("C")).toBe(later);
+    const formerlyMissing = load(["D"]).modelSpace.entities[0]!;
+    const addedMissing = doc.parseEntities([formerlyMissing.record])[0]!;
+    expect(doc.getEntity("D")).toBe(addedMissing);
+    const extra = load(Array.from({ length: 12 }, (_, i) => `E${i}`));
+    const registered = doc.parseEntities(extra.modelSpace.entities.map((e) => e.record));
+    for (const entity of registered) expect(doc.getEntity(entity.handle)).toBe(entity);
+    expect(doc.getEntity("A")).toBe(first);
+    const afterFullIndex = load(["F"]).modelSpace.entities[0]!;
+    const last = doc.parseEntities([afterFullIndex.record])[0]!;
+    expect(doc.getEntity("F")).toBe(last);
+  });
+
+  it("omits absent optional base fields while retaining explicit zero and false values", () => {
+    const doc = DxfDocument.load(
+      dxf(
+        [0, "SECTION"],
+        [2, "ENTITIES"],
+        [0, "CIRCLE"],
+        [10, 1],
+        [20, 2],
+        [40, 3],
+        [0, "CIRCLE"],
+        [420, 0],
+        [440, 0],
+        [430, ""],
+        [410, ""],
+        [390, "0"],
+        [347, "0"],
+        [60, 0],
+        [67, 0],
+        [10, 4],
+        [20, 5],
+        [40, 6],
+        [0, "ENDSEC"],
+        [0, "EOF"],
+      ),
+    );
+    const absent = doc.modelSpace.entities[0]!;
+    for (const name of [
+      "trueColor",
+      "colorName",
+      "transparency",
+      "layoutName",
+      "plotStyleHandle",
+      "materialHandle",
+      "extensionDictionary",
+      "proxyGraphics",
+    ])
+      expect(Object.hasOwn(absent, name)).toBe(false);
+    expect(absent.trueColor).toBeUndefined();
+    const explicit = doc.modelSpace.entities[1]!;
+    expect(explicit.trueColor).toBe(0);
+    expect(explicit.transparency).toBe(0);
+    expect(explicit.colorName).toBe("");
+    expect(explicit.layoutName).toBe("");
+    expect(explicit.plotStyleHandle).toBe("0");
+    expect(explicit.materialHandle).toBe("0");
+    expect(explicit.invisible).toBe(false);
+    expect(explicit.paperSpace).toBe(false);
+  });
+
   it("loads entities into model and paper space", () => {
     const doc = DxfDocument.load(
       dxf(

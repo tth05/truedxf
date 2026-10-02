@@ -115,9 +115,11 @@ export class DxfDocument {
 
   private readonly blocksByName = new Map<string, Block>();
   private readonly objectsByHandle = new Map<string, DxfObject>();
-  private readonly entitiesByHandle = new Map<string, Entity>();
+  private entitiesByHandle: Map<string, Entity | undefined> | undefined;
+  #pendingEntities: Entity[] | undefined = [];
   private nextId = 0;
   private readonly ctx: ParseContext;
+  #loadingRecords: DxfRecord[] | undefined = [];
 
   constructor(tags: DxfTags) {
     this.tags = tags;
@@ -136,6 +138,10 @@ export class DxfDocument {
     this.paperSpace = this.getBlock("*Paper_Space") ?? this.getBlock("$PAPER_SPACE");
     for (const s of section("ENTITIES")) this.loadEntitiesSection(s);
     this.buildLayouts();
+    // Parsing needs the expanded part graph; a loaded document needs only the raw tags
+    // and scan flags. Accessors rebuild parts lazily without losing unknown data.
+    for (const record of this.#loadingRecords!) record.releaseParts();
+    this.#loadingRecords = undefined;
   }
 
   static load(bytes: Uint8Array, options: LoadOptions = {}): DxfDocument {
@@ -154,7 +160,22 @@ export class DxfDocument {
   }
 
   getEntity(handle: string): Entity | undefined {
-    return this.entitiesByHandle.get(handle);
+    const index = (this.entitiesByHandle ??= new Map());
+    if (index.has(handle)) return index.get(handle);
+    const pending = this.#pendingEntities;
+    if (pending && index.size < 8) {
+      // Drawings often query just one viewport boundary or annotation handle. Cache a
+      // bounded number of scans before paying for the complete index (note 01 section 11).
+      const entity = pending.find((entity) => entity.handle === handle);
+      index.set(handle, entity);
+      return entity;
+    }
+    if (pending) {
+      index.clear();
+      for (const entity of pending) if (!index.has(entity.handle)) index.set(entity.handle, entity);
+      this.#pendingEntities = undefined;
+    }
+    return index.get(handle);
   }
 
   /** The root (named objects) dictionary: the first DICTIONARY in OBJECTS. */
@@ -181,6 +202,7 @@ export class DxfDocument {
       if (i !== section.end && codes[i] !== 0) continue;
       if (start >= 0) {
         const rec = new DxfRecord(store, start, i, this.nextId++);
+        this.#loadingRecords?.push(rec);
         const h = rec.handle;
         if (h && h !== "0") {
           if (this.byHandle.has(h))
@@ -395,26 +417,39 @@ export class DxfDocument {
         continue;
       }
       const e = this.parseEntity(rec, children);
+      // Release completed groups before allocating the next entities, reducing load's
+      // peak live graph and GC work on R12 drawings with many child records.
+      rec.releaseParts();
+      if (children) for (const child of children.children) child.releaseParts();
       out.push(e);
-      if (e.handle && !this.entitiesByHandle.has(e.handle)) this.entitiesByHandle.set(e.handle, e);
+      if (e.handle) {
+        // Most documents are rendered without handle-to-entity lookup. Retain registration
+        // order cheaply until the first query, including entities from public parseEntities.
+        if (this.#pendingEntities) {
+          this.#pendingEntities.push(e);
+          // A previously missing query becomes visible after public parseEntities.
+          if (this.entitiesByHandle?.has(e.handle) && !this.entitiesByHandle.get(e.handle))
+            this.entitiesByHandle.set(e.handle, e);
+        } else if (!this.entitiesByHandle!.has(e.handle)) this.entitiesByHandle!.set(e.handle, e);
+      }
     }
     return out;
   }
 
   private parseEntity(rec: DxfRecord, children: ChildRecords | undefined): Entity {
+    const parser = ENTITY_PARSERS.get(rec.type);
+    const simple = parser ? SIMPLE_ENTITY_FIELDS.get(parser) : undefined;
     let base: EntityBase;
     try {
-      base = readBase(rec);
+      base = simple?.createBase ? simple.createBase(rec) : readBase(rec);
     } catch (e) {
       this.diagnostics.error("entity", `failed to read ${rec.type}: ${String(e)}`, { tag: rec.start });
       base = { ...readBase(new DxfRecord(rec.store, rec.start, rec.start + 1, rec.id)), record: rec };
     }
-    const parser = ENTITY_PARSERS.get(rec.type);
     if (!parser) return { ...base, type: "UNKNOWN" };
-    const simple = SIMPLE_ENTITY_FIELDS.get(parser);
     try {
       if (simple) {
-        // This base has not escaped: extend it directly instead of cloning 21 properties.
+        // This base has not escaped: extend it directly instead of cloning common properties.
         // Calling the registered parser externally still uses its copying public path.
         const into = base as unknown as Record<string, unknown>;
         into.type = simple.type;

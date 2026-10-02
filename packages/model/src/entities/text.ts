@@ -93,15 +93,24 @@ const ATTDEF = fieldTable([
 
 function attribParser(type: "ATTRIB" | "ATTDEF") {
   const table = type === "ATTRIB" ? ATTRIB : ATTDEF;
+  const fields = new Set(table.defs.map((def) => def.name));
   return (rec: DxfRecord, base: EntityBase): AttribEntity => {
-    const e = readFields<AttribEntity & { version?: number }>(rec, table, {
-      ...base,
-      type,
-      prompt: "",
-    } as Record<string, unknown>);
+    // Appending all attribute fields to a sparse base can normalize the temporary object
+    // to dictionary properties. Read the smaller field object and assemble the result once.
+    const into: Record<string, unknown> = {};
+    // External parser callers can supply extra base fields. Preserve their precedence over
+    // absent field defaults, while prompt retains its historical forced-empty fallback.
+    for (const key of Object.keys(base))
+      if (key !== "prompt" && fields.has(key)) into[key] = (base as unknown as Record<string, unknown>)[key];
+    const e = readFields<
+      Omit<AttribEntity, keyof EntityBase | "isMultiline" | "prompt"> & { prompt?: string; version?: number }
+    >(rec, table, into);
     // With only one 280 present (pre-R2010), it is the lock-position flag.
     const lockOnly = rec.hasSubclasses && count280(rec) === 1;
     return {
+      ...base,
+      type,
+      prompt: "",
       ...e,
       lockPosition: lockOnly ? (e.version ?? 0) !== 0 : e.lockPosition,
       isMultiline: rec.embedded !== undefined,
@@ -115,11 +124,12 @@ function count280(rec: DxfRecord): number {
   return n;
 }
 
-registerEntity("ATTRIB", attribParser("ATTRIB"));
+const parseAttribFields = attribParser("ATTRIB");
+registerEntity("ATTRIB", parseAttribFields);
 registerEntity("ATTDEF", attribParser("ATTDEF"));
 
 export function parseAttrib(rec: DxfRecord): AttribEntity {
-  return attribParser("ATTRIB")(rec, readBase(rec));
+  return parseAttribFields(rec, readBase(rec));
 }
 
 export interface InsertEntity extends EntityBase {

@@ -206,6 +206,15 @@ default, FILLMODE for pattern hatches, extents edge tolerance.
 - [ ] Make viewer block stroking/triangulation equivariant under rigid replay: mixed direct/
       canonical output still exceeds the 1e-3 px ordered-coordinate bound in huge-blocks,
       viewports and dense-hatch despite identical counts and CPU pixels. [Measurements](perf-block-results.md).
+  - [x] Loaded-model heap: circles meet the ≤500 B/entity plan budget through record cache
+        release, sparse optional properties, string interning, compact scan metadata and a
+        deferred entity index (2026-10-02). [Results](perf-memory-results.md).
+  - [ ] Stretch memory target: circles ≤400 B/entity; the retained implementation uses ~421 B.
+        Frozen-default sharing needs a separately approved baseline migration: the existing
+        model already shares frozen points, so a value-only frozen walker changes old hashes.
+  - [ ] Loaded-model performance acceptance: resolve the dimensions frontend regression
+        (530 → 607 ms in the final three-run pair) and control splines/proxy-hatch load timing
+        outliers before claiming no slowdown. [Measurements](perf-memory-results.md).
 
 ## Viewer (packages/viewer, apps/playground)
 

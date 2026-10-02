@@ -3,7 +3,7 @@
  * OCS vs WCS per entity is documented there (§2); the model stores values as written.
  */
 import type { Point2, Point3 } from "../types.ts";
-import { type EntityBase, registerEntity, simpleParser } from "./common.ts";
+import { type EntityBase, readBase, registerEntity, simpleParser } from "./common.ts";
 
 const Z = Object.freeze({ x: 0, y: 0, z: 1 });
 const O = Object.freeze({ x: 0, y: 0, z: 0 });
@@ -151,7 +151,11 @@ const CIRCLE_FIELDS = [
   { name: "extrusion", code: 210, kind: "p3", subclass: "AcDbCircle", def: Z },
 ] as const;
 
-registerEntity("CIRCLE", simpleParser<CircleEntity>("CIRCLE", CIRCLE_FIELDS));
+const CIRCLE_DEFAULTS = { center: O, extrusion: Z };
+registerEntity(
+  "CIRCLE",
+  simpleParser<CircleEntity>("CIRCLE", CIRCLE_FIELDS, undefined, (rec) => readBase(rec, CIRCLE_DEFAULTS)),
+);
 
 registerEntity(
   "ARC",

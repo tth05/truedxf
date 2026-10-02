@@ -34,6 +34,30 @@ export interface TagValueView {
   index: number;
 }
 
+// Structural names repeat per entity; a store-scoped pool dies with the document.
+const names = new WeakMap<TagStore, Map<string, string>>();
+// Text/dimension drawing repeatedly reads raw tag overrides. Keeping these small caches
+// avoids moving structural scans into the frontend (note 01 section 11).
+const FRONTEND_PARTS = new Set([
+  "TEXT",
+  "ATTRIB",
+  "ATTDEF",
+  "MTEXT",
+  "DIMENSION",
+  "LEADER",
+  "MULTILEADER",
+  "MLEADER",
+]);
+export function internString(store: TagStore, value: string): string {
+  let pool = names.get(store);
+  if (!pool) names.set(store, (pool = new Map()));
+  const existing = pool.get(value);
+  if (existing !== undefined) return existing;
+  // Bound overhead for pathological drawings with mostly unique names.
+  if (pool.size < 4096) pool.set(value, value);
+  return value;
+}
+
 export class DxfRecord {
   readonly store: TagStore;
   /** Tag index of the `(0, TYPE)` tag. */
@@ -44,13 +68,10 @@ export class DxfRecord {
   readonly id: number;
   private _parts: RecordPart[] | undefined;
   private _type: string | undefined;
-  #hasSubclasses = false;
-  #hasProxyGraphics = false;
-  #hasMisplacedCommon = false;
-  #handleIndex = -1;
-  #ownerIndex = -1;
+  // Low byte: presence flags. Two 11-bit offsets keep common handle/owner metadata
+  // in one small integer; 2047 means scan the base part for an unusually late tag.
+  #flags = 0;
   #handle: string | undefined;
-  #owner: string | undefined;
 
   constructor(store: TagStore, start: number, end: number, id: number) {
     this.store = store;
@@ -61,7 +82,7 @@ export class DxfRecord {
 
   /** Record type (value of the code-0 tag), trimmed and upper-cased. */
   get type(): string {
-    this._type ??= this.store.str(this.start).trim().toUpperCase();
+    this._type ??= internString(this.store, this.store.str(this.start).trim().toUpperCase());
     return this._type;
   }
 
@@ -72,24 +93,33 @@ export class DxfRecord {
 
   /** True if the record has at least one subclass marker (R13+ structure). */
   get hasSubclasses(): boolean {
-    this.parts;
-    return this.#hasSubclasses;
+    if (!(this.#flags & 1)) this.parts;
+    return !!(this.#flags & 2);
   }
 
   /** Conservative presence flags computed during the structural scan. */
   get hasProxyGraphics(): boolean {
-    this.parts;
-    return this.#hasProxyGraphics;
+    if (!(this.#flags & 1)) this.parts;
+    return !!(this.#flags & 4);
   }
 
   get hasMisplacedCommon(): boolean {
-    this.parts;
-    return this.#hasMisplacedCommon;
+    if (!(this.#flags & 1)) this.parts;
+    return !!(this.#flags & 8);
+  }
+
+  /** Release load-only structural objects; raw SEQEND records retain their enumerable view. */
+  releaseParts(): void {
+    const type = this.type;
+    if (type === "SEQEND" || (this.#flags & 2 && FRONTEND_PARTS.has(type))) return;
+    this._parts = undefined;
   }
 
   private computeParts(): RecordPart[] {
     const s = this.store;
     const type = this.type;
+    if (this.appRanges) this.appRanges = undefined;
+    if (type === "SEQEND") this.appRanges = [];
     const isXrecord = type === "XRECORD";
     const handleCode = type === "DIMSTYLE" ? 105 : 5;
     let cur: RecordPart = { kind: PartKind.Base, name: "", start: this.start + 1, end: this.end };
@@ -97,11 +127,13 @@ export class DxfRecord {
     for (let i = this.start + 1; i < this.end; i++) {
       const code = s.codes[i]!;
       if (cur.kind === PartKind.Base) {
-        if (code === handleCode && this.#handleIndex < 0) this.#handleIndex = i;
-        if (code === 330 && this.#ownerIndex < 0) this.#ownerIndex = i;
+        if (code === handleCode && !(this.#flags & (2047 << 8)))
+          this.#flags |= Math.min(i - this.start, 2047) << 8;
+        if (code === 330 && !(this.#flags & (2047 << 19)))
+          this.#flags |= Math.min(i - this.start, 2047) << 19;
       }
       if (cur.kind === PartKind.Base || cur.kind === PartKind.Subclass) {
-        if (code === 310) this.#hasProxyGraphics = true;
+        if (code === 310) this.#flags |= 4;
         if (cur.kind === PartKind.Subclass && cur.name !== "AcDbEntity") {
           // Recovery candidates from note 01 section 6.3, excluding ambiguous layout code 410.
           switch (code) {
@@ -117,7 +149,7 @@ export class DxfRecord {
             case 67:
             case 390:
             case 347:
-              this.#hasMisplacedCommon = true;
+              this.#flags |= 8;
           }
         }
       }
@@ -132,8 +164,8 @@ export class DxfRecord {
         name = s.str(i).trim();
       } else if (code === 100 && cur.kind !== PartKind.Embedded) {
         kind = PartKind.Subclass;
-        name = s.str(i).trim();
-        this.#hasSubclasses = true;
+        name = internString(s, s.str(i).trim());
+        this.#flags |= 2;
       } else if (code === 101 && cur.kind !== PartKind.Embedded && s.str(i).trim() === "Embedded Object") {
         kind = PartKind.Embedded;
         name = "";
@@ -144,43 +176,66 @@ export class DxfRecord {
         let j = i + 1;
         while (j < this.end && s.codes[j] !== 102 && s.codes[j] !== 0) j++;
         parts.push({ kind: PartKind.AppData, name: v.slice(1), start: i + 1, end: j });
-        this.appRanges.push(i, Math.min(j + 1, this.end));
+        this.#flags |= 32;
+        (this.appRanges ??= []).push(i, Math.min(j + 1, this.end));
         i = j;
         continue;
       } else continue;
       cur.end = i;
+      if (kind === PartKind.Embedded) this.#flags |= 64;
+      if (kind === PartKind.XData) this.#flags |= 128;
       cur = { kind, name, start: i + 1, end: this.end };
       // Append the enclosing part before any app-data children: already in source order.
       parts.push(cur);
     }
     cur.end = this.end;
+    this.#flags |= 1;
+    if (parts.length === 1) this.#flags |= 16;
     return parts;
   }
 
   /** Pairs [from, to) of tag ranges covered by 102 groups including their brace tags. */
-  private readonly appRanges: number[] = [];
+  declare private appRanges: number[] | undefined;
 
   /** Next data tag index ≥ i that is not inside an app-data group. */
   nextDataTag(i: number): number {
-    if (!this._parts) this.parts;
+    if (!(this.#flags & 1)) this.parts;
+    // Avoid looking up an absent helper property for every ordinary data tag.
+    if (!(this.#flags & 32)) return i;
     const r = this.appRanges;
+    if (!r) return i;
     for (let k = 0; k < r.length; k += 2) if (i >= r[k]! && i < r[k + 1]!) return r[k + 1]!;
     return i;
   }
 
   /** Handle (code 5 in the base part; 105 for DIMSTYLE). "" if absent. */
   get handle(): string {
-    this.parts;
-    return (this.#handle ??= this.#handleIndex < 0 ? "" : this.store.handle(this.#handleIndex));
+    if (this.#handle !== undefined) return this.#handle;
+    if (!(this.#flags & 1)) this.parts;
+    const i = this.baseIndex((this.#flags >>> 8) & 2047, this.type === "DIMSTYLE" ? 105 : 5);
+    return (this.#handle ??= i < 0 ? "" : this.store.handle(i));
   }
 
   /** Owner handle (the 330 in the base part outside app data). "" if absent. Advisory only. */
   get owner(): string {
-    this.parts;
-    return (this.#owner ??= this.#ownerIndex < 0 ? "" : this.store.handle(this.#ownerIndex));
+    if (!(this.#flags & 1)) this.parts;
+    const i = this.baseIndex((this.#flags >>> 19) & 2047, 330);
+    return i < 0 ? "" : internString(this.store, this.store.handle(i));
+  }
+
+  private baseIndex(offset: number, code: number): number {
+    if (offset === 0) return -1;
+    if (offset < 2047) return this.start + offset;
+    // App-data owners must not shadow the base owner (note 01 section 6).
+    for (const part of this.parts) {
+      if (part.kind !== PartKind.Base) continue;
+      for (const i of this.partTags(part)) if (this.store.codes[i] === code) return i;
+    }
+    return -1;
   }
 
   appData(name: string): RecordPart | undefined {
+    if (this.#flags & 1 && !(this.#flags & 32)) return undefined;
     for (const p of this.parts) if (p.kind === PartKind.AppData && p.name === name) return p;
     return undefined;
   }
@@ -202,27 +257,35 @@ export class DxfRecord {
   }
 
   subclass(name: string, nth = 0): RecordPart | undefined {
+    if (this.#flags & 1 && !(this.#flags & 2)) return undefined;
     let k = 0;
     for (const p of this.parts) if (p.kind === PartKind.Subclass && p.name === name && k++ === nth) return p;
     return undefined;
   }
 
   get embedded(): RecordPart | undefined {
+    if (this.#flags & 1 && !(this.#flags & 64)) return undefined;
     return this.parts.find((p) => p.kind === PartKind.Embedded);
   }
 
   /** XDATA group for an APPID (case-insensitive). */
   xdata(appId: string): RecordPart | undefined {
+    if (this.#flags & 1 && !(this.#flags & 128)) return undefined;
     const key = appId.toUpperCase();
     return this.parts.find((p) => p.kind === PartKind.XData && p.name.toUpperCase() === key);
   }
 
   get xdataAppIds(): string[] {
+    if (this.#flags & 1 && !(this.#flags & 128)) return [];
     return this.parts.filter((p) => p.kind === PartKind.XData).map((p) => p.name);
   }
 
   /** Tag indices of the data parts (base + subclasses), in order, excluding app data / xdata. */
   *dataTags(): Generator<number> {
+    if (!this._parts && this.#flags & 16) {
+      for (let i = this.start + 1; i < this.end; i++) yield i;
+      return;
+    }
     for (const p of this.parts) {
       if (p.kind !== PartKind.Base && p.kind !== PartKind.Subclass) continue;
       for (let i = this.nextDataTag(p.start); i < p.end; i = this.nextDataTag(i + 1)) yield i;
@@ -236,6 +299,11 @@ export class DxfRecord {
 
   /** Index of the first tag with `code` in the data parts, optionally within a subclass. */
   find(code: number, subclass?: string): number {
+    // Plain R12 records need no reconstructed helper graph for frontend text lookups.
+    if (!this._parts && this.#flags & 16) {
+      for (let i = this.start + 1; i < this.end; i++) if (this.store.codes[i] === code) return i;
+      return -1;
+    }
     for (const p of this.parts) {
       if (p.kind !== PartKind.Base && p.kind !== PartKind.Subclass) continue;
       if (subclass !== undefined && this.hasSubclasses && p.name !== subclass) continue;

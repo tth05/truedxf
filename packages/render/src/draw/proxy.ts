@@ -4,11 +4,10 @@
  * stream: RL total size, RL command count, then commands `RL size (incl. header), RL opcode,
  * payload` (sizes padded to 4 bytes).
  *
- * UNVERIFIED against AutoCAD: every misc/proxy-* fixture is rejected by AutoCAD on load
- * (invalid-fixture), so the rules follow ODA / ezdxf proxygraphic.py (MIT): coordinates are in
- * the owner's (block) coordinates; sub-entity traits start as the entity's own properties
- * (ASSUMPTION, note 07 §15.3); PUSH_MODELXFORM matrices compose; layer / linetype indices count
- * table records in file order; text primitives are not drawn yet (noted as "proxy-text").
+ * Corpus plots verify top-level coordinates, closed flag 512 and initial owner colour (note 07
+ * §15.3–15.5). Block coordinates, nested PUSH_MODELXFORM composition and other initial traits
+ * remain assumptions. Layer indices follow table storage order; the general linetype-index
+ * rule remains unverified. Text primitives are not drawn yet (noted as "proxy-text").
  */
 import {
   arbitraryAxis,
@@ -17,12 +16,15 @@ import {
   FillRule,
   line3,
   Matrix44,
+  type PolylineVertex,
   polyline3,
   projectCurve3,
   type Vec3,
 } from "@truedxf/geometry";
 import type { Entity } from "@truedxf/model";
 import { type DrawState, type Frontend, registerDrawer } from "../frontend.ts";
+import { polyline2d } from "./basic.ts";
+import { DwgBits } from "./dwgbits.ts";
 
 /** Opcodes (ODA, note 07 §15.2). */
 const OP = {
@@ -73,11 +75,77 @@ interface Traits {
 export type ProxyPrimitive =
   | { kind: "curve"; curve: Curve3; traits: Traits }
   | { kind: "fill"; ring: Vec3[]; traits: Traits }
-  | { kind: "point"; p: Vec3; traits: Traits };
+  | { kind: "point"; p: Vec3; traits: Traits }
+  | {
+      kind: "lwpolyline";
+      vertices: PolylineVertex[];
+      closed: boolean;
+      constantWidth: number;
+      elevation: number;
+      thickness: number;
+      normal: Vec3;
+      plinegen: boolean;
+      transform: Matrix44 | undefined;
+      traits: Traits;
+    };
 
 interface DecodeContext {
   layers: readonly string[];
   linetypes: readonly string[];
+  dxfversion?: string;
+}
+
+/** The DWG body stores OCS points, not WCS triples (note 07 §15.2). */
+function lwpolyline(bytes: Uint8Array, r: Reader, version: string) {
+  const size = r.u32();
+  r.need(size);
+  const bits = new DwgBits(bytes.subarray(r.pos, r.pos + size));
+  const flags = bits.bs();
+  const constantWidth = flags & 4 ? bits.bd() : 0;
+  const elevation = flags & 8 ? bits.bd() : 0;
+  const thickness = flags & 2 ? bits.bd() : 0;
+  const [x, y, z] = flags & 1 ? bits.threeBD() : [0, 0, 1];
+  const count = bits.bl();
+  const bulges = flags & 16 ? bits.bl() : 0;
+  const ids = version >= "AC1024" && flags & 1024 ? bits.bl() : 0;
+  const widths = flags & 32 ? bits.bl() : 0;
+  // Each following coordinate consumes at least a DD tag. Bound all loops by the payload,
+  // including sparse arrays, before allocating (note 07 §15.3 robustness).
+  if (
+    count < 0 ||
+    bulges < 0 ||
+    ids < 0 ||
+    widths < 0 ||
+    bulges > count ||
+    ids > count ||
+    widths > count ||
+    (count > 0 ? 128 + (count - 1) * 4 : 0) + bulges * 2 + ids * 2 + widths * 4 > bits.remaining
+  )
+    throw new Error("proxy: bad LWPOLYLINE count");
+  const vertices: PolylineVertex[] = [];
+  if (count > 0) {
+    let [px, py] = bits.twoRD();
+    vertices.push({ x: px, y: py });
+    for (let i = 1; i < count; i++) {
+      px = bits.dd(px);
+      py = bits.dd(py);
+      vertices.push({ x: px, y: py });
+    }
+  }
+  for (let i = 0; i < bulges; i++) vertices[i] = { ...vertices[i]!, bulge: bits.bd() };
+  for (let i = 0; i < ids; i++) bits.bl(); // Selection ids do not affect drawing.
+  for (let i = 0; i < widths; i++) {
+    vertices[i] = { ...vertices[i]!, startWidth: Math.max(0, bits.bd()), endWidth: Math.max(0, bits.bd()) };
+  }
+  return {
+    vertices,
+    closed: (flags & 512) !== 0,
+    plinegen: (flags & 256) !== 0,
+    constantWidth: Math.max(0, constantWidth),
+    elevation,
+    thickness,
+    normal: { x: x!, y: y!, z: z! },
+  };
 }
 
 class Reader {
@@ -343,8 +411,13 @@ export function decodeProxyGraphics(
           break;
         case OP.LINETYPE: {
           const i = r.u32();
+          // The corpus uses 32767/32766 for ByLayer/ByBlock (note 07 §15.5).
           const name =
-            i === 0xffffffff ? "BYLAYER" : i === 0xfffffffe || i === 32766 ? "BYBLOCK" : ctx.linetypes[i];
+            i === 0xffffffff || i === 32767
+              ? "BYLAYER"
+              : i === 0xfffffffe || i === 32766
+                ? "BYBLOCK"
+                : ctx.linetypes[i];
           traits = { ...traits, linetype: name ?? "BYLAYER" };
           break;
         }
@@ -402,7 +475,12 @@ export function decodeProxyGraphics(
           unsupported.push("proxy-text");
           break;
         case OP.LWPOLYLINE:
-          unsupported.push("proxy-lwpolyline");
+          primitives.push({
+            kind: "lwpolyline",
+            ...lwpolyline(bytes, r, ctx.dxfversion ?? "AC1032"),
+            transform: xf,
+            traits,
+          });
           break;
         case OP.XLINE:
         case OP.RAY:
@@ -427,6 +505,7 @@ function context(fe: Frontend): DecodeContext {
     c = {
       layers: fe.doc.tables.layers.entries.map((l) => l.name),
       linetypes: fe.doc.tables.linetypes.entries.map((l) => l.name),
+      dxfversion: fe.doc.acadver,
     };
     CTX_CACHE.set(fe.doc, c);
   }
@@ -451,7 +530,19 @@ export function drawProxyGraphics(fe: Frontend, e: Entity, st: DrawState): boole
   for (const p of primitives) {
     const sub = { ...e, ...p.traits } as Entity;
     const r = fe.resolve(sub, st);
-    if (p.kind === "curve") fe.strokePath({ subpaths: [projectCurve3(p.curve, st.m)] }, r, sub, st);
+    if (p.kind === "lwpolyline") {
+      polyline2d(
+        fe,
+        sub,
+        p.transform ? { ...st, m: st.m.multiply(p.transform) } : st,
+        p.vertices,
+        p.closed,
+        p.constantWidth,
+        p.normal,
+        p.elevation,
+        p.plinegen,
+      );
+    } else if (p.kind === "curve") fe.strokePath({ subpaths: [projectCurve3(p.curve, st.m)] }, r, sub, st);
     else if (p.kind === "point") {
       const q = st.m.transformPoint(p.p);
       fe.pixel(q.x, q.y, fe.color(r));

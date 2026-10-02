@@ -201,7 +201,7 @@ registerDrawer("SPLINE", (fe, e, st) => {
  * band outline for wide polylines (note 03 §4). Linetype generation is continuous across
  * vertices only with PLINEGEN (flag 128).
  */
-function polyline2d(
+export function polyline2d(
   fe: Frontend,
   e: Entity,
   st: DrawState,

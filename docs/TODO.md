@@ -35,6 +35,11 @@ Tick items off (or delete them) when done.
       the text uses $TEXTSTYLE or Standard; corpus-ezdxf-wipeout-random (no mask/frame).
 - [ ] Load `AcMPolygonObj26.dbx` in the harness so MPOLYGON references aren't empty.
 - [ ] Generator: produce valid proxy entities (all `misc/proxy-*` fixtures are rejected by AutoCAD).
+- [x] Draw proxy opcode-33 DWG-bitstream LWPOLYLINEs through the ordinary polyline drawer;
+      verify real corpus graphics against AutoCAD (`corpus-proxy`, 2026-10-03; note 07 §15.5).
+- [ ] Proxy graphics: text opcodes; initial layer/linetype/lineweight inheritance, non-+Z OCS,
+      nested model transforms in blocks and ordinary linetype-index mapping still need valid
+      discriminating AutoCAD fixtures (the corpus verifies initial colour and top-level geometry).
 - [ ] Generator: fixtures that need our own test SHX fonts (`plan:` entries in questions.md) —
       install/point AutoCAD at `packages/fonts/assets` and add the suites.
 - [ ] Visual harness: the densest hatch fixtures exhaust browser memory; cap or split them.

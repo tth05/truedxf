@@ -1252,6 +1252,19 @@ Opcode numbering: the ADN DevBlog lists 15 = LayerName (PS), 17 = LineTypeName (
 know the index variants 16/18 (ezdxf marks 15/17 UNUSED). Implement 15/17 as "name" variants
 (**ASSUMPTION**).
 
+Opcode 33's declared byte count bounds the DWG body; the three trailing bytes are outside it
+(all 123 real commands cross-checked against ezdxf 1.4.4, 2026-10-03; this is a data observation,
+not an AutoCAD plot finding). Within the body, bits are MSB-first, while raw RC/RS/RL/RD bytes
+are little-endian even when unaligned (ODA §2; MIT ezdxf `tools/binarydata.py:BitStream`). Fields:
+flags BS; constant width BD (4); elevation BD (8); thickness BD (2); normal 3BD (1); point count
+BL; bulge count BL (16); vertex-id count BL (1024, R2010+); width count BL (32); first point 2RD;
+remaining points DD/DD with previous x/y defaults; bulges BD; ids BL; width pairs BD/BD. DD codes
+00/01/10/11 mean default / replace bytes 0–3 / replace bytes 4–5 then 0–3 / full RD. Flag 256 is
+PLINEGEN (MIT ACadSharp `DwgObjectReader.readLWPolyline`, 0x100), 512 closed. Points use the normal's OCS and the elevation;
+apply OCS → proxy model transform → owner transform, without moving widths into WCS first.
+Only +Z normals and no vertex ids occur in these corpus specimens; other normals, PLINEGEN and
+vertex ids are unit-tested/source-based, not VERIFIED-BY-ACAD here.
+
 Mesh/shell trait flags: 0x0001 colors, 0x0002 layers, 0x0004 linetypes, 0x0020 markers, 0x0040
 visibilities, 0x0080 normals, 0x0400 orientation (oda; the DevBlog lists layer ids as 0x100/0x200 —
 **CONFLICT**, oda + ezdxf use 0x2/0x4). Edge count for a mesh: `(rows−1)·cols + (cols−1)·rows`;
@@ -1265,11 +1278,20 @@ faces `(rows−1)·(cols−1)`.
   (ezdxf#1326, unresolved) — **UNKNOWN**; possibly the stored graphics already include a
   PUSH_MODELXFORM that must be *composed* with the outer transform (ezdxf only applies the top of its
   matrix stack and doesn't compose nested pushes).
+  **VERIFIED-BY-ACAD** for top-level +Z opcode-33 geometry: `corpus-proxy/arch-cn-1e85a`,
+  `arch-cn-1e8ba`, `arch-cn-1e965` (2026-10-03) align pixel-exactly with surrounding native
+  geometry in the proxy rectangle ROIs (§15.5). This does **not** settle block coordinates or
+  nested transforms: the arch-cn command matrices are all identity, and these windows target
+  model-space proxies.
 - Initial sub-entity traits: ezdxf starts with layer "0", color BYLAYER, linetype BYLAYER (so a proxy
   on layer WALLS without an explicit SUBENT_LAYER draws with layer 0 properties in ezdxf).
   **ASSUMPTION**: the correct initial traits are the host entity's own layer/color/linetype/lineweight
   (AcGi semantics: sub-entity traits start as the entity's traits). ezdxf#1326 also reports color 0
   (BYBLOCK) resolved to black. Needs test.
+  **VERIFIED-BY-ACAD** for initial colour only: the same three `corpus-proxy/arch-cn-*` cases
+  (2026-10-03) plot yellow (owner ACI 2) despite having no colour trait command; using ezdxf's
+  initial BYLAYER on layer 0 would give black. Initial layer, linetype, lineweight and ltscale
+  inheritance are not independently distinguished by these specimens and remain assumptions.
 - Placeholder graphics: if the object enabler wasn't loaded when saving or `$PROXYGRAPHICS=0`, the
   graphics may only contain the bounding box + class/app name text ("a bounding box with class name
   and logical application name" — DevBlog; ezdxf#1241: MLEADER proxy containing just the text
@@ -1289,13 +1311,72 @@ faces `(rows−1)·(cols−1)`.
 
 ---------------------------------------------------------------------------------------------------
 
-### 15.4 Status (2026-09-30)
+### 15.4 Status (2026-10-03)
 
 - All `misc/proxy-*` fixtures are rejected by AutoCAD 2027 on load ("Invalid or incomplete DXF
-  input", invalid-fixture), so nothing in §15.2 / §15.3 is verified yet; the generator needs a
-  valid ACAD_PROXY_ENTITY. truedxf decodes the opcodes of §15.2 (text and the LWPOLYLINE bitstream
-  are skipped), composes nested model transforms and starts from the entity's own traits
-  (render/src/draw/proxy.ts); unknown entities with proxy graphics fall back to it.
+  input", invalid-fixture); the synthetic generator still needs valid proxy entities. Real
+  AutoCAD-saved corpus files now provide four valid plot cases (§15.5). truedxf decodes opcode
+  33 with a bounds-checked DWG bit reader in `render/src/draw/dwgbits.ts`, and reuses the ordinary
+  `polyline2d` drawer for bulges, constant/per-vertex widths, OCS and linetype generation. The
+  transform snapshot composes with the owner draw state. Text is still skipped; unknown entities
+  with proxy graphics fall back to the same decoder. LWPOLYLINE thickness is decoded but follows
+  the ordinary drawer's current 2D treatment; side-view thickness remains unverified.
+
+### 15.5 Real corpus plot verification (2026-10-03)
+
+Local suite `samples/generated/corpus-proxy`: three unmodified copies of bench `arch-cn-114`
+(SHA256 `9799661a39576e26afd8acdfcc31c69b090d1c42b4bb8af7dd6b37afe23e70fb`) with different 1800×1350
+world-unit windows, and `files/repos/libredwg/test/test-data/2013/gh109_1.dxf` with a 32000×24000
+window. Each uses 2000×1500 pixels, Model, `acad.ctb`, lineweights on. All four harness cases are
+`ok` (AutoCAD 2027 26.0 X.118.0.0, harness 3). The harness was run from the user's normal terminal:
+the sandbox account cannot initialize AutoCAD's HKCU key with `/isolate`. No profile changes were
+made by this task. Source DXFs, plot configs and references remain local only.
+
+The corpus scan found 120 proxy entities containing 123 opcode-33 commands: arch-cn has 114
+(113 model-space entities plus one block entity), gh109 has six model-space entities and nine
+commands. ezdxf `ProxyGraphic(data, doc).virtual_entities()` agrees on every decoded point,
+bulge, width and closed bit (≤1e-8 coordinate difference). Actual flag counts: 512 ×114,
+4 ×4 (constant widths), 16 ×3 (bulges), 32 ×2 (per-vertex widths). This cross-check establishes
+encoding agreement, not reference appearance.
+
+**VERIFIED-BY-ACAD** (`corpus-proxy/arch-cn-1e85a`, `arch-cn-1e8ba`, `arch-cn-1e965`, 2026-10-03):
+flag 512 closes the four-vertex outline, including the last-to-first edge. FILLON does not turn
+this zero-width LWPOLYLINE into a solid polygon. Each whole rectangle ROI is pixel-exact after
+decoding, with 1300, 940 and 1844 formerly missing pixels recovered. Owner colour is retained
+without a SUBENT_COLOR command; coordinates align with ordinary geometry at the stored WCS
+positions. Example handle `1E85A`: bounds x [-1692977.096651642, -1692766.647227657],
+y [138350.06906649063, 138725.3794038602], z=0; centre (-1692871.8719396493, 138537.7242351754, 0).
+
+**VERIFIED-BY-ACAD** (`corpus-proxy/gh109-floor-plan`, 2026-10-03): open bulge curves reproduce
+the cyan door swings (handles 2FD/2FE/2FF), rather than a closed chord; constant-width (flag 4)
+and per-vertex-width (flag 32) diagonal axis marks are green filled bands. Some one-pixel
+raster differences remain (§metrics below). The used SUBENT_LAYER indices follow LAYER storage
+order: 11 WINDOW, 14 AXIS, 20 DIM_SYMB, 21 STAIR, 8 WINDOW_TEXT, 0 layer 0. SUBENT_LINETYPE uses
+32767 ByLayer and 32766 ByBlock in this file. No ordinary linetype index occurs, so direct-index
+versus index+2 and ODA's 0xFFFFFFFF/0xFFFFFFFE sentinels remain UNVERIFIED; do not generalize this
+specimen to nested blocks, non-+Z OCS or all initial traits.
+
+CPU suite metrics against AutoCAD (exact = RGB mismatch pixels; F1 at Chebyshev radius 1):
+
+| Case (`corpus-proxy/`) | Exact before → after | F1(r=1) before → after |
+|---|---|---|
+| arch-cn-1e85a | 47718 → 46418 | 0.8605 → 0.8648 |
+| arch-cn-1e8ba | 44568 → 43628 | 0.8306 → 0.8354 |
+| arch-cn-1e965 | 44795 → 42951 | 0.8140 → 0.8274 |
+| gh109-floor-plan | 24717 → 24057 | 0.8965 → 0.9079 |
+
+The whole-window scores remain below 0.99 because the drawings exercise other unsupported
+features: missing bigfonts / complex-linetype shape files, text/font appearance, and proxy TEXT
+opcodes in gh109 (11 primitives). arch-cn diffs show the unrelated filled serif "FD" glyphs
+where AutoCAD shows yellow outline lettering, plus watermark boundary differences. gh109
+diffs show missing proxy labels/axis numbers and hatch/ordinary line raster offsets. Proxy
+rectangles themselves have zero mismatches. The comparison sheet is
+`samples/out/corpus-proxy/proxy-lwpolyline-compare.png` (AutoCAD | before | after | after diff).
+
+Rendering these narrow windows exposed off-canvas scanline work in `fillPolygon`; restricting
+only its visited row range to [0, canvas height) preserves edge origins, slopes and all emitted
+spans (note 08 §10.5). Horizontal span rejection was deliberately excluded because it can alter
+merged off-canvas rectangle vertices and hence plot fingerprints despite identical pixels.
 
 ## 16. Explode / "virtual entities" semantics
 

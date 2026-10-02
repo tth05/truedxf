@@ -1108,7 +1108,16 @@ Answers (VERIFIED-BY-ACAD, AutoCAD 2027, 2026-09-30):
 | Q-0702 | proxy | [U] Do nested PUSH_MODELXFORM (op 29/30) matrices in proxy graphics compose with each other and the outer transform? | 07 §15.3, §17 (07:20) | `misc/proxy-nested-matrix` | open |
 
 - Q-0692: Yes: DXFOUT writes 3DSOLID / REGION without 92/160 + 310 (`misc/solid-box-*`, `region-square-*`).
-- Note: Blocked: every `misc/proxy-*` fixture is rejected by AutoCAD on load (invalid-fixture); Q-0691, Q-0693 … Q-0702 need valid ACAD_PROXY_ENTITY fixtures (note 07 §15.4).
+- Partial corpus answers (VERIFIED-BY-ACAD, 2026-10-03; note 07 §15.5): Q-0693's proxy-graphics
+  part plots successfully in all four `corpus-proxy/*` cases; this does not answer OLE previews.
+  Q-0700: initial owner **colour** is retained without a trait override (`arch-cn-1e85a`,
+  `arch-cn-1e8ba`, `arch-cn-1e965`); other traits / INSERT cases remain open. Q-0697: gh109 uses
+  32767 ByLayer and 32766 ByBlock (`corpus-proxy/gh109-floor-plan`); general index offsets and
+  ODA sentinels remain open. Q-0696: these plots verify closed outlines, bulges and widths for
+  +Z opcode 33; text and inverted normals remain open. Q-0701/Q-0702 are still open: the tested
+  arch-cn windows target top-level proxies with identity PUSH_MODELXFORM.
+- Every synthetic `misc/proxy-*` fixture still fails AutoCAD load (invalid-fixture); the remaining
+  parts of Q-0691, Q-0693 … Q-0702 need valid discriminating fixtures (note 07 §15.4).
 
 <a id="layouts"></a>
 ## Layouts and PLOTSETTINGS (`layouts`)

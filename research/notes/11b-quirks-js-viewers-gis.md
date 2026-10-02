@@ -78,7 +78,7 @@ Every item below broke at least one reader.
   - HATCH `10` is the elevation point, then seed points, then edge data (dxf-viewer#36).
   - LWPOLYLINE `210` is written twice, before and after the vertices (tarikjabiri-dxf#74 samples); let the last one win.
   - The model must be subclass-aware and position-aware. REPORTED
-- **Where group codes sit matters to AutoCAD (writer side), but readers must be lenient.**
+- **Where group codes sit matters to AutoCAD, but readers must be lenient.**
   - GDAL wrote `8` before `100 AcDbEntity`. AutoCAD and BricsCAD read it; ezdxf ignored the layer (gdal#2348).
   - mozman: ARC with 50/51 in the AcDbCircle subclass instead of AcDbArc makes AutoCAD refuse the file (gdal#2348).
   - VERIFIED-BY-ACAD (mozman's test)
@@ -698,7 +698,7 @@ All REPORTED.
 - Yorik: "the viewport handles millions of lines easily, the key is to have few objects".
 - REPORTED
 
-## 18. What AutoCAD refuses to open (writer lessons; readers must still tolerate these)
+## 18. What AutoCAD refuses to open (readers must still tolerate these)
 
 Every item is VERIFIED-BY-ACAD unless noted.
 
@@ -798,7 +798,7 @@ Ranked by approximate number of distinct threads across dxf-viewer, three-dxf, d
 13. **Linetypes and lineweights** (~10). dxf-viewer 4 + 3 wide-line threads, cad-viewer many, bjnortier 4.
 14. **Splines/OCS correctness** (~15 in the gdsestimating repos alone). These are bugs rather than requests.
 15. **Block list, block attributes, xref overlay/compare** (~8).
-16. **Editing and writing DXF** (~10; out of scope for a viewer, but users ask).
+16. **Editing and writing DXF** (~10; out of scope: truedxf only reads and views, but users ask).
 17. **3D and meshes** (~9, mostly mesh or orbit views of 2D-plus-Z data).
 18. **Reading mode**: black on white, monochrome plot look (~5, cad-viewer#551, #553). Directly relevant to PLOT fidelity.
 

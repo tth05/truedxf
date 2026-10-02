@@ -174,7 +174,6 @@ Items that feed the AutoCAD test backlog are marked **UNKNOWN / needs AutoCAD te
 - **MTEXT content longer than 250 characters is split into 3-chunks plus a final 1-chunk.**
   - AutoCAD 2024 joins the chunks *before* decoding. A `\M+` escape split across two chunks still decodes (ezdxf#1322). [VERIFIED-BY-ACAD AutoCAD 2024] (samples: `issue-1322/.../SplitCharEscape.dxf`)
   - LibreDWG 0.12 `dwg2dxf` wrote the chunks in the wrong order (ezdxf#889). [REPORTED]
-  - When writing, never split right after a `^` (ezdxf:CHANGELOG v0.10). [REPORTED]
 - **Caret notation** (`^` + char encodes a control character, code = (c − 64) mod 126).
   - AutoCAD writes `^I` for tab and `^ ` (caret, space) for a literal caret.
   - The ODA converter writes `^J` for a newline in MTEXT.
@@ -186,7 +185,7 @@ Items that feed the AutoCAD test backlog are marked **UNKNOWN / needs AutoCAD te
   - `%%c` ⌀, `%%d` °, `%%p` ±, `%%%` literal `%` (ezdxf#1408).
   - `%%u` toggles underline up to the next `%%u` or the end of the line (ezdxf#170).
   - [REPORTED]
-- **A raw `\n` in MTEXT content** must be written as `\P`, or the file is invalid (ezdxf:CHANGELOG v0.10). `\P` is *not* a line break in TEXT or ATTRIB (ezdxf#93, #258). [VERIFIED-BY-ACAD]
+- **A raw `\n` in MTEXT content** makes the file invalid; line breaks are `\P` (ezdxf:CHANGELOG v0.10). `\P` is *not* a line break in TEXT or ATTRIB (ezdxf#93, #258). [VERIFIED-BY-ACAD]
 - **Farsi SHX fonts (NASKH, …) use a private glyph mapping.** The stored codes are not real Unicode Arabic, so text extraction gives mojibake while AutoCAD renders fine (ezdxf#1271). [REPORTED]
 - **ACIS SAT text from the ODA converter** contained non-ASCII bytes. Decode tolerantly (ezdxf#690). [REPORTED]
 
@@ -316,7 +315,6 @@ Items that feed the AutoCAD test backlog are marked **UNKNOWN / needs AutoCAD te
   - Thickness must then be negated (ezdxf#459).
   - AutoCAD JOIN turns such −Z arcs into splines (ezdxf#1345).
   - Ansys HFSS ignores OCS.
-  - For writing, **prefer AutoCAD's convention (normalize to +Z, "upright")**.
   - [VERIFIED-BY-ACAD]
 - **Exploding a reflected block in AutoCAD** doesn't negate the extrusion either. It reinterprets start/end parameters (ezdxf#154). [VERIFIED-BY-ACAD] (samples: `pr-154/.../rotated_and_scaled_arcs.dxf`)
 - **Nested reflections.** Multiple mirrored levels (sx=−1 at several nesting depths, with rotation 90°) need full matrix composition. Per-level "reflection compensation" fails. AutoCAD and BricsCAD compose correctly (ezdxf#380). [VERIFIED-BY-ACAD, VERIFIED-BY-BRICSCAD] (samples: `issue-380/.../test.dxf`)
@@ -363,7 +361,7 @@ Items that feed the AutoCAD test backlog are marked **UNKNOWN / needs AutoCAD te
 - **ELLIPSE is a WCS entity**; its parameters run around the extrusion vector (ezdxf#157). [REPORTED]
 - **Axis ratio (40) range.**
   - TrueView 2021 accepts 1e-10 … 1.0 and also −1.0 … −1e-10 (ezdxf#800).
-  - AutoCAD rejects values outside that range, but DWG-sourced files contain ratios slightly **above 1.0** from float noise. Clamp them when writing (ezdxf#799, #819).
+  - AutoCAD rejects values outside that range, but DWG-sourced files contain ratios slightly **above 1.0** from float noise. Clamp them to 1.0 (ezdxf#799, #819).
   - [VERIFIED-BY-ACAD TrueView 2021]
 - **Non-uniform INSERT scale** turns an ellipse into a new ellipse via conjugate diameters (Rytz). This has numeric edge cases; ODA-converted files trigger "conjugated axis required" (ezdxf#139, #140, #255, #702). [REPORTED] (samples: `issue-139/*`, `issue-140/*`, `issue-255/.../villa_chalet.dxf`)
 
@@ -503,7 +501,7 @@ Items that feed the AutoCAD test backlog are marked **UNKNOWN / needs AutoCAD te
 - **Which point is the anchor.**
   - For LEFT/BASELINE (72=0, 73=0) the anchor is 10 (insert).
   - For every other alignment, CAD apps position by 11 (align point) and ignore 10 (BricsCAD, VariCAD, QCAD) (ezdxf#319, #320).
-  - The DXF reference says 10 is "recomputed from 11". But AutoCAD uses the stored 10 when displaying a DWG converted by ODA until the text is edited, and R12 was fine. **Writers must compute and store a correct 10 as well as 11** (ezdxf#688).
+  - The DXF reference says 10 is "recomputed from 11". But AutoCAD uses the stored 10 when displaying a DWG converted by ODA until the text is edited, and R12 was fine. **So a stored 10 that disagrees with 11 can show up in AutoCAD** (ezdxf#688).
   - [VERIFIED-BY-BRICSCAD, VERIFIED-BY-ACAD] (samples: `issue-688/.../123.dxf` + `123.dwg`)
 - **The ODA File Converter (24.10, 25.4) loses TEXT alignment** converting ezdxf DXF to DWG: MIDDLE_LEFT becomes BOTTOM_LEFT until the text is moved. BricsCAD's DWG export is fine (ezdxf#1075, #1258). [VERIFIED-BY-ACAD TrueView 2024, VERIFIED-BY-BRICSCAD]
 - **FIT and ALIGNED.**
@@ -896,33 +894,9 @@ Items that feed the AutoCAD test backlog are marked **UNKNOWN / needs AutoCAD te
   - [REPORTED]
 - **Compression.** A 145 MB Civil 3D DXF compresses to 12 MB with 7z (ezdxf#365). [REPORTED]
 
-## 18. Writer checklist: things AutoCAD rejects
+## 18. Things AutoCAD tolerates
 
-Each item below made AutoCAD, LT or TrueView refuse a file or misbehave. Citations are in the sections above.
-
-1. An undefined linetype on a LAYER, or a linetype named "None" (§4).
-2. TEXT/ATTRIB referencing an undefined STYLE (§4).
-3. An XDATA appid missing from the APPID table (§1).
-4. An appid on BLOCK_RECORD missing from APPID (`AcDbDynamicBlockGUID`) (§1).
-5. `$XCLIPFRAME` written as 280 or with value 2 for R2007 and older; `$ACADMAINTVER` as 90 for pre-R2018 (§3).
-6. MTEXT group 1 after `101 Embedded Object`; XDATA before the embedded object; embedded 70 ≠ 71 (misplaced text) (§9).
-7. ATTRIB/ATTDEF without the double 280 version/lock_position layout (§13).
-8. HATCH spline edge 97 presence per version (§11).
-9. LWPOLYLINE 90/70 outside AcDbPolyline (it reads as not closed) (§7).
-10. CLASS entries without 280/281 (§1).
-11. An empty MESH (§7); an IMAGE with an open clip boundary (§7); an ELLIPSE ratio above 1.0 (§7).
-12. A TEXT value ending in `^`; a raw newline in a value (§2, §1).
-13. Wrong subclass names (§10); missing subclass markers (ezdxf#604).
-14. Dangling dictionary handles, or R2000 files referencing VISUALSTYLEs: these break Copy-to-clipboard (§5).
-15. DICTIONARY hard-owner flags: wrong flags crash COPYCLIP and lose dynamic blocks and XCLIP on paste (§5).
-16. BLOCK flag bit 2 not set for blocks with ATTDEFs: ATTSYNC/BATTMAN break (§13).
-17. A malformed inverted XCLIP XRECORD, and SPATIAL_FILTER 40/41 written while disabled (§13).
-18. No active paperspace layout (§14).
-19. A layout/VPORT view that doesn't cover the content: the file opens "empty" (§3).
-20. Relative IMAGE paths: "unreadable" until reloaded (§7).
-21. Block names with a space in R12 (§4).
-
-Things AutoCAD **tolerates** that a strict reader might reject:
+AutoCAD **opens** these although a strict reader might reject them:
 - dangling LAYOUT/BLOCK_RECORD links (QGIS)
 - PLOTSETTINGS without an owner
 - an OBJECTS section in R12
@@ -977,8 +951,8 @@ These are attachments from ezdxf threads, downloaded into `samples/external` (se
 
 | # | Corpus path (`samples/external/...`) | Thread | Version / producer tag | What it exercises | Why valuable |
 |---|---|---|---|---|---|
-| 1 | `files/github/mozman__ezdxf/issue-9/2775168_all_arrows_extracted/all_arrows.dxf` | ezdxf#9 | R2013 / AutoCAD-like | all dimension arrow blocks + 69 INSERTs, R2013 | copy/paste confirmed OK in AutoCAD Map 3D 2017: known-good writer reference for arrow blocks |
-| 2 | `files/github/mozman__ezdxf/issue-9/4124449_52848_IN_2D_Eng.dxf_ezdxf.7_extracted/52848_IN_2D_Eng.dxf_ezdxf (7).dxf` | ezdxf#9 | R2004 / ? | R2004 file whose root dicts point at missing VISUALSTYLEs | AutoCAD 2020 "Copy to clipboard failed" repro; negative writer test |
+| 1 | `files/github/mozman__ezdxf/issue-9/2775168_all_arrows_extracted/all_arrows.dxf` | ezdxf#9 | R2013 / AutoCAD-like | all dimension arrow blocks + 69 INSERTs, R2013 | copy/paste confirmed OK in AutoCAD Map 3D 2017: known-good reference for arrow blocks |
+| 2 | `files/github/mozman__ezdxf/issue-9/4124449_52848_IN_2D_Eng.dxf_ezdxf.7_extracted/52848_IN_2D_Eng.dxf_ezdxf (7).dxf` | ezdxf#9 | R2004 / ? | R2004 file whose root dicts point at missing VISUALSTYLEs | AutoCAD 2020 "Copy to clipboard failed" repro |
 | 3 | `files/github/mozman__ezdxf/issue-40/2274801_acad_extracted/AC1032.dxf` | ezdxf#40 | R2018 / AutoCAD-like | AutoCAD-written R2018 MTEXT (group 1 before 101 Embedded Object) | shows the tag order AutoCAD needs; AC1027.dxf is the R2013 sibling |
 | 4 | `files/github/mozman__ezdxf/issue-52/2460020_dxf_test_extracted/test.dxf` | ezdxf#52 | R14 / ? | R14 file (LINE, MTEXT, INSERT) | R13/R14 legacy parsing; CLASS 280/281 needed when upgrading |
 | 5 | `files/github/mozman__ezdxf/issue-80/3125460_leader_extracted/leader.dxf` | ezdxf#80 | R13 / AutoCAD-like | R13 LEADER with MTEXT annotation | rare R13 file with LEADER and annotation link |
@@ -1041,7 +1015,7 @@ These are attachments from ezdxf threads, downloaded into `samples/external` (se
 | 62 | `files/github/mozman__ezdxf/discussion-644/8166049_dimension_boundingbox_extracted/dimension_boundingbox.dxf` | ezdxf#644 | R2018 / AutoCAD-like | DIMENSION with a far defpoint POINT in its *D block | extents include defpoints |
 | 63 | `files/github/mozman__ezdxf/discussion-661/8370071_Original.Drawing.File_extracted/9621-P-1-02-002-3-AR6.dxf` | ezdxf#661 | R2018 / AutoCAD-like | real architectural sheet: 2 paperspace layouts with VIEWPORTs, title-block ATTRIBs | end-to-end paperspace plot test |
 | 64 | `files/github/mozman__ezdxf/issue-663/8407793_Crash_extracted/311000.dxf` | ezdxf#663 | R12 / AutoCAD-like | R12 POLYLINE with elevation 1.39e19 | numeric robustness |
-| 65 | `files/github/mozman__ezdxf/issue-688/8749754_drawings_extracted/123.dxf` | ezdxf#688 | R2010 / ezdxf | MIDDLE_CENTER TEXT with 10 != 11 (and the ODA-made .dwg) | AutoCAD uses the stored 10 in DWG: write both points |
+| 65 | `files/github/mozman__ezdxf/issue-688/8749754_drawings_extracted/123.dxf` | ezdxf#688 | R2010 / ezdxf | MIDDLE_CENTER TEXT with 10 != 11 (and the ODA-made .dwg) | AutoCAD uses the stored 10 in DWG |
 | 66 | `files/github/mozman__ezdxf/issue-699/9036372_F397.dxf_extracted/F397.dxf` | ezdxf#699 | R2013 / AutoCAD-like | 50k entities -> 1M+ virtual entities through nested blocks | performance and memory benchmark |
 | 67 | `files/github/mozman__ezdxf/issue-706/9100511_7888_1_extracted/7888_1.dxf` | ezdxf#706 | R2018 / AutoCAD-like | HATCH boundary with gaps (AutoCAD renders it) | open-boundary tolerance |
 | 68 | `files/github/mozman__ezdxf/issue-736/9430225_lost_wall_extracted/lost_wall.dxf` | ezdxf#736 | R2018 / AutoCAD-like | HATCH with extrusion (0,0,-1) | HATCH OCS |
@@ -1085,7 +1059,7 @@ These are attachments from ezdxf threads, downloaded into `samples/external` (se
 | 106 | `files/github/mozman__ezdxf/issue-1271/19518783_data_extracted/plan_2004.dxf` | ezdxf#1271 | R2004 / AutoCAD-like | Farsi text: R2004 cp1256 + \U+, and the same drawing as R2018 UTF-8 (plan_2018.dxf) | codepage decoding |
 | 107 | `files/github/mozman__ezdxf/issue-1272/19504532_TextLaoutHangTestCase_extracted/TextLaoutHangTestCase.dxf` | ezdxf#1272 | R2013 / QCAD | MTEXT '{\W0.85;^IFAULT}' in shape font ltypeshp.shx | shape font used as a text font |
 | 108 | `files/github/mozman__ezdxf/issue-1275/19565426_DenseHatch_extracted/DenseHatch.dxf` | ezdxf#1275 | R2018 / QCAD | very dense HATCH that TrueView shows at every zoom | hatch performance |
-| 109 | `files/github/mozman__ezdxf/issue-1279/19666492_test_extracted/test.dxf` | ezdxf#1279 | R2018 / ezdxf | file whose COPYCLIP crash depends on DICTIONARY hard-owner flags | writer compatibility |
+| 109 | `files/github/mozman__ezdxf/issue-1279/19666492_test_extracted/test.dxf` | ezdxf#1279 | R2018 / ezdxf | file whose COPYCLIP crash depends on DICTIONARY hard-owner flags | hard-owner flag |
 | 110 | `files/github/mozman__ezdxf/issue-1285/19955879_test_fix_clipping_extracted/test_fix_clipping.dxf` | ezdxf#1285 | R2018 / ezdxf | XCLIPped INSERT that loses its clipping on clipboard copy (recover.dxf is the fixed file) | XCLIP DICTIONARY ownership |
 | 111 | `files/github/mozman__ezdxf/issue-1289/19947142_R3.dxf` | ezdxf#1289 | ? / ? | TEXT value containing a raw line feed (TrueView 2024 and BricsCAD reject it) | negative parser test |
 | 112 | `files/github/mozman__ezdxf/issue-1298/20459018_problematic_viewports.dxf_extracted/problematic_viewports.dxf` | ezdxf#1298 | R2018 / AutoCAD-like | 10 VIEWPORTs with a non-normalized view direction | VIEWPORT math |
@@ -1156,7 +1130,6 @@ These are attachments from ezdxf threads, downloaded into `samples/external` (se
 Unless stated otherwise, every test should be written as R12, R2000, R2007 and R2018 and plotted through a fixed PNG plotter configuration.
 
 **Structure and validity** (does AutoCAD open it?)
-1. **Rejection matrix.** One minimal R2018 file per item in the [§18 writer checklist](#18-writer-checklist-things-autocad-rejects). Record whether AutoCAD opens it and its exact error text. This becomes the negative test suite for truedxf's writer.
 2. **`$XCLIPFRAME` / `$ACADMAINTVER` group codes.** Write each version × code (280/290, 70/90) × value, and record which files open.
 3. **HATCH spline edge `97`.** Present/absent × R2004/R2007/R2010/R2013/R2018 × with/without fit points. This extends ezdxf#156.
 4. **MTEXT embedded object 70.** For all 9 attachment points, write R2018 MTEXT with embedded 70 = 71 and with 70 = 1. Plot to measure AutoCAD's anchoring (ezdxf#1416).

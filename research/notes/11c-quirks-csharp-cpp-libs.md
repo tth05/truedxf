@@ -22,110 +22,6 @@ evidence here. LibreDWG's rurban ran `DXFIN` batch imports of about 260 files th
 
 ---
 
-## 1. What AutoCAD requires to open a DXF (writer checklist)
-
-AutoCAD's DXF reader is a strict, **ordered** state machine. BricsCAD, ODA, ezdxf and ACadSharp skip
-unknown or out-of-order codes, so a file can open everywhere except in AutoCAD (ACadSharp#1253). In
-most cases one error discards the whole drawing with
-`Invalid or incomplete DXF input -- drawing discarded.` If the error is in CLASSES, the drawing can
-look as if it opened but comes up empty (ACadSharp#1253). Every item below was reported as the cause
-of a refusal or a repair.
-
-### 1.1 Version / header
-- [ ] Write `$ACADVER` **AC1015 or newer** for current AutoCAD. An ACadSharp AC1014 DXF was refused by AutoCAD 2027 with `Premature end of object on line 2906.` (DIMSTYLE table header). Fixing that only moved the refusal to `ACDBPLACEHOLDER` ("class separator expected"). AC1015–AC1032 opened with 0 audit errors. AutoCAD 2027 cannot save R14, so there is no reference file (ACadSharp#1220, VERIFIED-BY-ACAD). The maintainer says older AutoCADs accept AC1014, so the PR was closed (REPORTED).
-- [ ] An AutoCAD older than the file version refuses it: `Unknown value "AC1032" encountered in drawing version. Invalid or incomplete DXF input -- drawing discarded.` (netDxf#433, VERIFIED-BY-ACAD).
-- [ ] `$HANDSEED` must be **greater than every handle** in the file. libdxfrw hard-coded `20000`. AutoCAD refused the file, and `CLASSICINSERT` reported that $HANDSEED was too low. Raising it fixed the file (libdxfrw#19, VERIFIED-BY-ACAD). `$HANDSEED` is a hex handle (libredwg#71).
-- [ ] Write `$TILEMODE`. Without it, an ACadSharp DXF opened in paper space (ACadSharp#1188, VERIFIED-BY-ACAD).
-- [ ] Unknown header variables only produce a warning, `Unknown header variable $DIMSAV ignored on line 200.` (libredwg#275), `Unknown header variable $DIMTXTDIRECTION ignored on line 408` (netDxf#92). AutoCAD 2000 prints one warning per unknown newer variable (netDxf#109). VERIFIED-BY-ACAD.
-- [ ] Header point variables: AutoCAD writes `1.000000000000000E+20` for `$EXTMIN`/`$PEXTMIN`. LibreDWG truncated floats to 18 characters and wrote `100000000000000000` (1e17) instead (libredwg#687). Allow at least 21 characters, preferably round-trip precision (§3).
-- [ ] `$DWGCODEPAGE` for files older than AC1021 must be a real codepage name that matches the bytes (§5). AutoCAD complains about `ANSI_1200` in files older than AC1021 (netDxf#146, REPORTED).
-- [ ] Unexplained header errors: `Error 372 in drawing header on line 340.` (work_r12 and Leader_r14 from LibreDWG, cause unknown) (libredwg#275, VERIFIED-BY-ACAD).
-- [ ] If the header `$DIM*` variables differ from the current DIMSTYLE, AutoCAD lists a `<style overrides>` entry. netDxf writes every `$DIM*` variable to avoid that (netDxf#417, REPORTED).
-
-### 1.2 CLASSES
-- [ ] A CLASS record carries only `0 CLASS / 1 / 2 / 3 / 90 / 91 / 280 / 281`. Writing DWG-only fields as 92/93 gives `Group 280 (zombie flag) is required.` (ACadSharp#1253, VERIFIED-BY-ACAD).
-- [ ] **Group 91 (instance count) only for AC1018+.** In an AC1015 file it gives `Group 280 (was-a-zombie-flag) expected on line 182.` (ACadSharp#956, VERIFIED-BY-ACAD).
-- [ ] An empty CLASSES section (`0 SECTION 2 CLASSES 0 ENDSEC`) is valid. AutoCAD R14 writes one (libredwg#1068).
-- [ ] Classes for built-in entity types are not needed. ACadSharp#1093 blamed missing dimension classes, but the real error was a missing subclass marker. The maintainer showed that dimensions open without them (REPORTED).
-- [ ] IMAGE class instance count 0 while images exist → images sometimes do not show in TrueView (ACadSharp#1127, REPORTED).
-
-### 1.3 Subclass markers and group order
-- [ ] **100 subclass markers are mandatory from R13 (AC1012) on, not only from R2000.** An R14 DXF without `AcDbEntity` markers was discarded (libredwg#90, VERIFIED-BY-ACAD via DXFIN).
-- [ ] 3D POLYLINE vertices need `100 AcDb3dPolylineVertex`. Without it AutoCAD reports the file as incomplete (libdxfrw#14, VERIFIED-BY-ACAD).
-- [ ] PLOTSETTINGS needs `100 AcDbPlotSettings`: `Class separator for class AcDbPlotSettings expected` (LibreCAD#1330 and #1276, fixed in LibreCAD#1283, VERIFIED-BY-ACAD).
-- [ ] 3DSOLID needs its `100` and `350` groups in every version: `Class separator for class AcDb3dSolid expected` (libredwg#282, VERIFIED-BY-ACAD).
-- [ ] Linear DIMENSION: after `AcDbAlignedDimension`, a rotated dimension also needs `100 AcDbRotatedDimension`. Otherwise: `Class AcDbRotatedDimension requires a class separator.` (ACadSharp#1093, VERIFIED-BY-ACAD, German/Chinese UI message translated by the reporter).
-- [ ] ACAD_TABLE written without the `AcDbTable` part: `Class separator for class AcDbBlockReference expected`. Workaround: write the table as the INSERT of its `*T` block (ACadSharp#1217, VERIFIED-BY-ACAD).
-- [ ] A group code in the wrong subclass fails. ATTRIB `74` belongs in `AcDbAttribute` (ATTDEF: `AcDbAttributeDefinition`), otherwise `Unexpected DXF group code: 74` (libredwg#275, VERIFIED-BY-ACAD). TEXT `7` (style) belongs in `AcDbText`, not `AcDbEntity` (libredwg#275, REPORTED by mozman).
-- [ ] Undocumented codes: AutoCAD silently accepts `61` and `63` in AcDbEntity, but invented codes such as `5005` make it reject the file (libredwg#290 VERIFIED-BY-ACAD; netDxf#127 REPORTED).
-
-### 1.4 TABLES
-- [ ] DIMSTYLE table header: after `100 AcDbDimStyleTable`, write `71 <count>` and one `340 <handle>` per DIMSTYLE. Otherwise: `Object creation was not completed.` (ACadSharp#1253, VERIFIED-BY-ACAD, AutoCAD DXFOUT reference shown).
-- [ ] Table `70` (entry count) is advisory. For more than 32767 entries AutoCAD itself writes the wrapped Int16 (`-24493` for 41043 block records), and writing 0 also opens (ACadSharp#1192, VERIFIED-BY-ACAD). ODA does check VPORT counts: `Object improperly read: AcDbViewportTable` when 70 = 2 but only one entry was written (libredwg#1091, REPORTED/ODA).
-- [ ] No empty record names: `Error in STYLE Table / Invalid symbol table record name: "" on line 1954.` (libredwg#275, VERIFIED-BY-ACAD). A shape-file STYLE has an **empty name** with flag 1. Writing a made-up name such as `SHAPE$0$REF` gives `Invalid textstyle name for shapeFile` (libredwg#287, VERIFIED-BY-ACAD). ODA drops nameless records with `Record name is empty - Ignored` (libredwg#90).
-- [ ] A `Defpoints` layer needs `290 0` (not plotted): `Invalid AcDbLayerTableRecord plot flag for DEFPOINTS layer` (libredwg#275, VERIFIED-BY-ACAD). mozman adds that AutoCAD requires the layer (REPORTED).
-- [ ] A layer name containing `|` must have the xref-dependent flag set: `Layer name with vertical bar is not marked dependent` (libredwg#275, VERIFIED-BY-ACAD). `|` is legal only in xref-dependent records (ACadSharp#1238, netDxf#358).
-- [ ] Layer `390` (plot style name handle) must point at an existing ACDBPLACEHOLDER. If it does not, the file opens, but **Ctrl+C fails with "Copy to clipboard failed"** until `AUDIT` fixes it (LibreCAD#442, VERIFIED-BY-ACAD). ProgeCAD's audit reports it as `AcDbLayerTableRecord(10), PlotStyleName Id (F), Validation: <Invalid>` (libdxfrw#19). A writer must not point every layer at a fixed `F` unless it writes that object (LibreCAD#2927).
-- [ ] DIMSTYLE `340` (DIMTXSTY) must be a **handle**, not a style name. LibreCAD wrote `340 Standard`, and netDxf's maintainer reports that AutoCAD crashes on such files (netDxf#105, #228; ACadSharp#120; fixed in LibreCAD#1551). REPORTED.
-- [ ] A 102 `{`/`}` mismatch in a table header was tolerated by AutoCAD (netDxf#220, VERIFIED-BY-ACAD). Readers other than AutoCAD (QCAD, CADDirect) failed on it.
-- [ ] Layer names with `/` were refused by the Autodesk online viewer, ACC, Revit and Navisworks (LibreCAD#2551, REPORTED). The DXF reference allows them. Stay conservative with names.
-
-### 1.5 BLOCKS / ENTITIES / ownership
-- [ ] **Entities of `*Model_Space` and of the active `*Paper_Space` go in the ENTITIES section only.** Otherwise AutoCAD warns `Entities not allowed in *Paper_Space block definition on line N.` (libredwg#275/#277, VERIFIED-BY-ACAD). Paper-space entities carry `67 1` and 330 → the `*Paper_Space` BLOCK_RECORD (libredwg#275, mozman). The other layouts' blocks (`*Paper_Space0`, …) keep their entities in BLOCKS.
-- [ ] A `*Paper_Space` block must exist: `Error: Block "*Paper_Space" was not defined` (libredwg#275, VERIFIED-BY-ACAD).
-- [ ] BLOCK/BLOCK_RECORD names are matched **case-insensitively** (`*MODEL_SPACE` is model space). ACadSharp's writer compared case-sensitively and moved 3,328 model-space entities into BLOCKS. AutoCAD still drew them (ACadSharp#1197, VERIFIED-BY-ACAD), but other readers saw an empty drawing. netDxf#479 hit the same problem with `*PAPER_SPACE`.
-- [ ] Every 330/340/350/360 must point at something that is written. ODA warns `Invalid owner Object` (libredwg#82). LibreCAD's reader rejected 1,481 of 1,483 corpus files once it enforced this (LibreCAD#2855, #2927). netDxf's maintainer: "errors with handles in a DXF usually ends up in a total crash when loaded in AutoCad" (netDxf#219, #226). An **empty value** after 330 was tolerated by AutoCAD, but AUDIT flags it (netDxf#221).
-- [ ] No duplicate handles. When a GROUP took handle 2, ezdxf could not resolve layout 'Model' (libredwg#1356, REPORTED/ezdxf).
-- [ ] INSERT `66 1` must be followed by ATTRIB… and **SEQEND** (libredwg#1351). `66` is 0 or 1 only; LibreDWG wrote 128 for pre-R13 sources (libredwg#1352). REPORTED.
-- [ ] Hatch associativity: an associative HATCH (71 = 1) whose 330 boundary handle names an entity that was not written is repaired by AUDIT (`AcDbHatch(…) Boundary Undefined  Remove Associativity`). Write 71 = 0 when no boundary handle survives (ACadSharp#1209, VERIFIED-BY-ACAD, measured on a DWG; the DXF equivalent is an ASSUMPTION).
-
-### 1.6 OBJECTS
-- [ ] The **named object dictionary (NOD) must be the first object** in OBJECTS. Readers find it by position (libredwg#536, #1413; ACadSharp#954, where the NOD had no 330 but `280 0`). REPORTED (ezdxf/ODA convention).
-- [ ] AutoCAD import errors about dictionaries: `File lacks the NamedObject dictionary`, `GroupTable dictionary was not defined in NamedObject dictionary` (libredwg#275/#285/#288, VERIFIED-BY-ACAD; both went away after other fixes).
-- [ ] The `ACAD_FIELDLIST` key must hold a **FIELDLIST object**, not a plain DICTIONARY. ODA aborts with `Object of class AcDbDictionary can't be cast to AcDbFieldList.` (0/134 files imported until the key was removed). ezdxf omits the key entirely (ACadSharp#1235, REPORTED/ODA). Other ODA cast failures: `AcDbRegAppTableRecord can't be cast to AcDbEntity` (handle collision, libredwg#817/#1320), `AcDbVXTable can't be cast to AcDbDictionary` (libredwg#1091).
-- [ ] Do not write dictionary entries (3/350) for objects you drop. Do not write an object twice when it can be reached from two owners (ACadSharp#1136, REPORTED). ACadSharp skips empty dictionaries (ACadSharp#1262); an empty materials dictionary caused AutoCAD trouble (ACadSharp#1235 comment, REPORTED).
-- [ ] Every dictionary entry needs a non-empty key in group 3 (ACadSharp#1199). Several entries may share an object *name* while having different keys: every SORTENTSTABLE is named `ACAD_SORTENTS`, but keys stay unique (ACadSharp#1208).
-- [ ] IMAGE needs `ACAD_IMAGE_DICT` in the NOD with its IMAGEDEF, plus an IMAGEDEF_REACTOR. If the dictionary is missing, TrueView shows no image (ACadSharp#1124). Without reactors the image shows as "Not referenced" in the XREF manager (ACadSharp#591, #905, REPORTED).
-- [ ] XRECORD: a `112` group must be followed by `122`: `112 group not followed by 122 group` (libredwg#91, VERIFIED-BY-ACAD).
-- [ ] Dynamic-block objects: `BLOCKSCALEACTION` / `BLOCKROTATEACTION` → `Missing DXF group code: 1` (libredwg#278). Writing NaN into BLOCKBASEPOINTPARAMETER → DXF read error (libredwg#286). If they cannot be written correctly, leave them out; ODA skips them (VERIFIED-BY-ACAD).
-- [ ] MLEADERSTYLE, VISUALSTYLE, MULTILEADER, 3DSOLID: `Premature end of object` (libredwg#275/#283, VERIFIED-BY-ACAD). In SAT text, `^` must be escaped as `^ ` (libredwg#283).
-- [ ] $INTERFEREOBJVS / $INTERFEREVPVS (R2007+) point at VISUALSTYLE objects. If they dangle, the file opens but **"Copy to clipboard failed"** (netDxf#147, VERIFIED-BY-ACAD). ACadSharp's DXF (a POLYLINE 3D) showed the same symptom (ACadSharp#1056/#1058, VERIFIED-BY-ACAD, fixed in #1059 after running AUDIT). Treat "COPYCLIP works" as a separate acceptance test.
-- [ ] VISUALSTYLE and MATERIAL objects: without them, a DWG crashed TrueView on load or when switching to Realistic (ACadSharp#1074/#1077; the fix gave VPORT `*Active` AmbientColor = ACI 250/black instead of ByBlock). DWG only, but the same lookups probably happen for DXF (ASSUMPTION).
-
-### 1.7 Entity-level refusals (AutoCAD messages)
-- [ ] **HATCH**, strict order: …pattern lines, then `47` only when needed, then `98` seeds. Writing `47 0` on a pattern hatch without derived paths → `Error: group code 98 is required` / `expected group code 98`. Leaving out 47 on a hatch with a *derived* path (92 bit 4, e.g. 92 = 7) → TrueView asks for 47 (ACadSharp#1253 and ACadSharp#250 `Group code 47 expected`, VERIFIED-BY-ACAD). AutoCAD's own DXFOUT writes 47 exactly on the hatches with a derived boundary (ACadSharp#1253). **CONFLICT:** ACadSharp#1093 claims `require group code 47` for a non-solid HONEY hatch and "always write 47" as the fix. Probably that hatch had derived paths; the rule in ACadSharp#1253 is the better-verified one.
-- [ ] HATCH boundary handles: `97` + `330`s belong **inside each path, after its edges**, not in a single list before 75. Errors seen: `expected group code 92/97/75/330` (libredwg#280, VERIFIED-BY-ACAD). Gradient groups only when gradient is on, at the very end (libredwg#280). `expected group code 41` (libredwg#275).
-- [ ] HATCH polyline path: exactly one `72` (has-bulge) flag. ACadSharp wrote two, which AutoCAD rejected (ACadSharp#542, VERIFIED-BY-ACAD).
-- [ ] HATCH arc/ellipse edges: 50/51 in **degrees**. A full circle is 0/360. Writing 360 as 0 made TrueView fail to show the hatch; writing radians produced spiky boundaries (ACadSharp#1002, #1025, VERIFIED-BY-ACAD). Keep full sweeps intact, e.g. `-180..180`, not `180..180` (ACadSharp#1237).
-- [ ] **SPLINE**: `No knots provided` → drawing discarded (ACadSharp#1093, VERIFIED-BY-ACAD). A spline with neither knots/control points nor fit points is refused (ACadSharp#1190, VERIFIED-BY-ACAD). Fit-point-only splines are valid (§9). Zero-vector start/end tangents: AutoCAD refuses (libredwg#275, REPORTED via ezdxf#252).
-- [ ] **ELLIPSE** with ratio (40) > 1: `Invalid data for ellipse definition` → discarded (netDxf#277, VERIFIED-BY-ACAD, German UI).
-- [ ] **LEADER** with fewer than 2 vertices: `Leader entity with no vertices` → discarded (LibreCAD#875, VERIFIED-BY-ACAD). libdxfrw also wrote `76` twice (libdxfrw#60).
-- [ ] **IMAGE/WIPEOUT** without clip vertices (`91 0`): `in IMAGE ... Xdata wasn't read. Invalid or incomplete DXF input`. AutoCAD always writes `280 0, 71 1, 91 2`, `(-0.5,-0.5)` and `(w-0.5, h-0.5)` for an unclipped image (ACadSharp#1219, VERIFIED-BY-ACAD). For WIPEOUT, AutoCAD writes 340/360 as null (ACadSharp#1188).
-- [ ] **DIMENSION** block name `2` must be valid: `Invalid dimension block name.` (libredwg#275, VERIFIED-BY-ACAD).
-- [ ] **ATTRIB** `74` in the wrong subclass (see 1.3).
-- [ ] **VERTEX** of an old 2D polyline: `Bad visibility value 2` (r2000/r2004, libredwg#275, VERIFIED-BY-ACAD).
-- [ ] **MLINESTYLE**: `Bad mlstyle start angle` (libredwg#275, VERIFIED-BY-ACAD).
-- [ ] **PDFUNDERLAY**: `Unexpected DXF group code: 170` (libredwg#275, VERIFIED-BY-ACAD).
-- [ ] **SPATIAL_FILTER**: `expected group code 11` (libredwg#275, VERIFIED-BY-ACAD).
-- [ ] **APPID**: garbage characters in the name → `Error in APPID Table` (libredwg#1021, #275, VERIFIED-BY-ACAD, German UI "DXF-ReadError").
-- [ ] **MULTILEADER**: do not write it below R2010. ACadSharp's R2000/R2004 output with MULTILEADER was refused (ACadSharp#1190, VERIFIED-BY-ACAD).
-- [ ] **PolyfaceMesh**: vertices first, then face records, in the order of the owned list (ACadSharp#1190, VERIFIED-BY-ACAD).
-- [ ] **TEXT**: a raw CR/LF inside a value → `DXF read error on line 1289. Invalid or incomplete DXF input` (netDxf#92, VERIFIED-BY-ACAD, Chinese UI).
-- [ ] **NaN** anywhere: Autodesk products could not open the file (netDxf#202, REPORTED).
-- [ ] Silent AutoCAD crashes (no message) on some LibreDWG files with LEADERs and in `dbobji.cpp@306 assert`. "Save all your work before DXFIN" (libredwg#275, VERIFIED-BY-ACAD).
-
-### 1.8 Syntax
-- [ ] CRLF line ends (AutoCAD writes `\r\n`). No doubled CR from text-mode fopen on Windows (libredwg#17).
-- [ ] **No empty line at a group-code position** (libredwg#1408). An empty *value* is fine; `4` + empty string in STYLE is valid (LibreCAD#1075). An empty-string header value still needs its value line: `$DIMBLK / 1 / <empty>` (libredwg#1052).
-- [ ] No NUL bytes. libdxfrw's dwg2dxf wrote NULs and AutoCAD refused the files (libdxfrw#19). The macOS `\U+` bug in LibreCAD#2816 produced 12 trailing NULs per escape.
-- [ ] Caret-encode every C0 control character in strings (`^J`, `^M`, …, `c + 0x40`). Leave tab literal; AutoCAD keeps it (libredwg#1314). A literal `^` is written as `^ ` (libredwg#283).
-- [ ] Strings over 250 characters: MTEXT puts **250-character chunks in group 3 and the last chunk in group 1** (libredwg#986, #1284; ACadSharp#988 duplicated the text by also writing the full string to group 1). Never split a `\U+XXXX` escape, or a multi-byte character, across chunks (libredwg#1314). For 3xx string fields such as GEODATA 301, the continuation code is `dxf+2` (303), the way AutoCAD writes it (libredwg#1314, REPORTED).
-- [ ] Binary chunks (310–319): hex, **at most 127 bytes per line** (ACadSharp#1153). The last partial chunk must contain only its own bytes (ACadSharp#1140). Never write raw bytes (libredwg#1311).
-- [ ] Group codes 280–289 are **Int16**, not bytes, in current references (ACadSharp#1051). 1070/1071 are **signed** (libredwg#1392).
-- [ ] Doubles: AutoCAD prints `943.0`, not `943` (libredwg#1083). Use shortest round-trip formatting (17 significant digits). ACadSharp's `G15` changed 60–66 % of coordinates compared to a reference converter (ACadSharp#1179, REPORTED).
-
----
-
 ## 2. AutoCAD / TrueView message catalogue
 
 | Message (verbatim) | Cause | Source |
@@ -190,13 +86,27 @@ of a refusal or a repair.
 - Duplicate table entries (two layers with the same name, no layer "0") occur. Keep the first, create defaults afterwards (ACadSharp#1239, #1258). Missing layers that entities reference: **AutoCAD creates them on the fly**, as RECOVER does (ACadSharp#1244, REPORTED).
 - Table names are case-insensitive (netDxf#479; ACadSharp#1197; `*Paper_Space` vs `*PAPER_SPACE`).
 - AC1009 table headers: ACadSharp created an "unnamed0" entry per table, mistaking the TABLE header's `2`/`70` for a record (ACadSharp#1109).
+- **AutoCAD's DXF reader is strict and ordered.** BricsCAD, ODA, ezdxf and ACadSharp skip unknown or out-of-order codes, so a file can open everywhere except in AutoCAD (ACadSharp#1253). One error usually discards the whole drawing (`Invalid or incomplete DXF input -- drawing discarded.`); an error in CLASSES can leave the drawing empty (ACadSharp#1253). Such files have no AutoCAD reference. The messages are catalogued in §2.
+- AutoCAD silently accepts the undocumented codes `61` and `63` in AcDbEntity, but an invented code such as `5005` makes it reject the file (libredwg#290 VERIFIED-BY-ACAD; netDxf#127 REPORTED). A group code in the wrong subclass fails too: ATTRIB `74` outside `AcDbAttribute` gives `Unexpected DXF group code: 74` (libredwg#275, VERIFIED-BY-ACAD); TEXT `7` in `AcDbEntity` instead of `AcDbText` (libredwg#275, REPORTED by mozman).
+- Unknown header variables only produce a warning: `Unknown header variable $DIMSAV ignored on line 200.` (libredwg#275), one warning per unknown newer variable in AutoCAD 2000 (netDxf#92, #109). VERIFIED-BY-ACAD.
+- Table `70` (entry count) is advisory. For more than 32767 entries AutoCAD itself writes the wrapped Int16 (`-24493` for 41043 block records), and 0 also opens (ACadSharp#1192, VERIFIED-BY-ACAD). ODA does check VPORT counts (libredwg#1091, REPORTED/ODA).
+- A 102 `{`/`}` mismatch in a table header was tolerated by AutoCAD (netDxf#220, VERIFIED-BY-ACAD); QCAD and CADDirect failed on it. An **empty value** after 330 was tolerated too, but AUDIT flags it (netDxf#221).
+- Line ends: AutoCAD writes CRLF. Files with a doubled CR (`\r\r\n`, from text-mode fopen on Windows) exist (libredwg#17).
+- An empty line at a group-code position is broken (libredwg#1408). An empty *value* is fine: `4` + empty string in STYLE (LibreCAD#1075), `$DIMBLK / 1 / <empty>` (libredwg#1052).
+- NUL bytes: libdxfrw's dwg2dxf wrote NULs into strings and AutoCAD refused the files (libdxfrw#19). LibreCAD's macOS `\U+` bug produced 12 trailing NULs per escape (LibreCAD#2816).
+- A raw CR/LF inside a TEXT value → `DXF read error on line 1289. Invalid or incomplete DXF input` (netDxf#92, VERIFIED-BY-ACAD, Chinese UI). AutoCAD's own output caret-encodes C0 control characters and keeps a tab literal (libredwg#1314); a literal `^` is `^ ` (libredwg#283).
+- Strings over 250 characters: MTEXT puts **250-character chunks in group 3 and the last chunk in group 1** (libredwg#986, #1284; ACadSharp#988 duplicated the text by also writing the full string to group 1). Chunks from other producers can split a `\U+XXXX` escape or a multi-byte character (libredwg#1314), so join before decoding. 3xx string fields such as GEODATA 301 continue with `dxf+2` (303), the way AutoCAD writes them (libredwg#1314, REPORTED).
+- Binary chunks (310–319): hex, at most 127 bytes per line in AutoCAD's output. Other producers wrote longer lines (ACadSharp#1153), a last chunk padded with foreign bytes (ACadSharp#1140) and raw bytes (libredwg#1311).
+- Group codes 280–289 are **Int16**, not bytes, in current references (ACadSharp#1051). 1070/1071 are **signed** (libredwg#1392).
+- Doubles: AutoCAD prints `943.0`, other producers `943` (libredwg#1083). ACadSharp's old `G15` output changed 60–66 % of coordinates compared to a reference converter (ACadSharp#1179, REPORTED), so such files carry only 15 significant digits. With `NaN` anywhere, Autodesk products could not open the file (netDxf#202, REPORTED).
+- INSERT `66 1` is followed by ATTRIBs and a SEQEND (libredwg#1351). `66` should be 0 or 1, but LibreDWG wrote 128 for pre-R13 sources (libredwg#1352). REPORTED.
 
 ---
 
 ## 4. Handles, owners, dictionaries, layouts
 
 - AutoCAD's own DXF: VERTEX/SEQEND 330 → the POLYLINE, ATTRIB 330 → the INSERT (checked in `research/repos/ACadSharp/samples/sample_AC1018_ascii.dxf`: `VERTEX 5=423 330=422(POLYLINE)`, `ATTRIB 5=705 330=704`). **CONFLICT:** libredwg#1371 claims ATTRIB/VERTEX 330 points at the block record "as ezdxf and AutoCAD write DXF". The AutoCAD sample disproves that for VERTEX/ATTRIB.
-- Root dictionary detection: the NOD usually has `330 0`. Some producers leave out 330 and write `280 0` (hard-owner flag) instead (ACadSharp#954). Use "first DICTIONARY in OBJECTS", then check that it holds `ACAD_GROUP`.
+- Root dictionary detection: the NOD usually has `330 0`. Some producers leave out 330 and write `280 0` (hard-owner flag) instead (ACadSharp#954). Use "first DICTIONARY in OBJECTS", then check that it holds `ACAD_GROUP`. Other readers find the NOD by position too (libredwg#536, #1413; REPORTED, ezdxf/ODA convention).
 - SORTENTSTABLE: the `5` handles in its sort list alias real entity handles on purpose. Do not register them as object handles (libredwg#1320). `block_owner` is the BLOCK_RECORD, not the extension dictionary (libredwg#1320).
 - Layout ↔ block: the BLOCK *entity* of the second and later paper spaces is named `*Paper_Space0`, `*Paper_Space1`, … while the BLOCK_RECORD may say `*Paper_Space` (libredwg#81). A LAYOUT must name an existing BLOCK_RECORD. Ezdxf could not open 365 of 445 LibreCAD saves because of dangling LAYOUT → BLOCK_RECORD links (LibreCAD#2927).
 - R12 layout blocks are `$MODEL_SPACE` / `$PAPER_SPACE` (ezdxf writes `$Model_Space`). Normalize them (libredwg#1384).
@@ -204,6 +114,9 @@ of a refusal or a repair.
 - Dynamic blocks: anonymous `*U###` BLOCK_RECORDs; the name users see comes from AcDbBlockRepresentation/`ACAD_ENHANCEDBLOCK` data (netDxf#103, ACadSharp#723). Blocks named `*D`, `*T`, `*U`, `*X` are internal (netDxf#103).
 - `ACAD_SORTENTS` draw order applies within one block record (ACadSharp#113, #695, #879).
 - Groups: every GROUP member needs a reactor to the GROUP (LibreCAD#2922).
+- Entities of `*Model_Space` and of the active `*Paper_Space` are in the ENTITIES section; paper-space ones carry `67 1` and 330 → the `*Paper_Space` BLOCK_RECORD. The other layouts' blocks (`*Paper_Space0`, …) keep their entities in BLOCKS. Otherwise AutoCAD warns `Entities not allowed in *Paper_Space block definition on line N.` (libredwg#275/#277, VERIFIED-BY-ACAD).
+- Dangling references occur. ODA warns `Invalid owner Object` (libredwg#82). LibreCAD's reader rejected 1,481 of 1,483 corpus files once it required every 330/340/350/360 to resolve (LibreCAD#2855, #2927). netDxf's maintainer: "errors with handles in a DXF usually ends up in a total crash when loaded in AutoCad" (netDxf#219, #226).
+- Duplicate handles: when a GROUP took handle 2, ezdxf could not resolve layout 'Model' (libredwg#1356, REPORTED/ezdxf).
 
 ---
 
@@ -213,13 +126,13 @@ of a refusal or a repair.
 - `\U+XXXX` also appears **in R2007+ files**; AutoCAD and Revit write it (libredwg#1414). Always decode it, whatever the version. A `\U+` without digits made ezdxf raise (libredwg#1314). Be lenient.
 - `\M+nXXYY` (MIF) is a double-byte character: n = 1..5 → codepages **932, 950, 949, 1361, 936** (libredwg#428). AC1018 files from Chinese AutoCAD store CJK as `\M+2A7DA…` (ACadSharp#574).
 - `$DWGCODEPAGE` names seen in the wild: `ANSI_1252`, `ANSI_1250`, `ANSI_1251`, `ANSI_936`, `ANSI_932`, `ANSI_949`, `DOS850`, lower-case `ansi_1252` (corpus). Bogus names too: `kcs5601` (ACadSharp#1259, AutoCAD/ezdxf expect `ANSI_949`), `GB2312` (netDxf#21, ACadSharp#622). Map aliases case-insensitively and fall back to cp1252 with a warning. `.NET Encoding.GetEncoding(0)` silently returns UTF-8 (ACadSharp#1259).
-- For R2007+, the maintainer claims AutoCAD ignores the declared `$DWGCODEPAGE` (netDxf#146, REPORTED).
+- For R2007+, the maintainer claims AutoCAD ignores the declared `$DWGCODEPAGE` (netDxf#146, REPORTED). AutoCAD complains about `ANSI_1200` in files older than AC1021 (netDxf#146, REPORTED).
 - R2007+ DWG stores header strings as UTF-16. When reading `$DWGCODEPAGE` from such a source, decode it first (libredwg#1285).
 - Pre-R13 table names are also codepage-encoded. LibreCAD read GBK layer names as UTF-8 (LibreCAD#2810).
 - GB18030 and other non-UTF-8 files carry no marker other than `$DWGCODEPAGE`. Some users transcode before loading (LibreCAD#1014).
 - MTEXT `^J` inside text: netDxf maps it to `\P` (netDxf#65); `^I` is tab. AutoCAD's MTEXT also accepts `\P`. Plain TEXT cannot contain newlines (netDxf#472).
 - A literal backslash in MTEXT must be `\\`. `\F` starts a font change (LibreCAD#1609).
-- BOM: no thread reported a UTF-8 BOM. ACadSharp writes UTF-8 without BOM (ACadSharp#1098). ASSUMPTION: accept a BOM, never write one.
+- BOM: no thread reported a UTF-8 BOM. ACadSharp writes UTF-8 without BOM (ACadSharp#1098). ASSUMPTION: accept a BOM.
 
 ---
 
@@ -231,13 +144,14 @@ of a refusal or a repair.
 - netDxf#67: ATTRIB with 72 = 0 / 74 = 2 displayed as **MiddleCenter** in AutoCAD (Map 3D file with missing plugins). Unexplained (REPORTED, UNKNOWN).
 - MTEXT rotation: group `50` (degrees) is a documented alternative to the `11` x-axis direction. Both appear; DWG stores only the direction (libredwg#1379, ACadSharp#81). ezdxf's dimension renderer writes 50.
 - MTEXT 72 (flow direction), 73 (line-spacing style) and 44 (factor) are **omitted when default**. The defaults are 1 / 1 / 1.0, not 0. Importing 0 stacks every line on top of the first (libredwg#1404).
-- MTEXT R2007+ extras: 46 defined height, background fill 90/63/45/441 (write 45, 90 and 63 together) plus 421 true color and 431 color name (libdxfrw#101). Dynamic columns: ACadSharp mis-wrote the column-height count and AutoCAD refused the file (DWG; ACadSharp#1188). MTEXT column data in DXF goes through `ACAD_MTEXT_COLUMN_INFO` XDATA in some versions (libdxfrw#101).
+- MTEXT R2007+ extras: 46 defined height, background fill 90/63/45/441 (45, 90 and 63 go together) plus 421 true color and 431 color name (libdxfrw#101). Dynamic columns: ACadSharp mis-wrote the column-height count and AutoCAD refused the file (DWG; ACadSharp#1188). MTEXT column data in DXF goes through `ACAD_MTEXT_COLUMN_INFO` XDATA in some versions (libdxfrw#101).
 - R2018 DWG MTEXT extents 42/43 were decoded swapped (libredwg#1278). If reading from DWG, check them.
 - Multiline ATTDEF/ATTRIB (R2018): embedded MTEXT (`AcDbMTextObjectEmbedded`); code 41 serves as both width factor and rectangle width, which makes naive readers produce stray lines and moved objects (netDxf#291, #164).
 - ATTDEF tags may contain spaces; AutoCAD keeps them though its UI forbids them (netDxf#114).
 - TEXT longer than 256 characters is allowed in AutoCAD (ACadSharp#1045, REPORTED).
 - Entity `7` is a **style name**; the font comes from the STYLE record (`3` font file, `4` bigfont). LibreCAD used the style name as a font name (LibreCAD#841).
 - STYLE font file `txt` **without extension** is common (the AutoCAD STANDARD style) and implies `txt.shx` (netDxf#227, #235, #40). Font names can be wrapped in quotes (netDxf#224).
+- A shape-file STYLE has an **empty name** with flag 1. AutoCAD refused a made-up name such as `SHAPE$0$REF` (`Invalid textstyle name for shapeFile`, libredwg#287, VERIFIED-BY-ACAD).
 - CJK TEXT in pre-2007 files shows as `???` unless the STYLE uses a bigfont (e.g. `romans.shx` + `chineset.shx`) (ACadSharp#432, REPORTED, Autodesk KB cited). MTEXT with `\f` TTF codes works.
 - Fonts cannot be embedded in DXF (netDxf#260). SHX files contain information beyond the SHP source (netDxf#229).
 - Annotative objects: XDATA `AcadAnnotative` + extension dictionary → `AcDbContextDataManager` → `ACDB_ANNOTATIONSCALES` → one `ACDB_*OBJECTCONTEXTDATA_CLASS` per scale (libredwg#1424). One drawing opened "with every annotation at one scale" when these were left out.
@@ -247,12 +161,13 @@ of a refusal or a repair.
 ## 7. HATCH
 
 - **The pattern definition lines stored in the HATCH (53/43/44/45/46/79/49) are already scaled and rotated. AutoCAD draws those cached lines.** It re-derives them from the pattern name + 41 scale + 52 angle only when the hatch is edited. ZWCAD showed a wrong pattern until the scale was changed and changed back (ACadSharp#782). AutoCAD showed a result that matched the stored values, and a regen after an edit changed it (libredwg#648). REPORTED. Renderer: use the stored lines.
-- Solid hatch: `2 SOLID`, `70 1`, no pattern lines. `47` only with derived boundaries (§1.7).
-- Edge data: arcs are center / radius / start / end in **degrees** + 73 ccw flag. Hatch arcs and polyline bulges keep their vertex order, which is why a ccw flag exists here while ARC entities are always ccw (libdxfrw#69). Ellipse edge: `11/21` is the major-axis endpoint **relative to the center**, `40` the minor/major ratio (ACadSharp#1099, #1018). Spline edges need a knot vector with knots = controls + degree + 1 (LibreCAD#2798).
+- Solid hatch: `2 SOLID`, `70 1`, no pattern lines. AutoCAD's DXFOUT writes `47` (pixel size) exactly on the hatches with a derived boundary path (92 bit 4) (ACadSharp#1253).
+- Edge data: arcs are center / radius / start / end in **degrees** + 73 ccw flag. Hatch arcs and polyline bulges keep their vertex order, which is why a ccw flag exists here while ARC entities are always ccw (libdxfrw#69). Ellipse edge: `11/21` is the major-axis endpoint **relative to the center**, `40` the minor/major ratio (ACadSharp#1099, #1018). Spline edges need a knot vector with knots = controls + degree + 1 (LibreCAD#2798). A full circle edge is 0/360: TrueView did not show a hatch whose 360 was written as 0, and radians produced spiky boundaries (ACadSharp#1002, #1025, VERIFIED-BY-ACAD). Full sweeps also appear as `-180..180` (ACadSharp#1237).
 - Y = 0.0 is a valid coordinate. LibreDWG refused `21 0.0` on line edges (libredwg#1410).
 - Loops: each loop's edges are one path. LibreCAD wrote **one loop whose edges formed two disjoint rectangles**. TrueView and the Autodesk viewer drew it wrong, while LibreCAD's own reconstruction looked fine (LibreCAD#1739, VERIFIED-BY-ACAD). Match AutoCAD by treating edges strictly as a sequential path.
 - AutoCAD writes each boundary loop with its source handles (97/330) inside the loop (libredwg#280).
 - A HATCH with 0 paths (91 = 0) was only seen in corrupt conversions (libredwg#1220).
+- An associative HATCH (71 = 1) whose 330 boundary handle names a missing entity is repaired by AUDIT (`AcDbHatch(…) Boundary Undefined  Remove Associativity`) (ACadSharp#1209, VERIFIED-BY-ACAD on a DWG; the DXF equivalent is an ASSUMPTION).
 - Nested and island loops, with even-odd rules decided by 75 hatch style; area computation is covered in LibreCAD#1572/#1659 (LibreCAD-internal, REPORTED).
 - LibreCAD patterns are DXF blocks, not `.pat` files; some gost_* patterns do not tile seamlessly (LibreCAD#1648, #1651). Irrelevant to AutoCAD, except that LibreCAD-written HATCH pattern lines may not match `acad.pat`.
 
@@ -266,10 +181,13 @@ of a refusal or a repair.
 - DIMPOST (`3`): the text `<>` on its own **suppresses the automatic `R`/`Ø` prefix** of radial and diameter dimensions. Leave DIMPOST empty (netDxf#97, VERIFIED-BY-ACAD 2012/2016; ACadSharp#1165: AutoCAD's default DIMPOST/DIMAPOST is empty).
 - Per-dimension overrides are stored as XDATA `1001 ACAD / 1000 DSTYLE / 1002 { / 1070 <dimvar group code> / value … / 1002 }`. For example, DIMSCALE is `1070 40 / 1040 5.0` (ACadSharp#923). Handle-valued overrides (DIMBLK1/2 = 343/344, DIMLDRBLK) use `1005 <handle>`; DIMSAH is `1070 173 / 1070 1` (libredwg#663).
 - DIMSTYLE handle fields: 340 DIMTXSTY, 341 DIMLDRBLK, 342–344 DIMBLK/1/2, **345/346/347 DIMLTYPE / DIMLTEX1 / DIMLTEX2** (LibreCAD#2928). LibreCAD's own DSTYLE override writer used 347/348 instead (LibreCAD-specific, REPORTED).
+- DIMSTYLE `340` (DIMTXSTY) is a **handle**, but LibreCAD wrote a style name (`340 Standard`). netDxf's maintainer reports that AutoCAD crashes on such files (netDxf#105, #228; ACadSharp#120; fixed in LibreCAD#1551). REPORTED.
+- If the header `$DIM*` variables differ from the current DIMSTYLE, AutoCAD lists a `<style overrides>` entry. netDxf writes every `$DIM*` variable to avoid that (netDxf#417, REPORTED).
+- LEADER with fewer than 2 vertices: `Leader entity with no vertices` → drawing discarded (LibreCAD#875, VERIFIED-BY-ACAD). libdxfrw wrote `76` twice (libdxfrw#60).
 - DIMSTYLE records that leave out a code: ODA takes the value from the header `$DIM*` variable (e.g. DIMZIN, DIMTDEC), not from a hard-coded default (ACadSharp#1251, REPORTED/ODA). AutoCAD's behaviour is **UNKNOWN / needs AutoCAD test**.
 - Dimension defaults drift between versions. netDxf had DIMDEC 2 where AutoCAD LT used 4, and text placement "Above/Centered" (netDxf#40, REPORTED).
 - DIMENSION 70: 0–6 type + 32 (block used by this dimension only, always set R13+) + 64 (ordinate X) + 128 (user text position) (ACadSharp#236). Pre-R13 DIMENSION: 13/23/33, 14/24/34 def points; 15/25/35 radius/diameter point; 16/26/36 angular arc point; no subclass markers (ACadSharp#1246).
-- Radial/diameter/linear `12` insertion point exists and must round-trip (ACadSharp#1236).
+- Radial/diameter/linear `12` insertion point exists (ACadSharp#1236).
 - Arrowhead blocks are named `_Dot`, `_Oblique`, … and referenced by handle from DIMSTYLE or XDATA (libredwg#663). An empty DIMBLK means the closed-filled default.
 - Tolerance display: a symmetrical display with different upper/lower values loads back as Deviation (netDxf#120, REPORTED). DIMTIH/DIMTOH round-trip (netDxf#249).
 - LibreCAD's dimension text in cm drawings: DIMLFAC/unit confusion (LibreCAD#2182/#2187). PersonalDesigner dimensions were stored twice, as entities and in blocks (LibreCAD#701).
@@ -280,8 +198,8 @@ of a refusal or a repair.
 ## 9. Curves, polylines, splines, OCS
 
 - **SPLINE geometry is exactly the curve of its control points, weights and knots over `[k_degree, k_count]`, whatever the 70 closed (1) / periodic (2) flags say.** AutoCAD writes closed and periodic splines with a **clamped** knot vector and the last control point equal to the first (LibreCAD#2910). LibreCAD wrote "closed" splines as open control polygons with only the flag set, and the Autodesk viewer drew them **open** (LibreCAD#1598, VERIFIED-BY-ACAD). A file flagged closed whose control points form an open curve drew as the curve the data describes in the Autodesk viewer (LibreCAD#1712, VERIFIED-BY-ACAD).
-- SPLINE weights (41) are optional, default 1 (netDxf#441). A fit-point-only spline (`70 0, 71 3, 72 0, 73 0, 74 n` + 11 groups, as ezdxf writes) is valid; AutoCAD computes the curve (libredwg#1374; ACadSharp#1190). Flag 70 has no "fit vs control" bit (libredwg#1374).
-- ELLIPSE: `40` ≤ 1 (AutoCAD refuses > 1, §1.7). `41/42` parameters are radians; the full ellipse is 0..2π. A float end parameter `6.2831855` (> 2π) made LibreCAD draw a tiny arc (LibreCAD#831). Normalise spans ≥ 2π to a full ellipse (ASSUMPTION about AutoCAD). netDxf's MajorAxis/MinorAxis are full diameters, not semi-axes (netDxf#455).
+- SPLINE weights (41) are optional, default 1 (netDxf#441). A fit-point-only spline (`70 0, 71 3, 72 0, 73 0, 74 n` + 11 groups, as ezdxf writes) is valid; AutoCAD computes the curve (libredwg#1374; ACadSharp#1190). Flag 70 has no "fit vs control" bit (libredwg#1374). A SPLINE without knots (`No knots provided`, ACadSharp#1093) or with neither control points nor fit points (ACadSharp#1190) is refused (VERIFIED-BY-ACAD). Zero-vector start/end tangents were reported as refused (libredwg#275 via ezdxf#252), but AutoCAD 2027 opens such splines and ignores the tangents (VERIFIED-BY-ACAD, `splines/fit-zero-tangents`, Q-0174).
+- ELLIPSE: `40` ≤ 1 (AutoCAD refuses > 1 with `Invalid data for ellipse definition`, netDxf#277, VERIFIED-BY-ACAD). `41/42` parameters are radians; the full ellipse is 0..2π. A float end parameter `6.2831855` (> 2π) made LibreCAD draw a tiny arc (LibreCAD#831). Normalise spans ≥ 2π to a full ellipse (ASSUMPTION about AutoCAD). netDxf's MajorAxis/MinorAxis are full diameters, not semi-axes (netDxf#455).
 - ARC/CIRCLE: angles and centre are in **OCS**. Extrusion `(0,0,-1)` is common (Fusion 360, Onshape, mirrored geometry). In WCS the arc looks mirrored and start/end swap orientation (LibreCAD PR#430, #1237; netDxf#292; ACadSharp#846, #858). Transform with the arbitrary axis algorithm; non-Z extrusion turns circles into ellipses in plan view (LibreCAD#1237). Radius 0 circles and arcs exist in real files (ACadSharp#873).
 - LWPOLYLINE: the bulge belongs to the **start vertex** of the segment (netDxf#437). 70 bit 128 = linetype generation; 43 = constant width. LibreDWG lost both, and LibreCAD lost polyline width on re-save (libredwg#40, LibreCAD#747).
 - POLYLINE (old style): R12 VERTEX has no subclass. 10/20/30 on the POLYLINE header are the elevation "dummy point" (ACadSharp#845). 70 bit 16 = polygon mesh, bit 64 = polyface. netDxf treated meshes as 2D polylines (netDxf#359). A polyline with one vertex hung TrueView after netDxf wrote it (netDxf#369, REPORTED).
@@ -326,10 +244,12 @@ of a refusal or a repair.
 
 - XDATA: each `1001` starts a new application group, and one object may hold several. LibreDWG merged them, which destroyed `AcadAnnotative` data that follows `ACAD` (libredwg#1422). Every `1001` name must exist in the APPID table; ACadSharp refuses to write otherwise (ACadSharp#534). The `ACAD` APPID is not always at handle 12 (ezdxf puts it at 2A). Otherwise ODA audits the data into `$TD_AUDIT_GENERATED_(12)` and loses DSTYLE overrides (libredwg#1423).
 - The XDATA limit is 16383 bytes per object; XDLIST reports "16383 bytes of Xdata space available" (netDxf#458). A 1071 outside XDATA is ignored by netDxf.
-- `1005` handles must be remapped on save, e.g. MTEXT column links (LibreCAD#2927). R12 XDATA repeats Y and Z after a point's Z (`ACAD_MATERIAL_MAPPER`, `ASC_SEEDPOINT`) (LibreCAD#2855).
+- `1005` XDATA handles link objects, e.g. MTEXT column links (LibreCAD#2927). R12 XDATA repeats Y and Z after a point's Z (`ACAD_MATERIAL_MAPPER`, `ASC_SEEDPOINT`) (LibreCAD#2855).
 - XRECORD data may contain 102 values such as `{ATTRRECORD … ATTRRECORD}` (LibreCAD#2855).
 - Proxy graphics (310 chunks, proxy entity "graphic" data) share one format: size, count, then records with type ids 2 circle, 6 polyline, 29 transform, 38 text, 31 empty (see ODA spec p. 270) (ACadSharp#727). Needed to render ACM BOM, AEC, Tangent and other vertical-app objects. MESH written without its class appears as `ACAD_PROXY_ENTITY` (ACadSharp#1038).
 - Images: the file path in IMAGEDEF is resolved relative to the drawing. Missing files should not abort loading (netDxf#349, #130; LibreCAD#1589, #1715).
+- IMAGE clip: AutoCAD always writes `280 0, 71 1, 91 2`, `(-0.5,-0.5)` and `(w-0.5, h-0.5)` for an unclipped image. An IMAGE/WIPEOUT with `91 0` is refused (`in IMAGE ... Xdata wasn't read`) (ACadSharp#1219, VERIFIED-BY-ACAD). For WIPEOUT, AutoCAD writes 340/360 as null (ACadSharp#1188).
+- IMAGE bookkeeping: without `ACAD_IMAGE_DICT` in the NOD, TrueView shows no image (ACadSharp#1124). Without IMAGEDEF_REACTORs the image shows as "Not referenced" in the XREF manager (ACadSharp#591, #905, REPORTED). An IMAGE class instance count of 0 while images exist made images sometimes not show in TrueView (ACadSharp#1127, REPORTED).
 - OLE2FRAME: 310 data; one OLE2FRAME without payload discarded ACadSharp's whole document (ACadSharp#1233).
 
 ---
@@ -384,10 +304,10 @@ of a refusal or a repair.
 ## 14. Version differences worth encoding
 
 - AC1009 (R12): no BLOCK_RECORD table in DXF; the header needs `$TEXTSTYLE, $CLAYER, $CELTYPE, $DIMSTYLE`; `$MODEL_SPACE`/`$PAPER_SPACE` blocks and the VPORT table are expected (libredwg#1100, ODA-checked). No subclass markers anywhere; handles optional. ATTRIB/VERTEX/DIMENSION use flat group lists (ACadSharp#845, #1246).
-- R13/R14 (AC1012/AC1014): subclass markers required (libredwg#90). R14 DXF has an empty CLASSES section (libredwg#1068). AutoCAD 2027 refuses ACadSharp's R14 DXF (ACadSharp#1220).
+- R13/R14 (AC1012/AC1014): subclass markers required (libredwg#90). R14 DXF has an empty CLASSES section (libredwg#1068). AutoCAD 2027 refuses ACadSharp's R14 DXF with `Premature end of object on line 2906.` (DIMSTYLE table header), then at `ACDBPLACEHOLDER` ("class separator expected"); the same drawing as AC1015–AC1032 opened with 0 audit errors. AutoCAD 2027 cannot save R14, so there is no reference file (ACadSharp#1220, VERIFIED-BY-ACAD).
 - AC1015: no CLASS 91 (ACadSharp#956).
 - AC1018: 91 allowed. The last codepage-encoded version.
-- AC1021 (R2007): UTF-8; `$INTERFERE*` header variables; MTEXT background/46; MULTILEADER exists from 2008. ACadSharp skips it below R2010 (ACadSharp#1190).
+- AC1021 (R2007): UTF-8; `$INTERFERE*` header variables; MTEXT background/46; MULTILEADER exists from 2008. ACadSharp skips it below R2010: its R2000/R2004 output with MULTILEADER was refused (ACadSharp#1190, VERIFIED-BY-ACAD).
 - AC1024+: `$DIMTXTDIRECTION` (R2010); underlay inverted clip only R2010+ (LibreCAD#2798).
 - AC1032 (R2018): ATTRIB with embedded MTEXT (multiline attributes).
 
@@ -415,7 +335,6 @@ of a refusal or a repair.
 
 ## 16. Open conflicts
 
-- **HATCH 47:** "write only if a path is derived (92 bit 4)" (ACadSharp#1253, VERIFIED) vs "always write 47 on pattern hatches" (ACadSharp#1093). The first matches AutoCAD's DXFOUT.
 - **Sub-entity owner (330 of ATTRIB/VERTEX/SEQEND):** AutoCAD's DXF points at the parent entity (ACadSharp sample file) vs libredwg#1371's claim of the block record.
 - **Table entry count > 32767:** AutoCAD writes the wrapped negative value (ACadSharp#1192, measured), while the maintainer prefers 0. Both open.
 - **AC1014 DXF:** refused by AutoCAD 2027 (ACadSharp#1220, measured) vs "older AutoCAD accepts it" (maintainer).
@@ -430,11 +349,11 @@ Paths are relative to `samples/external/`. "AutoCAD-like" is the manifest's prod
 | Corpus path | Thread | What it exercises |
 |---|---|---|
 | `files/github/DomCR__ACadSharp/issue-956/24717944_WriteDXF_AcadSharp_extracted/WriteDXF_AcadSharp_AC1015.dxf` | ACadSharp#956 | **AutoCAD refuses**: CLASS 91 in AC1015 ("was-a-zombie-flag") |
-| `files/github/DomCR__ACadSharp/issue-956/24717944_WriteDXF_AcadSharp_extracted/WriteDXF_AcadSharp_AC1018.dxf` | ACadSharp#956 | Same drawing as AC1018, which opens: minimal ACadSharp writer output |
+| `files/github/DomCR__ACadSharp/issue-956/24717944_WriteDXF_AcadSharp_extracted/WriteDXF_AcadSharp_AC1018.dxf` | ACadSharp#956 | Same drawing as AC1018, which opens: minimal ACadSharp output |
 | `files/github/DomCR__ACadSharp/issue-1058/27302805_test-dxf_extracted/test-acadsharp.dxf` | ACadSharp#1058 | Opens in AutoCAD, but COPYCLIP fails (POLYLINE 3D) |
 | `files/github/DomCR__ACadSharp/issue-1058/27302805_test-dxf_extracted/test-netdxf.dxf` | ACadSharp#1058 | Same geometry from netDxf; COPYCLIP works (A/B pair) |
 | `files/github/DomCR__ACadSharp/issue-1025/26562374_Hatch_extracted/Hatch.dxf` | ACadSharp#1025 | AutoCAD-like HATCH with a 0..360° arc edge |
-| `files/github/DomCR__ACadSharp/issue-1009/26186059_Bar_extracted/Bar.dxf` | ACadSharp#1009 | AutoCAD polyface mesh (POLYLINE/VERTEX), reference for writer order |
+| `files/github/DomCR__ACadSharp/issue-1009/26186059_Bar_extracted/Bar.dxf` | ACadSharp#1009 | AutoCAD polyface mesh (POLYLINE/VERTEX), reference for vertex/face order |
 | `files/github/DomCR__ACadSharp/issue-916/24094156_asdf.dxf` | ACadSharp#916 | AC1018 polyface mesh, 340 vertices, face indices |
 | `files/github/DomCR__ACadSharp/issue-1124/29367465_acadsharp_image_bug_extracted/acadsharp_image_bug/sample_3.4.9.dxf` | ACadSharp#1124 | IMAGE with ACAD_IMAGE_DICT (shows in TrueView) |
 | `files/github/DomCR__ACadSharp/issue-1124/29367465_acadsharp_image_bug_extracted/acadsharp_image_bug/sample_3.6.29.dxf` | ACadSharp#1124 | Same without ACAD_IMAGE_DICT (image missing in TrueView) |
@@ -516,15 +435,12 @@ Paths are relative to `samples/external/`. "AutoCAD-like" is the manifest's prod
 
 ## 18. Test ideas (small DXF files to pin down against AutoCAD)
 
-Writer acceptance (run each through `accoreconsole /i f.dxf` + AUDIT, then `COPYCLIP`):
-1. Minimal AC1015 / AC1018 / AC1021 / AC1032 files with one LINE. Vary one element at a time: CLASS with and without 91; HATCH with and without 47 (solid / pattern / pattern with derived path); DIMSTYLE table with and without 71/340; the NOD as the second object; no `ACAD_FIELDLIST`; layer 390 → missing object. Record every message.
-2. `$HANDSEED` equal to, less than, and greater than the max handle. Does AutoCAD refuse, repair, or silently re-seed?
+Acceptance and defaults (open each with `accoreconsole /i f.dxf` + AUDIT; record the messages and what is shown):
 3. `$TILEMODE` absent / 0 / 1: which space opens?
-4. Table 70 counts: too low, too high, negative, 0.
 5. ELLIPSE ratio exactly 1.0 and 1.0000001; LEADER with 1 vertex; IMAGE with `91 0`; SPLINE with fit points only; SPLINE with zero tangents.
 6. A string containing a raw `\r` (no `\n`); a string of 251 characters in TEXT group 1 without a group-3 split; a `\U+` split across MTEXT chunks.
-7. Doubles written with 15 vs 17 significant digits: does AutoCAD's DXFOUT round-trip them exactly?
-8. AC1014 DXF written the way AutoCAD R14 wrote it (empty CLASSES): does AutoCAD 2027 open it? Settles CONFLICT §16.
+7. Doubles with 15 vs 17 significant digits and integer-looking reals (`943`): does AutoCAD read them exactly (compare its DXFOUT values)?
+8. AC1014 DXF in the form AutoCAD R14 wrote (empty CLASSES): does AutoCAD 2027 open it? Settles CONFLICT §16.
 9. Sub-entity owner test: ATTRIB 330 → INSERT vs → BLOCK_RECORD. Does AUDIT complain?
 
 Rendering (PLOT to PDF/PNG, compare with truedxf):

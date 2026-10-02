@@ -3,8 +3,8 @@
 Scope: the symbol tables (VPORT, LTYPE, LAYER, STYLE, VIEW, UCS, APPID, DIMSTYLE,
 BLOCK_RECORD) and the non-graphical object graph in the OBJECTS section, i.e. dictionaries,
 styles, variables, draw order, clip filters, image and underlay definitions. The focus is on
-what the renderer needs to match AutoCAD PLOT output, and on what the data model has to
-keep so files survive a round trip.
+what the renderer needs to match AutoCAD PLOT output, and on what the lossless data model has
+to keep.
 
 Other notes cover LAYOUT/PLOTSETTINGS in depth, header variables, linetype rendering, fonts,
 DIMENSION/MLEADER rendering and VIEWPORT entities. This note only points to them.
@@ -134,7 +134,7 @@ tables are loaded (two-pass).
 
 **Common entry flags (70)** (spec 1985 ff.): `16` = xref-dependent, `32` = xref resolved
 (only together with 16), `64` = referenced by at least one entity at the last edit
-(informational; ignore on read, may omit on write). Table-specific bits are listed per table.
+(informational; ignore on read). Table-specific bits are listed per table.
 
 **Xref-dependent entries** are named `XREFNAME|ENTRYNAME` (for example `ARCH|WALLS`) and carry
 flag 16 (+32 if resolved). The xref's own content isn't in the DXF (only the xref BLOCK with
@@ -157,8 +157,7 @@ path group 1), so the renderer can only draw xrefs if we resolve the external fi
 | True color / transparency | none | 420/430/440 & XDATA |
 
 **R13/R14** (AC1012/AC1014) are rare. They're structurally R2000-like but lack some codes
-(e.g. XRECORD has no 280 before R2000: ezdxf `entities/dxfobj.py:90`). Support them for reading,
-but don't write them.
+(e.g. XRECORD has no 280 before R2000: ezdxf `entities/dxfobj.py:90`). Support them for reading.
 
 ### 1.3 The DIMSTYLE 105 quirk
 
@@ -177,7 +176,7 @@ every other record 5 is the handle.
 (typically the owning dictionary, or IMAGEDEF_REACTOR objects). `{ACAD_XDICTIONARY` holds a
 single 360 hard-owner handle to the extension DICTIONARY. Other `{APPNAME` groups are
 application data (e.g. `{BLKREFS` in BLOCK_RECORD, `{ADSK_LYR_COLOR_OVERRIDE` inside
-XRECORDs). Keep them as opaque tagged lists for round-tripping. Only XDICTIONARY and (for
+XRECORDs). Keep them as opaque tagged lists (the model is lossless). Only XDICTIONARY and (for
 images) REACTORS are needed semantically.
 
 ---
@@ -601,7 +600,7 @@ ezdxf bug. AutoCAD writes 3/4 when non-empty. **ASSUMPTION**.
 Spec 2440 ff., ixmilia. `2`, `70`, origin `10/20/30`, X axis `11/21/31`, Y axis `12/22/32`,
 `79` (always 0), `146` elevation, `346` base UCS, repeated pairs `71` ortho type + `13/23/33`
 origin. **Not rendering-relevant.** It only matters for UI and for LAYOUT/VPORT/VIEW UCS
-references. Keep it for round-tripping.
+references. Keep it (the model is lossless).
 
 ### 2.8 APPID
 
@@ -609,8 +608,7 @@ references. Keep it for round-tripping.
 AutoCAD refuses the file (ezdxf `docs/.../tables/appid_table.rst`). `ACAD` must always exist.
 Known ones: `ACAD`, `AcAecLayerStandard`, `AcCmTransparency`, `HATCHBACKGROUNDCOLOR`,
 `AcadAnnotative`, `AcadAnnoPO`, `ACAD_PSEXT`, `ACAD_NAV_VCDISPLAY`, `ACAD_MLEADERVER`,
-`ACAD_DSTYLE_*`, `AcDbBlockRepBTag`, `AcDbDynamicBlockGUID`, … Reader: don't validate. Writer:
-auto-register every APPID used in XDATA.
+`ACAD_DSTYLE_*`, `AcDbBlockRepBTag`, `AcDbDynamicBlockGUID`, … Reader: don't validate.
 
 ### 2.9 BLOCK_RECORD (R2000+)
 
@@ -976,7 +974,7 @@ the structure is "not fully understood"). The clip frame is controlled by `$XCLI
 (§3.6). Rendering belongs to the INSERT/xclip note (ezdxf `xclip.py`, frontend `frontend.py:908`).
 
 SPATIAL_INDEX (`AcDbIndex 40 timestamp`, `AcDbSpatialIndex`) is "always written out empty"
-(spec 9768). Ignore it, but keep it for round-tripping. The same goes for LAYER_INDEX
+(spec 9768). Ignore it, but keep it (the model is lossless). The same goes for LAYER_INDEX
 (`8`/`360`/`90` triples) and IDBUFFER.
 
 ### 3.14 IMAGEDEF / IMAGEDEF_REACTOR / RASTERVARIABLES
@@ -1156,12 +1154,12 @@ overrides 335/343; XDATA 1005.
    even crash, if the text style handle is invalid" for complex linetypes,
    `tools/complex_ltype.py:98`).
 8. **Name vs handle both present** → the handle wins (MLINE, DIMSTYLE R2000+, VIEWPORT frozen
-   layers 341 vs XDATA 1003?). Keep both for round-tripping.
+   layers 341 vs XDATA 1003?). Keep both (the model is lossless).
 9. **Duplicate names** in a table (other than VPORT): **UNKNOWN** what AutoCAD does (most likely it
    renames or discards on RECOVER). Policy: the first entry wins for name lookup, keep all.
 10. **R12 files without handles**: synthesize handles at load time (monotonic from `$HANDSEED` or
    from max(existing)+1) so the internal graph is handle-based. Remember that they were
-   synthetic, so an R12 writer doesn't emit them. Table entries in AutoCAD's R12 output never have
+   synthetic, so they are never mistaken for file data. Table entries in AutoCAD's R12 output never have
    handles, even when entities do (§1.2).
 11. **Handle collisions / bad `$HANDSEED`**: AutoCAD ignores `$HANDSEED` (ezdxf
    `docs/.../handles.rst`). Compute max+1 ourselves.
@@ -1174,7 +1172,7 @@ overrides 335/343; XDATA 1005.
 ## 5. Data model sketch (TypeScript-ish)
 
 ```ts
-type Handle = bigint;               // 0n = null; parse hex, keep original text for round-trip
+type Handle = bigint;               // 0n = null; parse hex, keep the original text
 type RawTags = Array<[code: number, value: string | number | Uint8Array]>;
 
 interface DxfObjectBase {
@@ -1245,7 +1243,7 @@ type DxfObject =
       front?: number; back?: number; invInsert: Mat4x3; clipXform: Mat4x3 }
   | { type: "LAYOUT" | "PLOTSETTINGS"; /* layout note */ }
   | { type: "SCALE"; name: string; paper: number; drawing: number; isUnit: boolean }
-  | { type: string; unknown: true };                       // opaque, round-trip only
+  | { type: string; unknown: true };                       // opaque, kept as raw tags
 
 interface ObjectGraph {
   byHandle: Map<Handle, DxfObjectBase & DxfObject>;
@@ -1264,7 +1262,7 @@ Design points:
 - **Lossless core + lazy typed views.** Keep every record as RawTags plus a decoded view. Only
   decode what the renderer needs. This covers the ~48 object types AutoCAD writes.
 - **Sparse DIMSTYLE** (and probably any "AutoCAD omits default" record, like LAYER 290): store
-  "present" separately from "effective" so the writer can reproduce AutoCAD's sparsity.
+  "present" separately from "effective" so the model shows exactly what the file had.
 - **Handles as bigint** (up to 64-bit, maybe 128), with hex text preserved.
 - **Two-phase load**: parse all sections → build the handle map → resolve names/handles → run
   diagnostics.
@@ -1305,7 +1303,7 @@ page setup, then compared with truedxf:
    color/linetype/lineweight/alpha overrides for viewport A only.
 4. **dimstyle-sparse.dxf**: hand-written DIMSTYLE with *only* `2 X / 70 0` and a DIMENSION using it
    *without* a `*D` block (force regeneration), in a drawing with `$MEASUREMENT 1`. Is the arrow
-   size 0.18 or 2.5? Also round-trip: open in AutoCAD, save, and diff the DIMSTYLE tags.
+   size 0.18 or 2.5? Also open it in AutoCAD, DXFOUT, and diff the DIMSTYLE tags.
 5. **dimstyle-70-twice.dxf**: DIMSTYLE with `70 0 … 69 2 70 1` (DIMTFILL=2, DIMTFILLCLR=red).
    Expect a red text background in the plot.
 6. **ltype-complex.dxf**: GAS_LINE (text, U=), BATTING/ZIGZAG (shapes with `50 180`), plus variants

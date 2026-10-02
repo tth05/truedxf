@@ -1,8 +1,8 @@
 # 01 — DXF container format and cross-cutting infrastructure
 
-Scope: everything below the entity level that a truedxf parser/writer needs. Covers the tagged
+Scope: everything below the entity level that the truedxf parser needs. Covers the tagged
 ASCII format, binary DXF, sections, versions, text encoding, handles/ownership/app-data/XDATA/
-embedded objects, the HEADER section, robust parsing of broken files, and round-tripping.
+embedded objects, the HEADER section, robust parsing of broken files, and lossless reading.
 Entity-specific semantics (TEXT, MTEXT, HATCH, …), tables and layouts belong in other notes;
 they are only mentioned where they affect the container.
 
@@ -259,7 +259,7 @@ point assembler must support "x, y, then the next tag is not z".
 | `1e999` → inf, `int(inf)` → OverflowError | ezdxf#1403/#1406 | treat as a structure error, or clamp in lenient mode |
 | `1.95059E+06` in 1071 | spec example (spec:L11380ff) | float → int fallback |
 | Decimal comma (`"1,5"`) | Locale bugs in .NET writers (netDxf#63 concerns .pat parsing) | **UNKNOWN** whether AutoCAD accepts it (probably not). Lenient mode: if the float parse fails and the value matches `^-?\d+,\d+$`, replace the comma |
-| 15-significant-digit output (not round-trip safe) | acs#1179 (ACadSharp writer) | Writer: use the shortest round-trip repr (JS `String(x)` is fine) |
+| 15-significant-digit output (precision loss) | acs#1179 (ACadSharp writer) | nothing to repair on read; such files carry only 15 significant digits |
 | Bool as `"0"`/`"1"` padded | AutoCAD | ixmilia parses bools as double then `!= 0` (ixm:DxfTextReader.cs), dxf-parser throws on anything but `'0'`/`'1'` (dxf-parser:src/DxfArrayScanner.ts `parseBoolean`) → use lenient `!= 0` |
 
 JS pitfall: `Number("")` is `0` and `Number(" ")` is `0`. Don't use `Number()` for validation.
@@ -309,7 +309,7 @@ Use `parseFloat` plus a regex check, or a hand-written scanner.
   - Is caret decoding a *file-level* string rule (every string code) or a *text-level* rule?
     Per the spec it is file-level (SAVEAS/OPEN do it for all strings). ezdxf only applies it at
     text rendering (`plain_text`, `MTextParser`), and ixmilia applies it to all strings at read
-    time. **Design:** decode at render time for text content (so round-trip keeps the raw
+    time. **Design:** decode at render time for text content (so the model keeps the raw
     string), but offer a decoded accessor. Stacked fractions in MTEXT are written `\S1^ 2;`
     (the space after `^` belongs to the encoding, dxf-viewer:src/MTextFormatParser.js:146ff).
     libredwg-produced files contain a bare `\S5^6;` (ezdxf#889). **UNKNOWN** how AutoCAD reads a
@@ -397,7 +397,7 @@ THUMBNAILIMAGE (optional, R13+), ACDSDATA (R2013+), then `0 EOF`
 - R12 AutoCAD output: `HEADER TABLES BLOCKS ENTITIES` (acs-samples:sample_AC1009_ascii.dxf:
   4 SECTION tags).
 - The order of THUMBNAILIMAGE vs ACDSDATA is **UNKNOWN** (no sample with both).
-- Spec rules for writers (R12-era, spec:L10760ff): "The entire HEADER section can be omitted",
+- Spec structure rules (R12-era, spec:L10760ff): "The entire HEADER section can be omitted",
   tables can be omitted, "If you define any linetypes in the LTYPE table, this table must appear
   before the LAYER table", "If present, the BLOCKS section must appear before the ENTITIES
   section", "Within the ENTITIES section, you can reference layer names even though you haven't
@@ -675,9 +675,9 @@ so `ANSI_1252`, `ansi_1252`, `ANSI1252` all work. Unknown → cp1252.
   - ixmilia decodes at read time only when no encoding is given (ixm:DxfTextReader.cs).
   - dxf-viewer decodes at render time (TextRenderer.js).
   - **truedxf:** decode in the *semantic* layer (names and text content) after joining
-    continuation chunks; keep raw strings for round-trip. Recommended decoded accessors:
+    continuation chunks; keep raw strings (the model is lossless). Recommended decoded accessors:
     `name` (decoded) vs `rawName`.
-- Writing: for <AC1021, characters not representable in the target codepage → `\U+XXXX`
+- Producers: for <AC1021, characters not representable in the codepage are stored as `\U+XXXX`
   (ezdxf's `dxfreplace` codec error handler, ezdxf:__init__.py:79). A literal backslash in
   strings is not escaped. **UNKNOWN:** how AutoCAD distinguishes a literal `\U+0041` typed by a
   user in a TEXT entity.
@@ -691,8 +691,8 @@ so `ANSI_1252`, `ansi_1252`, `ANSI1252` all work. Unknown → cp1252.
 - A fixed-width or chunk boundary can cut a DBCS character in half (LibreCAD pr-2810 for DWG;
   for DXF MTEXT chunks likewise). Therefore decode the **concatenated bytes** of all chunks, not
   each chunk separately. `\M+` escapes are split in practice (ezdxf#1322).
-- WHATWG decoders substitute U+FFFD for invalid sequences. For round-trip, keep the raw bytes when
-  decoding fails (ezdxf's `surrogateescape` approach, ezdxf:recover.py `errors` parameter).
+- WHATWG decoders substitute U+FFFD for invalid sequences. Keep the raw bytes when
+  decoding fails (the model is lossless) (ezdxf's `surrogateescape` approach, ezdxf:recover.py `errors` parameter).
 
 ### 5.5 Mis-encoded files and heuristics
 
@@ -748,7 +748,7 @@ Seen in the wild:
   lrd:header_variables_dxf.spec:291 `VERSIONS (R_10, R_14) HANDLING`). The AutoCAD R12 sample has
   `$HANDLING=1` and `$HANDSEED=2459`. **R13+:** mandatory, `$HANDLING` removed.
 - **`$HANDSEED` (code 5):** "next available handle", should exceed every used handle. "AutoCAD
-  ignores this value" (ezdxf-docs:handles.rst, unverified). A writer must still set it correctly.
+  ignores this value" (ezdxf-docs:handles.rst, unverified).
   On read: compute `max(handles)+1` and use the larger of the two.
 - **Duplicate handles:** broken files (ezdxf discussion-1288: "Entity handles have to unique, these
   are broken DXF files!"). ezdxf warns "Found non-unique entity handle #58, data validation is
@@ -772,8 +772,7 @@ Seen in the wild:
   groups) is the owner (ezdxf `OWNER_CODE = 330`). Other `330`s are reactors (inside
   `{ACAD_REACTORS`) or subclass data (e.g. LAYOUT's 330 = paperspace BLOCK_RECORD, BLOCKs in R13+
   have 330 = BLOCK_RECORD). Don't use "the first 330 anywhere".
-- **R12 files with 330** tags are rejected by AutoCAD (§3.2), so the R12 writer must drop all R13+
-  tags.
+- **R12 files with 330** tags are rejected by AutoCAD (§3.2).
 
 ### 6.2 102 application-defined groups
 
@@ -850,7 +849,7 @@ Seen in the wild:
   R12 mode and loses subclass data; truedxf decides per record by its markers.
 - **Parser design:** decode per subclass with a code → field map *per subclass name*. For codes
   that repeat, use "next unassigned field" semantics, as ezdxf does. Keep unknown tags per
-  subclass for round-trip (§9).
+  subclass (the model is lossless, §9).
 
 ### 6.4 XDATA
 
@@ -865,7 +864,7 @@ Seen in the wild:
 - One group per APPID per entity ("Each APPID name can have no more than one data group attached
   to each entity", spec). ezdxf logs duplicates and keeps the last (ezdxf:entities/xdata.py:70-74).
 - The APPID must exist in the APPID table. AutoCAD fails otherwise (acs#534). Readers must
-  tolerate it; writers must add the APPID.
+  tolerate it.
 - `1002 {`/`}` must balance ("When AutoCAD reads the extended data … it checks to ensure that
   braces are balanced", spec). ezdxf raises `DXFXDataError` on imbalance.
   `1002` values other than `{`/`}` are invalid.
@@ -918,8 +917,7 @@ Seen in the wild:
   - `ACAD_SORTENTS` on BLOCK_RECORDs (draw order).
   - Per-LAYER `ADSK_XREC_LAYER_*` overrides.
   - (**ASSUMPTION** list; details in the entity/block notes.)
-- Reactors are back-links only; a renderer can ignore them. A writer must keep them consistent,
-  or drop them together with the reacting object.
+- Reactors are back-links only; a renderer can ignore them.
 
 ### 6.7 CLASSES section
 
@@ -1094,7 +1092,7 @@ value in acs-samples. **What AutoCAD assumes for a *missing* variable is UNKNOWN
 | `$TRACEWID`/`$PLINEWID` | 40 | all | — | Default widths for new TRACE/PLINE | 0.05 / 0.0 |
 | `$TEXTSIZE` | 40 | all | — | Default text height for new text; a text style with height 0 plus TEXT 40 → the entity's 40 | 0.2 / 2.5 / 0.5 |
 | `$ATTMODE` | 70 | all | **R** | Attribute visibility: 0 none (all hidden), 1 normal (respect ATTRIB invisible flag), 2 all (show even invisible) | 1 |
-| `$PROXYGRAPHICS` | 70 | R13c3/R14 | — | Whether proxy images are saved (writer hint; tells whether proxies have graphics) | 1 |
+| `$PROXYGRAPHICS` | 70 | R13c3/R14 | — | Whether proxy images are saved (save setting; tells whether proxies have graphics) | 1 |
 | `$SORTENTS` | 280 | 2004 | (R) | Bit flags for draw-order sorting: 1 selection, 2 osnap, 4 redraw, 8 MSLIDE, 16 REGEN, **32 plotting**, 64 PostScript (spec). With 32 cleared, plots ignore SORTENTSTABLE? (**UNKNOWN / needs test**) | 127 |
 | `$INDEXCTL` | 280 | 2004 | — | Layer/spatial index saving | 0 |
 | `$EXTNAMES` | 290 | 2000 | — | 1 = 255-char names with spaces and special chars; 0 = R14 rules (31 chars, `A-Z0-9$_-`) | 1 |
@@ -1224,7 +1222,7 @@ Notable absences: `$DRAGVS` (the spec lists it; not written when NULL, lrd `HEAD
 | Layers/linetypes referenced but not defined | acs#1244 | AutoCAD creates missing layers (spec: color 7, CONTINUOUS); ACadSharp fell back to layer 0 → create on the fly |
 | Visio HATCH with many 72=0 | ezdxf#836 ("It's a wonder that Autodesk TrueView opens that file"; BricsCAD RECOVER fixes 246 errors) | entity-level recovery |
 | Unicode escapes in names | ezdxf#782/#932 | recover decodes `\U+`/`\M+` |
-| Raw control bytes inside strings (from decoder over-reads in DWG→DXF converters) | lrd#1314: "a single raw byte < 0x20 desyncs the tag/value pair stream for every reader" (well, except for CR/LF) | the line splitter only splits on CR/LF, so other control chars are harmless; caret-encode on write |
+| Raw control bytes inside strings (from decoder over-reads in DWG→DXF converters) | lrd#1314: "a single raw byte < 0x20 desyncs the tag/value pair stream for every reader" (well, except for CR/LF) | the line splitter only splits on CR/LF, so other control chars are harmless |
 | NUL bytes in strings | LibreCAD pr-2816 (`\U+` escapes with 12 trailing NULs on macOS, DWG ≤R2004 got the NULs) | strip NUL in lenient mode |
 | Non-UTF-8 in R2007+, UTF-8 in R2004- | §5.5 | heuristic |
 | Huge files (2 GB+ decompressed parts in DWG; 83 MB DXF with 1.42M tags) | acs#838, ezdxf pr-1413 | streaming |
@@ -1292,15 +1290,13 @@ ezdxf.recover.
 
 ---
 
-## 9. Round-tripping
+## 9. Lossless reading
 
 - **Unknown entity/object types:**
   - ezdxf stores them as `DXFTagStorage`, i.e. all tags as `ExtendedTags`, and writes them back
     verbatim (ezdxf:entities/dxfentity.py:972-1012). Graphical detection is by the presence of an
     `AcDbEntity` subclass. Copy/transform is not supported ("Copying of tag storage … not
     supported", "cannot transform DXF tag storage").
-  - To copy undocumented entities, hard-pointer targets must be copied and soft pointers mapped,
-    and CLASS entries copied (ezdxf-notes:"Copying Undocumented Entities.md").
 - **Unknown tags in known entities:**
   - ezdxf **drops** them: `load_tags_into_namespace` returns "unprocessed tags", which are logged
     (`log_unprocessed_tags`) and not stored, except that recover moves misplaced graphic
@@ -1311,33 +1307,17 @@ ezdxf.recover.
     IO/DXF/DxfStreamReader/DxfSectionReaderBase.cs:238-265: "Entity not supported read as an
     UnknownEntity"; without a CLASS entry it is skipped entirely). Its reader "notifies" about
     unhandled codes.
-  - **truedxf:** keep each subclass's unknown tags (with their position relative to known tags)
-    and re-emit them in place. This is necessary because tag order matters to AutoCAD (§6.3).
+  - **truedxf:** keep each subclass's unknown tags with their position relative to known tags
+    (the model is lossless; tag order carries meaning, §6.3).
 - **Always preserved by ezdxf:** XDATA (`XData` dict by APPID, entities/xdata.py), app-data groups
   (`ExtendedTags.appdata`), extension dictionaries (`{ACAD_XDICTIONARY`), reactors, embedded
   objects (ExtendedTags.embedded_objects; MTEXT columns/embedded MTEXT are re-exported), CLASSES
   (by `(name, cpp)` key), THUMBNAILIMAGE (**dropped** by ezdxf), ACDSDATA (kept as raw sections,
   ezdxf:sections/acdsdata.py), comments (999 are **skipped** by default; ezdxf#103 asked to keep
   them).
-- **Version conversion constraints for a writer:**
-  - R12 output must drop all R13+ tags: 100, 102 groups, 330 and other pointers, CLASSES,
-    OBJECTS, and 91 in CLASS (R≥2004). Otherwise AutoCAD refuses the file (ixmilia#72, acs#956).
-  - R2000+ output needs a consistent owner/handle graph: BLOCK_RECORD for every BLOCK, a LAYOUT
-    for each paperspace, the root dict first, APPID entries for all XDATA APPIDs (acs#534), and
-    `$HANDSEED` > max handle.
-  - Strings for <AC1021: encode in the codepage, `\U+XXXX` for the rest (ezdxf `dxfreplace`).
-    ≥AC1021: UTF-8 without BOM.
-  - Caret-encode control characters and `^` → `^ ` (spec:L10373). Don't split `^x` or `\U+XXXX`
-    across 250-char MTEXT chunks (ezdxf `split_mtext_string`; lrd#1314).
-  - Floats: round-trip repr (acs#1179).
-  - Binary chunks: ≤127 bytes (254 hex digits) per 310 line.
-  - Line endings: CRLF like AutoCAD (**ASSUMPTION**: LF is accepted too; ezdxf writes `\n` via
-    Python text mode, i.e. LF on Linux and CRLF on Windows, and AutoCAD reads ezdxf files).
-- **What a writer must preserve for "AutoCAD-identical" re-save:** tag order within subclasses,
-  duplicate subclass markers, handles (so SORTENTSTABLE, groups, reactors and dimension
-  associations keep working), XDATA, and extension dictionaries with their XRECORDs (e.g.
-  `ACAD_XREC_ROUNDTRIP` holds data newer than the saved format: AutoCAD round-trips newer-version
-  features through old DXF versions this way; **ASSUMPTION**, see the entity notes).
+- `ACAD_XREC_ROUNDTRIP` XRECORDs hold data newer than the saved format: AutoCAD carries
+  newer-version features through old DXF versions this way (**ASSUMPTION**, see the entity notes),
+  so files saved to an older version can contain them.
 
 ---
 
@@ -1399,7 +1379,7 @@ Small DXF files to pin behaviour down against AutoCAD (open, and PLOT to PNG/PDF
 12. **codepage_names/**: `$DWGCODEPAGE` = `ansi_1251`, `ANSI1251`, `dos866`, `CP1251`, missing →
     Cyrillic text. Check which ones AutoCAD honours.
 13. **binary/**: an AutoCAD-written binary DXF for R12 and R2018 (SAVEAS binary), plus
-    truedxf-written binary R13/R14 variants with 1-byte and 2-byte codes → verify that AutoCAD
+    hand-made binary R13/R14 variants with 1-byte and 2-byte codes → verify that AutoCAD
     reads both (settles the R13 CONFLICT).
 14. **handles/**: an R2000 file with duplicate entity handles, handle `0` on an entity, lowercase
     handles, 16-digit handles, `$HANDSEED` lower than the max handle.
@@ -1413,8 +1393,8 @@ Small DXF files to pin behaviour down against AutoCAD (open, and PLOT to PNG/PDF
     INSERT, EXPLODE, re-export, and compare values (verifies the transform table).
 18. **appdata_position.dxf**: `102 {ACAD_XDICTIONARY` placed after `100 AcDbEntity`, `102 {MYAPP`
     inside AcDbLine, and a `102 MYAPP}` closer.
-19. **xrecord_102.dxf**: XRECORD with `102 {FOO` / `102 }` as payload → check round-trip and that
-    AutoCAD doesn't treat it as app data.
+19. **xrecord_102.dxf**: XRECORD with `102 {FOO` / `102 }` as payload → check (via DXFOUT) that
+    AutoCAD keeps it as payload and doesn't treat it as app data.
 20. **lwpolyline_order.dxf**: LWPOLYLINE with 70=1 and `90` placed after the vertices (ezdxf says
     AutoCAD then doesn't close it). PLOT.
 21. **header_codes.dxf**: AC1032 with `$XCLIPFRAME` as 290 vs 280 and values 0/1/2; an INSERT with

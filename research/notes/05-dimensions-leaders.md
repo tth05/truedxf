@@ -136,8 +136,8 @@ XDATA on the entity (all AutoCAD-written, S1):
   1070 390, 1040 0.0` — radial arc extension line on/off + start/end angles (**ASSUMPTION**;
   ezdxf: "meaning unknown", `dimension.py:1069-1076`).
 - `ACAD_DSTYLE_DIMJAG` (388 = jog height factor), `ACAD_DSTYLE_DIMTALN` (392),
-  `ACAD_DSTYLE_DIMBREAK` (391 = break size) appear on DIMSTYLE records (S1). Preserve them on
-  round-trip — ezdxf#1147 shows AutoCAD re-layouts differently if they are lost.
+  `ACAD_DSTYLE_DIMBREAK` (391 = break size) appear on DIMSTYLE records (S1). Keep them (the model
+  is lossless) — ezdxf#1147 shows AutoCAD lays the dimension out differently without them.
 - Before R2007 dimstyle linetypes / fixed extension line lengths were stored as XDATA groups
   `ACAD_DSTYLE_DIM_LINETYPE` (1070 380 + 1005 handle), `…_EXT1_LINETYPE` (381),
   `…_EXT2_LINETYPE` (382), `ACAD_DSTYLE_DIMEXT_ENABLED` (383), `ACAD_DSTYLE_DIMEXT_LENGTH`
@@ -1336,7 +1336,7 @@ UNKNOWN / needs AutoCAD tests:
    MULTILEADER nested `{}` sections with code reuse, TOLERANCE string splitter
    (`^J`/`%%v`/`{\Fgdt;x}`).
 2. Data model: effective dimstyle = built-in imperial defaults ← DIMSTYLE record ← DSTYLE.
-   Keep unknown XDATA groups (ACAD_DSTYLE_*) for round trips.
+   Keep unknown XDATA groups (ACAD_DSTYLE_*); the model is lossless.
 3. Renderer:
    - DIMENSION with block → INSERT-like rendering in the dimension OCS (elevation from 11),
      BYBLOCK resolution from the DIMENSION, Defpoints not plotted.

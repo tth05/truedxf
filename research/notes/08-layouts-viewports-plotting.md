@@ -101,8 +101,7 @@ search-result snippets; they are marked as such.
   `*Paper_Space`). The spec text "1 for previous release compatibility mode" is historical
   wording. ezdxf default 1.
   **VERIFIED-BY-ACAD** (acadsharp#1188, AutoCAD 2027): when `$TILEMODE` was *missing* from the
-  header, "the file opened in paper space". So the missing value behaves like 0. Our writer must
-  always emit `$TILEMODE`.
+  header, "the file opened in paper space". So the missing value behaves like 0.
 - `CTAB` (current tab name) is a sysvar but not a DXF header variable.
 - In the harness we never rely on the "current" layout. `-PLOT` asks for the layout name
   explicitly (§6.4).
@@ -886,7 +885,7 @@ _Y                                   ; Proceed with plot
 Notes:
 - The non-detailed form is `-PLOT N <layout> <page setup name> <device> <file> N Y` (fdestech
   recipe 1). It uses a *named page setup*: we could ship one in the DXF (PLOTSETTINGS object),
-  but then we depend on our own PLOTSETTINGS writer. Prefer the detailed form.
+  but then every fixture depends on a correct PLOTSETTINGS object. Prefer the detailed form.
 - "Plot paper space first?" appears in the -PLOT help as "Plot paper space first [Yes/No] –
   Layout-only; reverses plotting order". Given "Paper space geometry is usually plotted before
   model space geometry", answering **Yes = default order** (paper first, viewports on top) and
@@ -1066,7 +1065,7 @@ Each test = a small DXF + a script template. The IDs are referenced above.
   area Extents, then compare with `$EXTMIN/$EXTMAX` after DXFOUT.
 - **T-VP-1 Viewport identification.** A layout with the overall viewport + 2 viewports. Save variants
   with 69 = 0/−1/1 and 68 = 0/1/2, and with 90 bit 0x20000 set on one of them. Which ones plot?
-- **T-VP-2 Non-activated layout.** A DXF with 3 layouts written by truedxf (never opened). Plot
+- **T-VP-2 Non-activated layout.** A generated DXF with 3 layouts (never opened in AutoCAD). Plot
   each layout from the console. Also open → DXFOUT without switching tabs, then inspect 68/69
   (reproduces ezdxf#1014).
 - **T-VP-3 Clipping.** A viewport over a model grid of thick lines, text (SHX + TTF), a solid

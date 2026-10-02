@@ -1142,7 +1142,7 @@ not AutoCAD output):**
   The version→code rule is **wrong** in practice: an R2010 file used 160 (ezdxf#978,
   ezdxf-notes "ACAD_PROXY_ENTITY.md") → try 92 then 160 and take the first 310 run right after the
   length tag (acad_proxy_entity.py:69-76, `load_proxy_data`).
-- 310 chunks: ≤127 bytes per chunk when writing (ezdxf `CHUNK_SIZE = 127`); AutoCAD writes up to 256
+- 310 chunks: ezdxf writes ≤127 bytes per chunk (ezdxf `CHUNK_SIZE = 127`); AutoCAD writes up to 256
   hex chars; concatenate.
 
 ### 15.2 Binary format (oda:L14576-14990; ezdxf-notes "Proxy Graphic Binary Chunk.md" (ADN DevBlog);

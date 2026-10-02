@@ -41,7 +41,7 @@ but must never be copied into truedxf. Same for Autodesk material.
 
 | Note | Topic |
 |---|---|
-| [01-file-format](01-file-format.md) | Tagged format, group-code types, binary DXF, sections, versions, encodings, handles/ownership, XDATA, header variables, robust parsing, round-trip |
+| [01-file-format](01-file-format.md) | Tagged format, group-code types, binary DXF, sections, versions, encodings, handles/ownership, XDATA, header variables, robust parsing, lossless reading |
 | [02-tables-objects](02-tables-objects.md) | All tables (LAYER, LTYPE, STYLE, DIMSTYLE incl. sparse-imperial-defaults rule, VPORT, …), OBJECTS dictionaries and object types, reference resolution, model sketch |
 | [03-entities-geometry](03-entities-geometry.md) | Common entity codes, OCS/arbitrary axis, every curve/polyline/solid entity, SPLINE math, wide polylines, tessellation, extents |
 | [04-text-fonts](04-text-fonts.md) | TEXT/ATTRIB/ATTDEF/MTEXT, inline codes, layout (5/3 pitch, cap-height rule), SHX format & bytecode, TTF resolution, library survey (partly measured in AutoCAD 2027) |
@@ -51,4 +51,4 @@ but must never be copied into truedxf. Same for Autodesk material.
 | [08-layouts-viewports-plotting](08-layouts-viewports-plotting.md) | Layouts, PLOTSETTINGS, VIEWPORT, plot pipeline, accoreconsole automation, reference-plot recipe |
 | [11a-quirks-ezdxf-issues](11a-quirks-ezdxf-issues.md) | Findings mined from ezdxf issues/discussions |
 | [11b-quirks-js-viewers-gis](11b-quirks-js-viewers-gis.md) | Findings from JS viewer + GDAL/QGIS/FreeCAD issues, what web-viewer users want |
-| [11c-quirks-csharp-cpp-libs](11c-quirks-csharp-cpp-libs.md) | Findings from ACadSharp/netDxf/libdxfrw/LibreDWG/LibreCAD issues, AutoCAD writer checklist, error-message catalogue |
+| [11c-quirks-csharp-cpp-libs](11c-quirks-csharp-cpp-libs.md) | Findings from ACadSharp/netDxf/libdxfrw/LibreDWG/LibreCAD issues, what AutoCAD refuses, error-message catalogue |

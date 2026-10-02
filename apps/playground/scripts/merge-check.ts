@@ -2,8 +2,8 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import type { DisplayListRenderer } from "@truedxf/three";
-import type { DxfViewer } from "@truedxf/viewer";
-import { chromium } from "playwright";
+import type { Backend, DxfViewer, RenderParams } from "@truedxf/viewer";
+import { chromium, type Page } from "playwright";
 import type * as THREE from "three";
 import { build, preview } from "vite";
 
@@ -25,6 +25,100 @@ const browser = await chromium.launch({
   ignoreDefaultArgs: ["--enable-unsafe-swiftshader"],
 });
 const results: Record<string, unknown>[] = [];
+
+/** Exercise real pointer events and asynchronous worker highlights, including viewport stencils. */
+async function interactionSmoke(page: Page, paper: boolean): Promise<Record<string, unknown>> {
+  const target = await page.evaluate(async (paper) => {
+    const v = (window as unknown as { truedxf: { viewer: DxfViewer } }).truedxf.viewer;
+    if (paper) {
+      const layout = v.layouts.find((l) => !l.isModel && !l.empty);
+      if (!layout) throw new Error("smoke: no paper layout");
+      await v.setLayout(layout.name);
+    }
+    v.setInteraction({ pan: false, zoom: false, hover: true, select: true });
+    v.fit();
+    // Wait for the fitted list's LOD request, if any, before choosing a pointer target.
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    const rect = v.canvas.getBoundingClientRect();
+    const internals = v as unknown as {
+      current: { generation: number; batches?: unknown; pick?: unknown };
+      renderer: { list?: unknown };
+    };
+    if (internals.current.batches || internals.current.pick || internals.renderer.list)
+      throw new Error("smoke: main thread retained list geometry/index");
+    for (const o of v.renderer.scene.children) {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.geometry || !(mesh.material as THREE.Material)?.colorWrite) continue;
+      for (const name of ["position", "color", "uv"])
+        if (mesh.geometry.getAttribute(name)?.array)
+          throw new Error(`smoke: uploaded ${name} array was not released`);
+    }
+    const state = { hover: undefined as string | undefined, select: undefined as string | undefined };
+    (window as unknown as { interactionSmoke: typeof state }).interactionSmoke = state;
+    v.on("hover", (e) => {
+      state.hover = e.handle;
+    });
+    v.on("select", (e) => {
+      state.select = e.handle;
+    });
+    for (let iy = 1; iy < 32; iy++) {
+      for (let ix = 1; ix < 32; ix++) {
+        const x = (rect.width * ix) / 32;
+        const y = (rect.height * iy) / 32;
+        const handle = await v.pickAt(x, y);
+        if (!handle) continue;
+        // The paper-space smoke must exercise clipped model content, not just its frame.
+        if (paper) {
+          const backend = (v as unknown as { backend: Backend }).backend;
+          const geometry = await backend.call({
+            type: "geometry",
+            entity: handle,
+            generation: internals.current.generation,
+          });
+          if (!geometry?.parts.some((p) => (p.clip ?? -1) >= 0)) continue;
+        }
+        return { x: rect.left + x, y: rect.top + y, handle, layout: v.layout };
+      }
+    }
+    throw new Error("smoke: no visible entity found");
+  }, paper);
+  await page.mouse.move(target.x, target.y);
+  await page.waitForFunction((handle) => {
+    const w = window as unknown as { interactionSmoke: { hover?: string }; truedxf: { viewer: DxfViewer } };
+    const g = (w.truedxf.viewer as unknown as { hoverGroup: THREE.Group }).hoverGroup;
+    return (
+      w.interactionSmoke.hover === handle &&
+      g.children.some((o) => {
+        const m = o as THREE.Mesh;
+        return (m.material as THREE.Material)?.colorWrite && m.geometry?.getAttribute("position")?.count > 0;
+      })
+    );
+  }, target.handle);
+  await page.mouse.click(target.x, target.y);
+  await page.waitForFunction((handle) => {
+    const w = window as unknown as { interactionSmoke: { select?: string }; truedxf: { viewer: DxfViewer } };
+    const g = (w.truedxf.viewer as unknown as { selectGroup: THREE.Group }).selectGroup;
+    return (
+      w.interactionSmoke.select === handle &&
+      g.children.some((o) => {
+        const m = o as THREE.Mesh;
+        return (m.material as THREE.Material)?.colorWrite && m.geometry?.getAttribute("position")?.count > 0;
+      })
+    );
+  }, target.handle);
+  const highlight = await page.evaluate(() => {
+    const v = (window as unknown as { truedxf: { viewer: DxfViewer } }).truedxf.viewer;
+    const g = (v as unknown as { selectGroup: THREE.Group }).selectGroup;
+    const geometry = g.children.filter((o) => ((o as THREE.Mesh).material as THREE.Material)?.colorWrite);
+    return {
+      objects: geometry.length,
+      clipped: geometry.some((o) => ((o as THREE.Mesh).material as THREE.Material).stencilWrite),
+    };
+  });
+  if (paper && !highlight.clipped) throw new Error("smoke: viewport highlight lost its stencil test");
+  return { ...target, highlight };
+}
+
 try {
   const probe = await browser.newPage();
   await probe.goto(server.resolvedUrls!.local[0]!);
@@ -187,11 +281,12 @@ try {
               configurable: true,
               set(value: { viewer: DxfViewer }) {
                 Object.defineProperty(window, "truedxf", { value, configurable: true });
-                const r = value.viewer.renderer;
-                const set = r.setDisplayList.bind(r);
-                r.setDisplayList = (list) => {
-                  (window as unknown as { mergeList: DisplayList }).mergeList = list;
-                  set(list);
+                const backend = (value.viewer as unknown as { backend: Backend }).backend;
+                const call = backend.call.bind(backend);
+                backend.call = (request, transfer) => {
+                  if (request.type === "render" && request.params.retain !== false)
+                    (window as unknown as { mergeParams: RenderParams }).mergeParams = request.params;
+                  return call(request, transfer);
                 };
               },
             });
@@ -238,10 +333,13 @@ try {
         captures.push(Buffer.from(pixels, "base64"));
         modes.push({ merge, ...mode });
         if (process.argv.includes("--diagnose") && merge === 1) {
-          const diagnosis = await page.evaluate(() => {
-            const w = window as unknown as { truedxf: { viewer: DxfViewer }; mergeList: DisplayList };
+          const diagnosis = await page.evaluate(async () => {
+            const w = window as unknown as { truedxf: { viewer: DxfViewer }; mergeParams: RenderParams };
             const r = w.truedxf.viewer.renderer;
-            const list = w.mergeList;
+            // Request an auxiliary ordinary list at the same resolution; picking stays on the
+            // interactive generation and this diagnostic never retains arrays in normal use.
+            const params = w.mergeParams;
+            const list = (await w.truedxf.viewer.renderList({ ...params, mergeBatches: false })).list;
             const rebased: Batch[] = [];
             for (let start = 0; start < list.batches.length; ) {
               let end = start;
@@ -310,6 +408,13 @@ try {
           });
           modes[0]!.diagnosis = diagnosis;
           console.log("Coordinate-rebase diagnosis:", diagnosis);
+          if (diagnosis.mergedVsRebased !== 0)
+            throw new Error(`${file}: merging changed ${diagnosis.mergedVsRebased} pixels beyond rebasing`);
+        }
+        if (file.includes("problematic_viewports.dxf") || file.endsWith("/Network.dxf")) {
+          const smoke = await interactionSmoke(page, file.includes("problematic_viewports.dxf"));
+          modes[modes.length - 1]!.interaction = smoke;
+          console.log("Interaction smoke:", smoke);
         }
       } finally {
         await page.close();
@@ -321,6 +426,7 @@ try {
     if (JSON.stringify(modes[0]!.view) !== JSON.stringify(modes[1]!.view))
       throw new Error("fitted views differ");
     for (let i = 0; i < on.length; i += 4) if (on.readUInt32LE(i) !== off.readUInt32LE(i)) different++;
+    if (different > 2) throw new Error(`${file}: ${different} differing pixels exceeds the merge gate`);
     results.push({ file, different, modes });
     console.log(
       `${file.split("/").pop()}: ${different} differing pixels; ${modes[0]!.calls} / ${modes[1]!.calls} calls`,

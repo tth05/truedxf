@@ -202,6 +202,55 @@ Ordered by benefit / risk. Each step is a separate commit with before/after benc
 - Model: drop per-record caches after load where they are not needed, avoid materialising
   default-only objects; target ≤ 500 B per simple entity.
 
+### Completed: worker merging and interaction (2026-10-02)
+
+Steps 1 (worker GPU buffers) and 5 (worker picking / highlight extraction) now use the DOM-free
+`@truedxf/three/merge` subpath, shared with the renderer rather than duplicating the algorithm in
+the viewer. `setMergedDisplayList` uploads that form; `setDisplayList` remains the exact/unmerged
+entry. Individual alpha/image parts contain only GPU data, UVs and image indices. The backend
+retains the original list and Flatbush index; transfer buffers, including clip rings, are independent
+of that state. More than `MAX_DEPTH_ORDERS` ranges falls back to ordinary batches.
+
+`pick` and `geometry` requests carry the displayed generation. Hover keeps one request in flight
+and only the latest pending pointer position; older answers are discarded. Selected/hovered
+highlight geometry uses the same stencil masks as the drawing, and selection geometry is cached
+until the list changes. `pickAt` and `zoomToEntity` are now asynchronous. Measuring still uses world
+cursor coordinates. Auxiliary `renderList` calls preserve interaction state; `LocalBackend` uses
+the same core, with original geometry necessarily residing on the main thread in that mode.
+
+GPU results, 1600×1000, RX 9070 XT (`pnpm perf:viewer --gpu --files-from
+samples/reports/prof/perf-files.txt`). Before = saved `samples/reports/prof/viewer-merged.json`,
+after = `samples/reports/prof/viewer-worker.json`. All values below are **before → after**. Timing
+comparisons are noisy under concurrent CPU work; draw-call counts and vertex counts are unchanged.
+
+| File | Frame median ms | Upload ms | First frame s | Immediate main heap MB | Retained heap + backing MB (after GC) |
+|---|---:|---:|---:|---:|---:|
+| arch-cn-114 | 4.4 → 3.3 | 1712 → 260 | 48.26 → 39.67 | 1545 → 905 | 3.2 + 41.1 |
+| circles-117 | 2.6 → 1.7 | 270 → 35 | 11.14 → 6.71 | 368 → 242 | 2.8 + 21.2 |
+| splines-82 | 1.0 → 0.6 | 85 → 16 | 7.10 → 4.69 | 169 → 141 | 2.7 + 21.2 |
+| proxy-hatch-77 | 2.0 → 3.1 | 146 → 26 | 4.31 → 2.82 | 202 → 159 | 3.0 + 22.1 |
+| mtext-elec-35 | 0.7 → 0.7 | 86 → 20 | 2.41 → 1.48 | 125 → 98 | 2.9 + 24.5 |
+| dims-rumah-34 | 1.6 → 1.3 | 131 → 28 | 4.33 → 2.72 | 141 → 104 | 3.0 + 21.8 |
+| hatch-gdal-31 | 1.2 → 0.9 | 136 → 28 | 3.86 → 2.35 | 141 → 98 | 3.0 + 22.1 |
+| viewports-24 | 0.9 → 0.8 | 51 → 13 | 1.74 → 1.06 | 73 → 65 | 3.0 + 23.7 |
+| r12-network-16 | 1.0 → 0.8 | 22 → 9 | 3.06 → 1.41 | 48 → 45 | 2.8 + 21.2 |
+| attribs-21 | 0.8 → 0.5 | 35 → 8 | 2.29 → 0.99 | 58 → 54 | 2.9 + 23.9 |
+| dense-hatch-21 | 9.8 → 8.4 | 3443 → 411 | 49.11 → 28.61 | 2995 → 1745 | 3.1 + 22.1 |
+
+The saved merged baseline's immediate heaps differ from the older baseline table above.
+`performance.memory` includes uncollected upload buffers and is bucketed by Chromium: it is not a
+measure of live geometry. The perf script keeps that metric for comparison and additionally uses
+CDP to collect garbage and measure main-isolate heap / ArrayBuffer backing storage **after** all
+timed work. The browser smoke checks that no list positions, pick index or uploaded vertex
+attributes remain referenced on the main thread; metadata, cached assets and entity highlights
+remain. Large upload buffers can still contribute to transient peak memory, and selecting a very
+large entity can request substantial highlight geometry.
+
+Validation: fixture/corpus fingerprints match the saved baseline (4057 / 315 records, zero
+differences). The GPU comparison and rebasing diagnostic cover the full bench set; pointer smoke
+checks select clipped model content in `problematic_viewports.dxf`'s paper layout and an entity in
+`Network.dxf`'s model space. No AutoCAD domain behaviour changed.
+
 ### Later / only if needed
 
 - Tessellate block definitions once per (block, inherited properties, pixel size) and reuse

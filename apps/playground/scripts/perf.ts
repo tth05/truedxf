@@ -161,13 +161,31 @@ try {
           };
         })
       : undefined;
-    const r = { file: f, wallMs: Date.now() - t0, ...metric, frame: frames, errors: errors.slice(0, 5) };
+    // performance.memory includes uncollected upload buffers (and is bucketed by Chromium).
+    // Keep that original metric for comparisons, then measure live main-isolate memory after
+    // GC, outside all timed work. Backing storage includes ArrayBuffers, reported separately.
+    let retained: { heapMb: number; backingMb: number } | undefined;
+    if (metric) {
+      const cdp = await page.context().newCDPSession(page);
+      await cdp.send("HeapProfiler.collectGarbage");
+      const heap = await cdp.send("Runtime.getHeapUsage");
+      retained = { heapMb: heap.usedSize / 2 ** 20, backingMb: (heap.backingStorageSize ?? 0) / 2 ** 20 };
+      await cdp.detach();
+    }
+    const r = {
+      file: f,
+      wallMs: Date.now() - t0,
+      ...metric,
+      frame: frames,
+      retained,
+      errors: errors.slice(0, 5),
+    };
     results.push(r);
     const mb = (Number(metric?.bytes ?? 0) / 2 ** 20).toFixed(1);
     console.log(
       `${f.split("/").pop()} ${mb} MB: ` +
         (metric
-          ? `parse ${Math.round(Number(metric.parse))} ms, frontend ${Math.round(Number(metric.frontend))} ms, upload ${Math.round(Number(metric.upload))} ms, first frame ${Math.round(Number(metric.firstFrame))} ms, ${metric.vertices} vertices / ${metric.batches} batches, frame median ${frames?.median.toFixed(1)} ms (max ${frames?.max.toFixed(1)}), ${frames?.calls} draw calls, main heap ${frames?.heapMb?.toFixed(0)} MB`
+          ? `parse ${Math.round(Number(metric.parse))} ms, frontend ${Math.round(Number(metric.frontend))} ms, upload ${Math.round(Number(metric.upload))} ms, first frame ${Math.round(Number(metric.firstFrame))} ms, ${metric.vertices} vertices / ${metric.batches} batches, frame median ${frames?.median.toFixed(1)} ms (max ${frames?.max.toFixed(1)}), ${frames?.calls} draw calls, main heap ${frames?.heapMb?.toFixed(0)} MB; retained ${retained?.heapMb.toFixed(1)} MB heap + ${retained?.backingMb.toFixed(1)} MB backing storage`
           : `FAILED ${errors[0] ?? ""}`),
     );
     await page.close();

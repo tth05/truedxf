@@ -3,7 +3,7 @@
  * raycaster). Every pick range (batch, first vertex, vertex count, entity) becomes an item of a
  * flatbush index over its bounding box; a query tests the candidate primitives exactly.
  *
- * The index is built where the list is built (the worker) and transferred as one ArrayBuffer.
+ * The index and original positions stay where the list is built (the worker).
  */
 import type { ClipRegion, DisplayList } from "@truedxf/render";
 import Flatbush from "flatbush";
@@ -12,7 +12,7 @@ import type { Rect } from "./view.ts";
 /** PrimitiveKind values of @truedxf/render (a type-only import keeps the pipeline out of the main bundle). */
 export const Kind = { Triangles: 0, Lines: 1, Points: 2, Image: 3 } as const;
 
-/** Transferable pick data of one display list. */
+/** Flatbush construction data of one display list, retained by the backend. */
 export interface PickData {
   /** Flatbush buffer (undefined when the list has no pick ranges). */
   index: ArrayBuffer | undefined;
@@ -20,7 +20,7 @@ export interface PickData {
   items: Uint32Array;
 }
 
-/** The parts of a batch picking needs (the viewer keeps only these after GPU upload). */
+/** The parts of a batch picking or requested highlight geometry needs. */
 export interface PickBatch {
   readonly kind: number;
   readonly originX: number;

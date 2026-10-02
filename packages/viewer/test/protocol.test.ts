@@ -1,8 +1,8 @@
 import type { DisplayList } from "@truedxf/render";
 import { describe, expect, it } from "vitest";
-import { PickIndex } from "../src/pick.ts";
+import { LocalBackend } from "../src/backend.ts";
 import { type RenderParams, type RenderResult, responseTransfer, ViewerCore } from "../src/protocol.ts";
-import { SAMPLE } from "./helpers.ts";
+import { dxf, SAMPLE } from "./helpers.ts";
 
 const params = (over: Partial<RenderParams> = {}): RenderParams => ({
   layout: "Model",
@@ -47,9 +47,12 @@ describe("ViewerCore (worker backend logic)", () => {
     expect(r.list.bounds.maxX).toBeCloseTo(300, 0);
     expect(r.list.bounds.maxY).toBeCloseTo(100, 0);
     expect(new Set(r.list.entities)).toEqual(new Set(["A1", "A3"]));
-    const pick = new PickIndex(r.list.batches, r.list.entities, r.pick);
-    expect(pick.pick(50, 0.1, 1)?.handle).toBe("A1");
-    expect(pick.pick(250, 50, 1)?.handle).toBe("A3");
+    expect(await core.handle({ type: "pick", point: [50, 0.1], tolerance: 1 })).toMatchObject({
+      handle: "A1",
+    });
+    expect(await core.handle({ type: "pick", point: [250, 50], tolerance: 1 })).toMatchObject({
+      handle: "A3",
+    });
   });
 
   it("applies layer toggles: hide, and show a layer that is off in the file", async () => {
@@ -75,8 +78,6 @@ describe("ViewerCore (worker backend logic)", () => {
   it("lists every buffer of a render result for transfer", async () => {
     const r = await core.render(params());
     const t = responseTransfer(r);
-    expect(t).toContain(r.pick.index);
-    expect(t).toContain(r.pick.items.buffer);
     for (const b of r.list.batches) expect(t).toContain(b.positions.buffer);
     expect(new Set(t).size).toBe(t.length);
     expect(responseTransfer({ entityCount: 1 })).toEqual([]);
@@ -89,12 +90,125 @@ describe("ViewerCore (worker backend logic)", () => {
     expect(responseTransfer(withImage)).not.toContain(pixels.buffer);
   });
 
-  it("survives a structured clone with transfer (the worker message)", async () => {
-    const r = await core.render(params());
+  it.each([false, true])("retains picking and geometry after transfer (merge=%s)", async (mergeBatches) => {
+    const r = await core.render(params({ mergeBatches }));
+    const firstBuffer = responseTransfer(r)[0]!;
     const copy: RenderResult = structuredClone(r, { transfer: responseTransfer(r) });
-    // the originals are detached
-    expect(r.pick.items.byteLength).toBe(0);
-    const pick = new PickIndex(copy.list.batches, copy.list.entities, copy.pick);
-    expect(pick.pick(50, 0.1, 1)?.handle).toBe("A1");
+    expect(firstBuffer.byteLength).toBe(0);
+    expect(copy.stats.batches).toBeGreaterThan(0);
+    if (mergeBatches) {
+      expect(copy.list.batches).toEqual([]);
+      expect(copy.merged!.groups.length).toBeGreaterThan(0);
+      expect(JSON.stringify(copy.merged)).not.toContain('"pick"');
+    }
+    expect(
+      await core.handle({ type: "pick", point: [50, 0.1], tolerance: 1, generation: r.generation }),
+    ).toMatchObject({ handle: "A1" });
+    const geometry = await core.handle({ type: "geometry", entity: "A1", generation: r.generation });
+    const highlighted = geometry as import("../src/drawing.ts").EntityGeometry;
+    expect(highlighted.parts.length).toBeGreaterThan(0);
+    expect(highlighted.bounds!.minX).toBeCloseTo(0, 0);
+    expect(highlighted.bounds!.maxX).toBeCloseTo(100, 0);
+    const transferred = structuredClone(highlighted, { transfer: responseTransfer(highlighted) });
+    expect(transferred.parts[0]!.positions.byteLength).toBeGreaterThan(0);
+    expect(await core.handle({ type: "geometry", entity: copy.list.entities.indexOf("A1") })).toEqual(
+      transferred,
+    );
+    expect(await core.handle({ type: "pick", point: [50, 0.1], tolerance: 1 })).toMatchObject({
+      handle: "A1",
+    });
+  });
+
+  it("rejects old generations and keeps interactive state during auxiliary plots", async () => {
+    const r = await core.render(params());
+    await core.render(params({ layers: { WALLS: false }, retain: false }));
+    expect(
+      await core.handle({ type: "pick", point: [50, 0.1], tolerance: 1, generation: r.generation }),
+    ).toMatchObject({ handle: "A1" });
+    await core.render(params({ layers: { WALLS: false } }));
+    expect(
+      await core.handle({ type: "pick", point: [50, 0.1], tolerance: 1, generation: r.generation }),
+    ).toBeUndefined();
+    expect(await core.handle({ type: "geometry", entity: "A1", generation: r.generation })).toBeUndefined();
+    core.load(SAMPLE, "new.dxf");
+    expect(await core.handle({ type: "pick", point: [250, 50], tolerance: 1 })).toBeUndefined();
+  });
+
+  it("runs merged upload, pick and geometry through LocalBackend", async () => {
+    const backend = new LocalBackend(none, none);
+    await backend.call({ type: "load", bytes: SAMPLE, name: "sample.dxf" });
+    const r = await backend.call({ type: "render", params: params({ mergeBatches: true }) });
+    expect(r.list.batches).toEqual([]);
+    expect((await backend.call({ type: "pick", point: [50, 0.1], tolerance: 1 }))?.handle).toBe("A1");
+    expect((await backend.call({ type: "geometry", entity: "A1" }))?.parts.length).toBeGreaterThan(0);
+    backend.dispose();
+  });
+
+  it("handles clip-aware pick and geometry requests through ViewerCore after transfer", async () => {
+    const viewportCore = new ViewerCore(none, none);
+    const info = viewportCore.load(
+      dxf(`
+0 SECTION
+2 HEADER
+9 $ACADVER
+1 AC1009
+9 $TILEMODE
+70 0
+0 ENDSEC
+0 SECTION
+2 ENTITIES
+0 LINE
+5 A1
+8 0
+10 -50
+20 0
+11 50
+21 0
+0 VIEWPORT
+5 B1
+8 0
+67 1
+10 100
+20 100
+40 20
+41 20
+68 1
+69 2
+16 0
+26 0
+36 1
+17 0
+27 0
+37 0
+12 0
+22 0
+45 20
+0 ENDSEC
+0 EOF
+`),
+      "viewport.dxf",
+    );
+    const r = await viewportCore.render(
+      params({
+        layout: info.activeLayout,
+        area: { type: "window", min: [80, 80], max: [120, 120] },
+        mergeBatches: true,
+      }),
+    );
+    const uploaded = structuredClone(r, { transfer: responseTransfer(r) });
+    expect(uploaded.list.clips.length).toBeGreaterThan(0);
+    expect(await viewportCore.handle({ type: "pick", point: [100, 100.2], tolerance: 1 })).toMatchObject({
+      handle: "A1",
+    });
+    expect(await viewportCore.handle({ type: "pick", point: [120, 100], tolerance: 1 })).toBeUndefined();
+    const geometry = (await viewportCore.handle({
+      type: "geometry",
+      entity: "A1",
+    })) as import("../src/drawing.ts").EntityGeometry;
+    expect(geometry.parts.length).toBeGreaterThan(0);
+    expect(geometry.parts.every((p) => (p.clip ?? -1) >= 0)).toBe(true);
+    expect(geometry.bounds!.minX).toBeCloseTo(50, 0);
+    expect(geometry.bounds!.maxX).toBeCloseTo(150, 0);
+    expect(uploaded.list.clips[geometry.parts[0]!.clip!]).toBeDefined();
   });
 });

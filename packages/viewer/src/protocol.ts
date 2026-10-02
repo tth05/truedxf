@@ -3,8 +3,8 @@
  * main thread as a fallback) behind these messages. `ViewerCore` is the backend logic itself; it
  * has no DOM or worker dependencies, so tests drive it directly.
  *
- * Display lists and pick indexes travel as transferables (typed-array buffers are moved, not
- * copied; docs/PLAN.md §4.2a).
+ * GPU buffers travel as transferables. Original lists and pick indexes stay in the backend
+ * (docs/perf-plan.md steps 1 and 5).
  */
 import {
   type DxfDocument,
@@ -22,7 +22,9 @@ import {
   renderPlot,
   transferables,
 } from "@truedxf/render";
-import { buildPickData, type PickData } from "./pick.ts";
+import type { MergedDisplayList } from "@truedxf/three/merge";
+import { DrawingState, drawingUpload, type EntityGeometry } from "./drawing.ts";
+import type { PickHit } from "./pick.ts";
 import type { Rect } from "./view.ts";
 import { documentWarnings, renderWarnings, type ViewerWarning } from "./warnings.ts";
 
@@ -79,6 +81,10 @@ export interface DocumentInfo {
 }
 
 export interface RenderParams {
+  /** Build merged GPU buffers in the backend (default false for explicit/exact renders). */
+  mergeBatches?: boolean;
+  /** False for auxiliary plot previews: preserve the displayed list's interaction state. */
+  retain?: boolean;
   layout: string;
   /** Plot area: "extents" for a fit on first display, else the window to tessellate for. */
   area: PlotArea;
@@ -118,7 +124,10 @@ export interface RenderParams {
 
 export interface RenderResult {
   list: DisplayList;
-  pick: PickData;
+  /** Present when merged; list.batches is empty in that case. */
+  merged?: MergedDisplayList;
+  generation: number;
+  stats: { batches: number; vertices: number };
   view: Rect;
   /**
    * Bounds of what is visible: like `list.bounds`, but clipped batches (viewport content) count
@@ -128,7 +137,7 @@ export interface RenderResult {
   unsupported: Record<string, number>;
   /** Why the output is empty / invisible, and render notes (missing fonts, …). */
   warnings: ViewerWarning[];
-  ms: { frontend: number; pick: number };
+  ms: { frontend: number; pick: number; merge: number };
 }
 
 export interface TagInfo {
@@ -178,15 +187,21 @@ export const MAX_TAGS = 5000;
 export type Request =
   | { type: "load"; bytes: Uint8Array; name: string }
   | { type: "render"; params: RenderParams }
+  | { type: "pick"; point: [number, number]; tolerance: number; generation?: number }
+  | { type: "geometry"; entity: string | number; generation?: number }
   | { type: "inspect"; handle: string };
 
 export type ResponseValue<R extends Request> = R extends { type: "load" }
   ? DocumentInfo
   : R extends { type: "render" }
     ? RenderResult
-    : R extends { type: "inspect" }
-      ? EntityInfo | undefined
-      : never;
+    : R extends { type: "pick" }
+      ? PickHit | undefined
+      : R extends { type: "geometry" }
+        ? EntityGeometry | undefined
+        : R extends { type: "inspect" }
+          ? EntityInfo | undefined
+          : never;
 
 /** Main thread → worker. */
 export type ToWorker =
@@ -199,17 +214,24 @@ export type FromWorker =
   | { kind: "response"; id: number; ok: false; error: string }
   | { kind: "asset"; id: number; asset: "font" | "image"; name: string };
 
-/** Buffers to transfer with a response (display list and pick index). */
+/** Buffers to transfer with a response (upload or freshly copied highlight geometry). */
 export function responseTransfer(value: unknown): ArrayBuffer[] {
+  if (value && typeof value === "object" && "parts" in value) {
+    return [...new Set((value as EntityGeometry).parts.map((p) => p.positions.buffer as ArrayBuffer))];
+  }
   const v = value as Partial<RenderResult> | undefined;
-  if (!v?.list || !v.pick) return [];
+  if (!v?.list) return [];
   // Image pixels stay in the renderer's per-document raster cache (draw/image.ts) and are reused
   // by later renders: transferring them would detach the cache ("ArrayBuffer is already
   // detached" on the next render), so they are copied (structured clone) instead.
   const images = new Set<ArrayBufferLike>(v.list.images.map((im) => im.pixels.buffer));
   const out = transferables(v.list).filter((b) => !images.has(b));
-  if (v.pick.index) out.push(v.pick.index);
-  out.push(v.pick.items.buffer as ArrayBuffer);
+  for (const g of v.merged?.groups ?? []) {
+    for (const p of g.parts) {
+      out.push(p.positions.buffer as ArrayBuffer, p.colors.buffer as ArrayBuffer);
+      if (p.uvs) out.push(p.uvs.buffer as ArrayBuffer);
+    }
+  }
   return [...new Set(out)];
 }
 
@@ -218,6 +240,8 @@ export type AssetLoader = (name: string) => Promise<Uint8Array | undefined>;
 // ---- the backend -------------------------------------------------------------------------------
 
 export class ViewerCore {
+  private drawing: DrawingState | undefined;
+  private generation = 0;
   private doc: DxfDocument | undefined;
   private byId: Map<number, Entity> | undefined;
   private byHandle: Map<string, Entity> | undefined;
@@ -247,10 +271,16 @@ export class ViewerCore {
         return this.render(req.params);
       case "inspect":
         return this.inspect(req.handle);
+      case "pick":
+        return this.matches(req.generation) ? this.drawing?.pick(...req.point, req.tolerance) : undefined;
+      case "geometry":
+        return this.matches(req.generation) ? this.drawing?.geometry(req.entity) : undefined;
     }
   }
 
   load(bytes: Uint8Array, name: string): DocumentInfo {
+    this.drawing = undefined;
+    this.generation++;
     const t0 = performance.now();
     const doc = loadDxf(bytes);
     const ms = performance.now() - t0;
@@ -303,11 +333,17 @@ export class ViewerCore {
       },
     );
     const t1 = performance.now();
-    const pick = buildPickData(res.displayList);
+    const drawing = new DrawingState(res.displayList);
     const t2 = performance.now();
+    const upload = drawingUpload(res.displayList, p.mergeBatches ?? false);
+    const t3 = performance.now();
+    if (p.retain !== false) {
+      this.drawing = drawing;
+      this.generation++;
+    }
     return {
-      list: res.displayList,
-      pick,
+      ...upload,
+      generation: this.generation,
       view: { ...res.view },
       bounds: visibleBounds(res.displayList),
       unsupported: res.unsupported,
@@ -319,8 +355,12 @@ export class ViewerCore {
         unsupported: res.unsupported,
         notes: res.notes,
       }),
-      ms: { frontend: t1 - t0, pick: t2 - t1 },
+      ms: { frontend: t1 - t0, pick: t2 - t1, merge: t3 - t2 },
     };
+  }
+
+  private matches(generation: number | undefined): boolean {
+    return generation === undefined || generation === this.generation;
   }
 
   inspect(handle: string): EntityInfo | undefined {

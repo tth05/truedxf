@@ -212,6 +212,11 @@ default, FILLMODE for pattern hatches, extents edge tolerance.
 - [x] Batch fragmentation: viewer merges opaque geometry by kind per clip run with global depth
       order (2026-10-02); 89 903 frontend batches → 23 calls, RX 9070 XT frame 701 → 4.4 ms.
       Original plot path remains the default in `@truedxf/three`; `?merge=0` disables viewer merging.
+- [x] Move merging, picking and highlight extraction into the viewer backend (2026-10-02).
+      DOM-free `@truedxf/three/merge` export; transferred pre-merged buffers are released after
+      upload. Original geometry and Flatbush stay in the worker; asynchronous interaction is
+      generation-guarded, hover requests coalesce, selected geometry is cached. Plot previews and
+      the >4-million-depth-order fallback keep ordinary batches. See docs/perf-plan.md.
 - [ ] WebGPU renderer trial (PLAN Phase 7.1).
 - [x] Public site (2026-10-01): `vite build --mode public` without samples code / sourcemaps,
       landing content + meta / Open Graph / JSON-LD, robots.txt, sitemap.xml, Cloudflare

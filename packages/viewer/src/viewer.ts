@@ -6,12 +6,13 @@
  * - Interactive rendering uses `raster: "smooth"` with antialiasing. Lists are built for a pixel
  *   size; after zooming by more than the LOD factor a new list is requested (debounced) while the
  *   old one stays visible (lod.ts).
- * - After GPU upload only positions (for picking/highlighting) stay on the CPU.
+ * - After GPU upload the main thread retains only metadata and selected/hover highlight geometry.
  */
-import type { Batch, ClipRegion } from "@truedxf/render";
+import type { ClipRegion } from "@truedxf/render";
 import { CLIPPED_STENCIL, DisplayListRenderer } from "@truedxf/three";
 import * as THREE from "three";
 import { type Backend, LocalBackend, WorkerBackend } from "./backend.ts";
+import type { EntityGeometry } from "./drawing.ts";
 import {
   type AssetKind,
   chooseDrawing,
@@ -26,8 +27,9 @@ import {
   initialInteraction,
   resolveInteraction,
 } from "./interaction.ts";
+import { LatestQuery } from "./latest-query.ts";
 import { type LodOptions, needsRetessellation, targetPixelSize } from "./lod.ts";
-import { Kind, type PickBatch, PickIndex } from "./pick.ts";
+import { Kind } from "./pick.ts";
 import type {
   AssetLoader,
   DocumentInfo,
@@ -162,7 +164,7 @@ export interface RenderStats {
   unsupported: Record<string, number>;
   /** Warnings of this render (empty / invisible output, missing fonts, …). */
   warnings: ViewerWarning[];
-  ms: { frontend: number; pick: number; transfer: number; upload: number; total: number };
+  ms: { frontend: number; pick: number; merge: number; transfer: number; upload: number; total: number };
 }
 
 export interface Measurement {
@@ -226,11 +228,9 @@ interface CurrentList {
   key: string;
   pixelSize: number;
   bounds: Rect | undefined;
-  batches: PickBatch[];
-  entities: readonly string[];
+  generation: number;
   /** Clip regions of the list (highlights of viewport content are clipped like it). */
   clips: readonly ClipRegion[];
-  pick: PickIndex;
 }
 
 /**
@@ -287,6 +287,17 @@ export class DxfViewer {
   private view: ViewState | undefined;
   private dpr = 1;
   private current: CurrentList | undefined;
+  private clickRevision = 0;
+  private readonly geometryCache = new Map<string, Promise<EntityGeometry | undefined>>();
+  private readonly highlightRevision = new Map<THREE.Group, number>();
+  private readonly hoverQuery = new LatestQuery(
+    (p: { x: number; y: number; current: CurrentList }) => this.pickAt(p.x, p.y),
+    (handle, p) => {
+      if (this.current === p.current && !this.disposed && this.input.hover && this.pointers.size === 0)
+        this.setHover(handle);
+    },
+    (error) => this.interactionError(error),
+  );
   private inFlight = false;
   private again = false;
   /** Set when the next list must be an extents fit (new document / layout). */
@@ -705,11 +716,11 @@ export class DxfViewer {
    * Zooms to an entity of the current layout (its drawn geometry; margin per side relative to its
    * size, default 0.25). A point only centres the view. False when the entity draws nothing here.
    */
-  zoomToEntity(handle: string, margin = ENTITY_MARGIN): boolean {
+  async zoomToEntity(handle: string, margin = ENTITY_MARGIN): Promise<boolean> {
     const cur = this.current;
     if (!cur || !this.view) return false;
-    const r = cur.pick.bounds(handle);
-    if (!r) return false;
+    const r = (await this.entityGeometry(handle))?.bounds;
+    if (!r || this.current !== cur || this.disposed) return false;
     if (r.maxX === r.minX && r.maxY === r.minY) this.setView({ cx: r.minX, cy: r.minY });
     else this.fitTo(r, margin);
     return true;
@@ -791,17 +802,27 @@ export class DxfViewer {
   }
 
   /** Entity handle at a canvas point (CSS pixels), or undefined. */
-  pickAt(x: number, y: number): string | undefined {
+  async pickAt(x: number, y: number): Promise<string | undefined> {
     if (!this.view || !this.current) return undefined;
     const [wx, wy] = screenToWorld(this.view, x, y);
     const tol = (this.options.pickTolerance ?? 6) * this.view.scale;
-    return this.current.pick.pick(wx, wy, tol)?.handle;
+    const cur = this.current;
+    const hit = await this.backend.call({
+      type: "pick",
+      point: [wx, wy],
+      tolerance: tol,
+      generation: cur.generation,
+    });
+    return this.current === cur && !this.disposed ? hit?.handle : undefined;
   }
 
   /** Selects an entity by handle (undefined clears) and highlights it. */
   select(handle: string | undefined): void {
+    this.clickRevision++;
     this.selected = handle;
+    this.pruneGeometryCache();
     this.highlight(this.selectGroup, handle, this.colors.select, 1);
+    this.highlight(this.hoverGroup, this.hoverShown(), this.colors.hover, 0.85);
     this.emit("select", { handle });
     this.requestFrame();
   }
@@ -816,7 +837,10 @@ export class DxfViewer {
    * `raster: "autocad"` for comparisons) without changing what the viewer shows.
    */
   renderList(params: RenderParams): Promise<RenderResult> {
-    return this.backend.call({ type: "render", params: { assets: this.store.generation, ...params } });
+    return this.backend.call({
+      type: "render",
+      params: { assets: this.store.generation, ...params, retain: false },
+    });
   }
 
   /** Renders a frame now (normally scheduled automatically). */
@@ -838,6 +862,11 @@ export class DxfViewer {
 
   dispose(): void {
     this.disposed = true;
+    this.hoverQuery.cancel();
+    this.current = undefined;
+    this.geometryCache.clear();
+    this.clearHighlight(this.selectGroup);
+    this.clearHighlight(this.hoverGroup);
     cancelAnimationFrame(this.frame);
     clearTimeout(this.lodTimer);
     this.resizeObserver.disconnect();
@@ -887,6 +916,11 @@ export class DxfViewer {
   private async refit(): Promise<void> {
     this.fitPending = this.autoFit !== false || !this.view;
     this.current = undefined;
+    this.hoverQuery.cancel();
+    this.clickRevision++;
+    this.geometryCache.clear();
+    this.clearHighlight(this.selectGroup);
+    this.clearHighlight(this.hoverGroup);
     // the old list belongs to another layout / document
     this.renderer.clear();
     this.drawPaper();
@@ -918,6 +952,7 @@ export class DxfViewer {
       layers: Object.fromEntries(this.layerToggles),
       lineweights: this.lineweights,
       raster: "smooth" as const,
+      mergeBatches: this.options.mergeBatches ?? true,
       dpi: 100 * this.dpr,
       assets: this.store.generation,
       ...(this.options.fallbackFont !== undefined ? { fallbackFont: this.options.fallbackFont } : {}),
@@ -981,19 +1016,20 @@ export class DxfViewer {
   private show(res: RenderResult, key: string, fit: boolean, roundTrip: number): void {
     const list = res.list;
     const t0 = performance.now();
-    this.renderer.setDisplayList(list);
+    if (res.merged) this.renderer.setMergedDisplayList(res.merged);
+    else this.renderer.setDisplayList(list);
     this.applyClearColor();
     // clipped bounds: viewport content outside its viewport does not count (fit, LOD clamp)
     const bounds = res.bounds;
-    const batches = list.batches.map(slimBatch);
+    this.hoverQuery.cancel();
+    this.clickRevision++;
+    this.geometryCache.clear();
     this.current = {
       key,
       pixelSize: list.pixelSize,
       bounds,
-      batches,
-      entities: list.entities,
+      generation: res.generation,
       clips: list.clips,
-      pick: new PickIndex(batches, list.entities, res.pick, list.clips),
     };
     if (fit) {
       this.fitPending = false;
@@ -1014,11 +1050,8 @@ export class DxfViewer {
     this.highlight(this.hoverGroup, this.hoverShown(), this.colors.hover, 0.85);
     this.renderNow();
     const upload = performance.now() - t0;
-    let vertices = 0;
-    for (const b of list.batches) vertices += b.positions.length / 2;
     this.lastRender = {
-      batches: list.batches.length,
-      vertices,
+      ...res.stats,
       entities: list.entities.length,
       pixelSize: list.pixelSize,
       unsupported: res.unsupported,
@@ -1026,7 +1059,8 @@ export class DxfViewer {
       ms: {
         frontend: res.ms.frontend,
         pick: res.ms.pick,
-        transfer: Math.max(0, roundTrip - res.ms.frontend - res.ms.pick),
+        merge: res.ms.merge,
+        transfer: Math.max(0, roundTrip - res.ms.frontend - res.ms.pick - res.ms.merge),
         upload,
         total: roundTrip + upload,
       },
@@ -1141,7 +1175,10 @@ export class DxfViewer {
     this.canvas.style.touchAction = i.pan || i.zoom ? "none" : "auto";
     if (i.keyboard) this.canvas.tabIndex = 0;
     else this.canvas.removeAttribute("tabindex");
-    if (!i.hover) this.setHover(undefined);
+    if (!i.hover) {
+      this.hoverQuery.cancel();
+      this.setHover(undefined);
+    }
     this.updateCursor();
   }
 
@@ -1185,18 +1222,56 @@ export class DxfViewer {
   // ---- highlight ----------------------------------------------------------------------------
 
   private clearHighlight(g: THREE.Group): void {
+    this.highlightRevision.set(g, (this.highlightRevision.get(g) ?? 0) + 1);
     disposeChildren(g);
   }
 
+  private interactionError(error: unknown): void {
+    if (!this.disposed)
+      this.emit("error", { error: error instanceof Error ? error : new Error(String(error)) });
+  }
+
+  private pruneGeometryCache(): void {
+    for (const handle of this.geometryCache.keys())
+      if (handle !== this.selected && handle !== this.hovered) this.geometryCache.delete(handle);
+  }
+
+  private entityGeometry(handle: string): Promise<EntityGeometry | undefined> {
+    const cur = this.current;
+    if (!cur) return Promise.resolve(undefined);
+    let geometry = this.geometryCache.get(handle);
+    if (!geometry) {
+      geometry = this.backend.call({ type: "geometry", entity: handle, generation: cur.generation });
+      if (handle === this.selected || handle === this.hovered) this.geometryCache.set(handle, geometry);
+    }
+    return geometry;
+  }
+
   private highlight(g: THREE.Group, handle: string | undefined, color: THREE.Color, opacity: number): void {
-    disposeChildren(g);
+    this.clearHighlight(g);
     const cur = this.current;
     if (!handle || !cur) return;
+    const revision = this.highlightRevision.get(g);
+    void this.entityGeometry(handle)
+      .then((geometry) => {
+        if (!geometry || this.disposed || this.current !== cur || revision !== this.highlightRevision.get(g))
+          return;
+        this.drawHighlight(g, geometry, cur, color, opacity);
+        this.requestFrame();
+      })
+      .catch((error: unknown) => this.interactionError(error));
+  }
+
+  private drawHighlight(
+    g: THREE.Group,
+    geometry: EntityGeometry,
+    cur: CurrentList,
+    color: THREE.Color,
+    opacity: number,
+  ): void {
     let order = 0;
     let activeClip = -1;
-    for (const r of cur.pick.ranges(handle)) {
-      const b = cur.batches[r.batch];
-      if (!b) continue;
+    for (const b of geometry.parts) {
       // viewport content: clipped by the stencil like the drawing (clip masks before the ranges)
       const clip = b.clip ?? -1;
       const region = clip >= 0 ? cur.clips[clip] : undefined;
@@ -1207,8 +1282,7 @@ export class DxfViewer {
         }
       }
       activeClip = region ? clip : -1;
-      const pos = b.positions.slice(r.first * 2, (r.first + r.count) * 2);
-      const geom = geometry2d(pos);
+      const geom = geometry2d(b.positions);
       const common = {
         color,
         transparent: true,
@@ -1370,12 +1444,14 @@ export class DxfViewer {
         if (this.tool === "measure" && this.view) {
           const [wx, wy] = screenToWorld(this.view, p.x, p.y);
           this.measureClick(wx, wy);
-        } else if (this.input.select) this.select(this.pickAt(p.x, p.y));
+        } else if (this.input.select) void this.clickAt(p.x, p.y);
       }
     };
     c.addEventListener("pointerup", end);
     c.addEventListener("pointercancel", end);
     c.addEventListener("pointerleave", () => {
+      this.lastPointer = undefined;
+      this.hoverQuery.cancel();
       this.cursorWorld = undefined;
       this.emit("cursor", undefined);
       if (this.hovered !== undefined && this.pointers.size === 0) this.setHover(undefined);
@@ -1383,7 +1459,15 @@ export class DxfViewer {
     c.addEventListener("dblclick", (ev) => {
       if (!this.input.dblclickFit || this.tool !== "select") return;
       const p = this.local(ev);
-      if (!this.input.select || this.pickAt(p.x, p.y) === undefined) this.fit();
+      if (!this.input.select) this.fit();
+      else {
+        const cur = this.current;
+        void this.pickAt(p.x, p.y)
+          .then((handle) => {
+            if (this.current === cur && !this.disposed && handle === undefined) this.fit();
+          })
+          .catch((error: unknown) => this.interactionError(error));
+      }
     });
     c.addEventListener("keydown", (ev) => {
       if (this.input.keyboard && ev.key === "Escape") {
@@ -1407,18 +1491,30 @@ export class DxfViewer {
     requestAnimationFrame(() => {
       this.hoverScheduled = false;
       const p = this.lastPointer;
-      if (!p || this.pointers.size > 0 || !this.input.hover) return;
-      this.setHover(this.pickAt(p.x, p.y));
+      if (!p || this.pointers.size > 0 || !this.input.hover || !this.current) return;
+      this.hoverQuery.push({ ...p, current: this.current });
     });
   }
 
   private setHover(handle: string | undefined): void {
     if (handle === this.hovered) return;
     this.hovered = handle;
+    this.pruneGeometryCache();
     this.highlight(this.hoverGroup, this.hoverShown(), this.colors.hover, 0.85);
     this.updateCursor();
     this.emit("hover", { handle });
     this.requestFrame();
+  }
+
+  private async clickAt(x: number, y: number): Promise<void> {
+    const revision = ++this.clickRevision;
+    const cur = this.current;
+    try {
+      const handle = await this.pickAt(x, y);
+      if (revision === this.clickRevision && this.current === cur && !this.disposed) this.select(handle);
+    } catch (error) {
+      this.interactionError(error);
+    }
   }
 }
 
@@ -1436,10 +1532,6 @@ function absoluteUrl(url: string): string | undefined {
   } catch {
     return undefined;
   }
-}
-
-function slimBatch(b: Batch): PickBatch {
-  return { kind: b.kind, originX: b.originX, originY: b.originY, positions: b.positions, clip: b.clip };
 }
 
 function resolveBackground(bg: Background): [number, number, number] {

@@ -36,7 +36,7 @@ new DxfViewer(el, { interaction: false, autoFit: "always" });
 new DxfViewer(el, { interaction: { zoom: "ctrl", select: false }, limits: { minZoom: 0.5, maxZoom: 50 } });
 
 viewer.setInteraction({ pan: false, zoom: false }); // lock the view ("true" / "false" for all)
-viewer.zoomToEntity("2F");                          // from your own list / search
+await viewer.zoomToEntity("2F");                    // from your own list / search
 viewer.setView({ cx: 120, cy: 40, scale: 0.05 });   // world centre, world units per CSS pixel
 const png = await viewer.snapshot();                // Blob of the current view
 ```
@@ -50,7 +50,7 @@ const png = await viewer.snapshot();                // Blob of the current view
 | `initialLayout` | `"model"` | `"model"`, `"active"` (the layout current when the file was saved, `DocumentInfo.activeLayout` from `$TILEMODE`), a layout name (falls back to model space) or `(doc) => name`. The first list is rendered for that layout directly. |
 | `colors` | | `select`, `hover`, `measure` and `surround` (around a layout's paper sheet; the sheet stays white because drawing colours are contrasted against it), CSS colour strings or `0xRRGGBB`. `setColors(colors)`. |
 
-View methods: `fit()`, `fitTo(rect, margin?)`, `zoomToEntity(handle, margin = 0.25)` (false when
+View methods: `fit()`, `fitTo(rect, margin?)`, `await zoomToEntity(handle, margin = 0.25)` (false when
 the entity draws nothing in the current layout; a point only centres), `setView({ cx?, cy?,
 scale? })`, `zoom(factor)`, `viewState`, `zoomLevel` (1 = fitted), `screenToWorld` /
 `worldToScreen`, and the `view` event. `snapshot(type?, quality?)` draws and copies the frame in
@@ -63,7 +63,9 @@ which Vite, webpack and Rollup bundle. Vite's dependency pre-bundling breaks tha
 ## What it does
 
 - **Worker pipeline.** Parsing, the model and display-list generation run in a module worker
-  (`src/worker.ts`); display lists and pick indexes come back as transferred buffers. Without
+  (`src/worker.ts`); merged GPU buffers come back as transferables, while the original list and
+  pick index stay in the worker. `@truedxf/three/merge` is a DOM-free subpath shared by the worker
+  and renderer. Without
   workers (or with `worker: false`) the same `ViewerCore` runs on the main thread, loaded lazily
   so the main bundle holds only three.js and the viewer. `@truedxf/viewer/core` exports
   `ViewerCore` and `serveWorker` for Node and custom workers. The worker's font and image
@@ -85,10 +87,16 @@ which Vite, webpack and Rollup bundle. Vite's dependency pre-bundling breaks tha
   the unit is the top-level entity: a block reference, dimension or leader picks and highlights as
   a whole (block content, ATTRIBs, arrows and text included), everywhere it is drawn (several
   viewports). Viewport content is pickable only inside its viewport, and its highlight is clipped
-  like the drawing. Hover and selection are highlighted in the renderer's overlay.
+  like the drawing. `await viewer.pickAt(x, y)` queries the backend in world units. Hover requests
+  coalesce to one in flight and the latest pending point; obsolete list generations are ignored.
+  Highlight geometry is requested separately and selection geometry is cached until the list
+  changes. Hover and selection are highlighted in the renderer's overlay.
 - **Measure.** `setTool("measure")`: two clicks give distance, Δx, Δy and angle (`measure` event).
 - **Memory.** The renderer runs with `releaseArrays: true`; after GPU upload the viewer keeps only
-  positions (for picking and highlighting).
+  metadata and the selected/hovered entity's highlight geometry. The backend retains original
+  positions for picking; with `worker: false` these stay on the main thread. Explicit `renderList`
+  calls still return ordinary batches and leave interaction state intact. More than four million
+  depth orders also falls back to ordinary batches, whose arrays are released after upload.
 - **Contrast.** Colours within 8 of pure white on a light background, or of pure black on a dark
   one (true colours, ACI 255; e.g. QCAD's layer 0 with 420 = 0xFFFFFF), are drawn like ACI 7.
   A display choice; plots are unaffected.

@@ -1,6 +1,9 @@
 import { DisplayListBuilder } from "@truedxf/render";
+import { MAX_DEPTH_ORDERS } from "@truedxf/three/merge";
 import { describe, expect, it } from "vitest";
+import { DrawingState, drawingUpload } from "../src/drawing.ts";
 import { buildPickData, PickIndex, segDist } from "../src/pick.ts";
+import { responseTransfer } from "../src/protocol.ts";
 
 function sample() {
   const b = new DisplayListBuilder(1);
@@ -24,7 +27,7 @@ function sample() {
 
 describe("pick index", () => {
   const list = sample();
-  // copies, like the transferable form the worker sends
+  // Flatbush construction buffers stay with the original list in the backend.
   const data = buildPickData(list);
   const index = new PickIndex(list.batches, list.entities, {
     index: data.index!.slice(0),
@@ -103,9 +106,54 @@ describe("pick index", () => {
     expect(new PickIndex(empty.batches, empty.entities, d).pick(0, 0, 1)).toBeUndefined();
   });
 
+  it("retains clips and repeated-entity world geometry after transferring GPU and highlight buffers", () => {
+    const b = new DisplayListBuilder(1);
+    const clip = b.addClip({ rings: [Float64Array.of(100, 100, 120, 100, 120, 120, 100, 120)] });
+    b.setClip(clip);
+    b.beginEntity("A");
+    b.polyline([90, 110, 130, 110], [0, 0, 0, 128]);
+    b.endEntity();
+    b.setClip(-1);
+    b.beginEntity("A");
+    b.points([1e9, 1e9], [0, 0, 0, 255]);
+    b.endEntity();
+    const l = b.build();
+    const state = new DrawingState(l);
+    const upload = drawingUpload(l, true);
+    structuredClone(upload, { transfer: responseTransfer(upload) });
+    expect(state.pick(110, 110.5, 1)?.handle).toBe("A");
+    expect(state.pick(125, 110, 1)).toBeUndefined();
+    const geometry = state.geometry(0);
+    expect(geometry.parts.map((p) => p.clip)).toEqual([clip, -1]);
+    const last = geometry.parts[1]!;
+    expect(last.originX + last.positions[0]!).toBe(1e9);
+    expect(last.originY + last.positions[1]!).toBe(1e9);
+    const copy = structuredClone(geometry, { transfer: responseTransfer(geometry) });
+    expect(state.geometry("A")).toEqual(copy);
+    expect(state.pick(110, 110, 1)?.handle).toBe("A");
+  });
+
   it("measures segment distances", () => {
     expect(segDist(5, 3, 0, 0, 10, 0)).toBe(3);
     expect(segDist(-3, 4, 0, 0, 10, 0)).toBe(5);
     expect(segDist(1, 1, 0, 0, 0, 0)).toBeCloseTo(Math.SQRT2);
+  });
+
+  it("sends ordinary batches when a worker-built list exceeds depth capacity", () => {
+    const b = new DisplayListBuilder(1);
+    b.beginEntity("A");
+    b.points([0, 0], [0, 0, 0, 255]);
+    b.endEntity();
+    const l = b.build();
+    // Many orders for the same point keep this capacity test small apart from the range table.
+    l.batches[0]!.pick = Uint32Array.from({ length: (MAX_DEPTH_ORDERS + 1) * 3 }, (_, i) =>
+      i % 3 === 1 ? 1 : 0,
+    );
+    const upload = drawingUpload(l, true);
+    expect(upload.merged).toBeUndefined();
+    expect(upload.list.batches).toHaveLength(1);
+    structuredClone(upload, { transfer: responseTransfer(upload) });
+    expect(l.batches[0]!.positions.byteLength).toBeGreaterThan(0);
+    expect(l.batches[0]!.pick.byteLength).toBeGreaterThan(0);
   });
 });

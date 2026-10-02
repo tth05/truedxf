@@ -190,12 +190,15 @@ default, FILLMODE for pattern hatches, extents edge tolerance.
 - [x] Repair render regressions: retain one current property entry per inheritance/viewport
       context and skip speculative first fits for grossly stale-large header hints
       (2026-10-02). [Results](perf-regress-results.md).
-- [ ] 3: viewer LOD: dense hatch patterns, sub-pixel text and narrow lineweights implemented
-      (2026-10-02); view culling remains open.
+- [x] 3: viewer LOD: dense hatch patterns, sub-pixel text, narrow lineweights and view culling
+      of zoomed lists (2026-10-02). [Results](perf-cull-results.md).
 - [x] Density-preserving text greeking: cached TTF ink area / SHX stroke length, one opaque
       run quad, explicit viewer LOD switch and hardware-AA 4×4 density comparison (2026-10-02).
 - [x] 4: parser (2026-10-02): tokenizer, exact numbers, direct binary reads, compiled fields and lazy TTF parsing; all fingerprint gates identical. [Results](perf-parser-results.md).
-- [ ] 5: memory and transfer (compact display list, picking in the worker, model per-entity size).
+- [x] 5: picking and merging in the worker, model per-entity heap (2026-10-02/03).
+- [ ] Compact display list (line strips / indexed segments, per-range colours): deferred — the
+      merged upload is ≤ 0.11 s and the main thread keeps ~3 MB after upload; worth it only if
+      worker memory or transfer size becomes the limit (arch-cn-114 list ~200 MB).
 - [x] Viewer block tessellation reuse (2026-10-02): bounded per-frontend Float64 primitive
       streams at exact scale/inherited properties, rigid replay with current picks; clips,
       viewports and unsupported transforms fall back. [Results](perf-block-results.md).

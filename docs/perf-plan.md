@@ -90,6 +90,44 @@ Browser, real GPU (`perf:viewer --gpu`, 1600×1000):
 | attribs-21 | 0.4 s | 0.5 s | 0.05 s | 1.0 s | 0.2 M | 1 284 | 11 ms | 43 MB |
 | dense-hatch-21 | 0.5 s | 25.0 s | 1.8 s | 28.5 s | 105 M | 28 563 | 195 ms | 1078 MB |
 
+## Results (2026-10-03, master 79c28e1)
+
+Node, median of 3 (`bench.ts --runs 3 --zoom`), morning baseline → final. "zoom" is an
+unculled 4× window render; in the viewer zoomed lists are culled (perf-cull-results.md).
+
+| File | model | frontend (first render) | zoom (unculled) | vertices |
+|---|---:|---:|---:|---:|
+| arch-cn-114 | 3.09 → 1.46 s | 24.4 → 3.86 s | 12.8 → 4.14 s | 51.2 → 17.1 M |
+| circles-117 | 3.79 → 1.77 s | 2.89 → 1.14 s | 1.95 → 1.49 s | 5.6 → 5.6 M |
+| splines-82 | 1.97 → 0.86 s | 2.39 → 1.02 s | 1.62 → 1.28 s | 2.1 → 2.1 M |
+| proxy-hatch-77 | 860 → 440 ms | 1348 → 305 ms | 709 → 354 ms | 3.5 → 0.8 M |
+| mtext-elec-35 | 320 → 194 ms | 466 → 83 ms | 206 → 83 ms | 2.0 → 0.2 M |
+| dims-rumah-34 | 942 → 451 ms | 1423 → 466 ms | 730 → 481 ms | 2.8 → 0.9 M |
+| hatch-gdal-31 | 648 → 337 ms | 1181 → 330 ms | 611 → 362 ms | 2.5 → 0.6 M |
+| r13-polyline-24 | 707 → 310 ms | 695 → 197 ms | 257 → 192 ms | 0.4 → 0.4 M |
+| viewports-24 | 326 → 203 ms | 709 → 269 ms | 506 → 297 ms | 3.3 → 1.7 M |
+| dense-hatch-21 | 930 → 308 ms | 92.6 → 1.47 s | 47.1 → 1.65 s | 208 → 1.7 M |
+| attribs-21 | 476 → 207 ms | 219 → 64 ms | 126 → 62 ms | 0.9 → 0.2 M |
+| r12-network-16 | 985 → 442 ms | 434 → 225 ms | 329 → 233 ms | 0.13 → 0.13 M |
+| mpolygon-italy-26 | 331 → 154 ms | 1265 → 654 ms | 661 → 656 ms | 1.6 → 1.6 M |
+| 3dface-civil-13 | 332 → 157 ms | 203 → 179 ms | 180 → 113 ms | 1.0 → 0.2 M |
+| binary-gdal-17 | 607 → 308 ms | 1174 → 327 ms | 549 → 358 ms | 2.5 → 0.6 M |
+
+Browser, RX 9070 XT (`perf:viewer --gpu`), morning → final:
+
+| File | first frame | frame median | draw calls | main heap (retained) |
+|---|---:|---:|---:|---:|
+| arch-cn-114 | 37.6 → 6.4 s | 701 → 3.0 ms | 89 903 batches → a few dozen calls | 1373 MB → ~3 MB |
+| circles-117 | 7.5 → 3.6 s | 43 → 2.6 ms | 3 | 368 → ~3 MB |
+| dense-hatch-21 | 28.5 → 1.1 s | 195 → 0.6 ms | 3 | 1078 → ~3 MB |
+| dims-rumah-34 | 2.7 → 1.3 s | 40 → 1.1 ms | 3 | 150 → ~3 MB |
+| zhangmabeng1 (hatch-gdal-31) | 2.5 → 1.2 s | 42 → 0.7 ms | 3 | 150 → ~3 MB |
+
+Zooming arch-cn-114 (culling): 8× 10.6 → 1.5 s, 64× 13.1 → 0.25 s until the new list shows.
+Model heap: circles-117 798 → 304 MB (421 B/entity), arch-cn-114 528 → 292 MB.
+Plot output is bit-identical throughout (fingerprint gate, 4 057 fixtures); viewer-only changes
+are listed with their measured pixel effects in the per-step reports linked from docs/TODO.md.
+
 ## Findings
 
 1. **Frame time is draw calls, not vertices.** ~8 µs per batch on a fast GPU (90 k batches →

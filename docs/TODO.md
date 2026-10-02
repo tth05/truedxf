@@ -70,6 +70,10 @@ Tick items off (or delete them) when done.
       done 2026-10-01, note 04 §3.7.1; open: frame lines 1 px right/below AutoCAD's in raster
       plots, `user/text-frame4`.)
 - [ ] Extents of SHX TEXT/MTEXT: cell box like TrueType (note 03 §6.2) or ink? Unmeasured.
+- [x] MTEXT CJK wrapping: breaks between CJK characters, kinsoku (2026-10-02, note 04 §3.6.2).
+- [ ] A STYLE naming the font *file* `msyh.ttc` (no family XDATA): AutoCAD did not use YaHei
+      (CJK drawn SimSun-like, Latin SHX-like; first run of text-probes/cjk-*), truedxf loads the
+      file. TTC by file name unsupported in AutoCAD? Probe and match.
 - [ ] TEXT: vertical text (STYLE flag 4), SHX underline −0.15·h shift (cause unknown), synthetic
       italic, complex scripts (Arabic/Thai shaping, bidi), missing-glyph TTF fallback font.
 - [ ] MLINE: sharp-mitred / self-overlapping fills, non-90° caps; MESH semi-sharp creases.

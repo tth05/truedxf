@@ -626,7 +626,16 @@ frame width is 41 when set). Verify placement with PLOT.
   on the line when its **ink** right edge is within 41; its advance may overshoot ("…erat, sed
   diam" ends at ink 189.75, advance 190.35, and stays). Testing the advance wrapped one word early.
   CJK: AutoCAD wraps **between characters** of CJK runs (ezdxf#1389 wontfix; dxf-viewer implements CJK
-  break opportunities + kinsoku). Widths < h exist (one CJK char per line). 41 can be absurd
+  break opportunities + kinsoku). Widths < h exist (one CJK char per line).
+  **VERIFIED-BY-ACAD** text-probes/cjk-wrap-w40…w97, cjk-mixed-w44/58/71, cjk-open-w40
+  (Microsoft YaHei h = 5, 2026-10-02): every CJK character (ideographs, kana, CJK punctuation,
+  fullwidth forms) is a break opportunity on both sides, so a CJK / Latin boundary breaks too
+  (`国家` / `ABCDEFGHIJKLMN` / `规范`); Latin runs break only at spaces and overlong ones stay on
+  one line. The same ink fit test applies per character. Kinsoku: closing marks never start a
+  line, the character before moves down with them (`未经允` / `许，不得泄`; `计）。` stays
+  together); CJK opening marks `（《「【` never end a line (moved down); `“` does end a line
+  (`师修正设计）。“`). The rest of the sets in mtext-layout.ts (small kana, `ー`, ASCII closing
+  marks) is the usual rule, ASSUMPTION; Hangul is not probed (treated like Latin). 41 can be absurd
   (2,318,597, ezdxf#1078) — don't use it for bounding boxes.
 - **Tabs**: default stops every 4·h (verified); `\pt…` explicit stops in multiples of h.
 - **Style width factor & oblique apply to MTEXT** as initial `\W`/`\Q` (ezdxf#1351/#1353, VERIFIED

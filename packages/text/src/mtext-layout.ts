@@ -133,6 +133,8 @@ interface GlyphItem {
   readonly adv: number;
   /** Ink relative to the pen, drawing units (unsheared). */
   readonly ink: Bounds | undefined;
+  /** Code point, for CJK line breaking (wrapParagraph). */
+  readonly cp?: number;
 }
 
 interface SpaceItem {
@@ -832,7 +834,7 @@ class Engine {
         if (inStack && m.ink) m = { ...m, ink: { ...m.ink, xMax: Math.max(m.ink.xMax, m.advance) } };
       }
     }
-    return this.glyphItem(ctx, m);
+    return { ...this.glyphItem(ctx, m), cp: ch.cp };
   }
 
   private glyphItem(ctx: MTextContext, m: MeasuredGlyph): GlyphItem {
@@ -1068,13 +1070,15 @@ class Engine {
         k++;
         continue;
       }
-      // a word: consecutive glyph / stack / nbsp items
+      // a word: consecutive glyph / stack / nbsp items, split next to CJK characters
+      // (cjkBreak, VERIFIED-BY-ACAD text-probes/cjk-wrap-*, cjk-mixed-*; note 04 §3.6.2)
       let j = k;
       let wordAdv = 0;
       let wordInk = 0;
       while (j < items.length) {
         const w = items[j]!;
         if ((w.k === "space" && !w.nbsp) || w.k === "tab") break;
+        if (j > k && cjkBreak(items[j - 1]!, w)) break;
         const ink = w.k === "glyph" || w.k === "stack" ? w.ink : undefined;
         wordInk = ink ? wordAdv + ink.xMax : wordInk;
         wordAdv += w.adv;
@@ -1363,4 +1367,48 @@ function lastInkIndex(ln: Line): number {
 export function trackingFactor(t: number): number {
   if (!(t > 0)) return 1;
   return Math.min(4, Math.max(0.75, t));
+}
+
+// Kinsoku: characters that never start a line (closing marks, small kana) or never end one
+// (CJK opening marks). VERIFIED-BY-ACAD for ，。、） (text-probes/cjk-wrap-w40: "未经允" /
+// "许，不得泄", "计）。" kept together) and （《「【 (cjk-open-w40: moved to the next line);
+// “ does end a line (cjk-wrap-w53). The rest of the sets is the usual Chinese / Japanese rule
+// (ASSUMPTION).
+const NO_LINE_START = new Set(
+  [
+    ..."、。，．：；？！）］｝〕〉》」』】〙〗〟’”｠»ヽヾーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖ々〻゠〜・％‰℃,.:;?!)]}%",
+  ].map((c) => c.codePointAt(0)!),
+);
+const NO_LINE_END = new Set([..."（［｛〔〈《「『【〘〖〝｟"].map((c) => c.codePointAt(0)!));
+
+/**
+ * A line may break between two items of a word: next to a CJK character (lines break between
+ * CJK characters and at CJK / Latin boundaries), unless the second one may not start a line or
+ * the first one may not end it.
+ */
+function cjkBreak(a: Item, b: Item): boolean {
+  const ca = a.k === "glyph" ? a.cp : undefined;
+  const cb = b.k === "glyph" ? b.cp : undefined;
+  if (!(ca !== undefined && isCjk(ca)) && !(cb !== undefined && isCjk(cb))) return false;
+  if (cb !== undefined && NO_LINE_START.has(cb)) return false;
+  if (ca !== undefined && NO_LINE_END.has(ca)) return false;
+  return true;
+}
+
+/**
+ * Characters MTEXT breaks lines around: CJK ideographs, kana, bopomofo, CJK symbols and
+ * punctuation, fullwidth / halfwidth forms (note 04 §3.6.2). Hangul is left out: Korean
+ * separates words with spaces (ASSUMPTION, not probed).
+ */
+function isCjk(cp: number): boolean {
+  return (
+    (cp >= 0x2e80 && cp <= 0x2fdf) || // radicals
+    (cp >= 0x3000 && cp <= 0x33ff) || // symbols, punctuation, kana, bopomofo, enclosed, compatibility
+    (cp >= 0x3400 && cp <= 0x4dbf) || // extension A
+    (cp >= 0x4e00 && cp <= 0x9fff) ||
+    (cp >= 0xf900 && cp <= 0xfaff) || // compatibility ideographs
+    (cp >= 0xfe30 && cp <= 0xfe4f) || // compatibility forms
+    (cp >= 0xff00 && cp <= 0xffef) || // fullwidth / halfwidth forms
+    (cp >= 0x20000 && cp <= 0x3134f) // extensions B–G
+  );
 }

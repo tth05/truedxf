@@ -1,14 +1,19 @@
+import { existsSync, readFileSync } from "node:fs";
+import { FontManager, MemoryFontProvider } from "@truedxf/fonts";
 import { describe, expect, it } from "vitest";
 import {
   layoutMText,
   layoutText,
   type MTextInput,
   mtextExtents,
+  TextFonts,
   type TextInput,
   textFrame,
   unionOutlines,
 } from "../src/index.ts";
 import { hasArial, hasLato, hasSimplex, style, testFonts } from "./helpers.ts";
+
+const MSYH = "C:/Windows/Fonts/msyh.ttc";
 
 const Z = { x: 0, y: 0, z: 1 };
 const text = (t: Partial<TextInput>): TextInput => ({
@@ -490,5 +495,40 @@ describe.skipIf(!hasLato || !hasArial)("Missing-glyph boxes (Lato, Arial)", () =
     const x = xs(l);
     expect(x[2]! - x[1]!).toBeCloseTo(5.75, 9);
     expect(x[4]!).toBeCloseTo(x[3]!, 9); // ^\ (FS) does not advance
+  });
+});
+
+// CJK line breaking (VERIFIED-BY-ACAD text-probes/cjk-wrap-w40, cjk-open-w40, cjk-mixed-w44;
+// Microsoft YaHei h = 5, note 04 §3.6.2)
+describe.skipIf(!existsSync(MSYH))("MTEXT wrapping of CJK text (Microsoft YaHei)", () => {
+  const lines = async (t: string, width: number) => {
+    const p = new MemoryFontProvider();
+    p.add("msyh.ttc", new Uint8Array(readFileSync(MSYH)));
+    const fonts = new TextFonts(new FontManager(p), [style("S", "msyh.ttc")]);
+    await fonts.prepare([]);
+    const l = layoutMText(mtext({ text: t, height: 5, width }), fonts);
+    const out: string[] = [];
+    const chars = [...t.replace(/ /g, "")];
+    let i = 0;
+    let y: number | undefined;
+    for (const g of l.glyphs) {
+      if (g.matrix.f !== y) out.push("");
+      y = g.matrix.f;
+      out[out.length - 1] += chars[i++];
+    }
+    return out;
+  };
+  it("breaks between CJK characters; closing marks never start a line", async () => {
+    expect(await lines("为甲方知识产权。未经允许，不得泄露", 40)).toEqual([
+      "为甲方知识产",
+      "权。未经允",
+      "许，不得泄露",
+    ]);
+  });
+  it("moves CJK opening marks that would end a line to the next one", async () => {
+    expect(await lines("一二三四五（六七", 40)).toEqual(["一二三四五", "（六七"]);
+  });
+  it("breaks at CJK / Latin boundaries, Latin words only at spaces", async () => {
+    expect(await lines("格按国家ABCDEFGHIJKLMN规范", 44)).toEqual(["格按国家", "ABCDEFGHIJKLMN", "规范"]);
   });
 });

@@ -93,7 +93,8 @@ export interface DxfViewerOptions {
   antialias?: boolean;
   /** Merge opaque display-list batches to reduce draw calls (default true). */
   mergeBatches?: boolean;
-  lod?: LodOptions;
+  /** Sub-pixel approximations (default true), or zoom re-tessellation settings. */
+  lod?: boolean | LodOptions;
   /** Cull zoomed detail lists (default true); false supports full-list comparisons. */
   viewCulling?: boolean;
   /** Debounce before a new level of detail is requested (ms, default 150). */
@@ -948,9 +949,10 @@ export class DxfViewer {
   private checkLod(): void {
     const cur = this.current;
     if (!this.view || !cur) return;
-    const target = targetPixelSize(this.view.scale, this.dpr, this.fitRectangle(), this.options.lod);
+    const options = typeof this.options.lod === "object" ? this.options.lod : undefined;
+    const target = targetPixelSize(this.view.scale, this.dpr, this.fitRectangle(), options);
     if (
-      needsRetessellation(cur.pixelSize, target, this.options.lod) ||
+      needsRetessellation(cur.pixelSize, target, options) ||
       (cur.covered && needsCoverage(viewRect(this.view), cur.covered))
     )
       this.requestList();
@@ -967,6 +969,7 @@ export class DxfViewer {
       lineweights: this.lineweights,
       raster: "smooth" as const,
       mergeBatches: this.options.mergeBatches ?? true,
+      lod: this.options.lod !== false,
       dpi: 100 * this.dpr,
       assets: this.store.generation,
       ...(this.options.fallbackFont !== undefined ? { fallbackFont: this.options.fallbackFont } : {}),
@@ -984,7 +987,12 @@ export class DxfViewer {
       return { ...base, area: { type: "window", min: [r.minX, r.minY], max: [r.maxX, r.maxY] } };
     }
     // The window sets pixel size; coverage is independent of the LOD resolution clamp.
-    const px = targetPixelSize(this.view.scale, this.dpr, this.fitRectangle(), this.options.lod);
+    const px = targetPixelSize(
+      this.view.scale,
+      this.dpr,
+      this.fitRectangle(),
+      typeof this.options.lod === "object" ? this.options.lod : undefined,
+    );
     const hw = (w * px) / 2;
     const hh = (h * px) / 2;
     return {

@@ -39,6 +39,21 @@ describe("ViewerCore (worker backend logic)", () => {
     expect(info.layers.find((l) => l.name === "0")).toMatchObject({ entities: 1 });
   });
 
+  it("defaults to viewer LOD, forwards its off switch, and ignores it for plots", async () => {
+    const backend = new ViewerCore(none, none);
+    backend.load(
+      dxf(`0 SECTION\n2 ENTITIES\n0 LINE\n5 A\n8 0\n370 30\n10 0\n20 0\n11 10\n21 10\n0 ENDSEC\n0 EOF`),
+      "lod.dxf",
+    );
+    const p = params({ area: { type: "window", min: [0, 0], max: [100, 100] } });
+    const on = await backend.render(p);
+    const off = await backend.render({ ...p, lod: false });
+    expect(on.list.batches[0]!.kind).toBe(1); // 1-pixel hairline
+    expect(off.list.batches[0]!.kind).toBe(0); // widened lineweight
+    const plot = await backend.render({ ...p, raster: "autocad" });
+    expect((await backend.render({ ...p, raster: "autocad", lod: false })).list).toEqual(plot.list);
+  });
+
   it("renders extents despite unset header extents, with a pick index", async () => {
     const r = await core.render(params());
     expect(r.list.batches.length).toBeGreaterThan(0);

@@ -265,6 +265,7 @@ const viewer = new DxfViewer(viewerHost, {
   mergeBatches: new URLSearchParams(location.search).get("merge") !== "0",
   viewCulling: new URLSearchParams(location.search).get("cull") !== "0",
   antialias: new URLSearchParams(location.search).get("aa") !== "0",
+  lod: new URLSearchParams(location.search).get("lod") !== "0",
   loadFont: fontLoader(fontsFolder),
   ...(fallbackFont?.length ? { fallbackFont } : {}),
   loadImage: async (path) => {

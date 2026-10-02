@@ -82,6 +82,8 @@ export interface DocumentInfo {
 }
 
 export interface RenderParams {
+  /** Viewer approximations for sub-pixel geometry (default true; ignored in plot mode). */
+  lod?: boolean;
   /** Build merged GPU buffers in the backend (default false for explicit/exact renders). */
   mergeBatches?: boolean;
   /** Viewer detail coverage, in the list's world (paper for layouts) coordinates. */
@@ -357,7 +359,7 @@ export class ViewerCore {
         loadFont: this.loadFont,
         loadImage: this.loadImage,
         raster: p.raster,
-        lod: true,
+        lod: p.lod ?? true,
         ...(covered
           ? {
               topLevelFilter: (e: Entity) => {

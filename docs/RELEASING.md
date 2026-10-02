@@ -10,7 +10,7 @@ replaces `workspace:*` dependencies with the released version.
 
 ## One-time setup
 
-- Create the `truedxf` organization on npmjs.com (free for public packages) and `npm login`.
+- Create the `truedxf` organization on npmjs.com (free for public packages) and `pnpm login`.
 
 ## Each release
 

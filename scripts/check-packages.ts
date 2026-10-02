@@ -78,17 +78,16 @@ try {
     typescript: "^5.9.0",
   };
   for (const p of packed) deps[p.name] = `file:${p.tgz.replaceAll("\\", "/")}`;
-  // the tarballs depend on each other by version: point those at the local tarballs too
-  const overrides = Object.fromEntries(packed.map((p) => [p.name, `file:${p.tgz.replaceAll("\\", "/")}`]));
   writeFileSync(
     join(app, "package.json"),
-    JSON.stringify(
-      { name: "consumer", private: true, type: "module", dependencies: deps, overrides },
-      null,
-      2,
-    ),
+    JSON.stringify({ name: "consumer", private: true, type: "module", dependencies: deps }, null, 2),
   );
-  sh("npm", ["install", "--no-audit", "--no-fund", "--loglevel=error"], app);
+  // the tarballs depend on each other by version: point those at the local tarballs too
+  writeFileSync(
+    join(app, "pnpm-workspace.yaml"),
+    `overrides:\n${packed.map((p) => `  "${p.name}": "file:${p.tgz.replaceAll("\\", "/")}"`).join("\n")}\n`,
+  );
+  sh("pnpm", ["install", "--reporter=silent"], app);
 
   for (const p of packed.filter((x) => ISOMORPHIC.has(x.pkg))) {
     writeFileSync(
@@ -126,7 +125,7 @@ try {
       }),
     );
     try {
-      sh("npx", ["tsc", "-p", "."], app);
+      sh("pnpm", ["exec", "tsc", "-p", "."], app);
     } catch (e) {
       const out = (e as { stdout?: string }).stdout ?? String(e);
       errors.push(`type check (${moduleResolution}) failed:\n${out.split("\n").slice(0, 20).join("\n")}`);

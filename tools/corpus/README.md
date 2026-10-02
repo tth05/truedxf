@@ -54,7 +54,7 @@ changed. Saving without detail creates no snapshots; stale snapshots are rejecte
 sets `--max-old-space-size=8192`; this is a **per-worker** heap limit, not a total memory budget.
 Reduce jobs on memory-constrained machines. Direct invocations should pass the same heap flag.
 The tool prints progress, per-kind comparisons, record/error counts, and wall-clock seconds.
-Run hashing/snapshot unit checks with `node --test tools/corpus/test/fingerprint.test.ts`.
+The hashing/snapshot unit checks (`tools/corpus/test/fingerprint.test.ts`) run with `pnpm test`.
 
 ## Differential oracle (docs/PLAN.md §5 Phase 2 item 7)
 

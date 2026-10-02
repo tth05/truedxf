@@ -84,7 +84,8 @@ which Vite, webpack and Rollup bundle. Vite's dependency pre-bundling breaks tha
   near the cursor win over filled areas under it, then the topmost area. Like AutoCAD's selection,
   the unit is the top-level entity: a block reference, dimension or leader picks and highlights as
   a whole (block content, ATTRIBs, arrows and text included), everywhere it is drawn (several
-  viewports). Hover and selection are highlighted in the renderer's overlay.
+  viewports). Viewport content is pickable only inside its viewport, and its highlight is clipped
+  like the drawing. Hover and selection are highlighted in the renderer's overlay.
 - **Measure.** `setTool("measure")`: two clicks give distance, Δx, Δy and angle (`measure` event).
 - **Memory.** The renderer runs with `releaseArrays: true`; after GPU upload the viewer keeps only
   positions (for picking and highlighting).

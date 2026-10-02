@@ -75,6 +75,27 @@ describe("pick index", () => {
     expect(ix.bounds("A")).toEqual({ minX: 0, minY: 0, maxX: 110, maxY: 110 });
   });
 
+  it("picks clipped geometry only inside its clip region (viewport content)", () => {
+    const b = new DisplayListBuilder(1);
+    const black = [0, 0, 0, 255] as const;
+    // a viewport 0..10 × 0..10 showing part of a long line and none of a text far away
+    const clip = b.addClip({ rings: [Float64Array.of(0, 0, 10, 0, 10, 10, 0, 10)] });
+    b.setClip(clip);
+    b.beginEntity("LINE");
+    b.polyline([-50, 5, 50, 5], black);
+    b.endEntity();
+    b.beginEntity("TEXT");
+    b.triangles([30, 30, 40, 30, 40, 40], black);
+    b.endEntity();
+    const l = b.build();
+    const ix = new PickIndex(l.batches, l.entities, buildPickData(l), l.clips);
+    expect(ix.pick(5, 5.5, 1)?.handle).toBe("LINE");
+    expect(ix.pick(30, 5.5, 1)).toBeUndefined();
+    expect(ix.pick(35, 34, 1)).toBeUndefined();
+    // without the regions (old callers) everything stays pickable
+    expect(new PickIndex(l.batches, l.entities, buildPickData(l)).pick(35, 34, 1)?.handle).toBe("TEXT");
+  });
+
   it("handles empty lists", () => {
     const empty = new DisplayListBuilder(1).build();
     const d = buildPickData(empty);

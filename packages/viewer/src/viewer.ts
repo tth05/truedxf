@@ -8,8 +8,8 @@
  *   old one stays visible (lod.ts).
  * - After GPU upload only positions (for picking/highlighting) stay on the CPU.
  */
-import type { Batch } from "@truedxf/render";
-import { DisplayListRenderer } from "@truedxf/three";
+import type { Batch, ClipRegion } from "@truedxf/render";
+import { CLIPPED_STENCIL, DisplayListRenderer } from "@truedxf/three";
 import * as THREE from "three";
 import { type Backend, LocalBackend, WorkerBackend } from "./backend.ts";
 import {
@@ -226,6 +226,8 @@ interface CurrentList {
   bounds: Rect | undefined;
   batches: PickBatch[];
   entities: readonly string[];
+  /** Clip regions of the list (highlights of viewport content are clipped like it). */
+  clips: readonly ClipRegion[];
   pick: PickIndex;
 }
 
@@ -368,9 +370,11 @@ export class DxfViewer {
       exactBlend: false,
       releaseArrays: true,
     });
-    // nested groups set their own three.js groupOrder: keep them above / below the drawing
-    for (const g of [this.hoverGroup, this.selectGroup, this.measureGroup])
-      g.renderOrder = Number.MAX_SAFE_INTEGER;
+    // nested groups set their own three.js groupOrder: keep them above / below the drawing, each
+    // its own order so the stencil passes of clipped highlights do not interleave
+    [this.hoverGroup, this.selectGroup, this.measureGroup].forEach((g, i) => {
+      g.renderOrder = Number.MAX_SAFE_INTEGER - 2 + i;
+    });
     this.paperGroup.renderOrder = -1;
     this.renderer.overlay.add(this.hoverGroup, this.selectGroup, this.measureGroup);
     this.renderer.underlay.add(this.paperGroup);
@@ -985,7 +989,8 @@ export class DxfViewer {
       bounds,
       batches,
       entities: list.entities,
-      pick: new PickIndex(batches, list.entities, res.pick),
+      clips: list.clips,
+      pick: new PickIndex(batches, list.entities, res.pick, list.clips),
     };
     if (fit) {
       this.fitPending = false;
@@ -1184,12 +1189,32 @@ export class DxfViewer {
     disposeChildren(g);
     const cur = this.current;
     if (!handle || !cur) return;
+    let order = 0;
+    let activeClip = -1;
     for (const r of cur.pick.ranges(handle)) {
       const b = cur.batches[r.batch];
       if (!b) continue;
+      // viewport content: clipped by the stencil like the drawing (clip masks before the ranges)
+      const clip = b.clip ?? -1;
+      const region = clip >= 0 ? cur.clips[clip] : undefined;
+      if (clip !== activeClip && region) {
+        for (const m of this.renderer.clipMaskObjects(region)) {
+          m.renderOrder = order++;
+          g.add(m);
+        }
+      }
+      activeClip = region ? clip : -1;
       const pos = b.positions.slice(r.first * 2, (r.first + r.count) * 2);
       const geom = geometry2d(pos);
-      const common = { color, transparent: true, opacity, depthTest: false, depthWrite: false };
+      const common = {
+        color,
+        transparent: true,
+        opacity,
+        depthTest: false,
+        depthWrite: false,
+        ...CLIPPED_STENCIL,
+        stencilWrite: region !== undefined,
+      };
       let obj: THREE.Object3D;
       if (b.kind === Kind.Lines) obj = new THREE.LineSegments(geom, new THREE.LineBasicMaterial(common));
       else if (b.kind === Kind.Points)
@@ -1200,6 +1225,7 @@ export class DxfViewer {
       else obj = new THREE.Mesh(geom, new THREE.MeshBasicMaterial({ ...common, side: THREE.DoubleSide }));
       obj.position.set(b.originX, b.originY, 0);
       obj.frustumCulled = false;
+      obj.renderOrder = order++;
       g.add(obj);
     }
   }
@@ -1410,7 +1436,7 @@ function absoluteUrl(url: string): string | undefined {
 }
 
 function slimBatch(b: Batch): PickBatch {
-  return { kind: b.kind, originX: b.originX, originY: b.originY, positions: b.positions };
+  return { kind: b.kind, originX: b.originX, originY: b.originY, positions: b.positions, clip: b.clip };
 }
 
 function resolveBackground(bg: Background): [number, number, number] {

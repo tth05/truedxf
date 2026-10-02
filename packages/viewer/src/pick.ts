@@ -5,7 +5,7 @@
  *
  * The index is built where the list is built (the worker) and transferred as one ArrayBuffer.
  */
-import type { DisplayList } from "@truedxf/render";
+import type { ClipRegion, DisplayList } from "@truedxf/render";
 import Flatbush from "flatbush";
 import type { Rect } from "./view.ts";
 
@@ -26,6 +26,8 @@ export interface PickBatch {
   readonly originX: number;
   readonly originY: number;
   readonly positions: Float32Array;
+  /** Index into the list's clip regions, -1 (or absent) for none. */
+  readonly clip?: number;
 }
 
 export interface PickHit {
@@ -85,13 +87,20 @@ export class PickIndex {
   private readonly entities: readonly string[];
   private readonly items: Uint32Array;
   private readonly index: Flatbush | undefined;
+  private readonly clips: readonly ClipRegion[];
   private byHandle: Map<string, PickRange[]> | undefined;
 
-  constructor(batches: readonly PickBatch[], entities: readonly string[], data: PickData) {
+  constructor(
+    batches: readonly PickBatch[],
+    entities: readonly string[],
+    data: PickData,
+    clips: readonly ClipRegion[] = [],
+  ) {
     this.batches = batches;
     this.entities = entities;
     this.items = data.items;
     this.index = data.index ? Flatbush.from(data.index) : undefined;
+    this.clips = clips;
   }
 
   get size(): number {
@@ -102,6 +111,7 @@ export class PickIndex {
    * The entity at world point (x, y) within `tolerance` world units. Strokes and near misses
    * (distance > 0) win over filled areas containing the point, the nearest first, so lines stay
    * pickable on top of hatches; among areas containing the point the topmost (last drawn) wins.
+   * Clipped geometry is only pickable inside its clip region (viewport content).
    */
   pick(x: number, y: number, tolerance: number): PickHit | undefined {
     if (!this.index) return undefined;
@@ -110,6 +120,8 @@ export class PickIndex {
     for (const id of ids) {
       const bi = this.items[id * 4]!;
       const b = this.batches[bi]!;
+      const clip = b.clip !== undefined && b.clip >= 0 ? this.clips[b.clip] : undefined;
+      if (clip && !insideRings(clip.rings, x, y)) continue;
       const d = rangeDistance(
         b,
         this.items[id * 4 + 1]!,
@@ -226,6 +238,19 @@ export function rangeDistance(
     }
   }
   return best;
+}
+
+/** Point in polygon rings, even-odd (clip regions). */
+export function insideRings(rings: readonly Float64Array[], x: number, y: number): boolean {
+  let inside = false;
+  for (const r of rings) {
+    for (let i = 0, j = r.length - 2; i + 1 < r.length; j = i, i += 2) {
+      const yi = r[i + 1]!;
+      const yj = r[j + 1]!;
+      if (yi > y !== yj > y && x < ((r[j]! - r[i]!) * (y - yi)) / (yj - yi) + r[i]!) inside = !inside;
+    }
+  }
+  return inside;
 }
 
 export function segDist(px: number, py: number, ax: number, ay: number, bx: number, by: number): number {

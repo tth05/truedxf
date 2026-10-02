@@ -8,7 +8,7 @@
  * exactly like AutoCAD's plot, out = (src·a + dst·(256 − a)) >> 8 (note 06 §4.2): the frame so
  * far is copied to a texture before such a batch and the shader computes the integer formula.
  */
-import type { Batch, DisplayList, RasterImage } from "@truedxf/render";
+import type { Batch, ClipRegion, DisplayList, RasterImage } from "@truedxf/render";
 import * as THREE from "three";
 
 // raw sRGB byte values in, the same values out
@@ -53,6 +53,17 @@ export interface View {
   maxX: number;
   maxY: number;
 }
+
+/**
+ * Stencil test of clipped objects: drawn where a clip mask (DisplayListRenderer.clipMaskObjects)
+ * left a non-zero stencil value.
+ */
+export const CLIPPED_STENCIL = {
+  stencilWrite: true,
+  stencilFunc: THREE.NotEqualStencilFunc,
+  stencilRef: 0,
+  stencilZPass: THREE.KeepStencilOp,
+} as const;
 
 interface BatchObject {
   object: THREE.Object3D;
@@ -135,10 +146,8 @@ export class DisplayListRenderer {
       transparent: true,
       depthTest: false,
       depthWrite: false,
+      ...CLIPPED_STENCIL,
       stencilWrite: clipped,
-      stencilFunc: THREE.NotEqualStencilFunc,
-      stencilRef: 0,
-      stencilZPass: THREE.KeepStencilOp,
     } as const;
     let obj: THREE.Object3D;
     if (this.exactBlend && batch.kind !== IMAGE && hasAlpha(batch.colors)) {
@@ -221,7 +230,28 @@ void main() {
     return t;
   }
 
+  /**
+   * The stencil passes that restrict later objects using {@link CLIPPED_STENCIL} to `region`
+   * (a reset, then the region's mask), positioned in world coordinates for `overlay`: give them
+   * increasing renderOrders before the clipped objects (e.g. highlights of viewport content).
+   */
+  clipMaskObjects(region: ClipRegion): THREE.Object3D[] {
+    const out: THREE.Object3D[] = [this.stencilReset()];
+    for (const { mesh, ox, oy } of this.clipMasks(region)) {
+      mesh.position.set(ox, oy, 0);
+      out.push(mesh);
+    }
+    return out;
+  }
+
   private addStencilReset(order: number): void {
+    const mesh = this.stencilReset();
+    mesh.renderOrder = order;
+    this.scene.add(mesh);
+    this.objects.push({ object: mesh, originX: Number.NaN, originY: Number.NaN });
+  }
+
+  private stencilReset(): THREE.Mesh {
     // full-screen quad in clip space that writes 0 into the stencil buffer
     const geom = new THREE.BufferGeometry();
     geom.boundingSphere = UNBOUNDED.clone();
@@ -243,13 +273,21 @@ void main() {
     });
     const mesh = new THREE.Mesh(geom, mat);
     mesh.frustumCulled = false;
-    mesh.renderOrder = order;
-    this.scene.add(mesh);
-    this.objects.push({ object: mesh, originX: Number.NaN, originY: Number.NaN });
+    return mesh;
   }
 
   private addClipMask(clip: number, order: number): number {
-    const region = this.list!.clips[clip]!;
+    for (const { mesh, ox, oy } of this.clipMasks(this.list!.clips[clip]!)) {
+      mesh.renderOrder = order++;
+      this.scene.add(mesh);
+      this.objects.push({ object: mesh, originX: ox, originY: oy });
+    }
+    return order;
+  }
+
+  /** Stencil meshes of a clip region, vertices relative to (ox, oy). */
+  private clipMasks(region: ClipRegion): { mesh: THREE.Mesh; ox: number; oy: number }[] {
+    const out: { mesh: THREE.Mesh; ox: number; oy: number }[] = [];
     for (const ring of region.rings) {
       const n = ring.length >> 1;
       if (n < 3) continue;
@@ -280,11 +318,9 @@ void main() {
       });
       const mesh = new THREE.Mesh(geom, mat);
       mesh.frustumCulled = false;
-      mesh.renderOrder = order++;
-      this.scene.add(mesh);
-      this.objects.push({ object: mesh, originX: ox, originY: oy });
+      out.push({ mesh, ox, oy });
     }
-    return order;
+    return out;
   }
 
   /** Sets the canvas size in CSS pixels (drawing buffer = size × pixel ratio). */

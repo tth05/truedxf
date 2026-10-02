@@ -12,7 +12,7 @@ update it when decisions change.
 
 | Phase | State |
 |---|---|
-| 0 Research | Done: knowledge base (research/notes), corpus of 5 542 files, 736-question backlog (docs/questions.md) |
+| 0 Research | Done: knowledge base (research/notes), corpus of 5 542 files, 735-question backlog (docs/questions.md) |
 | 1 Core | Done: ASCII/binary tokenizer (~140 MB/s), encodings, lossless tag store, writers; whole corpus tokenizes without exceptions |
 | 2 Model | Done: typed parsers for all common entity/object types (182 corpus entities of 14 custom classes remain UNKNOWN), property resolution, DIMSTYLE resolution; 99.77 % attribute agreement with ezdxf over 50.8 M compared attributes, residuals classified |
 | 3 References | Done: AutoCAD 2027 harness (tools/acad), calibration (note 08 §10), generator with 3 734 fixtures in 29 suites (tools/gen) |
@@ -116,7 +116,7 @@ questions are in docs/questions.md):
   complex linetypes, CTB/STB, page-setup semantics, viewport overrides, SHX bigfonts and pixel
   lineweight rules are unsolved everywhere → this is our differentiator and our main workload.
 - **Nobody is lossless.** All libraries drop unknown tags inside known entities → build the typed
-  model as views over a lossless tag store (note 10 §16.2).
+  model as views over a lossless tag store.
 - **The DXF often carries the rendering answer:** HATCH pattern lines are stored final (scaled,
   rotated, origin-shifted) — no `.pat` needed; DIMENSION/ACAD_TABLE geometry is in anonymous
   `*D`/`*T` blocks, which AutoCAD draws *as stored, even if stale*; LTYPE definitions are embedded;
@@ -252,7 +252,7 @@ raycaster; `three` is a peer dependency of `@truedxf/three` only.
 three (peer, renderer only), opentype.js (fonts), earcut (fill triangulation), clipper2 TS port
 (clipping, hatch island repair), flatbush (spatial index), fflate or `DecompressionStream` (CTB),
 dev only: Playwright (headless Chromium for visual tests), fast-png, pixelmatch, ssim.js,
-pdfium wasm + pdf.js (reading AutoCAD PDF plots). Rationale and alternatives: note 10 §16.4.
+pdfium wasm + pdf.js (reading AutoCAD PDF plots).
 
 ---
 

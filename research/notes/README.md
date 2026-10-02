@@ -49,7 +49,6 @@ but must never be copied into truedxf. Same for Autodesk material.
 | [06-hatch-linetype-appearance](06-hatch-linetype-appearance.md) | HATCH (paths, stored pattern lines, gradients), linetypes & fitting, ACI palettes, transparency, lineweights, CTB/STB, property resolution, draw order |
 | [07-blocks-inserts-misc](07-blocks-inserts-misc.md) | Blocks, INSERT transform, inheritance, dynamic blocks, xrefs, XCLIP, IMAGE, WIPEOUT, UNDERLAY, MLINE, ACAD_TABLE, proxy graphics |
 | [08-layouts-viewports-plotting](08-layouts-viewports-plotting.md) | Layouts, PLOTSETTINGS, VIEWPORT, plot pipeline, accoreconsole automation, reference-plot recipe |
-| [10-library-survey](10-library-survey.md) | Architecture of 15 libraries, comparison, adopt/avoid, package architecture, npm deps, determinism |
 | [11a-quirks-ezdxf-issues](11a-quirks-ezdxf-issues.md) | Findings mined from ezdxf issues/discussions |
 | [11b-quirks-js-viewers-gis](11b-quirks-js-viewers-gis.md) | Findings from JS viewer + GDAL/QGIS/FreeCAD issues, what web-viewer users want |
 | [11c-quirks-csharp-cpp-libs](11c-quirks-csharp-cpp-libs.md) | Findings from ACadSharp/netDxf/libdxfrw/LibreDWG/LibreCAD issues, AutoCAD writer checklist, error-message catalogue |

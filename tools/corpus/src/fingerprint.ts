@@ -236,10 +236,10 @@ async function check(
     );
     const replies = await pool(
       details.map((d) => ({
-        task: { target: byId.get(d.id)!, kinds: [d.kind], lod: a.lod, positions: positionPath(base, d.id) },
         task: {
           target: byId.get(d.id)!,
           kinds: [d.kind],
+          lod: a.lod,
           blockReuse: a.blockReuse,
           positions: positionPath(base, d.id),
         },

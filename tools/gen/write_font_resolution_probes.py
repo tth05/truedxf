@@ -1,4 +1,4 @@
-"""Write the font-resolution probes without overwriting any existing sample.
+"""Write font-fidelity probes without overwriting any existing sample.
 
 python tools/gen/write_font_resolution_probes.py --out .venv/fid-fonts/generated
 Defaults to samples/generated. Repeated runs compare existing bytes without writing them.
@@ -20,13 +20,14 @@ def main() -> None:
         raise SystemExit(subprocess.run([sys.executable, __file__, *sys.argv[1:]], env=env).returncode)
 
     from truedxf_gen.core import DEFAULT_OUT, build_suite, json_bytes
-    from truedxf_gen.suites import font_resolution  # noqa: F401 (registers probes)
+    from truedxf_gen import suites  # noqa: F401 (registers probes)
 
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--out", type=Path, default=DEFAULT_OUT)
+    ap.add_argument("--suite", choices=("font-resolution", "font-metrics"), default="font-resolution")
     args = ap.parse_args()
-    output = args.out.resolve() / "font-resolution"
-    sb = build_suite("font-resolution")
+    output = args.out.resolve() / args.suite
+    sb = build_suite(args.suite)
     files = {}
     for c in sb.cases:
         c.validate_meta()
@@ -34,7 +35,7 @@ def main() -> None:
         files[output / f"{c.name}.json"] = json_bytes(c.meta())
 
     # Check a second in-memory build before creating anything. No timestamps or random seeds.
-    again = build_suite("font-resolution")
+    again = build_suite(args.suite)
     for c in again.cases:
         if files[output / f"{c.name}.dxf"] != c.dxf_bytes():
             raise SystemExit(f"Non-deterministic fixture: {c.id}")

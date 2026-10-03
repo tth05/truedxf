@@ -1830,3 +1830,9 @@ translation reduces these counts but the best vertical shift changes with the pl
 clipped wants (1,−1) px, unclipped (1,0). GBCBIG clipped/unclipped wants zero shift (156/191
 pixels differ). Do not hard-code a corpus offset or globally shift glyphs on this evidence.
 Q-0737 remains open for controlled anchor-phase, em-size and large-coordinate probes.
+
+`font-metrics` batches 18 follow-up cases: SimSun heights 299.8/300/300.2 and 12/12.1
+at near/far origins, six independent quarter-pixel x/y anchor phases, and near/far
+simplex/GBCBIG controls. Each contains two native CJK labels and independent anchor crosses,
+requests PNG/PDF/DXFOUT, and disables the generator's half-pixel window shift. The intended
+near/far device coordinates are equal; AutoCAD results are pending. No font bytes are copied.

@@ -1,4 +1,4 @@
-"""Isolate the arch-cn font paths (note 04 §15); conclusions await AutoCAD plots.
+"""Isolate the arch-cn font paths (verified AutoCAD rules in note 04 §15).
 
 These probes deliberately use installed Windows/AutoCAD fonts and unavailable names.
 No font bytes are included. The flags-zero cases test a hypothesis, not a rendering rule.

@@ -11,7 +11,8 @@ Tick items off (or delete them) when done.
 - [x] Run all 31 `font-resolution` probes through AutoCAD; answer Q-0736 and fix localized
       SimSun resolution plus unresolved-family Unicode linking (2026-10-03, note 04 §15).
 - [ ] Resolve Q-0737's SimSun anchor/em-size raster fringes with controlled `font-metrics`
-      probes. Corpus bottom labels already use the correct fonts; do not guess offsets.
+      probes (18 deterministic cases staged, awaiting AutoCAD). Corpus bottom labels already
+      use the correct fonts; do not guess offsets.
 - [ ] Missing-bigfont MTEXT: preserve CJK fallback while suppressing primary SHX text
       (`font-resolution/simplex-missing-bigfont`, note 04 §15.1); outside the arch-cn label fix.
 - [x] Regenerate all AutoCAD references now that the Liberation fonts are visible to AutoCAD

@@ -6,6 +6,10 @@ Tick items off (or delete them) when done.
 
 ## Environment / harness
 
+- [x] Compare merged proxy tag glyphs with candidate fonts; use the verified TXT default
+      for empty UNICODE_TEXT2 font requests through shared resolution (2026-10-03, note 04 §16).
+- [ ] Q-0740: run the one 26-case `proxy-font-selection` batch, then implement the verified
+      charset/family/file/bigfont rules; Arial + charset 134 matches SimSun in existing tags.
 - [x] Identify native FD and bottom CJK text/style paths in the three arch-cn corpus windows;
       stage 31 deterministic font-resolution probes (2026-10-03, note 04 §15).
 - [x] Run all 31 `font-resolution` probes through AutoCAD; answer Q-0736 and fix localized

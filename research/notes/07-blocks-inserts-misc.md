@@ -1579,6 +1579,17 @@ requested for this task. Raw vectors and scores: `.codex-out/step3-pdf-vectors.j
 `step3-before.json`, `step3-followup.json`. Historical first-round assumptions above
 are superseded only within the verified boundaries recorded here.
 
+### 15.9. Merged font-selection follow-up (2026-10-03)
+
+**VERIFIED-BY-ACAD** (`fid-proxy-followup/tag-*`, 2026-10-03): candidate glyph renders
+against the existing PNGs identify TXT for empty opcode-38 fields and SimSun for the
+Arial/charset-134 requests. The localized-family tags already match simplex on merged
+master. Note 04 §16 records the scores, the distinction between appearance and causation,
+and the bounded shared resolver change for empty fields. The earlier Arial uncertainty
+in §15.8 is narrowed to the selection rule and remaining raster fringes, not the best
+candidate font. Q-0740 batches charset/pitch/file/bigfont/legacy controls into the one
+permitted follow-up AutoCAD run; no general Arial substitution is implemented yet.
+
 ## 16. Explode / "virtual entities" semantics
 
 ezdxf's rendering of composite entities is built on `virtual_entities()` (ezdxf:explode.py,

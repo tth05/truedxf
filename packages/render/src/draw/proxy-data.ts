@@ -268,9 +268,12 @@ function readText(r: Reader, op: number, ctx: DecodeContext): ProxyText {
     }
     const font = r.str(encoding, unicode);
     const bigFont = r.str(encoding, unicode);
-    // Private styles keep proxy font fields independent of identically named drawing styles.
-    const name = `*PROXY:${JSON.stringify([font, bigFont, family, flags, vertical])}`;
+    const source = unicode ? "proxy" : undefined;
+    // Different request defaults must not share a prepared style, even with equal font fields
+    // (UNICODE_TEXT2's empty default is verified; TEXT2 is still probed, note 04 §16).
+    const name = `*PROXY:${JSON.stringify([source, font, bigFont, family, flags, vertical])}`;
     style = {
+      source,
       name,
       font,
       bigFont,

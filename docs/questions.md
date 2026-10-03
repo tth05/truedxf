@@ -1123,6 +1123,7 @@ small-size grid fitting and SHX/GBCBIG residues remain open. No further probe ba
 | Q-0737 | proxy | [U] Which font fields select opcode-38 tags when typeface is set but files are empty (AutoCAD plots SHX strokes; axis digits already agree within one pixel)? | 07 §15.7; 04 §14 | `fid-proxy-probes/tags`, `fid-proxy-probes/axis-one`, `fid-proxy-followup/tag-*` | open |
 | Q-0738 | proxy | [U] How does missing base-style bigfont suppression apply to mixed base/inline MTEXT runs (fully overridden runs are verified to draw)? | 07 §15.8; 04 §4.1 | `fid-proxy-probes/columns-room`, `fid-proxy-probes/inline-missing-base-bigfont`, `fid-proxy-followup/inline-mixed-*` | answered |
 | Q-0739 | proxy | [T] Is FILLON consumed after SHELL/POLYGON/TEXT (POLYLINE survival and FILLMODE=0 outlines are verified)? | 07 §15.2, §15.7–15.8 | `fid-proxy-probes/fill-consumption`, `fid-proxy-probes/fill-explicit-control`, `fid-proxy-probes/shell-fillmode-zero`, `fid-proxy-followup/fill-after-*` | answered |
+| Q-0740 | proxy fonts | [U] Which charset/pitch/file/bigfont rules select proxy fonts? Empty opcode-38 fields match TXT; Arial/charset-134 tags match SimSun, but the cause and other opcodes remain unverified. | 04 §16; 07 §15.9 | `fid-proxy-followup/tag-*`; pending `proxy-font-selection/*` (26 cases, one batch) | open |
 
 Answers and remaining limits Q-0736–Q-0739 (**VERIFIED-BY-ACAD**, `fid-proxy-probes`
 and `fid-proxy-followup`, 2026-10-03; note 07 §15.7–15.8):

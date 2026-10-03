@@ -11,6 +11,8 @@ import type { Font, Glyph, GlyphOptions } from "./types.ts";
 
 /** Font fields of a STYLE table entry. */
 export interface StyleFontSpec {
+  /** Proxy graphics carry an independent font request, not a drawing STYLE (note 04 §16). */
+  source?: "proxy";
   /** Group 3: primary font file ("txt", "simplex.shx", "arial.ttf"). */
   fontFile?: string;
   /** Group 4: bigfont file. */
@@ -428,6 +430,11 @@ export class FontManager {
         subs.push({ reason: "unknown-family", requested: family, used: await this.altName() });
         primary = await this.fontAlt(subs);
       }
+    } else if (spec.source === "proxy" && !this.fallbackMode && cleanName(spec.fontFile ?? "") === "") {
+      // Empty proxy font fields select TXT, unlike an empty native STYLE's FONTALT
+      // (note 04 §16, fid-proxy-followup/tag-empty-family).
+      subs.push({ reason: "empty-font", requested: "", used: "txt.shx" });
+      primary = await this.resolveFile("txt.shx", subs, false);
     } else {
       primary = await this.resolveFile(spec.fontFile ?? "", subs, false);
     }

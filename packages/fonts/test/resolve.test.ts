@@ -65,6 +65,25 @@ describe("FontManager.loadFile", () => {
 });
 
 describe("FontManager.resolveStyle (AutoCAD 2027 rules, note 04 §4.1)", () => {
+  it("uses TXT for empty proxy fields while retaining native and viewer FONTALT defaults", async () => {
+    const m = new FontManager(provider());
+    const proxy = await m.resolveStyle({ source: "proxy", fontFile: "", flags: 34306 });
+    expect(proxy.font?.primary.name).toBe("txt.shx");
+    expect(proxy.substitutions).toEqual([{ reason: "empty-font", requested: "", used: "txt.shx" }]);
+    expect((await m.resolveStyle({ fontFile: "" })).font?.primary.name).toBe("simplex.shx");
+    expect((await m.resolveStyle({ source: "proxy", family: "Nope" })).font?.primary.name).toBe(
+      "simplex.shx",
+    );
+    expect((await m.resolveStyle({ source: "proxy", family: "Fam" })).font?.primary.kind).toBe("ttf");
+    expect((await m.resolveStyle({ source: "proxy", fontFile: "simplex.shx" })).font?.primary.name).toBe(
+      "simplex.shx",
+    );
+    const viewer = new FontManager(provider(), { missingFont: "fallback" });
+    expect((await viewer.resolveStyle({ source: "proxy", fontFile: "" })).font?.primary.name).toBe(
+      "simplex.shx",
+    );
+  });
+
   it("group 3 SHX without extension", async () => {
     const r = await new FontManager(provider()).resolveStyle({ fontFile: "txt" });
     expect(r.font?.primary.name).toBe("txt.shx");

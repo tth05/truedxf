@@ -19,6 +19,8 @@ import type { SpecialSymbol } from "./specials.ts";
 
 /** The STYLE table fields the layout needs (structurally compatible with @truedxf/model's TextStyleEntry). */
 export interface TextStyleSpec {
+  /** Embedded proxy font fields use proxy defaults rather than native STYLE defaults (note 04 §16). */
+  readonly source?: "proxy";
   readonly name: string;
   /** Group 3. */
   readonly font: string;
@@ -177,6 +179,7 @@ export class TextFonts implements TextFontSource {
     for (const [key, spec] of this.specs) {
       if (this.styles.has(key)) continue;
       const r = await this.manager.resolveStyle({
+        source: spec.source,
         fontFile: spec.font,
         bigFontFile: spec.bigFont,
         family: spec.ttfFamily,

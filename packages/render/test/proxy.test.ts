@@ -92,6 +92,8 @@ function textPayload(
   normal = [0, 0, 1],
   direction = [1, 0, 0],
   bigFont = "big.shx",
+  font = "txt.shx",
+  family = "Test Family",
 ) {
   return (dv: DataView, o: number) => {
     const unicode = op === 36 || op === 38;
@@ -108,14 +110,60 @@ function textPayload(
     for (const v of [1, 1, 0, 1, 1]) o = int32(v)(dv, o);
     if (unicode) {
       for (const v of [1, 1, 134, 2]) o = int32(v)(dv, o);
-      o = paddedString(dv, o, "Test Family", true);
+      o = paddedString(dv, o, family, true);
     }
-    o = paddedString(dv, o, "txt.shx", unicode);
+    o = paddedString(dv, o, font, unicode);
     return paddedString(dv, o, bigFont, unicode);
   };
 }
 
 describe("proxy graphics", () => {
+  it("forwards an empty UNICODE_TEXT2 font request to the shared TXT default", async () => {
+    const document = (font: string, mixed = false) => {
+      const unicode = (dv: DataView, o: number) => {
+        const end = textPayload(38, "AB", [0, 0, 1], [1, 0, 0], "", font, "")(dv, o);
+        // Zero LOGFONT fields let both formats carry the same family/file/flags request.
+        for (let i = 0; i < 4; i++) dv.setUint32(o + 140 + i * 4, 0, true);
+        return end;
+      };
+      const commands: [number, (dv: DataView, o: number) => number][] = [[38, unicode]];
+      if (mixed)
+        commands.push([11, textPayload(11, "AB", [0, 0, 1], [1, 0, 0], "", font ? "simplex.shx" : "")]);
+      const g = blob(commands);
+      const hex = [...g].map((v) => v.toString(16).padStart(2, "0")).join("");
+      return modelDoc({
+        entities: `0 ACAD_PROXY_ENTITY\n5 A\n330 1F\n100 AcDbEntity\n8 0\n62 3\n370 0\n100 AcDbProxyEntity\n90 498\n91 500\n92 ${g.length}\n310 ${hex}`,
+      });
+    };
+    const asset = (file: string) =>
+      new Uint8Array(readFileSync(join(import.meta.dirname, "../../fonts/assets", file)));
+    const txt = asset("truedxf-test.shx");
+    const alt = asset("truedxf-probe.shx");
+    const env = {
+      loadFont: async (name: string) => (name === "txt.shx" ? txt : name === "simplex.shx" ? alt : undefined),
+    };
+    const plot = {
+      layout: "Model",
+      area: {
+        type: "window" as const,
+        min: [-10, -10] as [number, number],
+        max: [10, 10] as [number, number],
+      },
+      canvas: [1000, 1000] as [number, number],
+      lineweights: false,
+    };
+    const empty = await renderPlot(document(""), plot, env);
+    const explicit = await renderPlot(document("txt.shx"), plot, env);
+    const substitute = await renderPlot(document("simplex.shx"), plot, env);
+    expect(empty.displayList.batches.length).toBeGreaterThan(0);
+    expect(empty.displayList).toEqual(explicit.displayList);
+    expect(empty.displayList).not.toEqual(substitute.displayList);
+    // Preparation must keep the two defaults apart when their raw font fields coincide.
+    const mixed = await renderPlot(document("", true), plot, env);
+    const mixedExplicit = await renderPlot(document("txt.shx", true), plot, env);
+    expect(mixed.displayList).toEqual(mixedExplicit.displayList);
+  });
+
   it("draws TEXT2 through the ordinary TEXT path with embedded fonts, width, oblique and decorations", async () => {
     const g = blob([[11, textPayload(11, "%%uAB", [0, 0, 1], [1, 0, 0], "")]]);
     const hex = [...g].map((v) => v.toString(16).padStart(2, "0")).join("");

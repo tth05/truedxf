@@ -1891,3 +1891,46 @@ OpenType hinting engine at actual/rounded/design ppem did not provide a consiste
 no hinting change is retained. Q-0737 stays open for these remaining parts. No further probe
 batch is staged in this work: retain the verified correction rather than expanding an
 open-ended font-raster investigation.
+
+## 16. Proxy font requests (2026-10-03 follow-up)
+
+Proxy TEXT font requests are independent of the drawing STYLE table (07 §15). The
+renderer forwards their origin to the shared TextFonts/FontManager resolver; it must
+not change native STYLE defaults or select fonts directly in the proxy drawer.
+
+**VERIFIED-BY-ACAD** (`fid-proxy-followup/tag-empty-family`, 2026-10-03): the two visible
+opcode-38 tags with empty typeface, primary file and bigfont use **txt.shx**, rather than
+the native STYLE empty-font default simplex.shx. Rendering the three tag requests with
+explicit TXT reduces whole-window mismatch 4360→1814 and F1(r=1) 0.9581→1.0000.
+The remaining 1814 pixels are the unchanged native dimension, not these tags. Simplex
+gives 4360, Romans 4733, ISO 3952 and SimSun 9896; this is a glyph-shape comparison
+against the existing AutoCAD PNG, not a new run proving all empty-font variants.
+The implementation is plot-only and forwards this default only for UNICODE_TEXT2;
+the other opcodes and empty-font/bigfont combinations are still being probed.
+
+**VERIFIED-BY-ACAD** (`fid-proxy-followup/tag-file-simplex`, `tag-file-simsun`,
+`fid-proxy-probes/tags`, 2026-10-03): merged localized-family resolution already gives
+1814 whole-window mismatches and F1(r=1)=1.0. Explicit simplex matches both tags;
+Romans differs (4743 whole-window pixels). The stored 宋体 family with charset 134
+still wins over either file and resolves through FONTALT, as established in §15.1.
+Do not reapply the pre-merge alias fix or treat the older 9830 score as current master.
+
+**VERIFIED-BY-ACAD** (appearance only: `fid-proxy-followup/tag-family-arial`,
+`tag-file-arial`, 2026-10-03): the PNG tags have SimSun's serif Latin shapes, consistent
+with their PDF SimSun spans (07 §15.8). Explicit SimSun candidates reduce mismatch
+15861→2698 and F1(r=1) 0.8282→1.0; Arial gives 15861, TXT 10004 and simplex 9934.
+Raw requests have charset **134**, pitch **2**, no bold/italic and no bigfont. The
+remaining 884 pixels beyond the native dimension are SimSun raster fringes.
+This identifies the best font in these exact requests, **not a general Arial→SimSun
+rule or proof that charset causes the mapping**. No such mapping is implemented yet.
+
+**UNKNOWN / Q-0740:** does a resolvable proxy TrueType family use a charset-compatible
+face (Arial + GB2312 → SimSun), while an unresolved family still uses FONTALT? Does
+empty-family/file always select TXT, including opcodes 10/11/36, and how do explicit
+files, pitch and bigfonts affect the request? One bounded `proxy-font-selection`
+batch of 26 cases preserves valid gh109 opaque records and changes only its three
+tag requests. It varies charset 0/1/134, pitch 0/2/34, English/localized/unknown
+families, explicit/missing files, available/missing bigfonts and legacy opcodes.
+The writer checks deterministic builds, refuses existing files, and is staged outside
+the read-only samples junction. Await this one AutoCAD run before implementing the
+unverified family/charset policy.

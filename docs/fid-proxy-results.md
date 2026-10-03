@@ -1,5 +1,9 @@
 # Proxy fidelity progress — 2026-10-03
 
+Merged-master font follow-up: [proxy font-selection checkpoint](fid-proxy-font-results.md).
+It supersedes the historical tag-font scores below and records the bounded shared
+empty-font correction plus the one pending charset-selection batch.
+
 Worktree: truedxf-wt-proxy, branch fid/proxy. Changes remain uncommitted. AutoCAD accepted
 all nine first-round probes (9 ok in 29 s) and all twelve follow-up probes. This is
 an intermediate result, not a claim of a complete AutoCAD match.

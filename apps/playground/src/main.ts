@@ -228,13 +228,20 @@ const status = {
 const reportLink = h(
   "a",
   { class: "status-link", href: `${__BUILD__.repo}/issues/new`, target: "_blank", rel: "noopener" },
-  "Report a problem",
+  icon(ICONS.github),
+  h("span", {}, "Report a problem"),
 );
 const statusbar = h(
   "footer",
   { class: "statusbar" },
   ...Object.values(status),
   reportLink,
+  h(
+    "a",
+    { class: "status-link", href: __BUILD__.repo, target: "_blank", rel: "noopener" },
+    icon(ICONS.star),
+    h("span", {}, "Leave a star"),
+  ),
   h(
     "a",
     {

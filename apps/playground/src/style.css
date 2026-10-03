@@ -710,11 +710,22 @@ body > .landing {
   color: var(--text);
 }
 .status-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   color: var(--muted);
   text-decoration: none;
 }
+.status-link svg {
+  width: 14px;
+  height: 14px;
+}
 .status-link:hover {
   color: var(--text);
+}
+/* underline the label only, not the gap next to the icon */
+.status-link:hover > span:last-child,
+.status-link:hover:not(:has(svg)) {
   text-decoration: underline;
 }
 .statusbar b {

@@ -268,9 +268,9 @@ function readText(r: Reader, op: number, ctx: DecodeContext): ProxyText {
     }
     const font = r.str(encoding, unicode);
     const bigFont = r.str(encoding, unicode);
-    const source = unicode ? "proxy" : undefined;
-    // Different request defaults must not share a prepared style, even with equal font fields
-    // (UNICODE_TEXT2's empty default is verified; TEXT2 is still probed, note 04 §16).
+    const source = "proxy" as const;
+    // Both extended formats carry independent font requests; bare opcodes 10/36 retain
+    // Standard (proxy-font-selection/opcode-*-empty, note 04 §16.1).
     const name = `*PROXY:${JSON.stringify([source, font, bigFont, family, flags, vertical])}`;
     style = {
       source,

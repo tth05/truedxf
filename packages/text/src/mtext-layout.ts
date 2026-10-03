@@ -247,11 +247,10 @@ export function layoutMText(
   const spec = style.spec;
   const ctx0 = defaultContext(h0, spec?.widthFactor || 1, spec?.oblique ?? 0);
   const tokens = parseMText(e.text, ctx0, options.dimension);
-  // Missing base bigfonts suppress only base runs; inline runs keep the positions measured
-  // with the primary font, including advances of hidden text (note 07 §15.8).
+  // Missing bigfonts hide SHX base glyphs, but Unicode glyph linking and valid inline runs
+  // survive. Measure hidden Latin too so the visible runs keep their positions (04 §15.1).
   if (style.suppressed && tokens.some((t) => !t.ctx.font || !fonts.inlineFont(t.ctx.font))) {
     notes.push("mtext-suppressed-missing-bigfont");
-    if (!tokens.some((t) => t.ctx.font && fonts.inlineFont(t.ctx.font))) return emptyLayout(ocs, notes);
   }
   // flow direction 3 (top to bottom): vertical columns with a dual-orientation SHX font, one
   // horizontal line otherwise (note 04 §11)
@@ -899,7 +898,7 @@ class Engine {
           const before = out[out.length - 1];
           const next = tokens[k + 1];
           if (
-            this.familyFallback &&
+            (this.familyFallback || this.baseSuppressed) &&
             before?.k === "glyph" &&
             next?.t === "char" &&
             before.ctx === t.ctx &&
@@ -1311,7 +1310,9 @@ class Engine {
     for (let q = 0; q < ln.items.length; q++) {
       const pi = ln.items[q]!;
       const it = pi.item;
-      if (this.suppressed(it.ctx)) continue;
+      // A missing base bigfont cannot suppress a glyph supplied by the TrueType linking
+      // chain (font-resolution/simplex-missing-bigfont, note 04 §15.1).
+      if (this.suppressed(it.ctx) && !(it.k === "glyph" && it.m.resolved?.font.kind === "ttf")) continue;
       if (it.k === "glyph") {
         const r = it.m.resolved;
         if (!r?.glyph.bounds) continue;

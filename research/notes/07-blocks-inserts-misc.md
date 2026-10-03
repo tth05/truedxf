@@ -1581,14 +1581,27 @@ are superseded only within the verified boundaries recorded here.
 
 ### 15.9. Merged font-selection follow-up (2026-10-03)
 
-**VERIFIED-BY-ACAD** (`fid-proxy-followup/tag-*`, 2026-10-03): candidate glyph renders
-against the existing PNGs identify TXT for empty opcode-38 fields and SimSun for the
-Arial/charset-134 requests. The localized-family tags already match simplex on merged
-master. Note 04 §16 records the scores, the distinction between appearance and causation,
-and the bounded shared resolver change for empty fields. The earlier Arial uncertainty
-in §15.8 is narrowed to the selection rule and remaining raster fringes, not the best
-candidate font. Q-0740 batches charset/pitch/file/bigfont/legacy controls into the one
-permitted follow-up AutoCAD run; no general Arial substitution is implemented yet.
+**VERIFIED-BY-ACAD** (`fid-proxy-followup/tag-*`, `proxy-font-selection/*`, 2026-10-03):
+all 26 controls succeeded. Note 04 §16.1 records the candidate scores and the verified
+charset/typeface/file/bigfont boundaries. Resolved Arial + charset 134 selects SimSun;
+charset 0/1 stays Arial. Pitch 0/2/34 is identical; a typeface overrides an explicit
+file. Empty TEXT2/UNICODE_TEXT2 selects TXT, whereas unknown/localized typeface selects
+FONTALT. Missing bigfont suppresses SHX text, but is ignored for selected TrueType.
+File-only arial.ttf unexpectedly plots Arial Italic at both tested charsets; preserve
+that narrow exception and leave its general cause open (Q-0741).
+
+The shared resolver receives these raw requests with their proxy origin; the proxy drawer
+still uses normal TEXT layout and has no independent font lookup. Bare opcodes 10/36
+remain drawing-Standard requests; in this drawing their tags are absent. The earlier
+§15.8 PNG/PDF uncertainty is resolved for the plotted glyphs: PDF extracted text alone
+can describe a searchable text layer differing from SHX paths in the PNG.
+
+**VERIFIED-BY-ACAD** (`font-resolution/simplex-missing-bigfont`, `missing-shx-bigfont`,
+`corpus-proxy/gh109-floor-plan`, 2026-10-03): missing-bigfont MTEXT retains CJK Unicode
+linking at the fallback's own cap-height scale. gh109 native MTEXT `9B0` is
+`天正单行文字输入`, Standard `txt.shx` / missing `hztxt.shx`; SimSun restores its shape
+with one-pixel raster fringes. Base SHX Latin remains hidden and continues to advance;
+valid inline runs retain their previously verified positions (§15.8).
 
 ## 16. Explode / "virtual entities" semantics
 

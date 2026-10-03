@@ -8,8 +8,10 @@ Tick items off (or delete them) when done.
 
 - [x] Compare merged proxy tag glyphs with candidate fonts; use the verified TXT default
       for empty UNICODE_TEXT2 font requests through shared resolution (2026-10-03, note 04 §16).
-- [ ] Q-0740: run the one 26-case `proxy-font-selection` batch, then implement the verified
-      charset/family/file/bigfont rules; Arial + charset 134 matches SimSun in existing tags.
+- [x] Q-0740: analyze all 26 `proxy-font-selection` references and implement the verified
+      charset/typeface/file/bigfont rules in shared resolution (2026-10-03, note 04 §16.1).
+- [ ] Q-0741: other proxy charsets/typefaces/style flags and file-only TrueType face selection
+      remain unverified; preserve the tested boundaries rather than request another run.
 - [x] Identify native FD and bottom CJK text/style paths in the three arch-cn corpus windows;
       stage 31 deterministic font-resolution probes (2026-10-03, note 04 §15).
 - [x] Run all 31 `font-resolution` probes through AutoCAD; answer Q-0736 and fix localized
@@ -19,8 +21,8 @@ Tick items off (or delete them) when done.
       viewers and unprobed fonts/orientations. Near/far AutoCAD references are identical.
 - [ ] Q-0737 remainder: curve/edge masks, smaller SimSun grid fitting and SHX/GBCBIG
       precision. Current font task stops at the verified large-text correction; no new batch.
-- [ ] Missing-bigfont MTEXT: preserve CJK fallback while suppressing primary SHX text
-      (`font-resolution/simplex-missing-bigfont`, note 04 §15.1); outside the arch-cn label fix.
+- [x] Missing-bigfont MTEXT: preserve CJK fallback while suppressing primary SHX text
+      (`font-resolution/simplex-missing-bigfont`, gh109 native MTEXT 9B0, note 04 §15.1).
 - [x] Regenerate all AutoCAD references now that the Liberation fonts are visible to AutoCAD
       (started 2026-10-01; before, most suites were plotted with simplex.shx substitution), then
       re-score without `--hide-fonts` and update the scoreboard in PLAN.md.

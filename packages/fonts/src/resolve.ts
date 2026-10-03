@@ -29,6 +29,7 @@ export type SubstitutionReason =
   | "full-path"
   | "missing-font"
   | "unknown-family"
+  | "proxy-font-face"
   | "fontalt-missing"
   | "missing-bigfont"
   | "not-a-bigfont"
@@ -420,23 +421,49 @@ export class FontManager {
     const subs: FontSubstitution[] = [];
     let primary: Font | undefined;
     const family = spec.family?.trim() ?? "";
+    const flags = spec.flags ?? 0;
+    const proxyPlot = spec.source === "proxy" && !this.fallbackMode;
     if (family !== "") {
       // 1. A non-empty XDATA family wins over group 3, even if group 3 is an SHX.
-      const flags = spec.flags ?? 0;
       primary =
         (await this.findFamily(family, (flags & (1 << 25)) !== 0, (flags & (1 << 24)) !== 0)) ??
         (await this.familyFromFile(spec.fontFile, family));
+      // Proxy LOGFONT requests select SimSun for Arial + GB2312, while ANSI/default
+      // retain Arial. Unresolved families still use FONTALT; native STYLE flags do not
+      // select this face (proxy-font-selection/arial-c*, note 04 §16.1).
+      if (proxyPlot && primary && family.toLowerCase() === "arial" && ((flags >>> 8) & 0xff) === 134) {
+        const face = await this.findFamily("SimSun", (flags & (1 << 25)) !== 0, (flags & (1 << 24)) !== 0);
+        if (face) {
+          subs.push({ reason: "proxy-font-face", requested: family, used: face.name });
+          primary = face;
+        }
+      }
       if (!primary) {
         subs.push({ reason: "unknown-family", requested: family, used: await this.altName() });
         primary = await this.fontAlt(subs);
       }
-    } else if (spec.source === "proxy" && !this.fallbackMode && cleanName(spec.fontFile ?? "") === "") {
+    } else if (proxyPlot && cleanName(spec.fontFile ?? "") === "") {
       // Empty proxy font fields select TXT, unlike an empty native STYLE's FONTALT
       // (note 04 §16, fid-proxy-followup/tag-empty-family).
       subs.push({ reason: "empty-font", requested: "", used: "txt.shx" });
       primary = await this.resolveFile("txt.shx", subs, false);
     } else {
       primary = await this.resolveFile(spec.fontFile ?? "", subs, false);
+      // The file-only Arial proxy controls plot Arial Italic with either charset. This
+      // narrowly verified file case must not imply italic selection for other files or
+      // override a nonempty typeface (proxy-font-selection/file-arial-c*, note 04 §16.1).
+      if (
+        proxyPlot &&
+        baseName(cleanName(spec.fontFile ?? "")).toLowerCase() === "arial.ttf" &&
+        primary instanceof TtfFont &&
+        (flags & ((1 << 25) | (1 << 24))) === 0
+      ) {
+        const face = await this.findFamily("Arial", false, true);
+        if (face?.names.italic) {
+          subs.push({ reason: "proxy-font-face", requested: spec.fontFile ?? "", used: face.name });
+          primary = face;
+        }
+      }
     }
 
     let bigFont: ShxFont | undefined;

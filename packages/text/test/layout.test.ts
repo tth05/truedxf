@@ -17,7 +17,7 @@ import { hasArial, hasLato, hasSimplex, style, testFonts } from "./helpers.ts";
 const MSYH = "C:/Windows/Fonts/msyh.ttc";
 
 describe("unresolved TrueType STYLE Unicode fallback (note 04 §15)", () => {
-  const fontsFor = async (family?: string) => {
+  const fontsFor = async (family?: string, bigFont = "") => {
     const p = new MemoryFontProvider();
     p.add(
       "truedxf-test.shx",
@@ -59,7 +59,7 @@ describe("unresolved TrueType STYLE Unicode fallback (note 04 §15)", () => {
     );
     const fonts = new TextFonts(
       new FontManager(p, { fontAlt: "truedxf-test.shx" }),
-      [style("S", "truedxf-test.shx", { ttfFamily: family })],
+      [style("S", "truedxf-test.shx", { ttfFamily: family, bigFont })],
       "gbk",
       ["fallback.otf"],
     );
@@ -87,6 +87,19 @@ describe("unresolved TrueType STYLE Unicode fallback (note 04 §15)", () => {
       style("S", "truedxf-test.shx", { ttfFamily: "Missing", bigFont: "MissingBig.shx" }),
     ]);
     expect(layoutText(text({ text: "中" }), missing).notes).toContain("text-suppressed-missing-bigfont");
+  });
+
+  it("links MTEXT CJK despite a missing bigfont, preserving hidden Latin advances and linked spaces", async () => {
+    const fonts = await fontsFor(undefined, "MissingBig.shx");
+    const linked = layoutMText(mtext({ text: "H中 中H" }), fonts);
+    expect(linked.notes).toContain("mtext-suppressed-missing-bigfont");
+    const ink = linked.glyphs.filter((g) => g.glyph.bounds);
+    expect(ink).toHaveLength(2);
+    expect(ink.every((g) => g.font.kind === "ttf")).toBe(true);
+    expect(ink[1]!.matrix.e - ink[0]!.matrix.e).toBeCloseTo((1250 * 10) / ink[0]!.font.capHeight, 10);
+    expect(ink[0]!.matrix.e).toBeGreaterThan(0);
+    expect(layoutMText(mtext({ text: "H" }), fonts).glyphs).toHaveLength(0);
+    expect(layoutText(text({ text: "中" }), fonts).glyphs).toHaveLength(0);
   });
 });
 

@@ -118,7 +118,7 @@ function textPayload(
 }
 
 describe("proxy graphics", () => {
-  it("forwards an empty UNICODE_TEXT2 font request to the shared TXT default", async () => {
+  it("forwards empty TEXT2 and UNICODE_TEXT2 font requests to the shared TXT default", async () => {
     const document = (font: string, mixed = false) => {
       const unicode = (dv: DataView, o: number) => {
         const end = textPayload(38, "AB", [0, 0, 1], [1, 0, 0], "", font, "")(dv, o);
@@ -127,8 +127,7 @@ describe("proxy graphics", () => {
         return end;
       };
       const commands: [number, (dv: DataView, o: number) => number][] = [[38, unicode]];
-      if (mixed)
-        commands.push([11, textPayload(11, "AB", [0, 0, 1], [1, 0, 0], "", font ? "simplex.shx" : "")]);
+      if (mixed) commands.push([11, textPayload(11, "AB", [0, 0, 1], [1, 0, 0], "", font, "")]);
       const g = blob(commands);
       const hex = [...g].map((v) => v.toString(16).padStart(2, "0")).join("");
       return modelDoc({
@@ -158,7 +157,7 @@ describe("proxy graphics", () => {
     expect(empty.displayList.batches.length).toBeGreaterThan(0);
     expect(empty.displayList).toEqual(explicit.displayList);
     expect(empty.displayList).not.toEqual(substitute.displayList);
-    // Preparation must keep the two defaults apart when their raw font fields coincide.
+    // Equal requests from both extended formats share the same verified default.
     const mixed = await renderPlot(document("", true), plot, env);
     const mixedExplicit = await renderPlot(document("txt.shx", true), plot, env);
     expect(mixed.displayList).toEqual(mixedExplicit.displayList);

@@ -65,6 +65,62 @@ describe("FontManager.loadFile", () => {
 });
 
 describe("FontManager.resolveStyle (AutoCAD 2027 rules, note 04 §4.1)", () => {
+  it("selects proxy Arial faces by typeface/charset, retaining native, viewer and file boundaries", async () => {
+    const p = provider();
+    p.add("arial.ttf", makeOtf({ family: "Arial", glyphs: latinGlyphs(700) }));
+    p.add(
+      "ariali.ttf",
+      makeOtf({ family: "Arial", italic: true, style: "Italic", glyphs: latinGlyphs(710) }),
+    );
+    p.add("simsun.ttc", makeOtf({ family: "SimSun", glyphs: latinGlyphs(720) }));
+    const m = new FontManager(p);
+    for (const pitch of [0, 2, 34]) {
+      const req = {
+        source: "proxy" as const,
+        family: "Arial",
+        fontFile: "txt.shx",
+        flags: (134 << 8) | pitch,
+      };
+      const r = await m.resolveStyle(req);
+      expect(r.font?.primary.name).toBe("simsun.ttc");
+      expect(r.substitutions).toEqual([
+        { reason: "proxy-font-face", requested: "Arial", used: "simsun.ttc" },
+      ]);
+      expect((await m.resolveStyle({ ...req, source: undefined })).font?.primary.name).toBe("arial.ttf");
+      expect(
+        (await new FontManager(p, { missingFont: "fallback" }).resolveStyle(req)).font?.primary.name,
+      ).toBe("arial.ttf");
+    }
+    for (const charset of [0, 1])
+      expect(
+        (await m.resolveStyle({ source: "proxy", family: "Arial", flags: charset << 8 })).font?.primary.name,
+      ).toBe("arial.ttf");
+    for (const charset of [0, 134]) {
+      expect(
+        (await m.resolveStyle({ source: "proxy", fontFile: "arial.ttf", flags: charset << 8 })).font?.primary
+          .name,
+      ).toBe("ariali.ttf");
+      expect(
+        (
+          await m.resolveStyle({
+            source: "proxy",
+            family: "NoSuchFamily",
+            fontFile: "arial.ttf",
+            flags: charset << 8,
+          })
+        ).font?.primary.name,
+      ).toBe("simplex.shx");
+    }
+    const big = await m.resolveStyle({
+      source: "proxy",
+      family: "Arial",
+      flags: 34306,
+      bigFontFile: "missing.shx",
+    });
+    expect(big.suppressed).toBe(false);
+    expect(big.substitutions.at(-1)?.reason).toBe("bigfont-ignored");
+    expect((await m.resolveStyle({ source: "proxy", bigFontFile: "missing.shx" })).suppressed).toBe(true);
+  });
   it("uses TXT for empty proxy fields while retaining native and viewer FONTALT defaults", async () => {
     const m = new FontManager(provider());
     const proxy = await m.resolveStyle({ source: "proxy", fontFile: "", flags: 34306 });

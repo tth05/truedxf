@@ -1120,17 +1120,19 @@ small-size grid fitting and SHX/GBCBIG residues remain open. No further probe ba
 | Q-0701 | proxy | [U] Are proxy graphics coordinates of an entity inside a block in block coords, transformed by the INSERT matrix? | 07 §15.3, §17 (07:20) | `misc/proxy-traits-default-in-insert`, `misc/proxy-in-rotated-insert` | open |
 | Q-0702 | proxy | [U] Do nested PUSH_MODELXFORM (op 29/30) matrices in proxy graphics compose with each other and the outer transform? | 07 §15.3, §17 (07:20) | `misc/proxy-nested-matrix` | open |
 | Q-0736 | proxy | [U] How do gh109 wall/stair edges handle exact device-pixel ties (PDF geometry and stair hatch phase agree with stored data)? | 07 §15.7; 08 §10.2 | `fid-proxy-probes/wall-stair`, `fid-proxy-probes/stair-hatch`, `fid-proxy-followup/*-halfpixel` | open |
-| Q-0737 | proxy | [U] Which font fields select opcode-38 tags when typeface is set but files are empty (AutoCAD plots SHX strokes; axis digits already agree within one pixel)? | 07 §15.7; 04 §14 | `fid-proxy-probes/tags`, `fid-proxy-probes/axis-one`, `fid-proxy-followup/tag-*` | open |
+| Q-0737 | proxy | [U] Which font fields select opcode-38 tags when typeface is set but files are empty (AutoCAD plots SHX strokes; axis digits already agree within one pixel)? | 07 §15.7; 04 §14 | `fid-proxy-probes/tags`, `fid-proxy-probes/axis-one`, `fid-proxy-followup/tag-*` | answered |
 | Q-0738 | proxy | [U] How does missing base-style bigfont suppression apply to mixed base/inline MTEXT runs (fully overridden runs are verified to draw)? | 07 §15.8; 04 §4.1 | `fid-proxy-probes/columns-room`, `fid-proxy-probes/inline-missing-base-bigfont`, `fid-proxy-followup/inline-mixed-*` | answered |
 | Q-0739 | proxy | [T] Is FILLON consumed after SHELL/POLYGON/TEXT (POLYLINE survival and FILLMODE=0 outlines are verified)? | 07 §15.2, §15.7–15.8 | `fid-proxy-probes/fill-consumption`, `fid-proxy-probes/fill-explicit-control`, `fid-proxy-probes/shell-fillmode-zero`, `fid-proxy-followup/fill-after-*` | answered |
-| Q-0740 | proxy fonts | [U] Which charset/pitch/file/bigfont rules select proxy fonts? Empty opcode-38 fields match TXT; Arial/charset-134 tags match SimSun, but the cause and other opcodes remain unverified. | 04 §16; 07 §15.9 | `fid-proxy-followup/tag-*`; pending `proxy-font-selection/*` (26 cases, one batch) | open |
+| Q-0740 | proxy fonts | [U] Which charset/pitch/file/bigfont rules select proxy fonts? Arial/134 selects SimSun; charset 0/1 stays Arial; empty extended requests use TXT; typeface wins; SHX missing bigfont suppresses. | 04 §16.1; 07 §15.9 | `proxy-font-selection/*` (26 successful cases); `fid-proxy-followup/tag-*` | answered |
+| Q-0741 | proxy fonts | [U] Do other charsets/typefaces/style flags follow the same face rules, and why does file-only arial.ttf select Arial Italic despite zero italic flags? | 04 §16.1 | `proxy-font-selection/file-arial-c0`, `-c134`; additional controls not requested | open |
 
 Answers and remaining limits Q-0736–Q-0739 (**VERIFIED-BY-ACAD**, `fid-proxy-probes`
 and `fid-proxy-followup`, 2026-10-03; note 07 §15.7–15.8):
 
 - Q-0739: FILLON persists after POLYLINE, SHELL, POLYGON and TEXT. FILLMODE=0
   outlines SHELLs. MESH and untested primitives/face traits remain outside this evidence.
-- Q-0738: Missing base bigfont hides base runs only. Inline CD retains the same pen position
+- Q-0738: Missing base bigfont hides SHX base glyphs; CJK still links to SimSun
+  (`font-resolution/simplex-missing-bigfont`, note 04 §15.1). Inline CD retains the same pen position
   as in a healthy AB/CD/EF control, so hidden AB still advances. Both CPU zooms are now
   pixel-exact. Vertical mixtures are not isolated.
 - Q-0736: The wall half-pixel window is pixel-exact; the original wall PNG differs at
@@ -1138,8 +1140,11 @@ and `fid-proxy-followup`, 2026-10-03; note 07 §15.7–15.8):
   Device coverage/tie rules remain open; coordinate/phase changes are not justified.
 - Q-0737: 宋体 with simplex.shx and simsun.ttc files is identical to the original
   localized-family tags, compatible with the shared localized-family FONTALT correction.
-  Arial/file-Arial equivalence does not explain SimSun PDF tags or the PNG/PDF font
-  distinction; keep that question open rather than adding a proxy-only font resolver.
+  The 26-case follow-up answers the typeface/charset rule (Q-0740, note 04 §16.1):
+  resolved Arial with charset 134 selects SimSun; charset 0/1 stays Arial. Empty extended
+  requests select TXT and unresolved localized typefaces select FONTALT. PDF extracted
+  text can describe a different searchable text layer from the plotted SHX paths. The
+  earlier selection uncertainty is resolved for these probes; raster fringes remain.
 
 - Q-0692: Yes: DXFOUT writes 3DSOLID / REGION without 92/160 + 310 (`misc/solid-box-*`, `region-square-*`).
 - Partial corpus answers (VERIFIED-BY-ACAD, 2026-10-03; note 07 §15.5): Q-0693's proxy-graphics

@@ -1814,8 +1814,10 @@ The six mixed-family cases improve to F1(r=1)=1.0 (3701 exact mismatches, raster
 
 **VERIFIED-BY-ACAD** (`font-resolution/simplex-missing-bigfont`, `missing-shx-bigfont`,
 2026-10-03): TEXT and Latin MTEXT disappear, but CJK MTEXT still links to SimSun (also embedded
-in the PDF). Current whole-entity MTEXT suppression misses this exception. It remains open;
-it is not responsible for the arch-cn bottom labels, whose bigfont is available.
+in the PDF). MTEXT now measures all runs and suppresses base SHX glyphs individually,
+retaining linked TrueType glyphs and their inter-glyph spaces. TEXT remains suppressed.
+This also restores gh109 MTEXT `9B0` (`天正单行文字输入`, Standard = txt.shx + missing
+hztxt.shx); the arch-cn bottom labels have available bigfonts and are unaffected.
 
 ### 15.2. Remaining CJK fringes
 
@@ -1905,8 +1907,8 @@ explicit TXT reduces whole-window mismatch 4360→1814 and F1(r=1) 0.9581→1.00
 The remaining 1814 pixels are the unchanged native dimension, not these tags. Simplex
 gives 4360, Romans 4733, ISO 3952 and SimSun 9896; this is a glyph-shape comparison
 against the existing AutoCAD PNG, not a new run proving all empty-font variants.
-The implementation is plot-only and forwards this default only for UNICODE_TEXT2;
-the other opcodes and empty-font/bigfont combinations are still being probed.
+The implementation is plot-only. The subsequent controlled batch verifies the same
+default for TEXT2, and distinguishes bare text opcodes and bigfonts (§16.1).
 
 **VERIFIED-BY-ACAD** (`fid-proxy-followup/tag-file-simplex`, `tag-file-simsun`,
 `fid-proxy-probes/tags`, 2026-10-03): merged localized-family resolution already gives
@@ -1921,16 +1923,47 @@ with their PDF SimSun spans (07 §15.8). Explicit SimSun candidates reduce misma
 15861→2698 and F1(r=1) 0.8282→1.0; Arial gives 15861, TXT 10004 and simplex 9934.
 Raw requests have charset **134**, pitch **2**, no bold/italic and no bigfont. The
 remaining 884 pixels beyond the native dimension are SimSun raster fringes.
-This identifies the best font in these exact requests, **not a general Arial→SimSun
-rule or proof that charset causes the mapping**. No such mapping is implemented yet.
+This initial candidate comparison identifies the best face in these exact requests.
+The subsequent charset controls establish the mapping boundary (§16.1).
 
-**UNKNOWN / Q-0740:** does a resolvable proxy TrueType family use a charset-compatible
-face (Arial + GB2312 → SimSun), while an unresolved family still uses FONTALT? Does
-empty-family/file always select TXT, including opcodes 10/11/36, and how do explicit
-files, pitch and bigfonts affect the request? One bounded `proxy-font-selection`
-batch of 26 cases preserves valid gh109 opaque records and changes only its three
-tag requests. It varies charset 0/1/134, pitch 0/2/34, English/localized/unknown
-families, explicit/missing files, available/missing bigfonts and legacy opcodes.
-The writer checks deterministic builds, refuses existing files, and is staged outside
-the read-only samples junction. Await this one AutoCAD run before implementing the
-unverified family/charset policy.
+### 16.1. Controlled proxy font selection
+
+**VERIFIED-BY-ACAD** (`proxy-font-selection/*`, 26 cases, all successful in 80 s,
+2026-10-03). The generator changes only gh109's three tag requests, retaining valid opaque
+objects and identical coordinates. PNG candidate comparisons, raw requests and PDF spans
+are recorded in `.codex-out/tagfonts/new-candidates.json`, `new-raw-tags.json` and
+`new-reference-audit.json`. Typeface/file strings and charset/pitch are independent fields.
+
+| Request / controls | Verified plotted face or behaviour |
+|---|---|
+| Arial typeface, charset 0 / 1 (`arial-c0`, `arial-c1`) | Arial regular; PNGs byte-identical. |
+| Arial typeface, charset 134 (`arial-c134`) | SimSun; explicit SimSun candidate has F1(r=1)=1.0, versus Arial's 0.8282. |
+| Arial with txt.shx file (`arial-file-txt-c0`, `-c134`) | Typeface wins: respective Arial / SimSun PNGs are byte-identical to their empty-file controls. |
+| Arial/134 pitch 0 / 2 / 34 (`arial-p0`, `-c134`, `-p34`) | All three PNGs byte-identical SimSun; pitch does not change this selection. |
+| English SimSun, charset 0 / 134 (`simsun-c0`, `-c134`) | SimSun with both; two PNG pixels differ, not a different face. |
+| Localized 宋体 / unknown typeface (`song-control`, `unknown-c0`, `-c134`) | FONTALT/simplex; all PNGs byte-identical to missing-file FONTALT. Charset does not rescue an unresolved typeface. |
+| Empty typeface/file (`empty-c0`, `-c134`, `opcode-11-empty`) | TXT; all PNGs byte-identical to explicit `file-txt-c134`. Applies to TEXT2 and UNICODE_TEXT2. |
+| Empty typeface, explicit simsun.ttc (`file-simsun-c134`) | SimSun; PNG byte-identical to Arial/134 selected SimSun. |
+| Empty typeface, explicit arial.ttf (`file-arial-c0`, `-c134`) | Arial Italic with both charsets (byte-identical PNGs). Arial Italic candidate: 2780 mismatch / F1=1.0; regular Arial: 10294 / 0.9270. PDF visible tags also identify Arial-ItalicMT. |
+| Arial/134, available or missing bigfont (`arial-big-available`, `-missing`) | Bigfont ignored; byte-identical to Arial/134 without bigfont. |
+| Empty typeface/file, gbcbig.shx (`empty-big-available`) | TXT primary plus available bigfont; Latin tags byte-identical to empty/no-bigfont. |
+| Empty typeface/file, missing bigfont (`empty-big-missing`) | Suppressed tags; no TXT or TrueType replacement for a missing bigfont. |
+| Bare TEXT / UNICODE_TEXT (`opcode-10-empty`, `-36-empty`) | Tags absent with this drawing's missing-bigfont Standard; byte-identical to suppressed extended control. These controls do not establish a fresh bare-opcode default. |
+
+The shared FontManager implements the tested Arial/134 mapping only for a **resolved Arial
+proxy typeface in plot mode**. Unknown typefaces continue through FONTALT. Native STYLE,
+MTEXT inline font requests, viewers, and file-only requests do not acquire the proxy
+charset mapping. The tested file-only `arial.ttf` exception selects the italic face only
+for empty typeface and zero bold/italic flags; it is not generalized to other files. If a
+selected face is unavailable, retain the otherwise resolved primary. No system font data
+or OS font enumeration is bundled.
+
+PDF text extraction alone is insufficient font evidence: the TXT PNG controls can include
+SimSun tag spans in their PDF text layer. The plotted PNG glyphs determine selection; the
+PDF font names support the matching Arial/SimSun/Arial Italic candidates rather than
+contradicting the TXT paths.
+
+Q-0740 is answered within these controls. **UNKNOWN / Q-0741:** other charsets, other
+resolvable typefaces, bold/italic combinations, other file-only TrueType faces and the
+cause of the file-only Arial italic choice. Small SimSun/Arial edge coverage still differs;
+no raster change is inferred from these font-selection probes and no further run is requested.

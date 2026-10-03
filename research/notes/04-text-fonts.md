@@ -1744,7 +1744,7 @@ closer to the exact positions than this rule predicts, while the same text in co
 attachment 1 follows it. The split rules at tabs and fallback fonts are inferred from scores,
 not probed.
 
-## 15. Corpus font-resolution investigation (2026-10-03, pending probes)
+## 15. Corpus font resolution (2026-10-03)
 
 **VERIFIED-BY-ACAD** (`corpus-proxy/arch-cn-1e85a`, `arch-cn-1e8ba`, `arch-cn-1e965`,
 2026-10-03): the yellow native TEXT "FD" plots as thin strokes, unlike truedxf's filled
@@ -1772,16 +1772,61 @@ Raw data observations (unmodified corpus DXF; not new AutoCAD behavioural rules)
   TEXTs were located by composing their block transforms. A text-only diagnostic confirmed
   that their rendered ranges reach the bottom edge of the respective plot windows.
 
-The render provider aliases `宋体` and `SimSun` to `simsun.ttc` and ignores charset/pitch when
-looking up a family. FontManager uses only the bold/italic bits of 1071. **UNKNOWN:** does the
-zero charset, the localized family spelling, or font substitution at drawing load explain FD?
-The harness sets FONTALT=simplex.shx **after** accoreconsole opens the DXF; that timing could
-matter. The supplied font directories alone do not prove GDI resolves a family in that session.
-The remaining bottom CJK fringes might instead involve metrics, clipping or raster phase;
-their exact cause is unverified. No resolver rule has been changed on this evidence.
-
 `font-resolution` contains 31 probes: empty-file family/flags pairs, explicit SimSun/SHX
 controls, missing primary/bigfont pairs, three FONTALT=txt variants and nine isolated native
 FD/CJK cases at the corpus coordinates (CJK both clipped and fully visible). Each requests PNG,
 PDF and DXFOUT. `tools/gen/write_font_resolution_probes.py` checks determinism and refuses to
-overwrite different bytes. Questions Q-0736/0737 remain open until these plots are available.
+overwrite different bytes. All 31 AutoCAD runs succeeded (121 s, 2026-10-03).
+
+### 15.1. Verified resolution and linking rules
+
+**VERIFIED-BY-ACAD** (`font-resolution/empty-song-flags0`, `empty-song-flags34306`,
+`empty-simsun-flags0`, `empty-simsun-flags34306`, `file-simsun-song-flags0`,
+`file-simplex-song-flags0`, `file-simplex-song-flags34306`, 2026-10-03):
+
+- In this English AutoCAD 2027 installation, localized family **宋体 does not resolve**.
+  The console reports `Substituting [simplex.shx] for [宋体].` before the harness prologue.
+  Flags 0 and 34306 give identical PNGs; English **SimSun resolves** with either flag value
+  and produces exactly the same PNG as explicit `simsun.ttc`. Charset zero is not the cause.
+- A nonempty family still wins over group 3: even explicit `simsun.ttc` or `simplex.shx`
+  with family 宋体 follows the unresolved-family path. Empty group 3 does not mean Standard
+  or `$TEXTSTYLE`: FD uses **simplex.shx**, not txt.shx or Standard's Arial.
+- The three isolated native FD cases (`arch-1e85a-fd`, `arch-1e8ba-fd`, `arch-1e965-fd`)
+  match pixel-for-pixel after removing the renderer's forced 宋体→SimSun alias in plot mode.
+  Viewers retain the alias; other localized family aliases have not been tested by this batch.
+
+**VERIFIED-BY-ACAD** (`font-resolution/empty-song-flags0-alt-txt`,
+`empty-no-xdata-alt-txt`, `empty-simsun-flags34306-alt-txt`, 2026-10-03): setting FONTALT to
+txt.shx **after DXF load** does not replace the already bound simplex font. The Latin-only
+unresolved/empty-file plots still match simplex exactly; resolved SimSun remains SimSun.
+This does not prove what a fresh profile with FONTALT=txt.shx *before load* would do.
+
+**VERIFIED-BY-ACAD** (`font-resolution/empty-unknown-family`, `empty-song-*`,
+`file-simplex-song-*`, `file-simsun-song-flags0`, `file-simplex`, `file-txt`, `missing-shx`,
+2026-10-03): an unresolved TrueType STYLE retains **Unicode linking in TEXT** after SHX
+substitution: Latin uses simplex, CJK uses filled SimSun glyphs. Explicit SHX TEXT instead
+draws question marks for these missing characters. The PDF embeds SimSun and records the
+entire `弱电井 冷媒` span, including a SimSun space (half the CJK advance), at SimSun's own
+cap-height scale. The same linked span occurs in MTEXT. Preserve that space when both
+neighbors link to the same fallback font; keep ordinary SHX spaces outside such a span.
+The implementation confines this new linking path to plot-mode unresolved-family styles.
+The six mixed-family cases improve to F1(r=1)=1.0 (3701 exact mismatches, raster fringes).
+
+**VERIFIED-BY-ACAD** (`font-resolution/simplex-missing-bigfont`, `missing-shx-bigfont`,
+2026-10-03): TEXT and Latin MTEXT disappear, but CJK MTEXT still links to SimSun (also embedded
+in the PDF). Current whole-entity MTEXT suppression misses this exception. It remains open;
+it is not responsible for the arch-cn bottom labels, whose bigfont is available.
+
+### 15.2. Remaining CJK fringes
+
+**VERIFIED-BY-ACAD** (`font-resolution/arch-1e85a-cjk[-unclipped]`,
+`arch-1e8ba-cjk[-unclipped]`, `arch-1e965-cjk[-unclipped]`, 2026-10-03): isolated native text
+reproduces the corpus fringes without proxies. The first two cases' PDFs explicitly embed
+SimSun. Their mismatch is therefore not a missing-family or missing-bigfont substitution.
+The third uses the available simplex/GBCBIG pair and has much smaller stroke fringes.
+
+SimSun clipped probes: 3871 / 1136 exact mismatches; unclipped: 5666 / 7336. Whole-image
+translation reduces these counts but the best vertical shift changes with the plot window:
+clipped wants (1,−1) px, unclipped (1,0). GBCBIG clipped/unclipped wants zero shift (156/191
+pixels differ). Do not hard-code a corpus offset or globally shift glyphs on this evidence.
+Q-0737 remains open for controlled anchor-phase, em-size and large-coordinate probes.

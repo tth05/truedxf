@@ -44,6 +44,8 @@ export interface ResolvedTextStyle {
   readonly suppressed: boolean;
   readonly spec: TextStyleSpec | undefined;
   readonly substitutions: readonly FontSubstitution[];
+  /** Plot-only: an unresolved TrueType family retains Unicode linking after SHX substitution (note 04 §15). */
+  readonly shxUnicodeFallback?: boolean;
 }
 
 /** An MTEXT inline font command: `\fFamily|b1|i0|c0|p34;` or `\Ffile;` (note 04 §3.3). */
@@ -63,8 +65,8 @@ export interface TextFontSource {
   /** WHATWG label of the drawing code page ($DWGCODEPAGE), for non-Unicode SHX fonts. */
   readonly encoding: string;
   /**
-   * MTEXT: a glyph for a character missing from an SHX font, from a TrueType fallback scaled by
-   * its own cap height (VERIFIED-BY-ACAD text/escape-spellings; which font AutoCAD uses is UNKNOWN).
+   * A glyph missing from SHX in MTEXT or unresolved-family TEXT, scaled by the fallback's
+   * own cap height (VERIFIED-BY-ACAD text/escape-spellings, font-resolution/empty-song-*, note 04 §15).
    */
   fallbackGlyph?(cp: number): ResolvedGlyph | undefined;
   /** MTEXT: the missing-glyph box drawn for control characters (text/caret-codes-mtext). */
@@ -131,7 +133,7 @@ export class TextFonts implements TextFontSource {
   private fallbacks: Font[] | undefined;
 
   /**
-   * @param glyphFallbacks TrueType files for glyphs missing from SHX fonts in MTEXT, in order
+   * @param glyphFallbacks TrueType files for glyphs missing from SHX in MTEXT or unresolved-family TEXT, in order
    *   (default: arial.ttf, seguisym.ttf, simsun.ttc — SimSun reproduced AutoCAD's CJK fallback
    *   glyph exactly, Arial's .notdef its control-character box).
    */
@@ -186,6 +188,10 @@ export class TextFonts implements TextFontSource {
         suppressed: r.suppressed,
         spec,
         substitutions: r.substitutions,
+        shxUnicodeFallback:
+          this.manager.options.missingFont !== "fallback" &&
+          r.font?.kind === "shx" &&
+          r.substitutions.some((s) => s.reason === "unknown-family"),
       });
     }
     if (!this.fontAltStyle) {

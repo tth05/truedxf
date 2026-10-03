@@ -24,7 +24,14 @@
 import { type Bounds, ShxFont, type StyleFont } from "@truedxf/fonts";
 import { Affine2, Matrix44, ocsToWcsMatrix, type Vec3, wcsToOcsMatrix } from "@truedxf/geometry";
 import { bigFontPairCode, glyphCode, type TextFontSource } from "./fonts.ts";
-import { decorationOffsets, InkBox, type MeasuredGlyph, measureGlyph, measureResolved } from "./glyphs.ts";
+import {
+  decorationOffsets,
+  fallbackSpace,
+  InkBox,
+  type MeasuredGlyph,
+  measureGlyph,
+  measureResolved,
+} from "./glyphs.ts";
 import {
   defaultContext,
   type MTextChar,
@@ -259,7 +266,7 @@ export function layoutMText(
   const col = ((e.attachment - 1) % 3) + 1;
   const row = Math.floor((e.attachment - 1) / 3);
   const defaultAlign: ParagraphAlign = col === 2 ? "center" : col === 3 ? "right" : "left";
-  const engine = new Engine(fonts, baseFont, h0, options, notes, style.suppressed);
+  const engine = new Engine(fonts, baseFont, h0, options, notes, style.suppressed, style.shxUnicodeFallback);
 
   // ---- paragraphs → lines
   const lines: Line[] = [];
@@ -774,6 +781,7 @@ class Engine {
   private readonly o: MTextLayoutOptions;
   private readonly notes: string[];
   private readonly baseSuppressed: boolean;
+  private readonly familyFallback: boolean;
 
   constructor(
     fonts: TextFontSource,
@@ -782,12 +790,14 @@ class Engine {
     o: MTextLayoutOptions,
     notes: string[],
     baseSuppressed = false,
+    familyFallback = false,
   ) {
     this.fonts = fonts;
     this.baseFont = baseFont;
     this.h0 = h0;
     this.o = o;
     this.notes = notes;
+    this.familyFallback = familyFallback;
     this.baseSuppressed = baseSuppressed;
   }
 
@@ -884,9 +894,23 @@ class Engine {
           break;
         }
         case "space":
-        case "nbsp":
-          out.push({ k: "space", ctx: t.ctx, adv: this.spaceAdvance(t.ctx), nbsp: t.t === "nbsp" });
+        case "nbsp": {
+          let adv = this.spaceAdvance(t.ctx);
+          const before = out[out.length - 1];
+          const next = tokens[k + 1];
+          if (
+            this.familyFallback &&
+            before?.k === "glyph" &&
+            next?.t === "char" &&
+            before.ctx === t.ctx &&
+            next.ctx === t.ctx
+          ) {
+            const space = fallbackSpace(before.m.resolved, this.glyph(next.ctx, next.ch).m.resolved);
+            if (space) adv = this.glyphItem(t.ctx, space).adv;
+          }
+          out.push({ k: "space", ctx: t.ctx, adv, nbsp: t.t === "nbsp" });
           break;
+        }
         case "tab":
           out.push({ k: "tab", ctx: t.ctx });
           break;

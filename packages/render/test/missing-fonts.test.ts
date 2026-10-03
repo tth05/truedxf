@@ -2,7 +2,9 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { DxfDocument } from "@truedxf/model";
 import { describe, expect, it } from "vitest";
+import { makeOtf } from "../../fonts/test/helpers.ts";
 import { type PlotRequest, renderPlot } from "../src/index.ts";
+import { prepareTextFonts } from "../src/text.ts";
 import { dxfBytes } from "./helpers.ts";
 
 const assets = join(import.meta.dirname, "..", "..", "fonts", "assets");
@@ -81,6 +83,42 @@ const request: PlotRequest = {
 };
 
 describe("missing fonts (PlotResult.notes, TextRenderOptions.missingFont)", () => {
+  it.each([0, 34306])("distinguishes localized and English SimSun families with flags %i", async (flags) => {
+    const simsun = makeOtf({ family: "SimSun", glyphs: [] });
+    const load = async (name: string) => (name.toLowerCase() === "simsun.ttc" ? simsun : loadFont(name));
+    const d = DxfDocument.load(
+      dxfBytes(`
+0 SECTION
+2 HEADER
+9 $ACADVER
+1 AC1032
+0 ENDSEC
+0 SECTION
+2 TABLES
+0 TABLE
+2 STYLE
+70 3
+${style("LOCALIZED", "")}\n1001 ACAD\n1000 宋体\n1071 ${flags}
+${style("ENGLISH", "")}\n1001 ACAD\n1000 SimSun\n1071 ${flags}
+${style("FILE_LOCALIZED", "simsun.ttc")}\n1001 ACAD\n1000 宋体\n1071 ${flags}
+0 ENDTAB
+0 ENDSEC
+0 EOF
+`),
+    );
+    const plot = await prepareTextFonts(d, load);
+    expect(plot!.style("LOCALIZED").font!.primary.kind).toBe("shx");
+    expect(plot!.style("LOCALIZED").substitutions).toContainEqual({
+      reason: "unknown-family",
+      requested: "宋体",
+      used: "simplex.shx",
+    });
+    expect(plot!.style("FILE_LOCALIZED").font!.primary.kind).toBe("shx");
+    expect(plot!.style("ENGLISH").font!.primary.kind).toBe("ttf");
+    expect(plot!.style("ENGLISH").substitutions).toEqual([]);
+    const viewer = await prepareTextFonts(d, load, { missingFont: "fallback" });
+    expect(viewer!.style("LOCALIZED").font!.primary.kind).toBe("ttf");
+  });
   it('"autocad" (plots): FONTALT, the missing-bigfont text and the unknown \\f family are not drawn', async () => {
     const r = await renderPlot(doc(), request, { loadFont });
     expect(r.notes).toEqual([

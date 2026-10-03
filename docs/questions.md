@@ -760,8 +760,8 @@ Answers (VERIFIED-BY-ACAD, AutoCAD 2027, 2026-09-30):
 
 | ID | topic | question | source | test | status |
 |---|---|---|---|---|---|
-| Q-0736 | fonts | [U] Why does empty group 3 with ACAD family 宋体 and flags 0 plot native FD as SHX: charset, localized family, or substitution before the harness sets FONTALT? | 04 §15 | `font-resolution/empty-*`, `file-simplex-song-*`, `arch-*-fd` | open |
-| Q-0737 | fonts | [U] Are the bottom arch-cn SimSun/GBCBIG fringes caused by font choice, metrics, clipping or raster phase, and what does a missing primary/bigfont pair plot? | 04 §15 | `font-resolution/arch-*-cjk*`, `empty-simsun-*`, `simplex-gbcbig`, `missing-shx-bigfont` | open |
+| Q-0736 | fonts | [U] Why does empty group 3 with ACAD family 宋体 and flags 0 plot native FD as SHX: charset, localized family, or substitution before the harness sets FONTALT? | 04 §15 | `font-resolution/empty-*`, `file-simplex-song-*`, `arch-*-fd` | answered |
+| Q-0737 | fonts | [U] What anchor/em-size raster rule produces the arch-cn SimSun/GBCBIG fringes? Font choice is verified; missing bigfont suppresses TEXT but permits linked CJK MTEXT. | 04 §15 | `font-resolution/arch-*-cjk*`, `simplex-gbcbig`, `missing-shx-bigfont`; plan: `font-metrics` phase/height/coordinate controls | open |
 | Q-0459 | fonts | [C] Which bits of STYLE XDATA 1071 encode bold, italic, charset and pitch/family (LOGFONT packing: italic 0x01000000, bold 0x02000000? 34306=0x8602)? | 02 §2.3; 11a §4, Open conflicts; 11b §10, Test ideas (11b:8) | `fileformat/style-xdata-computed` | open |
 | Q-0460 | fonts | [U] TTF family lacking bold/italic faces with XDATA bold/italic bits: does AutoCAD synthesise bold/italic, and how? | 04 §4.5 (04:T22) | `text/xdata-sans-bold`, `text/xdata-sans-italic`, `text/xdata-sans-bolditalic`, `text/xdata-mono-bold` (+4 more) | open |
 | Q-0461 | fonts | [U] Does AutoCAD support OpenType (.otf) fonts in STYLE group 3 or XDATA family? | 04 §4.5 (04:T22) | plan: text (png) — STYLE group 3 'SourceCodePro.otf' (installed), TEXT 'ABC' | open |
@@ -795,6 +795,11 @@ Answers (VERIFIED-BY-ACAD, AutoCAD 2027, 2026-09-30):
 | Q-0489 | fonts | [U] How many segments does PLOT use to flatten TTF outline curves at TEXTQLTY 0/50/100, and which setting reproduces the exact outlines? | 04 §4.5, §8 item 3; 08 §5.6, §7 item 8 (04:T24, 08:T-ACC-5) | plan: text (png) — Arial 'O' h=1000 with TEXTQLTY 0/50/100 set via LISP before plot, TEXTFILL 1 (and 0) | open |
 | Q-0490 | fonts | [T] TEXTFILL=0: does PLOT draw TTF glyphs as outlines only, and with what lineweight? | 04 §4.5, §7 item 1, §8 item 17 (04:T24) | plan: text (png) — Arial 'O' h=1000, TEXTFILL 0 and 1, lineweight 0.5 | open |
 | Q-0491 | fonts | [U] With lineweights plotted, is SHX TEXT stroked at the entity lineweight while TTF TEXT is fill-only and ignores lineweight? | 04 §4.4, §4.5 (04:T24) | `acad-default-fonts/lineweight-shx-vs-ttf-on`, `acad-default-fonts/lineweight-shx-vs-ttf-off`, `lineweights/text-lw`, `text/lineweight-000` (+2 more) | open |
+
+Q-0736 (2026-10-03): English AutoCAD cannot resolve localized 宋体, with flags 0 or 34306;
+SimSun resolves with either flag. XDATA wins over group 3 and binds simplex at DXF load;
+changing FONTALT afterward does not replace it. Linked CJK TEXT uses SimSun, including the
+intervening space (note 04 §15.1). Q-0737 remains open for raster phase/em-size, not font choice.
 
 <a id="attribs"></a>
 ## ATTRIB / ATTDEF (`attribs`)

@@ -146,7 +146,7 @@ const FAMILY_FILES: Record<string, readonly string[]> = {
 
 type LoadFont = (name: string) => Promise<Uint8Array | undefined>;
 
-function providerFor(load: LoadFont, hide: RegExp | undefined): FontProvider {
+function providerFor(load: LoadFont, hide: RegExp | undefined, fallbackMode: boolean): FontProvider {
   const cache = new Map<string, Promise<Uint8Array | undefined>>();
   const get = (name: string): Promise<Uint8Array | undefined> => {
     const k = name.toLowerCase();
@@ -163,7 +163,9 @@ function providerFor(load: LoadFont, hide: RegExp | undefined): FontProvider {
     async findFamily(family, style) {
       const key = family.trim().toLowerCase();
       const idx = (style.bold ? 1 : 0) + (style.italic ? 2 : 0);
-      const known = FAMILY_FILES[key];
+      // English AutoCAD cannot resolve the localized SimSun family, with either charset
+      // (note 04 §15, font-resolution/empty-song-*). Viewers may use the helpful alias.
+      const known = key === "宋体" && !fallbackMode ? undefined : FAMILY_FILES[key];
       const compact = family.replace(/\s+/g, "");
       const suffix = ["Regular", "Bold", "Italic", "BoldItalic"][idx]!;
       const candidates = [
@@ -218,7 +220,7 @@ export async function prepareTextFonts(
   }
   let manager = byKey.get(key);
   if (!manager) {
-    manager = new FontManager(providerFor(loadFont, options.unavailableFonts), {
+    manager = new FontManager(providerFor(loadFont, options.unavailableFonts, missingFont === "fallback"), {
       fontAlt,
       glyphFallbacks: [...glyphFallbacks],
       missingFont,

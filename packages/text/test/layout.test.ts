@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { FontManager, MemoryFontProvider } from "@truedxf/fonts";
 import { describe, expect, it } from "vitest";
+import { latinGlyphs, makeOtf } from "../../fonts/test/helpers.ts";
 import {
   layoutMText,
   layoutText,
@@ -14,6 +15,80 @@ import {
 import { hasArial, hasLato, hasSimplex, style, testFonts } from "./helpers.ts";
 
 const MSYH = "C:/Windows/Fonts/msyh.ttc";
+
+describe("unresolved TrueType STYLE Unicode fallback (note 04 §15)", () => {
+  const fontsFor = async (family?: string) => {
+    const p = new MemoryFontProvider();
+    p.add(
+      "truedxf-test.shx",
+      new Uint8Array(readFileSync(new URL("../../fonts/assets/truedxf-test.shx", import.meta.url))),
+    );
+    p.add(
+      "fallback.otf",
+      makeOtf({
+        family: "Test CJK",
+        glyphs: [
+          ...latinGlyphs(),
+          { unicode: 0x20, advance: 250, contours: [] },
+          {
+            unicode: 200,
+            advance: 600,
+            contours: [
+              [
+                [0, 0],
+                [600, 0],
+                [600, 700],
+                [0, 700],
+              ],
+            ],
+          },
+          {
+            unicode: 0x4e2d,
+            advance: 1000,
+            contours: [
+              [
+                [0, 0],
+                [1000, 0],
+                [1000, 700],
+                [0, 700],
+              ],
+            ],
+          },
+        ],
+      }),
+    );
+    const fonts = new TextFonts(
+      new FontManager(p, { fontAlt: "truedxf-test.shx" }),
+      [style("S", "truedxf-test.shx", { ttfFamily: family })],
+      "gbk",
+      ["fallback.otf"],
+    );
+    await fonts.prepare();
+    return fonts;
+  };
+
+  it("links missing Unicode glyphs and their space without replacing SHX Latin or numeric escapes", async () => {
+    const fonts = await fontsFor("TruedxfMissingFamily");
+    const l = layoutText(text({ text: "中 中", height: 10 }), fonts);
+    const ink = l.glyphs.filter((g) => g.glyph.bounds);
+    expect(ink).toHaveLength(2);
+    expect(ink.map((g) => g.font.kind)).toEqual(["ttf", "ttf"]);
+    expect(ink[1]!.matrix.e - ink[0]!.matrix.e).toBeCloseTo((1250 * 10) / ink[0]!.font.capHeight, 10);
+    expect(layoutText(text({ text: "H" }), fonts).glyphs[0]!.font.kind).toBe("shx");
+    expect(layoutText(text({ text: "%%200" }), fonts).glyphs.every((g) => g.font.kind === "shx")).toBe(true);
+    const mt = layoutMText(mtext({ text: "中 中" }), fonts).glyphs.filter((g) => g.glyph.bounds);
+    expect(mt[1]!.matrix.e - mt[0]!.matrix.e).toBeCloseTo((1250 * 10) / mt[0]!.font.capHeight, 10);
+  });
+
+  it("keeps explicit SHX TEXT question marks and missing-bigfont suppression", async () => {
+    const fonts = await fontsFor();
+    expect(layoutText(text({ text: "中" }), fonts).glyphs[0]!.font.kind).toBe("shx");
+    const missing = await testFonts([
+      style("S", "truedxf-test.shx", { ttfFamily: "Missing", bigFont: "MissingBig.shx" }),
+    ]);
+    expect(layoutText(text({ text: "中" }), missing).notes).toContain("text-suppressed-missing-bigfont");
+  });
+});
 
 const Z = { x: 0, y: 0, z: 1 };
 const text = (t: Partial<TextInput>): TextInput => ({

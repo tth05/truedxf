@@ -34,7 +34,14 @@
 import { type ResolvedGlyph, ShxFont, type StyleFont, TtfFont } from "@truedxf/fonts";
 import { Affine2, Matrix44, ocsToWcsMatrix, type Vec3 } from "@truedxf/geometry";
 import { bigFontPairCode, glyphCode, type TextFontSource } from "./fonts.ts";
-import { decorationOffsets, InkBox, type MeasuredGlyph, measureGlyph, measureResolved } from "./glyphs.ts";
+import {
+  decorationOffsets,
+  fallbackSpace,
+  InkBox,
+  type MeasuredGlyph,
+  measureGlyph,
+  measureResolved,
+} from "./glyphs.ts";
 import { decodeTextString, type TextChar } from "./specials.ts";
 import type { DecorationLine, GlyphPlacement, TextLayout, TextRun } from "./types.ts";
 
@@ -163,6 +170,7 @@ function textGlyph(
   encoding: string,
   fonts?: TextFontSource,
   vertical = false,
+  familyFallback = false,
 ): MeasuredGlyph {
   const ttf = font.primary.kind === "ttf";
   if (ttf && ch.cp < 0x20) {
@@ -172,6 +180,12 @@ function textGlyph(
     return measureGlyph(font, font.primary.hasGlyph(ch.cp) ? ch.cp : QUESTION, vertical);
   }
   const m = measureGlyph(font, glyphCode(font, ch, encoding), vertical);
+  // An unresolved TrueType STYLE retains Unicode fallback in TEXT even when FONTALT
+  // is SHX; explicit SHX styles keep their question marks (note 04 §15).
+  if (!ttf && familyFallback && m.resolved?.fallback && !ch.numeric && ch.cp >= 0x80) {
+    const fallback = fonts?.fallbackGlyph?.(ch.cp);
+    if (fallback) return measureResolved(ch.cp, fallback);
+  }
   if (ttf && !m.resolved && isBoxChar(ch.cp)) {
     const box = missingGlyphBox(fonts);
     if (box) return boxGlyph(ch.cp, box);
@@ -187,6 +201,7 @@ export function measureLine(
   fonts?: TextFontSource,
   vertical = false,
   tracking = 1,
+  familyFallback = false,
 ): LineMetrics {
   const glyphs: Placed[] = [];
   const ink = new InkBox();
@@ -198,10 +213,14 @@ export function measureLine(
     const next = chars[k + 1];
     const pair = next && !ch.numeric && !next.numeric ? bigFontPairCode(font, ch.cp, next.cp) : undefined;
     if (pair !== undefined) k++;
-    const m =
+    let m =
       pair !== undefined
         ? measureGlyph(font, pair, vertical)
-        : textGlyph(font, ch, encoding, fonts, vertical);
+        : textGlyph(font, ch, encoding, fonts, vertical, familyFallback);
+    if (familyFallback && ch.cp === 0x20 && next) {
+      const after = textGlyph(font, next, encoding, fonts, vertical, familyFallback);
+      m = fallbackSpace(glyphs[glyphs.length - 1]?.m.resolved, after.resolved) ?? m;
+    }
     glyphs.push({ m, pen, penY, ch });
     if (m.ink) ink.add(m.ink, pen, penY);
     pen += m.advance * tracking;
@@ -279,7 +298,15 @@ export function textFrame(
   const ttfColumn = !!style.spec?.vertical && font.kind === "ttf";
   if (style.spec?.vertical && !vertical && !ttfColumn) notes.push("text-vertical-unsupported");
   const chars = options.characters ?? decodeTextString(e.text);
-  const line = measureLine(chars, font, fonts.encoding, fonts, vertical, options.tracking ?? 1);
+  const line = measureLine(
+    chars,
+    font,
+    fonts.encoding,
+    fonts,
+    vertical,
+    options.tracking ?? 1,
+    style.shxUnicodeFallback,
+  );
   let w = e.widthFactor || 1;
   const tanOb = Math.tan((e.oblique || 0) * DEG);
   let rot = (e.rotation || 0) * DEG;

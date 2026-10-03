@@ -27,6 +27,17 @@ export function measureResolved(code: number, r: ResolvedGlyph | undefined): Mea
   };
 }
 
+/** A space within one linked TrueType fallback run uses that font's advance (note 04 §15). */
+export function fallbackSpace(
+  before: ResolvedGlyph | undefined,
+  after: ResolvedGlyph | undefined,
+): MeasuredGlyph | undefined {
+  if (!before?.fallback || !after?.fallback || before.font !== after.font || before.font.kind !== "ttf")
+    return undefined;
+  const glyph = before.font.glyph(0x20);
+  return glyph ? measureResolved(0x20, { ...before, glyph }) : undefined;
+}
+
 /** Growable ink box. */
 export class InkBox {
   xMin = Number.POSITIVE_INFINITY;

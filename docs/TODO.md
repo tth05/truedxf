@@ -8,9 +8,12 @@ Tick items off (or delete them) when done.
 
 - [x] Identify native FD and bottom CJK text/style paths in the three arch-cn corpus windows;
       stage 31 deterministic font-resolution probes (2026-10-03, note 04 §15).
-- [ ] Run `font-resolution` through AutoCAD, answer Q-0736/0737, then fix only the verified
-      font/metric rules and re-score corpus-proxy and text suites. The current font investigation
-      changes no runtime rendering; samples-junction writes are denied in this sandbox.
+- [x] Run all 31 `font-resolution` probes through AutoCAD; answer Q-0736 and fix localized
+      SimSun resolution plus unresolved-family Unicode linking (2026-10-03, note 04 §15).
+- [ ] Resolve Q-0737's SimSun anchor/em-size raster fringes with controlled `font-metrics`
+      probes. Corpus bottom labels already use the correct fonts; do not guess offsets.
+- [ ] Missing-bigfont MTEXT: preserve CJK fallback while suppressing primary SHX text
+      (`font-resolution/simplex-missing-bigfont`, note 04 §15.1); outside the arch-cn label fix.
 - [x] Regenerate all AutoCAD references now that the Liberation fonts are visible to AutoCAD
       (started 2026-10-01; before, most suites were plotted with simplex.shx substitution), then
       re-score without `--hide-fonts` and update the scoreboard in PLAN.md.

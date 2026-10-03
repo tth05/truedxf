@@ -240,14 +240,11 @@ export function layoutMText(
   const spec = style.spec;
   const ctx0 = defaultContext(h0, spec?.widthFactor || 1, spec?.oblique ?? 0);
   const tokens = parseMText(e.text, ctx0, options.dimension);
-  // Fully overridden MTEXT does not depend on its missing base bigfont (note 07 §15.7,
-  // inline-missing-base-bigfont). Mixed base/inline runs need a separate plot probe.
-  if (
-    style.suppressed &&
-    !tokens.every((t) => t.ctx.font !== undefined && fonts.inlineFont(t.ctx.font) !== undefined)
-  ) {
+  // Missing base bigfonts suppress only base runs; inline runs keep the positions measured
+  // with the primary font, including advances of hidden text (note 07 §15.8).
+  if (style.suppressed && tokens.some((t) => !t.ctx.font || !fonts.inlineFont(t.ctx.font))) {
     notes.push("mtext-suppressed-missing-bigfont");
-    return emptyLayout(ocs, notes);
+    if (!tokens.some((t) => t.ctx.font && fonts.inlineFont(t.ctx.font))) return emptyLayout(ocs, notes);
   }
   // flow direction 3 (top to bottom): vertical columns with a dual-orientation SHX font, one
   // horizontal line otherwise (note 04 §11)
@@ -262,7 +259,7 @@ export function layoutMText(
   const col = ((e.attachment - 1) % 3) + 1;
   const row = Math.floor((e.attachment - 1) / 3);
   const defaultAlign: ParagraphAlign = col === 2 ? "center" : col === 3 ? "right" : "left";
-  const engine = new Engine(fonts, baseFont, h0, options, notes);
+  const engine = new Engine(fonts, baseFont, h0, options, notes, style.suppressed);
 
   // ---- paragraphs → lines
   const lines: Line[] = [];
@@ -776,6 +773,7 @@ class Engine {
   private readonly h0: number;
   private readonly o: MTextLayoutOptions;
   private readonly notes: string[];
+  private readonly baseSuppressed: boolean;
 
   constructor(
     fonts: TextFontSource,
@@ -783,12 +781,18 @@ class Engine {
     h0: number,
     o: MTextLayoutOptions,
     notes: string[],
+    baseSuppressed = false,
   ) {
     this.fonts = fonts;
     this.baseFont = baseFont;
     this.h0 = h0;
     this.o = o;
     this.notes = notes;
+    this.baseSuppressed = baseSuppressed;
+  }
+
+  private suppressed(ctx: MTextContext): boolean {
+    return this.baseSuppressed && (!ctx.font || !this.fonts.inlineFont(ctx.font));
   }
 
   private fontOf(ctx: MTextContext): StyleFont {
@@ -1283,6 +1287,7 @@ class Engine {
     for (let q = 0; q < ln.items.length; q++) {
       const pi = ln.items[q]!;
       const it = pi.item;
+      if (this.suppressed(it.ctx)) continue;
       if (it.k === "glyph") {
         const r = it.m.resolved;
         if (!r?.glyph.bounds) continue;
@@ -1347,7 +1352,8 @@ class Engine {
       for (let q = 0; q < ln.items.length; q++) {
         const pi = ln.items[q]!;
         // trailing spaces after the last glyph are not decorated (UNVERIFIED)
-        const on = pi.item.ctx[flag] && (q <= lastInk || pi.item.k === "glyph");
+        const on =
+          !this.suppressed(pi.item.ctx) && pi.item.ctx[flag] && (q <= lastInk || pi.item.k === "glyph");
         if (on) {
           if (start < 0) {
             start = pi.x;

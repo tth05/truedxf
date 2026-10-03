@@ -1,7 +1,7 @@
 # Proxy fidelity progress — 2026-10-03
 
 Worktree: truedxf-wt-proxy, branch fid/proxy. Changes remain uncommitted. AutoCAD accepted
-all nine first-round probes (9 ok in 29 s); twelve follow-up probes need a new run. This is
+all nine first-round probes (9 ok in 29 s) and all twelve follow-up probes. This is
 an intermediate result, not a claim of a complete AutoCAD match.
 
 ## Changes and design decisions
@@ -15,28 +15,35 @@ No general font substitution or colour/layer-index workaround was added.
 Step 2 implements only the newly verified rules: POLYLINE leaves FILLON enabled for a
 following POLYGON; plot-time FILLMODE overrides the saved header; fully overridden MTEXT
 can draw with a missing base-style bigfont. Plain/unresolved-inline suppression remains;
-mixed runs and fill consumption after other primitives await discriminating references.
+mixed runs and fill consumption after other primitives were isolated in step 3.
 Proxy charset/pitch fields are forwarded with STYLE-compatible LOGFONT flags, without
 changing resolution policy. Three regression tests cover fill across trait changes, plot override/header equivalence,
 and missing-base MTEXT geometry versus a healthy style.
+
+Step 3 removes primitive-based fill consumption: the final probes verify persistence after
+SHELL/POLYGON/TEXT as well as POLYLINE. Mixed MTEXT now measures hidden base runs but emits
+only resolved inline runs, preserving their positions. Regression tests cover fill snapshots
+through an explicit clear and inline geometry versus a healthy control. Shared TextFonts
+still resolves every embedded font field; this branch adds no separate font-choice policy.
 
 The PDF references establish that stair HATCH 5DE has the correct stored phase and spacing
 (23 lines, maximum normal error 0.126314 PDF points, within device quantization). The wall
 sample's matched straight endpoints also agree within quantization. No coordinate or hatch
 phase correction is justified. Proxy tags are PDF stroke paths despite their stored 宋体
-family and empty font files; field precedence remains open. This work leaves arch-cn font
+family and empty font files; the final file/typeface equality results support the shared localized-family FONTALT correction,
+while the Arial/empty-family PDF/PNG distinction remains open. This work leaves arch-cn font
 substitution to the other agent.
 
 Evidence, including case ids and verification boundaries, is in
 [note 07 §15.6–15.7](../research/notes/07-blocks-inserts-misc.md). Q-0736–Q-0739 and
-TODO entries now record the partial answers and remaining probes.
+TODO entries record answered fill/mixed-run questions and remaining raster/font-selection limits.
 
 ## Measured results
 
 CPU raster=autocad; exact RGB mismatch / F1(r=1). Before is current master, including its
 LWPOLYLINE support, rather than the older supplied comparison images.
 
-| Case | Current master | After step 1 | After step 2 |
+| Case | Current master | After step 1 | Final (steps 2–3) |
 |---|---:|---:|---:|
 | gh109-floor-plan | 24,057 / 0.9079 | 20,197 / 0.9730 | **19,922 / 0.9785** |
 | arch-cn-1e85a | 46,418 / 0.8648 | same | same |
@@ -112,30 +119,77 @@ Apply in order. No commits were attempted.
    first probe generator, research and initial report.
 2. .codex-out/02-proxy-acad-probes.patch + .msg: verified fill/FILLMODE/inline fixes,
    regression tests, follow-up generator, updated research/questions/TODO and this report.
+3. .codex-out/03-proxy-followup.patch + .msg: persistent fill after filled/text primitives,
+   mixed-run suppression with retained advances, tests and final evidence/report.
 
 ## What is still different
 
-| Difference | Cause / next evidence |
+| Difference | Evidence / remaining cause |
 |---|---|
-| Proxy M0921/C1815 glyph shapes and widths | AutoCAD uses stroke paths; current typeface-only resolution chooses TrueType. Five field-only variants isolate empty-file/typeface precedence. No font-choice guess added. |
-| Wall/stair/window one-pixel edges; hatch exact pixels | Stored geometry and hatch phase agree with PDF; integer device ties are unresolved. Two half-pixel windows test the raster boundary. |
-| Large native 天正单行文字输入 label | Standard has missing hztxt.shx and no inline override. Pure font-choice/substitution question, left to font work; room/area now restored. |
-| Native dimension exact raster pixels | SimSun belongs to native dimensions, distinct from proxy tags. Their zoom ROI has 1,814 exact mismatches but F1(r=1)=1.0000; this supports raster differences, not font-shape substitution. |
-| Fill after SHELL/POLYGON/TEXT; mixed base/inline MTEXT | Existing assumptions beyond the verified boundaries remain; five follow-up cases isolate these. SHELL holes/face traits, MESH, non-+Z text and nested transforms still lack references. |
+| Proxy M0921/C1815 shapes and widths | Localized 宋体 with simplex or SimSun files plots identically to the original. The shared localized-family FONTALT correction belongs to the other branch and is compatible with these private proxy styles. Arial and empty-family PDF/PNG font selection still differs; no proxy resolver added. |
+| Wall/stair/window edge pixels | The half-pixel wall window is pixel-exact. Original PDF endpoints agree within device quantization; the general raster tie/coverage rule remains open. |
+| Stair hatch exact pixels | Stored phase and spacing agree with all 23 PDF lines; both windows have F1(r=1)=1. No phase/spacing correction is justified. |
+| Large native 天正单行文字输入 label | Standard has missing hztxt.shx and no inline override. This is a native font-choice issue, left to font work; room and area are restored. |
+| Native dimension exact pixels | The native SimSun dimension ROI has F1(r=1)=1.0000 despite 1,814 exact mismatches. No verified font-shape fix. |
+| Proxy capabilities beyond the case | MESH fills, SHELL holes/face traits, non-+Z text and nested transforms still lack valid reference coverage. Their implementation boundaries are recorded in note 07. |
 
-## Next AutoCAD batch
+## Final follow-up probes
 
-The standard-library generator stages twelve new cases under .venv/fid-proxy-followup-v2;
-all parse with 49 model entities and no proxy-corrupt diagnostics. It refuses all existing
-outputs. It keeps opaque custom-object fields, replacing only graphics/font strings or
-MTEXT test content; the two half-pixel cases are byte-identical DXF copies.
+All twelve cases loaded successfully in AutoCAD. No further AutoCAD run is requested.
+The reference generator preserves opaque object data and refuses existing outputs.
 
-Run from this worktree in the user's terminal:
+| Probe | Before step 3 | After step 3 |
+|---|---:|---:|
+| fill-after-polygon | 99,588 / 0.6716 | **10,486 / 0.9733** |
+| fill-after-shell | 99,588 / 0.6716 | **10,486 / 0.9733** |
+| fill-after-text | 99,588 / 0.1833 | **10,486 / 0.9505** |
+| inline-mixed-missing-base | 1,185 / 0.9902 | **0 / 1.0000** |
+| inline-mixed-control | 0 / 1.0000 | same |
+| wall-stair-halfpixel | 0 / 1.0000 | same |
+| stair-hatch-halfpixel | 20,098 / 1.0000 | same |
+| tag-empty-family | 4,360 / 0.9581 | same |
+| tag-family-arial / tag-file-arial | 15,861 / 0.8282 each | same |
+| tag-file-simplex / tag-file-simsun | 9,830 / 0.8808 each | same |
 
-```powershell
-python tools/gen/proxy_followup_probes.py
-node tools/acad/src/run.ts --suite fid-proxy-followup --timeout 600 --jobs 2
-```
+All 1,105 previously scored related cases remain identical to step 2. Raw evidence:
+.codex-out/step3-before.json, step3-followup.json, step3-related.json and
+step3-pdf-vectors.json. The localized-family correction is not installed in this worktree;
+its merged result must be scored separately. Proxy synthetic styles retain the family and
+file fields and use the shared resolver, so that correction applies without another resolver.
 
-No samples, AutoCAD settings, saved baselines or reference files were modified by this
-sandbox. Load validity of the new modified proxies remains for AutoCAD to confirm.
+## Final gates and deliverables
+
+- `pnpm typecheck`: PASS, exit 0.
+- `pnpm test`: PASS, 84 files / 694 tests, exit 0.
+- `pnpm lint`: PASS after `pnpm format`, exit 0.
+- `pnpm fingerprint --check --set fixtures --jobs 2`: exit 1 for **expected differences**,
+  4,131 records, zero error records, 696.52 s. All 4,061 baseline model hashes match;
+  70 new records are 21 proxy probes and 49 parallel font probes. Existing plot hashes:
+  4,053 identical, eight intentional changes listed in the step-2 gate section above.
+  Existing viewer hashes: 4,046 identical, the same 15 intentional changes. Step 3 adds
+  no changed existing plot or viewer hashes; the twelve final probes are new.
+- `pnpm fingerprint --check --set corpus --jobs 2`: exit 1 for the same expected single
+  viewer difference in 2018/Leader.dxf (restored proxy text). All 315 models match,
+  314 viewers match, zero errors, 50.23 s. This set has no plot hashes.
+- `model-all` not required: core/model untouched.
+- CPU fidelity: 1,130 cases scored (1,105 related, four corpus cases, 21 probes). No case
+  worsens. All four corpus PNGs are byte-identical to step 2, including every arch-cn plot;
+  gh109 remains 19,922 / 0.9785 versus master 24,057 / 0.9079. Four follow-up cases improve.
+  The redirected main CPU invocation reported wrapper exit 1 with Node's type-stripping
+  warning; all 13 results/PNGs completed without error records. The score-comparison
+  assertion passes; related-suite CLI exits 0. This is not a hidden missing score.
+
+Final logs and enumerated differences: `.codex-out/step3-gates.json`,
+`step3-fingerprint-differences.json`, `step3-score-validation.json`, `step3-*.log`.
+Updated comparison `.codex-out/compare.png` has the same four-column/four-case layout
+as the supplied image, with current-master before images and final captions.
+`.codex-out/followup-compare.png` covers all twelve accepted final probes. Full final
+images/diffs are `.codex-out/step3-images/`; PNG hashes are `step3-png-hashes.json`.
+These outputs are staged here because the samples junction is read-only. The requested
+`samples/out/fid-proxy/compare.png` cannot be updated by this sandbox; the user can copy
+this staged image as they did in the preceding round. No baselines or samples changed.
+
+Apply the three patch files in order; each has a one-paragraph .msg. Changes remain in the
+working tree and no commits or Git metadata writes were attempted. No further AutoCAD run
+is needed for the implemented rules. The font-resolution branch is still to be merged
+and re-scored; this report does not claim its future improvement.

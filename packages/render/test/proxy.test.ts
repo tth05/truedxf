@@ -227,7 +227,7 @@ describe("proxy graphics", () => {
     expect(p.text.style?.ttfFlags).toBe((1 << 24) | (1 << 25) | 0x8602);
   });
 
-  it("fills a SHELL face with its hole, then consumes fill before the next polygon", () => {
+  it("fills a SHELL face with its hole and keeps fill enabled for the next polygon", () => {
     const points = [0, 0, 0, 4, 0, 0, 4, 4, 0, 0, 4, 0, 1, 1, 0, 2, 1, 0, 2, 2, 0, 1, 2, 0];
     const g = blob([
       [20, int32(1)],
@@ -247,8 +247,8 @@ describe("proxy graphics", () => {
     if (p.kind !== "fill") throw new Error("expected fill");
     expect(p.rings).toHaveLength(2);
     expect(p.rings.map((r) => r.length)).toEqual([4, 4]);
-    expect(primitives[1]!.kind).toBe("curve");
-    expect(primitives[1]!.traits.fill).toBe(false);
+    expect(primitives[1]!.kind).toBe("fill");
+    expect(primitives[1]!.traits.fill).toBe(true);
   });
   it("keeps FILLON across a POLYLINE and trait commands for the following POLYGON", () => {
     const points = (dv: DataView, o: number) =>
@@ -266,6 +266,25 @@ describe("proxy graphics", () => {
     expect(unsupported).toEqual([]);
     expect(primitives.map((p) => p.kind)).toEqual(["curve", "fill"]);
     expect(primitives[1]!.traits.color).toBe(8);
+  });
+  it("keeps fill across POLYGON and TEXT until an explicit FILLON clear", () => {
+    const points = (dv: DataView, o: number) =>
+      doubles(0, 0, 0, 4, 0, 0, 4, 4, 0, 0, 4, 0)(dv, int32(4)(dv, o));
+    const result = decodeProxyGraphics(
+      blob([
+        [20, int32(1)],
+        [7, points],
+        [38, textPayload(38, "AB")],
+        [7, points],
+        [20, int32(0)],
+        [7, points],
+      ]),
+      traits,
+      { layers: [], linetypes: [] },
+    );
+    expect(result.unsupported).toEqual([]);
+    expect(result.primitives.map((p) => p.kind)).toEqual(["fill", "text", "fill", "curve"]);
+    expect(result.primitives.map((p) => p.traits.fill)).toEqual([true, true, true, false]);
   });
   it("applies the plot-time FILLMODE override to a proxy SHELL", async () => {
     const g = blob([

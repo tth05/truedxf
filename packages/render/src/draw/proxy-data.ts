@@ -637,10 +637,8 @@ export function decodeProxyGraphics(
         default:
           break;
       }
-      // A POLYLINE leaves FILLON enabled for a following POLYGON (note 07 §15.7).
-      // Consumption by the other primitive types still needs an isolated AutoCAD probe.
-      if ([2, 3, 4, 5, 7, 8, 9, 10, 11, 33, 36, 38, 44].includes(op) && traits.fill)
-        traits = { ...traits, fill: false };
+      // FILLON is a persistent trait, including after POLYGON, SHELL and TEXT (note 07 §15.8).
+      // Consuming it per primitive drops the second column in the verified follow-up probes.
     } catch {
       unsupported.push("proxy-corrupt");
       break;

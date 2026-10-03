@@ -1108,16 +1108,24 @@ Answers (VERIFIED-BY-ACAD, AutoCAD 2027, 2026-09-30):
 | Q-0702 | proxy | [U] Do nested PUSH_MODELXFORM (op 29/30) matrices in proxy graphics compose with each other and the outer transform? | 07 §15.3, §17 (07:20) | `misc/proxy-nested-matrix` | open |
 | Q-0736 | proxy | [U] How do gh109 wall/stair edges handle exact device-pixel ties (PDF geometry and stair hatch phase agree with stored data)? | 07 §15.7; 08 §10.2 | `fid-proxy-probes/wall-stair`, `fid-proxy-probes/stair-hatch`, `fid-proxy-followup/*-halfpixel` | open |
 | Q-0737 | proxy | [U] Which font fields select opcode-38 tags when typeface is set but files are empty (AutoCAD plots SHX strokes; axis digits already agree within one pixel)? | 07 §15.7; 04 §14 | `fid-proxy-probes/tags`, `fid-proxy-probes/axis-one`, `fid-proxy-followup/tag-*` | open |
-| Q-0738 | proxy | [U] How does missing base-style bigfont suppression apply to mixed base/inline MTEXT runs (fully overridden runs are verified to draw)? | 07 §15.7; 04 §4.1 | `fid-proxy-probes/columns-room`, `fid-proxy-probes/inline-missing-base-bigfont`, `fid-proxy-followup/inline-mixed-*` | open |
-| Q-0739 | proxy | [T] Is FILLON consumed after SHELL/POLYGON/TEXT (POLYLINE survival and FILLMODE=0 outlines are verified)? | 07 §15.2, §15.7 | `fid-proxy-probes/fill-consumption`, `fid-proxy-probes/fill-explicit-control`, `fid-proxy-probes/shell-fillmode-zero`, `fid-proxy-followup/fill-after-*` | open |
+| Q-0738 | proxy | [U] How does missing base-style bigfont suppression apply to mixed base/inline MTEXT runs (fully overridden runs are verified to draw)? | 07 §15.8; 04 §4.1 | `fid-proxy-probes/columns-room`, `fid-proxy-probes/inline-missing-base-bigfont`, `fid-proxy-followup/inline-mixed-*` | answered |
+| Q-0739 | proxy | [T] Is FILLON consumed after SHELL/POLYGON/TEXT (POLYLINE survival and FILLMODE=0 outlines are verified)? | 07 §15.2, §15.7–15.8 | `fid-proxy-probes/fill-consumption`, `fid-proxy-probes/fill-explicit-control`, `fid-proxy-probes/shell-fillmode-zero`, `fid-proxy-followup/fill-after-*` | answered |
 
-Partial answers Q-0736–Q-0739 (**VERIFIED-BY-ACAD**, `fid-proxy-probes`, 2026-10-03):
-POLYLINE leaves FILLON enabled (fill/control PNGs identical); FILLMODE=0 draws SHELL
-outlines; explicit simplex/gbcbig MTEXT draws despite a deliberately missing base bigfont
-(the corrected zoom is pixel-exact). All 23 stair PDF hatch lines match the stored family
-phase/spacing; axis-one has F1(r=1)=1.0000. Door/window tags are PDF stroke paths, whereas
-the current typeface-only resolution uses TrueType. Remaining questions are isolated by
-the twelve `fid-proxy-followup` cases (note 07 §15.7); the general boundaries stay open.
+Answers and remaining limits Q-0736–Q-0739 (**VERIFIED-BY-ACAD**, `fid-proxy-probes`
+and `fid-proxy-followup`, 2026-10-03; note 07 §15.7–15.8):
+
+- Q-0739: FILLON persists after POLYLINE, SHELL, POLYGON and TEXT. FILLMODE=0
+  outlines SHELLs. MESH and untested primitives/face traits remain outside this evidence.
+- Q-0738: Missing base bigfont hides base runs only. Inline CD retains the same pen position
+  as in a healthy AB/CD/EF control, so hidden AB still advances. Both CPU zooms are now
+  pixel-exact. Vertical mixtures are not isolated.
+- Q-0736: The wall half-pixel window is pixel-exact; the original wall PNG differs at
+  pixel ties. Both stair-hatch windows have F1(r=1)=1 and the PDF phase/spacing matches.
+  Device coverage/tie rules remain open; coordinate/phase changes are not justified.
+- Q-0737: 宋体 with simplex.shx and simsun.ttc files is identical to the original
+  localized-family tags, compatible with the shared localized-family FONTALT correction.
+  Arial/file-Arial equivalence does not explain SimSun PDF tags or the PNG/PDF font
+  distinction; keep that question open rather than adding a proxy-only font resolver.
 
 - Q-0692: Yes: DXFOUT writes 3DSOLID / REGION without 92/160 + 310 (`misc/solid-box-*`, `region-square-*`).
 - Partial corpus answers (VERIFIED-BY-ACAD, 2026-10-03; note 07 §15.5): Q-0693's proxy-graphics

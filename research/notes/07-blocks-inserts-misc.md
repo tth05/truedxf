@@ -1228,7 +1228,7 @@ Unknown opcode ⇒ skip chunk.
 | 16 | SUBENT_LAYER | RL layer **index** | index into LAYER table in storage order (ezdxf) |
 | 18 | SUBENT_LINETYPE | RL linetype index; 0xFFFFFFFF bylayer, 0xFFFFFFFE byblock | ezdxf: `linetypes[index + 2]` ("first two entries ByLayer and ByBlock are not included"), 32766 → BYBLOCK, else BYLAYER — **CONFLICT** with oda sentinel values |
 | 19 | SUBENT_MARKER | RL | selection marker, ignore |
-| 20 | SUBENT_FILLON | RL 0/1 | POLYLINE preserves fill until the next POLYGON; ezdxf reset-after-each-primitive conflicts with AutoCAD (§15.7). Other consumption boundaries remain open. |
+| 20 | SUBENT_FILLON | RL 0/1 | Persistent trait: POLYLINE, POLYGON, SHELL and TEXT do not consume it; reset-after-each-primitive in ezdxf conflicts with AutoCAD (§15.7–15.8). |
 | 22 | SUBENT_TRUECOLOR | RL raw AcCmEntityColor (oda: RC r, g, b + method byte) | decode like DWG CMC |
 | 23 | SUBENT_LNWEIGHT | RL lineweight (signed: −1/−2/−3) | |
 | 24 | SUBENT_LTSCALE | RD | |
@@ -1410,7 +1410,7 @@ text OCS, transform snapshots, and rendering TEXT2 with embedded fonts/decoratio
 the same display-list path as native TEXT. No STYLE entries are added to the model.
 
 The initial implementation reset fill after each primitive based on MIT ezdxf (§15.2).
-The subsequent AutoCAD probes disprove that reset for POLYLINE (§15.7); the original corpus
+The subsequent AutoCAD probes disprove that reset for POLYLINE, POLYGON, SHELL and TEXT (§15.7–15.8); the original corpus
 issues another FILLON and cannot by itself distinguish consumption from persistent state. Negative SHELL face counts are handled as holes in the preceding
 face; neither holes nor nonzero face traits occur here. Fill consumption, SHELL FILLMODE=0,
 non-unit tracking, nonzero raw/decoration flags, non-+Z text and nested transforms are **not
@@ -1461,7 +1461,8 @@ remains an outline. Issuing another FILLON before the POLYGON produces a byte-id
 reference PNG (one filled PDF path in each). The ezdxf reset after every primitive is
 therefore wrong at this boundary. The renderer now preserves fill across POLYLINE 6; opcode 32 uses the same outline path
 and preservation is an **ASSUMPTION** there until a normal-bearing probe verifies it.
-Whether POLYGON, SHELL, TEXT or other primitives consume fill remains **UNKNOWN**;
+At the first-round boundary, consumption by POLYGON, SHELL and TEXT was **UNKNOWN**;
+the accepted follow-up references answer it in §15.8.
 `fid-proxy-followup/fill-after-{polygon,shell,text}` isolates those boundaries. The existing
 resets for those primitive types are assumptions, not verified rules. Negative SHELL face
 counts/holes, edge/face traits and MESH fill still lack valid reference cases.
@@ -1522,8 +1523,61 @@ After the verified fill/FILLMODE/inline changes: gh109 **19,922 mismatches / 0.9
 (previous proxy-text/SHELL step 20,197 / 0.9730; current master 24,057 / 0.9079).
 All nine probe scores are unchanged or improved. `tools/gen/proxy_followup_probes.py`
 stages twelve new cases, preserving custom entity bytes/values, refusing overwrites.
-They parse with 49 model entities and no proxy-corrupt diagnostics. New references are
-pending; no further AutoCAD behaviour is claimed from the generated inputs alone.
+They parse with 49 model entities and no proxy-corrupt diagnostics. AutoCAD accepted all twelve follow-up cases; their results are recorded in §15.8.
+
+### 15.8 Final follow-up reference results (2026-10-03)
+
+**VERIFIED-BY-ACAD** (`fid-proxy-followup/fill-after-shell`, `fill-after-polygon`,
+`fill-after-text`, 2026-10-03): SHELL 9, POLYGON 7 and UNICODE_TEXT2 38 leave FILLON
+set for the following POLYGON. The first two PDFs each contain two filled paths; the
+text case contains one (the second primitive, not the text). The renderer treats FILLON
+as persistent sub-entity state and changes it only at opcode 20. Together with §15.7 this
+resolves Q-0739 for the tested primitives. MESH/face traits and other primitive kinds
+remain unverified; the persistent-state implementation is not additional AutoCAD evidence.
+Each probe improves from 99,588 exact RGB mismatches to 10,486; residual boundary pixels
+remain, with F1(r=1) 0.9733/0.9733/0.9505 respectively (see the raw score report).
+
+**VERIFIED-BY-ACAD** (`fid-proxy-followup/inline-mixed-missing-base`,
+`inline-mixed-control`, 2026-10-03): `AB{\Fsimplex.shx;CD}EF` with a missing base
+bigfont plots CD only. CD's two PDF path rectangles are identical to the healthy
+control: [870.959961,606.239990,995.039978,779.880005] and
+[1044.599976,606.239990,1160.400024,779.880005] points. Hidden AB retains its advance;
+layout must measure base text but suppress its emission. Suppression is per run, not
+per MTEXT entity. Both corrected CPU plots are pixel-exact; the missing-base case
+previously missed 1,185 pixels. Base-only/unresolved-inline text stays suppressed.
+This answers Q-0738 for horizontal text; vertical missing-base/inline mixtures have not
+been isolated. Measurement and emission use the ordinary shared TextFonts resolution.
+
+**VERIFIED-BY-ACAD** (`fid-proxy-followup/wall-stair-halfpixel`,
+`stair-hatch-halfpixel`, 2026-10-03): shifting the wall plot window by half a pixel
+in both directions makes the CPU PNG pixel-exact, from 1,705 mismatches / 0.9861 F1(r=1)
+in the unshifted window. The DXF is byte-identical. This confirms that a transform or
+colour adjustment is not warranted. Stair hatch at the shifted window still has
+20,098 exact mismatches but F1(r=1)=1.0000; the original had 11,107 / 1.0000.
+The earlier PDF family-phase/spacing measurements remain valid (§15.7). These probes
+locate residual errors in device raster coverage; they do not define a universal tie
+rule. Q-0736 stays open for that rule. No hatch phase/spacing or proxy coordinates changed.
+
+**VERIFIED-BY-ACAD** (`fid-proxy-followup/tag-*`, `fid-proxy-probes/tags`,
+2026-10-03): localized-family 宋体 with explicit simplex.shx and with simsun.ttc both
+produce PNGs byte-identical to the original empty-file localized-family proxy tags.
+Thus an explicit file does not override this unresolved typeface; this is compatible
+with shared family-first/FONTALT resolution once the separately verified localized-family
+policy is merged (note 04 §4.1). No proxy-specific font resolver was added.
+Arial with empty file and with arial.ttf also produces byte-identical PNGs to each other,
+but differs from the original by 8,120 pixels. Clearing the family differs by 2,546.
+The font choice is not fully explained by those equality results: the empty-family
+and Arial PDFs contain M0921 and C1815 as SimSun text while their PNGs differ, and one
+remaining tag is a path. This is a PDF/PNG font-selection distinction, not verified
+permission to substitute every Arial proxy with SimSun. Q-0737 retains this narrower
+question; the ordinary resolver still receives the raw family, file, bigfont and flags.
+The localized-family plot correction belongs to the parallel font-resolution branch;
+these scores are from this proxy branch before that merge.
+
+All twelve modified files loaded successfully in AutoCAD. No further reference run is
+requested for this task. Raw vectors and scores: `.codex-out/step3-pdf-vectors.json`,
+`step3-before.json`, `step3-followup.json`. Historical first-round assumptions above
+are superseded only within the verified boundaries recorded here.
 
 ## 16. Explode / "virtual entities" semantics
 

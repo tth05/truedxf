@@ -108,6 +108,16 @@ describe("TEXT layout with the MIT test font (deterministic)", () => {
     for (const text of ["AB", "\\Fmissing-inline.shx;AB"])
       expect(layoutMText(mtext({ text }), fonts).notes).toContain("mtext-suppressed-missing-bigfont");
   });
+  it("hides only missing-bigfont base runs and retains their advances around inline MTEXT", async () => {
+    const inline = { name: "truedxf-test.shx", bold: false, italic: false };
+    const fonts = await testFonts([style("S", "truedxf-test.shx", { bigFont: "missing.shx" })], [inline]);
+    const healthy = await testFonts([style("S", "truedxf-test.shx")], [inline]);
+    const input = mtext({ text: "AB{\\Ftruedxf-test.shx;CD}EF" });
+    const actual = layoutMText(input, fonts);
+    const expected = layoutMText(input, healthy);
+    expect(actual.glyphs).toEqual(expected.glyphs.slice(2, 4));
+    expect(actual.notes).toContain("mtext-suppressed-missing-bigfont");
+  });
 });
 
 // AutoCAD 2027 recomputed 10 in the DXFOUT re-saves of suite `text` (the fixtures' Liberation

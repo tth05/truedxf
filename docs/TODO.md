@@ -45,9 +45,13 @@ Tick items off (or delete them) when done.
       (2026-10-03, `fid-proxy-probes`, note 07 §15.7; inline zoom pixel-exact).
 - [x] gh109 stair hatch phase/spacing: all 23 PDF lines agree with stored HATCH 5DE;
       PNG F1(r=1)=1.0000. No phase correction (2026-10-03, note 07 §15.7).
-- [ ] Proxy graphics: exact raster ties, opcode-38 empty-file/typeface precedence, fill
-      consumption after SHELL/POLYGON/TEXT and mixed base/inline MTEXT suppression
-      (`fid-proxy-followup`, Q-0736–Q-0739, awaiting AutoCAD).
+- [x] Proxy FILLON persists after SHELL/POLYGON/TEXT; missing base bigfonts hide only base
+      MTEXT runs, retaining advances for inline runs (2026-10-03, `fid-proxy-followup`,
+      Q-0738–Q-0739, note 07 §15.8; both mixed MTEXT zooms pixel-exact).
+- [ ] Proxy graphics: exact raster coverage/ties and the opcode-38 Arial/empty-family
+      PNG/PDF font-selection distinction (Q-0736–Q-0737, note 07 §15.8). Wall half-pixel
+      zoom is pixel-exact; hatch phase is correct. Shared localized-family resolution is
+      handled by the parallel font branch; no proxy-only resolver.
       Non-unit tracking, raw/decoration flags and non-+Z text remain source-based/unit-tested.
 - [ ] Proxy graphics: initial layer/linetype/lineweight inheritance, non-+Z OCS,
       nested model transforms in blocks and ordinary linetype-index mapping still need valid

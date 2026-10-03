@@ -865,8 +865,8 @@ Object in NOD `ACAD_IMAGE_VARS`: 90 version, **70 frame** (0 no frame, 1 frame),
   is kept and a WIPEOUTFRAME DICTIONARYVAR is written (`wipeoutframe-*`).
 - PDF underlays **are** plotted by the console (content and colours, `images/pdf-*`). PDFFRAME is
   read from the DICTIONARYVAR `PDFFRAME`: 1 (and absent) plots the frame, 0 and 2 do not
-  (`pdfframe-dictvar-0/1/2`; 0 and 2 byte-identical). truedxf draws only an underlay's clip frame
-  so far (no PDF content).
+  (`pdfframe-dictvar-0/1/2`; 0 and 2 byte-identical). truedxf renders the content with PDF.js
+  (§10.3).
 
 ## 9. WIPEOUT (+ WIPEOUTVARIABLES)
 
@@ -912,15 +912,16 @@ Object in NOD `ACAD_IMAGE_VARS`: 90 version, **70 frame** (0 no frame, 1 frame),
 | 41/42/43 | scale x/y/z | 1 |
 | 50 | rotation (OCS, about z) | 0 |
 | 210 | normal | (0,0,1) |
-| 280 | flags: 1 clipping on, 2 underlay on, 4 monochrome, 8 adjust for background, 16 clip is inside mode (inverted) | ezdxf default 10 |
+| 280 | flags: 1 clipping on, 2 underlay on, 4 monochrome, 8 adjust for background, 16 clip is inside mode (inverted; **no effect on PLOT**, §10.3) | ezdxf default 10 |
 | 281 | contrast 20..100 | 100 |
 | 282 | fade 0..80 | 0 |
 | 11/21 (repeat) | clip boundary: 2 points = rectangle, >2 polygon, in OCS "drawing coordinates but unscaled" (ezdxf `set_boundary_path`) i.e. underlay-local units before 41/42 | |
 
 - Transform: like INSERT without base point: `OCS · T(insert) · Rz(rot) · S(sx,sy,sz)` (ezdxf
   `transform` uses `InsertCoordinateSystem`).
-- PDF "natural" size at scale 1: **UNKNOWN** — ASSUMPTION: 1 PDF inch = 1 drawing unit, unit
-  conversion baked into 41/42 by the attach command (like INSERT). Needs test.
+- PDF "natural" size at scale 1: 1 PDF inch = 1 drawing unit, whatever INSUNITS; the attach
+  command bakes unit conversion into 41/42 (like INSERT). VERIFIED-BY-ACAD `images/pdf-natural-mm`,
+  `pdf-natural-inch`, 2026-09-30 (Q-0659).
 
 ### 10.2 Definition objects (spec:L9990-10020, ezdxf underlay.py:376-446)
 
@@ -929,15 +930,41 @@ Object in NOD `ACAD_IMAGE_VARS`: 90 version, **70 frame** (0 no frame, 1 frame),
 
 ### 10.3 Rendering
 
-- PDF underlays need a PDF rasterizer/vectorizer — out of scope for v1. Recommended fallback: draw
-  frame only (or nothing, depending on PDFFRAME). ezdxf doesn't render underlays at all
+truedxf never parses or draws PDF itself: `RenderEnv.pdf` is a rasterizer (`@truedxf/pdf`, PDF.js)
+and the drawer (render/src/draw/underlay.ts) places its bitmap like an IMAGE. The bitmap is
+rendered straight into the device pixel grid (rotated / mirrored placements included) at the
+plot resolution; interactive lists at the list's pixel size. Findings from the console plots
+(images/pdf-*, VERIFIED-BY-ACAD 2026-09-30 refs, analysed 2026-10-03):
+
+- Placement: `OCS · T(insert) · Rz(rot) · S(41, 42)` of the page, origin at its lower-left corner,
+  1 PDF inch = 1 unit (`pdf-basic`, `pdf-rotated`, `pdf-natural-*`).
+- Clip boundary 11/21 in underlay units before 41/42 (`pdf-clip-rect`, `pdf-clip-poly`). Flag 16
+  does **not** invert it in plots: `pdf-clip-inverted` (280 = 19, kept on DXFOUT) plots exactly
+  like `pdf-clip-rect` (Q-0660).
+- Colours work in HLS with the hue kept (±1 per channel):
+  - contrast c = 281 / 100 on the lightness: L' = P + (L − P)·c with P ≈ 0.3 (contrast 20: black
+    → 61, white → 112, yellow FFFFD9 → D9D900; saturation kept);
+  - fade f = 282 / 100, after contrast: L'' = L' + (1 − L')·f, with the saturation of the colour
+    faded per channel (c + (255 − c)·f): fade 50 turns 800000 into BF7F7F, red into FF7F7F;
+    contrast 20 + fade 50 gives FF5757 and C28686 (Q-0663);
+  - monochrome (bit 4): grey of the HLS lightness, not black (red / blue → 127, `pdf-flags-mono`,
+    Q-0661);
+  - adjust for background (bit 8): no effect on plots (`pdf-flags-adjustbg` = `pdf-flags-plain`,
+    Q-0662). truedxf inverts the lightness on a dark display background (ASSUMPTION, screen only).
+- OCG layers: the default layer state plots (`pdf-layers` = `pdf-basic`); where per-underlay
+  layer states are stored is **UNKNOWN** (Q-0664).
+- Rasterization: AutoCAD fills PDF content without antialiasing at fill edges (pixel centre rule,
+  `pdf-basic`: a fill edge at u = 422.72 leaves pixel 422 untouched) while PDF.js antialiases; thin
+  strokes far below a pixel stay faint in AutoCAD (`pdf-natural-mm`) where PDF.js draws them at
+  least 1 px wide. F1 (r = 1) ≈ 0.98–0.99 on the suite; geometry and colours match (Q-0746).
+- Open: CropBox vs MediaBox origin (Q-0742; PDF.js renders the CropBox), /Rotate (Q-0743; truedxf
+  ignores it), unpainted page areas (Q-0744; truedxf: transparent), missing file (Q-0745; truedxf:
+  frame only + `pdf-missing` note), page selection by name (Q-0747; truedxf: page number).
+- DWF / DGN content is not rendered (frame only). ezdxf doesn't render underlays at all
   (disassemble.rst "Unsupported entities: … XREF, UNDERLAY").
-- Monochrome (4): all non-white content drawn black (**ASSUMPTION**); "adjust for background" (8):
-  lighten/invert for dark backgrounds — screen only? **UNKNOWN** for PLOT.
-- PDF layer visibility (OCG) is stored somewhere in the underlay/xdict — **UNKNOWN**.
 - Frame vars `$DWFFRAME`, `$DGNFRAME` are header variables (R2007+, group 280; values 0 none, 1
-  display and plot, 2 display no plot — ixmilia `UnderlayFrameMode`); `PDFFRAME` has no DXF header var
-  (libredwg:header_variables.spec:28 "PDFFRAME [0-2] default 1" in the TODO list) → **UNKNOWN** storage.
+  display and plot, 2 display no plot — ixmilia `UnderlayFrameMode`); PDFFRAME is a DICTIONARYVAR
+  (§8.5, Q-0665).
 
 ---------------------------------------------------------------------------------------------------
 

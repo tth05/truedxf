@@ -95,7 +95,13 @@ Tick items off (or delete them) when done.
 
 - [ ] Plot styles: CTB/STB parsing and application (`@truedxf/plot` is a placeholder; rung 15).
 - [ ] Wide polylines with linetypes (`pl-wide-*`, dash phase drift on dashed wide arcs).
-- [ ] PDF underlay content (only the frame is drawn).
+- [x] PDF underlay content: PDF.js via `@truedxf/pdf` (`RenderEnv.pdf`), clip, contrast / fade /
+      monochrome fitted to AutoCAD (2026-10-03, note 07 §10.3).
+- [ ] PDF underlays: AutoCAD fills without antialiasing and keeps sub-pixel strokes faint, PDF.js
+      antialiases and widens them to 1 px (Q-0746); CropBox / /Rotate / unpainted areas / missing
+      file / page names (Q-0742–Q-0745, Q-0747) need AutoCAD cases; per-underlay OCG layer states
+      (Q-0664); viewer: textures of large underlays are copied from the worker on every LOD step;
+      the playground does not serve pdfjs-dist's standard_fonts / cmaps / wasm (`pdf.assetsUrl`).
 - [ ] Gradients are close but not pixel-exact (AutoCAD dithers its own mesh); shifted
       HEMISPHERICAL/CURVED variants.
 - [ ] Hatch background colour, text-box loops, `ellipse-edge-param-closed`, hatch dots with lineweight.
@@ -268,7 +274,7 @@ default, FILLMODE for pattern hatches, extents edge tolerance.
 - [ ] render `transferables()` lists cached image pixel buffers (DataCloneError on the next
       render; the viewer copies them as a workaround).
 - [ ] Missing complex-linetype shape files reported only for linetypes in use (ltypeshp.shx);
-      `pdf-missing` note for PDF underlays; scan stored TTF name tables so family names resolve;
+      scan stored TTF name tables so family names resolve;
       xref loading from the file store; optionally show which stored file served a request.
 - [x] Frontend view culling: cache complete-list top-level pick bounds in the worker; cull finer
       smooth lists to 3× visible coverage and re-request on pan with the LOD debounce. Retain the

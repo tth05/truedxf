@@ -15,7 +15,7 @@ set the status here to `answered` (or `wontfix`) and add the answer in one line 
   exists yet (`how` = png plot / dxfout re-save values / log answered errors / lisp probe).
 - **status**: `answered` | `answered` | `wontfix`.
 
-726 questions. Topics: [file-format](#file-format) (49), [encoding](#encoding) (20), [header](#header) (12), [tables](#tables) (4), [objects](#objects) (10), [entities-common](#entities-common) (1), [extents](#extents) (17), [ocs](#ocs) (7), [lines-curves](#lines-curves) (8), [polylines](#polylines) (22), [points](#points) (5), [ellipses](#ellipses) (4), [splines](#splines) (15), [solids](#solids) (6), [meshes-3d](#meshes-3d) (4), [colors](#colors) (10), [lineweights](#lineweights) (11), [transparency](#transparency) (7), [plotstyles](#plotstyles) (11), [plotting](#plotting) (42), [property-resolution](#property-resolution) (12), [draw-order](#draw-order) (9), [linetypes](#linetypes) (36), [hatches](#hatches) (42), [text](#text) (36), [mtext](#mtext) (49), [fonts](#fonts) (33), [attribs](#attribs) (12), [dimstyle](#dimstyle) (13), [dimensions](#dimensions) (63), [leaders](#leaders) (26), [blocks](#blocks) (18), [xrefs](#xrefs) (4), [xclip](#xclip) (12), [images](#images) (28), [wipeout](#wipeout) (8), [mline](#mline) (12), [acad-table](#acad-table) (3), [proxy](#proxy) (12), [layouts](#layouts) (6), [viewports](#viewports) (27)
+730 questions. Topics: [file-format](#file-format) (49), [encoding](#encoding) (20), [header](#header) (12), [tables](#tables) (4), [objects](#objects) (10), [entities-common](#entities-common) (1), [extents](#extents) (17), [ocs](#ocs) (7), [lines-curves](#lines-curves) (8), [polylines](#polylines) (22), [points](#points) (5), [ellipses](#ellipses) (4), [splines](#splines) (15), [solids](#solids) (6), [meshes-3d](#meshes-3d) (4), [colors](#colors) (10), [lineweights](#lineweights) (11), [transparency](#transparency) (7), [plotstyles](#plotstyles) (11), [plotting](#plotting) (42), [property-resolution](#property-resolution) (12), [draw-order](#draw-order) (9), [linetypes](#linetypes) (36), [hatches](#hatches) (42), [text](#text) (36), [mtext](#mtext) (49), [fonts](#fonts) (33), [attribs](#attribs) (12), [dimstyle](#dimstyle) (13), [dimensions](#dimensions) (63), [leaders](#leaders) (26), [blocks](#blocks) (18), [xrefs](#xrefs) (4), [xclip](#xclip) (12), [images](#images) (28), [wipeout](#wipeout) (8), [mline](#mline) (12), [acad-table](#acad-table) (3), [proxy](#proxy) (16), [layouts](#layouts) (6), [viewports](#viewports) (27)
 
 <a id="file-format"></a>
 ## File format and parsing (`file-format`)
@@ -1106,6 +1106,10 @@ Answers (VERIFIED-BY-ACAD, AutoCAD 2027, 2026-09-30):
 | Q-0700 | proxy | [U] Do proxy sub-entity traits default to the host's layer/color/ltype/lw, and how are color 0 (BYBLOCK) and circle normal (0,0,-1) resolved in an INSERT? | 07 §15.3, §17; 11a §16 (07:20, 11a:43) | `misc/proxy-color-layer`, `misc/proxy-traits-default-in-insert` | open |
 | Q-0701 | proxy | [U] Are proxy graphics coordinates of an entity inside a block in block coords, transformed by the INSERT matrix? | 07 §15.3, §17 (07:20) | `misc/proxy-traits-default-in-insert`, `misc/proxy-in-rotated-insert` | open |
 | Q-0702 | proxy | [U] Do nested PUSH_MODELXFORM (op 29/30) matrices in proxy graphics compose with each other and the outer transform? | 07 §15.3, §17 (07:20) | `misc/proxy-nested-matrix` | open |
+| Q-0736 | proxy | [U] Are gh109 wall/window/stair parallel pixel offsets and hatch differences caused by raster snapping rather than different WCS geometry? | 07 §15.6; 08 §10.2 | `fid-proxy-probes/wall-stair`, `fid-proxy-probes/stair-hatch` | open |
+| Q-0737 | proxy | [U] Do proxy opcode-38 TrueType tags use normal TEXT height/advances and the stored typeface, and do the SHX axis digits use the same pixel placement? | 07 §15.6; 04 §14 | `fid-proxy-probes/tags`, `fid-proxy-probes/axis-one` | open |
+| Q-0738 | proxy | [U] Can MTEXT inline font/bigfont overrides draw despite a missing base-style bigfont, or are gh109's visible room labels explained by font substitution? | 07 §15.6; 04 §4.1 | `fid-proxy-probes/columns-room`, `fid-proxy-probes/inline-missing-base-bigfont` | open |
+| Q-0739 | proxy | [T] Is FILLON consumed by each proxy primitive, and does FILLMODE=0 suppress a filled SHELL face? | 07 §15.2, §15.6 | `fid-proxy-probes/fill-consumption`, `fid-proxy-probes/fill-explicit-control`, `fid-proxy-probes/shell-fillmode-zero` | open |
 
 - Q-0692: Yes: DXFOUT writes 3DSOLID / REGION without 92/160 + 310 (`misc/solid-box-*`, `region-square-*`).
 - Partial corpus answers (VERIFIED-BY-ACAD, 2026-10-03; note 07 §15.5): Q-0693's proxy-graphics
@@ -1114,7 +1118,9 @@ Answers (VERIFIED-BY-ACAD, AutoCAD 2027, 2026-09-30):
   `arch-cn-1e8ba`, `arch-cn-1e965`); other traits / INSERT cases remain open. Q-0697: gh109 uses
   32767 ByLayer and 32766 ByBlock (`corpus-proxy/gh109-floor-plan`); general index offsets and
   ODA sentinels remain open. Q-0696: these plots verify closed outlines, bulges and widths for
-  +Z opcode 33; text and inverted normals remain open. Q-0701/Q-0702 are still open: the tested
+  +Z opcode 33; +Z opcode-38 text presence/position and filled SHELL columns are additionally
+  verified in gh109 (§15.6), but exact font/raster behaviour and inverted normals remain open.
+  Q-0701/Q-0702 are still open: the tested
   arch-cn windows target top-level proxies with identity PUSH_MODELXFORM.
 - Every synthetic `misc/proxy-*` fixture still fails AutoCAD load (invalid-fixture); the remaining
   parts of Q-0691, Q-0693 … Q-0702 need valid discriminating fixtures (note 07 §15.4).

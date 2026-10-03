@@ -37,7 +37,13 @@ Tick items off (or delete them) when done.
 - [ ] Generator: produce valid proxy entities (all `misc/proxy-*` fixtures are rejected by AutoCAD).
 - [x] Draw proxy opcode-33 DWG-bitstream LWPOLYLINEs through the ordinary polyline drawer;
       verify real corpus graphics against AutoCAD (`corpus-proxy`, 2026-10-03; note 07 §15.5).
-- [ ] Proxy graphics: text opcodes; initial layer/linetype/lineweight inheritance, non-+Z OCS,
+- [x] Proxy graphics: decode TEXT/TEXT2/UNICODE_TEXT/UNICODE_TEXT2 through normal TEXT layout,
+      retaining embedded fonts and command-relative padding; restore gh109 labels and filled
+      SHELL columns (2026-10-03, note 07 §15.6).
+- [ ] Proxy graphics: validate fill consumption/FILLMODE, investigate gh109 line/hatch raster
+      offsets and native MTEXT suppression (`fid-proxy-probes`, Q-0736–Q-0739, awaiting AutoCAD).
+      Non-unit tracking, raw/decoration flags and non-+Z text remain source-based/unit-tested.
+- [ ] Proxy graphics: initial layer/linetype/lineweight inheritance, non-+Z OCS,
       nested model transforms in blocks and ordinary linetype-index mapping still need valid
       discriminating AutoCAD fixtures (the corpus verifies initial colour and top-level geometry).
 - [ ] Generator: fixtures that need our own test SHX fonts (`plan:` entries in questions.md) —

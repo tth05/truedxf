@@ -60,6 +60,10 @@ export interface TextInput {
 }
 
 export interface TextLayoutOptions {
+  /** Already decoded characters, e.g. proxy graphics' literal strings and decoration flags (07 §15.2). */
+  characters?: readonly TextChar[];
+  /** Advance multiplier; proxy TEXT2 uses 1 for normal spacing (07 §15.2). */
+  tracking?: number;
   /**
    * Debug: place the text at the stored first alignment point 10 as left/baseline text instead of
    * recomputing from 11 (note 04 §1.3 "use stored 10" switch).
@@ -182,6 +186,7 @@ export function measureLine(
   encoding: string,
   fonts?: TextFontSource,
   vertical = false,
+  tracking = 1,
 ): LineMetrics {
   const glyphs: Placed[] = [];
   const ink = new InkBox();
@@ -199,9 +204,9 @@ export function measureLine(
         : textGlyph(font, ch, encoding, fonts, vertical);
     glyphs.push({ m, pen, penY, ch });
     if (m.ink) ink.add(m.ink, pen, penY);
-    pen += m.advance;
+    pen += m.advance * tracking;
     const r = m.resolved;
-    if (r?.glyph.kind === "strokes") penY += r.glyph.advanceY * r.scale;
+    if (r?.glyph.kind === "strokes") penY += r.glyph.advanceY * r.scale * tracking;
   }
   let x0: number;
   let x1: number;
@@ -273,8 +278,8 @@ export function textFrame(
   const vertical = !!style.spec?.vertical && font.primary instanceof ShxFont && font.primary.modes === 2;
   const ttfColumn = !!style.spec?.vertical && font.kind === "ttf";
   if (style.spec?.vertical && !vertical && !ttfColumn) notes.push("text-vertical-unsupported");
-  const chars = decodeTextString(e.text);
-  const line = measureLine(chars, font, fonts.encoding, fonts, vertical);
+  const chars = options.characters ?? decodeTextString(e.text);
+  const line = measureLine(chars, font, fonts.encoding, fonts, vertical, options.tracking ?? 1);
   let w = e.widthFactor || 1;
   const tanOb = Math.tan((e.oblique || 0) * DEG);
   let rot = (e.rotation || 0) * DEG;
@@ -428,7 +433,7 @@ export function layoutText(e: TextInput, fonts: TextFontSource, options: TextLay
       if (f && font && f !== font) flush();
       if (f) font = f;
       slots.push({ run: runs.length, index: advances.length });
-      advances.push(g.m.advance * len);
+      advances.push(g.m.advance * len * (options.tracking ?? 1));
     }
     flush();
   }

@@ -1318,7 +1318,8 @@ faces `(rows−1)·(cols−1)`.
   AutoCAD-saved corpus files now provide four valid plot cases (§15.5). truedxf decodes opcode
   33 with a bounds-checked DWG bit reader in `render/src/draw/dwgbits.ts`, and reuses the ordinary
   `polyline2d` drawer for bulges, constant/per-vertex widths, OCS and linetype generation. The
-  transform snapshot composes with the owner draw state. Text is still skipped; unknown entities
+  transform snapshot composes with the owner draw state. Text and filled SHELL faces are now
+  implemented (§15.6); unknown entities
   with proxy graphics fall back to the same decoder. LWPOLYLINE thickness is decoded but follows
   the ordinary drawer's current 2D treatment; side-view thickness remains unverified.
 
@@ -1377,6 +1378,75 @@ Rendering these narrow windows exposed off-canvas scanline work in `fillPolygon`
 only its visited row range to [0, canvas height) preserves edge origins, slopes and all emitted
 spans (note 08 §10.5). Horizontal span rejection was deliberately excluded because it can alter
 merged off-canvas rectangle vertices and hence plot fingerprints despite identical pixels.
+
+### 15.6 gh109 proxy text and SHELL fidelity (2026-10-03)
+
+**VERIFIED-BY-ACAD** (`corpus-proxy/gh109-floor-plan`, reference AutoCAD 2027 26.0
+X.118.0.0, 2026-10-03): column handles `33F`, `50A`, `50C` store a four-vertex **SHELL
+(9)**, preceded by SUBENT_COLOR 8 and FILLON 1. Their face lists are `[4, 0, 1, 2, 3]`;
+trailing edge/face/vertex trait flags are all zero. AutoCAD plots solid ACI-8 grey squares,
+not just outlines. Filling these faces restores all 3,388 measured interior pixels exactly
+(four connected regions because an axis crosses one square). The outer edges still have
+one-pixel raster differences; do not call the whole squares pixel-exact.
+
+gh109 contains eleven opcode-38 strings: two `M0921`, one `C1815`, four axis digits
+(`1`, `1`, `2`, `2` inside separately stored circles), two bottom `24370`, and stair
+`上` / `下`. **VERIFIED-BY-ACAD** (same case/date): these strings are visible in those
+positions in the reference; decoding their baseline/normal/direction and drawing through
+TEXT restores their missing geometry. Font fields are `宋体` with empty font/bigfont files
+for door/window tags, and COMPLEX/GBCBIG or SIMPLEX/GBCBIG for the other strings. Keeping
+these fields independent of the document's STYLE table recovers the bottom dimensions and
+axis numbers. TrueType tag glyph shapes/advances still differ; their font choice needs the
+zoomed PNG/PDF probes before changing anything. All normals in this case are +Z, tracking
+is 1, oblique is 0, length is -1, raw is 0, and mirror/vertical/decoration flags are zero.
+
+**Data observation**, not an independent plot rule: padded strings align relative to the
+start of their **command payload**, not the absolute blob offset (MIT ezdxf `ByteStream`).
+The gh109 stair stream is 10,330 bytes long, with unaligned commands after DWG LWPOLYLINEs.
+Absolute alignment corrupts the last text's font strings to `IMPLEX` / `BCBIG`, and even
+misreads the italic bit. Command-relative alignment reads SIMPLEX / GBCBIG and restores
+`下`. Unit tests cover this boundary, all four text layouts, unterminated strings, a tilted
+text OCS, transform snapshots, and rendering TEXT2 with embedded fonts/decorations through
+the same display-list path as native TEXT. No STYLE entries are added to the model.
+
+Fill consumption after each primitive follows MIT ezdxf's documented behaviour (§15.2),
+but the corpus issues another FILLON before the next primitive and cannot distinguish a
+reset from persistent state. Negative SHELL face counts are handled as holes in the preceding
+face; neither holes nor nonzero face traits occur here. Fill consumption, SHELL FILLMODE=0,
+non-unit tracking, nonzero raw/decoration flags, non-+Z text and nested transforms are **not
+VERIFIED-BY-ACAD** by this corpus.
+
+The remaining large label `天正单行文字输入`, room name `房间` and area `185.39` are
+**native MTEXT**, not proxy commands (handles `9B0`, `9AE`, `9AF`). Their base Standard style
+uses txt.shx / hztxt.shx, and hztxt.shx is absent from the current font search directories.
+The room/area start with valid inline simplex.shx,gbcbig.shx overrides, but the layout exits
+on the missing base bigfont before considering them. AutoCAD's visible labels establish
+the mismatch, not its cause: original session font substitution or inline override rules
+could explain it. Q-0738 probes a deliberately missing base bigfont. No global font
+substitution was changed by this task.
+
+The top-level stream has no PUSH_MODELXFORM commands; proxy polylines contain WCS triples
+and no non-+Z OCS here. ACI/layer traits match the observed colours: AXIS 3 green, WINDOW 4
+cyan, STAIR 2 yellow, walls 9 light grey, column fill 8 grey. Example wall strips at x
+[450,850) have the correct RGB but appear at rows 459/474 instead of AutoCAD's 460/475;
+the red axis at row 467 agrees exactly. This is a raster offset, not evidence of a colour
+mapping or transform-composition error. No coordinate/color/index workaround was introduced.
+Stair hatch discrepancies remain open; zoomed copies of the valid corpus will separate
+phase/spacing from pixel snapping (Q-0736).
+
+CPU scores: gh109 exact mismatch **24,057 → 20,197**, F1(r=1) **0.9079 → 0.9730**.
+All three arch-cn cases and all 677 text/mtext/blocks/misc case scores stay identical.
+The same text support improves seven `fileformat/corpus-libredwg-leader-r14*` plots:
+31,674 → 20,270 mismatches, F1(r=1) 0.3335 → 0.7838. Their extents change because the
+formerly omitted proxy text now contributes to the plot fit.
+
+`tools/gen/proxy_probes.py` produces nine new `fid-proxy-probes` cases from the original
+valid corpus, preserving opaque custom-object serialization. Five zoom windows and a
+FILLMODE=0 copy keep DXF bytes identical; two fill-consumption/control cases replace only
+33F's graphics; one changes only the missing base bigfont name. It refuses all overwrites.
+AutoCAD has **not run these probes yet**, and the modified proxies still need load validation.
+The samples junction is read-only to this sandbox: probes are staged locally under
+`.venv/fid-proxy-probes-v2/`, and the comparison sheet under `.codex-out/compare.png`.
 
 ## 16. Explode / "virtual entities" semantics
 

@@ -44,6 +44,7 @@ import {
 import {
   type BackgroundColor,
   type ColorOverride,
+  decodeTextString,
   type GlyphPlacement,
   type InlineFontSpec,
   inlineFonts,
@@ -52,10 +53,13 @@ import {
   TextFonts,
   type TextLayout,
   type TextRun,
+  type TextStyleSpec,
 } from "@truedxf/text";
 import { aciToRgb } from "./aci.ts";
 import type { Rgba } from "./displaylist.ts";
+import { type ProxyText, proxyTexts } from "./draw/proxy-data.ts";
 import {
+  type DrawState,
   type Frontend,
   type PlotNote,
   registerDrawer,
@@ -224,8 +228,8 @@ export async function prepareTextFonts(
     byKey.set(key, manager);
   }
   const encoding = codepageToEncoding(doc.header.str("$DWGCODEPAGE", "ANSI_1252")).encoding;
-  const styles = [...doc.tables.styles].filter((s) => !s.isShapeFile);
-  const fonts = new TextFonts(manager, styles, encoding);
+  const styles: TextStyleSpec[] = [...doc.tables.styles].filter((s) => !s.isShapeFile);
+  const proxyStyles = new Map<string, TextStyleSpec>();
   const inline = new Map<string, InlineFontSpec>();
   const used = new Set<string>();
   const scan = (text: string) => {
@@ -243,6 +247,12 @@ export async function prepareTextFonts(
   };
   const visit = (entities: readonly Entity[]) => {
     for (const e of entities) {
+      if (e.proxyGraphics) {
+        for (const t of proxyTexts(e.proxyGraphics, encoding)) {
+          used.add(t.input.style);
+          if (t.style) proxyStyles.set(t.style.name, t.style);
+        }
+      }
       if (e.type === "MTEXT") {
         used.add((e as MTextEntity).style);
         scan((e as MTextEntity).text);
@@ -253,6 +263,7 @@ export async function prepareTextFonts(
   };
   for (const b of doc.blocks) visit(b.entities);
   visit(doc.modelSpace.entities);
+  const fonts = new TextFonts(manager, [...styles, ...proxyStyles.values()], encoding);
   await fonts.prepare(inline.values());
   USED_STYLES.set(fonts, used);
   return fonts;
@@ -539,6 +550,30 @@ function layoutOptions(fe: Frontend): { defaultHeight: number; quickText: boolea
     fe.caches.set("text:options", o);
   }
   return o;
+}
+
+/** Reuse TEXT metrics/rasterization while retaining the proxy's explicit baseline and traits (07 §15.2). */
+export function drawProxyText(fe: Frontend, text: ProxyText, e: Entity, st: DrawState): void {
+  const fonts = fontsOf(fe);
+  if (!fonts) return;
+  const characters = text.raw
+    ? Array.from(text.input.text, (c) => ({
+        cp: c.codePointAt(0)!,
+        underline: false,
+        overline: false,
+        strike: false,
+      }))
+    : decodeTextString(text.input.text);
+  const layout = layoutText(text.input, fonts, {
+    ...layoutOptions(fe),
+    characters: characters.map((c) => ({
+      ...c,
+      underline: c.underline || text.underline,
+      overline: c.overline || text.overline,
+    })),
+    tracking: text.tracking,
+  });
+  drawLayout(fe, layout, e, st.m, st.inh);
 }
 
 /** Single-line text input: a missing group 71 means "use the STYLE's flags" (VERIFIED-BY-ACAD). */

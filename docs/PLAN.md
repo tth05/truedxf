@@ -20,9 +20,10 @@ update it when decisions change.
 | 5 Feature ladder | Done except rung 15 (CTB/STB plot styles: `@truedxf/plot` is still a placeholder) and the ezdxf baseline score (Phase 3.5) |
 | 6–8 | Not started |
 
-**Scoreboard** (2026-10-01, CPU scorer = same pixels as the browser renderer in plot mode,
-against the references re-plotted with the real fonts): **3 583 cases with references, 3 279
-(92 %) at F1(r=1) ≥ 0.99, 924 (26 %) pixel-exact.** The earlier 3 128 / 1 282 were scored
+**Scoreboard** (2026-10-03, master 07fcee6; CPU scorer = same pixels as the browser renderer in
+plot mode, against the references re-plotted with the real fonts): **3 583 cases with references,
+3 282 (92 %) at F1(r=1) ≥ 0.99, 924 (26 %) pixel-exact** (2026-10-01: 3 279 / 924; images +3 with
+the PDF underlay renderer; the performance work of 2026-10-02/03 left every plot unchanged). The earlier 3 128 / 1 282 were scored
 against simplex.shx substitution plots; most of the drop is TrueType text (dimensions, leaders,
 fileformat, mtext, linetypes with text); the raster driver's whole-pixel glyph advances
 (research/notes/04 §14) recovered 156 cases, the failure triage of 2026-10-01 another 111 and
@@ -41,10 +42,16 @@ the gross-failure round another 80 (backlog in docs/TODO.md).
 | colors | 44 | 10 | 44 | | leaders | 128 | 26 | 111 |
 | lineweights | 64 | 7 | 64 | | layouts | 169 | 7 | 155 |
 | blocks | 88 | 42 | 82 | | xclip | 44 | 0 | 36 |
-| transparency | 23 | 2 | 21 | | images | 174 | 137 | 156 |
+| transparency | 23 | 2 | 21 | | images | 174 | 137 | 159 |
 | draworder | 34 | 26 | 34 | | mline | 54 | 16 | 40 |
 | misc | 45 | 20 | 40 | | extents | 18 | 0 | 9 |
 | mixed | 37 | 0 | 32 | | fileformat | 386 | 8 | 330 |
+
+AutoCAD-verified corpus and probe suites added 2026-10-03 (proxy graphics and font resolution,
+local only: `corpus-proxy` windows into two corpus drawings, `font-resolution`, `font-metrics`,
+`fid-proxy-probes`, `fid-proxy-followup`, `proxy-font-selection`): **100 cases, 91 at
+F1(r=1) ≥ 0.99, 14 pixel-exact** (corpus-proxy 4/4: arch-cn windows F1 1.000, gh109 floor plan
+0.998; docs/fid-proxy-results.md, docs/fid-proxy-font-results.md).
 
 Reproduce: `node packages/testkit/src/cpu-suite.ts <suite> --quiet --json
 samples/reports/scoreboard/<suite>.json > samples/reports/scoreboard/<suite>.log` (the playground's

@@ -6,6 +6,11 @@ Tick items off (or delete them) when done.
 
 ## Environment / harness
 
+- [x] Identify native FD and bottom CJK text/style paths in the three arch-cn corpus windows;
+      stage 31 deterministic font-resolution probes (2026-10-03, note 04 §15).
+- [ ] Run `font-resolution` through AutoCAD, answer Q-0736/0737, then fix only the verified
+      font/metric rules and re-score corpus-proxy and text suites. The current font investigation
+      changes no runtime rendering; samples-junction writes are denied in this sandbox.
 - [x] Regenerate all AutoCAD references now that the Liberation fonts are visible to AutoCAD
       (started 2026-10-01; before, most suites were plotted with simplex.shx substitution), then
       re-score without `--hide-fonts` and update the scoreboard in PLAN.md.

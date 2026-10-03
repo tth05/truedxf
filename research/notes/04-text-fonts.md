@@ -1743,3 +1743,45 @@ Open: column MTEXT with a centred attachment (text-probes/mtx-cols-dynauto-mc, -
 closer to the exact positions than this rule predicts, while the same text in columns with
 attachment 1 follows it. The split rules at tabs and fallback fonts are inferred from scores,
 not probed.
+
+## 15. Corpus font-resolution investigation (2026-10-03, pending probes)
+
+**VERIFIED-BY-ACAD** (`corpus-proxy/arch-cn-1e85a`, `arch-cn-1e8ba`, `arch-cn-1e965`,
+2026-10-03): the yellow native TEXT "FD" plots as thin strokes, unlike truedxf's filled
+SimSun outlines. This verifies appearance, **not the name of the font or the cause of substitution**.
+An isolated native-text render using `simplex.shx` differs from the first reference's yellow
+label by just 2 pixels, F1(r=1)=1.0; `romans.shx` gives the same geometry for these two letters.
+`txt.shx` differs by 2817 pixels, F1=0.2073. Measurement ROI: x [250,830), y [620,1130) in the
+2000×1500 PNG, exact yellow only. SimSun differs by 42825 pixels, F1=0.0128. These are local
+candidate measurements against the existing plot, not a new AutoCAD font-selection experiment.
+
+Raw data observations (unmodified corpus DXF; not new AutoCAD behavioural rules):
+
+- TEXT `9406` in block `楼层配线机柜`: style `宋体_txtstyle_0_0` (`44D`), group 3/4 both empty,
+  XDATA `1001 ACAD / 1000 宋体 / 1071 0`. Height 350, width factor 0.8, horizontal alignment 4.
+  Parent INSERTs: `1E82F`, `1E89F`, `1E964`, respectively. `$TEXTSTYLE=ELEC_DIM`; Standard is
+  `arial.ttf` with family Arial and flags 34, so neither names simplex or txt.
+- Bottom labels in 1e85a: INSERT `1E79B`, TEXT `13339` "弱电井" / `1333A` "冷媒"; in 1e8ba:
+  INSERT `1E7A2`, TEXT `13D3D` / `13D3E`. Style `宋体` has empty group 3/4, family `SimSun`,
+  flags **34306** (GB2312 charset), height 300, width factor 1, left-baseline alignment.
+  They resolve to `simsun.ttc` in truedxf, without substitution or missing-bigfont suppression.
+- In 1e965 the same labels are INSERT `1E913`, TEXT `1B2FE` / `1B2FF`: style `_TCH_DIM`,
+  group 3 `SIMPLEX`, group 4 `GBCBIG`, no TTF XDATA, height 438.8652482269502, width 0.7.
+  They resolve to `simplex.shx` + `gbcbig.shx`, without suppression. Treating all three cases
+  as a missing CJK font would be wrong. Top-level pick ranges identify these INSERTs; child
+  TEXTs were located by composing their block transforms. A text-only diagnostic confirmed
+  that their rendered ranges reach the bottom edge of the respective plot windows.
+
+The render provider aliases `宋体` and `SimSun` to `simsun.ttc` and ignores charset/pitch when
+looking up a family. FontManager uses only the bold/italic bits of 1071. **UNKNOWN:** does the
+zero charset, the localized family spelling, or font substitution at drawing load explain FD?
+The harness sets FONTALT=simplex.shx **after** accoreconsole opens the DXF; that timing could
+matter. The supplied font directories alone do not prove GDI resolves a family in that session.
+The remaining bottom CJK fringes might instead involve metrics, clipping or raster phase;
+their exact cause is unverified. No resolver rule has been changed on this evidence.
+
+`font-resolution` contains 31 probes: empty-file family/flags pairs, explicit SimSun/SHX
+controls, missing primary/bigfont pairs, three FONTALT=txt variants and nine isolated native
+FD/CJK cases at the corpus coordinates (CJK both clipped and fully visible). Each requests PNG,
+PDF and DXFOUT. `tools/gen/write_font_resolution_probes.py` checks determinism and refuses to
+overwrite different bytes. Questions Q-0736/0737 remain open until these plots are available.

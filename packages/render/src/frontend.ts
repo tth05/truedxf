@@ -326,7 +326,8 @@ export class Frontend {
     this.calibration = calibration;
     this.monochrome = (request.styleTable ?? "").toLowerCase() === "monochrome.ctb";
     this.lineweights = request.lineweights ?? true;
-    this.fillMode = doc.header.num("$FILLMODE", 1) !== 0;
+    // Plot-time sysvars override the saved header (note 07 §15.7, shell-fillmode-zero).
+    this.fillMode = Number(request.sysvars?.FILLMODE ?? doc.header.num("$FILLMODE", 1)) !== 0;
     this.grid = (env.raster ?? "autocad") === "autocad" ? new PixelGrid(view, request.canvas) : undefined;
     this.lod = env.lod === true && env.raster === "smooth";
     this.drawOrder = new DrawOrder(doc);

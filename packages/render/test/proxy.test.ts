@@ -170,7 +170,7 @@ describe("proxy graphics", () => {
       expect(p.text.style?.bigFont).toBe("big.shx");
       if (op === 38) {
         expect(p.text.style?.ttfFamily).toBe("Test Family");
-        expect(p.text.style?.ttfFlags).toBe((1 << 24) | (1 << 25));
+        expect(p.text.style?.ttfFlags).toBe((1 << 24) | (1 << 25) | 0x8602);
         expect([p.text.charset, p.text.pitch]).toEqual([134, 2]);
       }
     } else expect(p.text.style).toBeUndefined();
@@ -224,7 +224,7 @@ describe("proxy graphics", () => {
     expect(p.text.input.text).toBe("下");
     expect(p.text.style?.font).toBe("txt.shx");
     expect(p.text.style?.bigFont).toBe("big.shx");
-    expect(p.text.style?.ttfFlags).toBe((1 << 24) | (1 << 25));
+    expect(p.text.style?.ttfFlags).toBe((1 << 24) | (1 << 25) | 0x8602);
   });
 
   it("fills a SHELL face with its hole, then consumes fill before the next polygon", () => {
@@ -249,6 +249,49 @@ describe("proxy graphics", () => {
     expect(p.rings.map((r) => r.length)).toEqual([4, 4]);
     expect(primitives[1]!.kind).toBe("curve");
     expect(primitives[1]!.traits.fill).toBe(false);
+  });
+  it("keeps FILLON across a POLYLINE and trait commands for the following POLYGON", () => {
+    const points = (dv: DataView, o: number) =>
+      doubles(0, 0, 0, 4, 0, 0, 4, 4, 0, 0, 4, 0)(dv, int32(4)(dv, o));
+    const { primitives, unsupported } = decodeProxyGraphics(
+      blob([
+        [20, int32(1)],
+        [6, points],
+        [14, int32(8)],
+        [7, points],
+      ]),
+      traits,
+      { layers: [], linetypes: [] },
+    );
+    expect(unsupported).toEqual([]);
+    expect(primitives.map((p) => p.kind)).toEqual(["curve", "fill"]);
+    expect(primitives[1]!.traits.color).toBe(8);
+  });
+  it("applies the plot-time FILLMODE override to a proxy SHELL", async () => {
+    const g = blob([
+      [20, int32(1)],
+      [
+        9,
+        (dv, o) => {
+          o = doubles(0, 0, 0, 4, 0, 0, 4, 4, 0, 0, 4, 0)(dv, int32(4)(dv, o));
+          for (const v of [5, 4, 0, 1, 2, 3]) o = int32(v)(dv, o);
+          return o;
+        },
+      ],
+    ]);
+    const hex = [...g].map((v) => v.toString(16).padStart(2, "0")).join("");
+    const entities = `0 ACAD_PROXY_ENTITY\n5 A\n330 1F\n100 AcDbEntity\n8 0\n370 0\n100 AcDbProxyEntity\n90 498\n91 500\n92 ${g.length}\n310 ${hex}`;
+    const plot = {
+      layout: "Model",
+      area: { type: "window" as const, min: [-1, -1] as [number, number], max: [5, 5] as [number, number] },
+      canvas: [100, 100] as [number, number],
+      lineweights: false,
+    };
+    const saved = await renderPlot(modelDoc({ entities, header: "9 $FILLMODE\n70 0" }), plot);
+    const overridden = await renderPlot(modelDoc({ entities }), { ...plot, sysvars: { FILLMODE: 0 } });
+    const filled = await renderPlot(modelDoc({ entities }), plot);
+    expect(overridden.displayList).toEqual(saved.displayList);
+    expect(overridden.displayList).not.toEqual(filled.displayList);
   });
   it("decodes a circle, a colour trait and a composed model transform", () => {
     const g = blob([

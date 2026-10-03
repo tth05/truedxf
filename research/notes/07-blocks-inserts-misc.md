@@ -1228,7 +1228,7 @@ Unknown opcode ⇒ skip chunk.
 | 16 | SUBENT_LAYER | RL layer **index** | index into LAYER table in storage order (ezdxf) |
 | 18 | SUBENT_LINETYPE | RL linetype index; 0xFFFFFFFF bylayer, 0xFFFFFFFE byblock | ezdxf: `linetypes[index + 2]` ("first two entries ByLayer and ByBlock are not included"), 32766 → BYBLOCK, else BYLAYER — **CONFLICT** with oda sentinel values |
 | 19 | SUBENT_MARKER | RL | selection marker, ignore |
-| 20 | SUBENT_FILLON | RL 0/1 | fill for next POLYGON; ezdxf resets after each primitive |
+| 20 | SUBENT_FILLON | RL 0/1 | POLYLINE preserves fill until the next POLYGON; ezdxf reset-after-each-primitive conflicts with AutoCAD (§15.7). Other consumption boundaries remain open. |
 | 22 | SUBENT_TRUECOLOR | RL raw AcCmEntityColor (oda: RC r, g, b + method byte) | decode like DWG CMC |
 | 23 | SUBENT_LNWEIGHT | RL lineweight (signed: −1/−2/−3) | |
 | 24 | SUBENT_LTSCALE | RD | |
@@ -1409,9 +1409,9 @@ misreads the italic bit. Command-relative alignment reads SIMPLEX / GBCBIG and r
 text OCS, transform snapshots, and rendering TEXT2 with embedded fonts/decorations through
 the same display-list path as native TEXT. No STYLE entries are added to the model.
 
-Fill consumption after each primitive follows MIT ezdxf's documented behaviour (§15.2),
-but the corpus issues another FILLON before the next primitive and cannot distinguish a
-reset from persistent state. Negative SHELL face counts are handled as holes in the preceding
+The initial implementation reset fill after each primitive based on MIT ezdxf (§15.2).
+The subsequent AutoCAD probes disprove that reset for POLYLINE (§15.7); the original corpus
+issues another FILLON and cannot by itself distinguish consumption from persistent state. Negative SHELL face counts are handled as holes in the preceding
 face; neither holes nor nonzero face traits occur here. Fill consumption, SHELL FILLMODE=0,
 non-unit tracking, nonzero raw/decoration flags, non-+Z text and nested transforms are **not
 VERIFIED-BY-ACAD** by this corpus.
@@ -1444,9 +1444,86 @@ formerly omitted proxy text now contributes to the plot fit.
 valid corpus, preserving opaque custom-object serialization. Five zoom windows and a
 FILLMODE=0 copy keep DXF bytes identical; two fill-consumption/control cases replace only
 33F's graphics; one changes only the missing base bigfont name. It refuses all overwrites.
-AutoCAD has **not run these probes yet**, and the modified proxies still need load validation.
+AutoCAD subsequently accepted all nine probes and produced PNG/PDF references (§15.7).
 The samples junction is read-only to this sandbox: probes are staged locally under
 `.venv/fid-proxy-probes-v2/`, and the comparison sheet under `.codex-out/compare.png`.
+
+### 15.7 AutoCAD probe results and remaining boundaries (2026-10-03)
+
+**VERIFIED-BY-ACAD** (`fid-proxy-probes/*`, AutoCAD 2027 R26.0, 2026-10-03): all
+nine byte-preserving corpus-derived probes loaded and plotted successfully (user harness:
+9 `ok`, 29 s). Opaque custom-class serialization must be retained; this does not validate
+synthetic `misc/proxy-*` fixtures.
+
+**VERIFIED-BY-ACAD** (`fid-proxy-probes/fill-consumption`, `fill-explicit-control`,
+2026-10-03): FILLON 1, POLYLINE 6, POLYGON 7 fills the second primitive. The POLYLINE
+remains an outline. Issuing another FILLON before the POLYGON produces a byte-identical
+reference PNG (one filled PDF path in each). The ezdxf reset after every primitive is
+therefore wrong at this boundary. The renderer now preserves fill across POLYLINE 6; opcode 32 uses the same outline path
+and preservation is an **ASSUMPTION** there until a normal-bearing probe verifies it.
+Whether POLYGON, SHELL, TEXT or other primitives consume fill remains **UNKNOWN**;
+`fid-proxy-followup/fill-after-{polygon,shell,text}` isolates those boundaries. The existing
+resets for those primitive types are assumptions, not verified rules. Negative SHELL face
+counts/holes, edge/face traits and MESH fill still lack valid reference cases.
+
+**VERIFIED-BY-ACAD** (`fid-proxy-probes/shell-fillmode-zero`, `columns-room`,
+2026-10-03): FILLMODE=0 removes the proxy SHELL interiors and retains their grey outlines
+(PDF fill paths 2 → 0). The fixture DXF bytes are identical; only plot sysvars differ.
+The frontend previously ignored plot-time FILLMODE and used the saved header. PlotRequest
+FILLMODE now overrides the header, as the reference harness does. This is not a special
+proxy-shell exception. With the fix, this probe improves 70,531 → 10,986 mismatches;
+its remaining missing native label prevents a high whole-image F1.
+
+**VERIFIED-BY-ACAD** (`fid-proxy-probes/inline-missing-base-bigfont`, 2026-10-03):
+MTEXT 9AE/9AF with valid inline simplex.shx,gbcbig.shx draws even when the base STYLE
+bigfont is deliberately renamed to truedxf-probe-missing-bigfont.shx. Neither reference
+contains substituted TrueType text for these two runs: the PDF contains their SHX strokes.
+Base-style suppression must not reject fully overridden MTEXT. The renderer permits that
+case when every parsed token has a prepared explicit inline font; existing plain/missing
+inline suppression stays in place pending mixed-run probes. The missing-base zoom improves
+4,463 → **0 exact mismatches**, F1(r=1) 0.9790 → **1.0000**. Mixed base/inline text and
+scoped overrides remain **UNKNOWN**, covered by `fid-proxy-followup/inline-mixed-*`.
+The large 9B0 label has no inline override and still needs a font-choice/substitution answer;
+no general font substitution was changed in this worktree.
+
+**VERIFIED-BY-ACAD** (`fid-proxy-probes/stair-hatch`, 2026-10-03): the stair pattern
+is native HATCH 5DE, not proxy graphics. Its stored ANSI31 family has normal spacing
+158.75 world units (63.5 PDF points at this zoom). All 23 PDF lines agree with the stored
+phase, family indices -234…-212; 46 endpoints have maximum perpendicular error 0.126314
+PDF points, RMS 0.052364, within the 600-dpi device quantization. PNG F1(r=1)=1.0000;
+the 11,107 exact RGB mismatches are at most one pixel from matching geometry. No hatch
+phase/spacing adjustment is justified. Measurements: `.codex-out/hatch-phase.json`.
+
+**VERIFIED-BY-ACAD** (`fid-proxy-probes/wall-stair`, 2026-10-03): 17 of 22 inspected
+PDF straight segments agree with stored proxy POLYLINEs within one 600-dpi device-pixel
+diagonal (maximum endpoint error 0.166474 points). The other segments include clipped
+paths/non-POLYLINE geometry and are not evidence of a transform error. PNG F1(r=1)=0.9861.
+Together with the stair result and absence of model transforms in gh109, this supports
+raster snapping as the main parallel-line discrepancy, not a WCS/OCS or CTB colour shift.
+Exact integer-pixel ties remain unresolved (note 08 §10.2); half-pixel plot-window copies
+in the follow-up batch test that distinction. No coordinate/index/colour workaround was
+introduced. Measurements: `.codex-out/probe-geometry.json`.
+
+**VERIFIED-BY-ACAD** (`fid-proxy-probes/tags`, 2026-10-03): M0921 and C1815 are
+stroke paths in the PDF, despite opcode-38 typeface 宋体 with empty font/bigfont fields.
+The PDF's SimSun TrueType text belongs to the native upper dimensions (1491/900/2875/1800),
+not these tags. Current proxy styles select TrueType from the typeface, producing different
+tag shapes/advances. The native upper-dimension text ROI [0,400,2000,150] has 1,814
+exact RGB mismatches but F1(r=1)=1.0000; it does not show a font-shape mismatch
+(`.codex-out/tag-rois.json`). Charset/pitch are forwarded in STYLE-compatible LOGFONT
+flag packing (note 04 §4.1); this preserves the raw fields without changing font policy. Which field selects the SHX default remains **UNKNOWN**; it must not
+be inferred from document STYLE substitution. Five follow-up variants change only those
+font strings (empty family, Arial family, explicit simplex/SimSun/Arial files). The separate
+axis-one probe confirms the current COMPLEX/GBCBIG placement within one pixel:
+192 exact mismatches, F1(r=1)=1.0000. Glyph contours are not evidence for circled-digit
+Unicode substitution: axis circles and digit text are separate commands.
+
+After the verified fill/FILLMODE/inline changes: gh109 **19,922 mismatches / 0.9785 F1(r=1)**
+(previous proxy-text/SHELL step 20,197 / 0.9730; current master 24,057 / 0.9079).
+All nine probe scores are unchanged or improved. `tools/gen/proxy_followup_probes.py`
+stages twelve new cases, preserving custom entity bytes/values, refusing overwrites.
+They parse with 49 model entities and no proxy-corrupt diagnostics. New references are
+pending; no further AutoCAD behaviour is claimed from the generated inputs alone.
 
 ## 16. Explode / "virtual entities" semantics
 

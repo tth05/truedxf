@@ -1106,10 +1106,18 @@ Answers (VERIFIED-BY-ACAD, AutoCAD 2027, 2026-09-30):
 | Q-0700 | proxy | [U] Do proxy sub-entity traits default to the host's layer/color/ltype/lw, and how are color 0 (BYBLOCK) and circle normal (0,0,-1) resolved in an INSERT? | 07 §15.3, §17; 11a §16 (07:20, 11a:43) | `misc/proxy-color-layer`, `misc/proxy-traits-default-in-insert` | open |
 | Q-0701 | proxy | [U] Are proxy graphics coordinates of an entity inside a block in block coords, transformed by the INSERT matrix? | 07 §15.3, §17 (07:20) | `misc/proxy-traits-default-in-insert`, `misc/proxy-in-rotated-insert` | open |
 | Q-0702 | proxy | [U] Do nested PUSH_MODELXFORM (op 29/30) matrices in proxy graphics compose with each other and the outer transform? | 07 §15.3, §17 (07:20) | `misc/proxy-nested-matrix` | open |
-| Q-0736 | proxy | [U] Are gh109 wall/window/stair parallel pixel offsets and hatch differences caused by raster snapping rather than different WCS geometry? | 07 §15.6; 08 §10.2 | `fid-proxy-probes/wall-stair`, `fid-proxy-probes/stair-hatch` | open |
-| Q-0737 | proxy | [U] Do proxy opcode-38 TrueType tags use normal TEXT height/advances and the stored typeface, and do the SHX axis digits use the same pixel placement? | 07 §15.6; 04 §14 | `fid-proxy-probes/tags`, `fid-proxy-probes/axis-one` | open |
-| Q-0738 | proxy | [U] Can MTEXT inline font/bigfont overrides draw despite a missing base-style bigfont, or are gh109's visible room labels explained by font substitution? | 07 §15.6; 04 §4.1 | `fid-proxy-probes/columns-room`, `fid-proxy-probes/inline-missing-base-bigfont` | open |
-| Q-0739 | proxy | [T] Is FILLON consumed by each proxy primitive, and does FILLMODE=0 suppress a filled SHELL face? | 07 §15.2, §15.6 | `fid-proxy-probes/fill-consumption`, `fid-proxy-probes/fill-explicit-control`, `fid-proxy-probes/shell-fillmode-zero` | open |
+| Q-0736 | proxy | [U] How do gh109 wall/stair edges handle exact device-pixel ties (PDF geometry and stair hatch phase agree with stored data)? | 07 §15.7; 08 §10.2 | `fid-proxy-probes/wall-stair`, `fid-proxy-probes/stair-hatch`, `fid-proxy-followup/*-halfpixel` | open |
+| Q-0737 | proxy | [U] Which font fields select opcode-38 tags when typeface is set but files are empty (AutoCAD plots SHX strokes; axis digits already agree within one pixel)? | 07 §15.7; 04 §14 | `fid-proxy-probes/tags`, `fid-proxy-probes/axis-one`, `fid-proxy-followup/tag-*` | open |
+| Q-0738 | proxy | [U] How does missing base-style bigfont suppression apply to mixed base/inline MTEXT runs (fully overridden runs are verified to draw)? | 07 §15.7; 04 §4.1 | `fid-proxy-probes/columns-room`, `fid-proxy-probes/inline-missing-base-bigfont`, `fid-proxy-followup/inline-mixed-*` | open |
+| Q-0739 | proxy | [T] Is FILLON consumed after SHELL/POLYGON/TEXT (POLYLINE survival and FILLMODE=0 outlines are verified)? | 07 §15.2, §15.7 | `fid-proxy-probes/fill-consumption`, `fid-proxy-probes/fill-explicit-control`, `fid-proxy-probes/shell-fillmode-zero`, `fid-proxy-followup/fill-after-*` | open |
+
+Partial answers Q-0736–Q-0739 (**VERIFIED-BY-ACAD**, `fid-proxy-probes`, 2026-10-03):
+POLYLINE leaves FILLON enabled (fill/control PNGs identical); FILLMODE=0 draws SHELL
+outlines; explicit simplex/gbcbig MTEXT draws despite a deliberately missing base bigfont
+(the corrected zoom is pixel-exact). All 23 stair PDF hatch lines match the stored family
+phase/spacing; axis-one has F1(r=1)=1.0000. Door/window tags are PDF stroke paths, whereas
+the current typeface-only resolution uses TrueType. Remaining questions are isolated by
+the twelve `fid-proxy-followup` cases (note 07 §15.7); the general boundaries stay open.
 
 - Q-0692: Yes: DXFOUT writes 3DSOLID / REGION without 92/160 + 310 (`misc/solid-box-*`, `region-square-*`).
 - Partial corpus answers (VERIFIED-BY-ACAD, 2026-10-03; note 07 §15.5): Q-0693's proxy-graphics

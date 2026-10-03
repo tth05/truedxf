@@ -262,6 +262,8 @@ function readText(r: Reader, op: number, ctx: DecodeContext): ProxyText {
       if (r.u32()) flags |= 1 << 24;
       charset = r.u32();
       pitch = r.u32();
+      // Match STYLE's LOGFONT packing so font resolution receives every proxy field (04 §4.1).
+      flags |= ((charset & 0xff) << 8) | (pitch & 0xff);
       family = r.str(encoding, true);
     }
     const font = r.str(encoding, unicode);
@@ -635,8 +637,9 @@ export function decodeProxyGraphics(
         default:
           break;
       }
-      // FILLON describes the next primitive, not later graphics (note 07 §15.2).
-      if ([2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 32, 33, 36, 38, 44].includes(op) && traits.fill)
+      // A POLYLINE leaves FILLON enabled for a following POLYGON (note 07 §15.7).
+      // Consumption by the other primitive types still needs an isolated AutoCAD probe.
+      if ([2, 3, 4, 5, 7, 8, 9, 10, 11, 33, 36, 38, 44].includes(op) && traits.fill)
         traits = { ...traits, fill: false };
     } catch {
       unsupported.push("proxy-corrupt");

@@ -220,8 +220,8 @@ export function layoutMText(
   const style = fonts.style(e.style);
   const baseFont = style.font;
   const ocs = ocsToWcsMatrix(e.extrusion);
-  if (style.suppressed || !baseFont) {
-    notes.push(style.suppressed ? "mtext-suppressed-missing-bigfont" : "mtext-no-font");
+  if (!baseFont) {
+    notes.push("mtext-no-font");
     return emptyLayout(ocs, notes);
   }
   // direction vector (0,0,0) → invisible in AutoCAD (note 04 §3.6.3)
@@ -240,6 +240,15 @@ export function layoutMText(
   const spec = style.spec;
   const ctx0 = defaultContext(h0, spec?.widthFactor || 1, spec?.oblique ?? 0);
   const tokens = parseMText(e.text, ctx0, options.dimension);
+  // Fully overridden MTEXT does not depend on its missing base bigfont (note 07 §15.7,
+  // inline-missing-base-bigfont). Mixed base/inline runs need a separate plot probe.
+  if (
+    style.suppressed &&
+    !tokens.every((t) => t.ctx.font !== undefined && fonts.inlineFont(t.ctx.font) !== undefined)
+  ) {
+    notes.push("mtext-suppressed-missing-bigfont");
+    return emptyLayout(ocs, notes);
+  }
   // flow direction 3 (top to bottom): vertical columns with a dual-orientation SHX font, one
   // horizontal line otherwise (note 04 §11)
   const flow3 = e.flowDirection === 3;

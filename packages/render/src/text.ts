@@ -22,6 +22,7 @@ import {
   flattenStrokes,
   type OutlineGlyph,
   type StrokeGlyph,
+  TtfFont,
 } from "@truedxf/fonts";
 import {
   Affine2,
@@ -67,6 +68,7 @@ import {
   setAttribDrawer,
 } from "./frontend.ts";
 import type { Inherited, Resolved } from "./props.ts";
+import type { PixelGrid } from "./raster.ts";
 
 /** Text options of a render environment. */
 export interface TextRenderOptions {
@@ -775,6 +777,59 @@ export function pixelRunShifts(
   return out;
 }
 
+/** Preserve exact integer anchors despite cancellation at a large drawing/plot origin. */
+function deviceAnchor(value: number, coordinate: number, origin: number, pixelSize: number): number {
+  const integer = Math.round(value);
+  const error = (8 * Number.EPSILON * (Math.abs(coordinate) + Math.abs(origin))) / pixelSize;
+  return Math.abs(value - integer) <= error ? integer : value;
+}
+
+/**
+ * The probed large, upright SimSun CJK path (note 04 §15.3): snap the baseline in top-down
+ * device coordinates, then round outline offsets separately. Keep the fractional em size.
+ * Smaller, transformed and other-font text remains on the existing path: extending this
+ * approximation there worsens the small-height controls and is not verified by these probes.
+ */
+export function largeCjkPixelTriangles(
+  g: GlyphPlacement,
+  tri: Float64Array,
+  t: Affine2,
+  grid: PixelGrid,
+  origin: { x: number; y: number } = { x: t.e, y: t.f },
+): Float64Array | undefined {
+  if (
+    g.glyph.code < 0x2e80 ||
+    g.glyph.code > 0x9fff ||
+    !(g.font instanceof TtfFont) ||
+    g.font.family.toLowerCase() !== "simsun"
+  )
+    return undefined;
+  const sx = t.a / grid.pixelSize;
+  const sy = t.d / grid.pixelSize;
+  // At least one device pixel per font unit bounds the change to the large-outline regime
+  // exercised by the 299.8/300/300.2 controls, without altering smaller text.
+  if (
+    sx < 1 ||
+    sy < 1 ||
+    Math.abs(sx - sy) > sx * 1e-10 ||
+    Math.abs(t.b) > t.a * 1e-10 ||
+    Math.abs(t.c) > t.d * 1e-10
+  )
+    return undefined;
+  const u = deviceAnchor(grid.u(origin.x), origin.x, grid.minX, grid.pixelSize);
+  const v = deviceAnchor(grid.v(origin.y), origin.y, grid.minY, grid.pixelSize);
+  // The off-page string anchor is truncated before integer advances, not each glyph's pen:
+  // the native arch probes start left of the page (note 04 §15.3).
+  const x = Math.trunc(u) + Math.round(grid.u(t.e) - grid.u(origin.x));
+  const y = Math.ceil(v) - 1 + Math.round(grid.v(t.f) - grid.v(origin.y));
+  const out = new Float64Array(tri.length);
+  for (let k = 0; k + 1 < tri.length; k += 2) {
+    out[k] = x + Math.round(tri[k]! * sx);
+    out[k + 1] = y + Math.round(tri[k + 1]! * sy);
+  }
+  return out;
+}
+
 /** Emits a text layout: backgrounds, glyphs, decoration lines. */
 export function drawLayout(fe: Frontend, layout: TextLayout, e: Entity, m: Matrix44, inh: Inherited): void {
   for (const n of layout.notes) fe.note(n);
@@ -804,10 +859,25 @@ export function drawLayout(fe: Frontend, layout: TextLayout, e: Entity, m: Matri
   }
   const colored = (c: ColorOverride | undefined): Resolved => overrideResolved(fe, r, c, inh);
   const baseColor = fe.color(r);
+  // These probes select SimSun as the STYLE primary. Linking to it from another primary
+  // uses different metrics and is outside the verified raster path (note 04 §15.3).
+  const primaryFont =
+    e.type === "TEXT" || e.type === "MTEXT" || e.type === "ATTRIB" || e.type === "ATTDEF"
+      ? fontsOf(fe)?.style((e as TextEntity).style).font?.primary
+      : undefined;
   const shifts =
     fe.grid && layout.runs
       ? layout.runs.map((run) => pixelRunShifts(run, toTarget, fe.pixelSize))
       : undefined;
+  const origins: ({ x: number; y: number } | undefined)[] = [];
+  if (fe.grid && layout.runs) {
+    for (const g of layout.glyphs) {
+      if (g.run?.index === 0) {
+        const t = toTarget.multiply(g.matrix);
+        origins[g.run.run] = { x: t.e, y: t.f };
+      }
+    }
+  }
   let greek: GreekRun | undefined;
   const flushGreek = () => {
     if (greek) emitGreekRun(fe, greek);
@@ -861,8 +931,15 @@ export function drawLayout(fe: Frontend, layout: TextLayout, e: Entity, m: Matri
       for (const pl of glyphPolylines(glyph, tolFu)) fe.strokeFlat(t.applyPoints(pl), false, rr);
     } else {
       const tri = glyphTriangles(glyph, tolFu);
-      if (tri.length >= 6)
-        fe.fillTriangles(t.applyPoints(tri), g.color ? resolveColor(fe, r, g.color, inh) : baseColor);
+      if (tri.length >= 6) {
+        const color = g.color ? resolveColor(fe, r, g.color, inh) : baseColor;
+        const pixels =
+          fe.grid &&
+          primaryFont === g.font &&
+          largeCjkPixelTriangles(g, tri, t, fe.grid, g.run && origins[g.run.run]);
+        if (pixels) fe.fillPixelTriangles(pixels, color);
+        else fe.fillTriangles(t.applyPoints(tri), color);
+      }
     }
   }
   flushGreek();

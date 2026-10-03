@@ -962,6 +962,20 @@ export class Frontend {
     this.emitSpans(spans, color);
   }
 
+  /**
+   * Already quantized device triangles must not pass through world coordinates and snap again:
+   * a large plot origin can move an integer vertex to the preceding pixel (note 04 §15.3).
+   */
+  fillPixelTriangles(tri: ArrayLike<number>, color: Rgba): void {
+    const spans = new SpanSet();
+    const ring = [0, 0, 0, 0, 0, 0];
+    for (let k = 0; k + 5 < tri.length; k += 6) {
+      for (let q = 0; q < 6; q++) ring[q] = tri[k + q]!;
+      fillPolygon([ring], true, spans, this.grid);
+    }
+    this.emitSpans(spans, color);
+  }
+
   /** Fills rings (target coordinates) with a fill rule. */
   fillRings(rings: readonly Float64Array[], color: Rgba, fillRule: FillRule = FillRule.NonZero): void {
     if (rings.length === 0) return;

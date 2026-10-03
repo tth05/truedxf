@@ -1829,10 +1829,65 @@ SimSun clipped probes: 3871 / 1136 exact mismatches; unclipped: 5666 / 7336. Who
 translation reduces these counts but the best vertical shift changes with the plot window:
 clipped wants (1,−1) px, unclipped (1,0). GBCBIG clipped/unclipped wants zero shift (156/191
 pixels differ). Do not hard-code a corpus offset or globally shift glyphs on this evidence.
-Q-0737 remains open for controlled anchor-phase, em-size and large-coordinate probes.
+The controlled anchor-phase, em-size and large-coordinate results are recorded in §15.3;
+Q-0737 remains open for the residual curve/edge masks and smaller-size grid fitting.
 
 `font-metrics` batches 18 follow-up cases: SimSun heights 299.8/300/300.2 and 12/12.1
 at near/far origins, six independent quarter-pixel x/y anchor phases, and near/far
 simplex/GBCBIG controls. Each contains two native CJK labels and independent anchor crosses,
 requests PNG/PDF/DXFOUT, and disables the generator's half-pixel window shift. The intended
-near/far device coordinates are equal; AutoCAD results are pending. No font bytes are copied.
+near/far device coordinates are equal. All 18 AutoCAD references succeeded. No font bytes are copied.
+
+### 15.3. Large upright SimSun raster anchors (2026-10-03)
+
+**VERIFIED-BY-ACAD** (`font-metrics/simsun-h299p8-{near,far}`, `simsun-h300p0-{near,far}`,
+`simsun-h300p2-{near,far}`, `simsun-h12p0-{near,far}`, `simsun-h12p1-{near,far}`,
+`gbcbig-{near,far}`, 2026-10-03): each of the six near/far pairs has **pixel-identical AutoCAD
+PNGs**. Large drawing coordinates do not cause the reference SimSun fringes. The SHX/GBCBIG
+reference pair is also identical; truedxf's 22/60-pixel SHX residues remain a separate problem.
+
+**VERIFIED-BY-ACAD** (`font-metrics/simsun-phase-x-{25,50,75}`, `simsun-phase-y-{25,50,75}`,
+`simsun-h300p0-near`, 2026-10-03): all three quarter-pixel x offsets leave each CJK glyph's
+mask unchanged. Y offsets move the upper label up one pixel at +0.25/+0.50/+0.75; the lower
+label moves up only at +0.75. Within each label the masks are exact translations, with equal
+pixel counts. The reference rasterizes the origin on whole device pixels rather than adding
+its fractional phase to every outline vertex.
+
+The implemented large-text model is **inferred from these masks and checked against AutoCAD**,
+not a complete reproduction of Windows TrueType rasterization:
+
+- Snap the **string** origin, then apply the integer advances from §14. In device x the
+  origin truncates toward zero. The isolated arch labels start left of the page: flooring
+  their negative origin or truncating each later glyph separately gives the wrong phase.
+- In bottom-up device y the baseline is `ceil(v) − 1`, equivalently the upper-origin pixel
+  row convention in these positive top-down baseline coordinates. Snap only the string
+  baseline; its origin is shared by subsequent glyphs.
+- Round scaled outline offsets relative to that origin; keep the **fractional em size**.
+  Rounding/flooring/ceiling the whole em gives worse masks at heights 299.8/300/300.2.
+  The PDFs also retain fractional SimSun sizes (343.240173 pt at height 300). Their vector
+  placement alone does not prove the PNG driver's integer convention.
+- Keep device triangle vertices in pixel space until scan conversion. Converting a snapped
+  integer back to large world coordinates and flooring it again can choose the preceding
+  pixel. Near-integer origin ties are normalized within a float64 arithmetic error bound,
+  so near/far plots retain the same device result.
+
+**Implementation boundary, not an AutoCAD threshold:** apply this approximation only to
+upright, uniformly scaled CJK outlines whose STYLE primary is SimSun, with at least one
+device pixel per font unit. Glyph linking to SimSun from another primary is excluded: a
+broader trial worsened `text/fallback-cjk-text`, so its existing path is preserved.
+It is verified in the large 299.8/300/300.2 controls and native arch labels. Applying it to
+the smaller 12/12.1 controls lowers F1 despite reducing exact mismatch counts. Their existing
+path is preserved, as are Latin, other families, nonuniform/rotated text and smooth viewers.
+No cutoff at one pixel per font unit is claimed as an AutoCAD hinting rule.
+
+Large controlled cases improve from 6600–8724 mismatches to 2512–2599, F1(r=1)=1.0 at report
+precision. Native unclipped arch CJK: 5666→1225 and 7336→1213, F1=1.0; clipped: 3871→2262
+and 1136→492, F1=0.9999. All 49 font-resolution/font-metrics scores retain or improve exact
+mismatch and F1(r=1). The smaller and SHX controls remain unchanged.
+
+**UNKNOWN / bounded stop:** residual curve/edge masks, smaller-size grid fitting, other
+orientations and SHX/GBCBIG precision are not explained by this model. Trials of the existing
+OpenType hinting engine at actual/rounded/design ppem did not provide a consistent match;
+no hinting change is retained. Q-0737 stays open for these remaining parts. No further probe
+batch is staged in this work: retain the verified correction rather than expanding an
+open-ended font-raster investigation.

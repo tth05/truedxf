@@ -10,9 +10,11 @@ Tick items off (or delete them) when done.
       stage 31 deterministic font-resolution probes (2026-10-03, note 04 §15).
 - [x] Run all 31 `font-resolution` probes through AutoCAD; answer Q-0736 and fix localized
       SimSun resolution plus unresolved-family Unicode linking (2026-10-03, note 04 §15).
-- [ ] Resolve Q-0737's SimSun anchor/em-size raster fringes with controlled `font-metrics`
-      probes (18 deterministic cases staged, awaiting AutoCAD). Corpus bottom labels already
-      use the correct fonts; do not guess offsets.
+- [x] Analyze the 18 `font-metrics` references and correct large upright SimSun string
+      anchors/relative-outline rounding (2026-10-03, note 04 §15.3); preserve smaller text,
+      viewers and unprobed fonts/orientations. Near/far AutoCAD references are identical.
+- [ ] Q-0737 remainder: curve/edge masks, smaller SimSun grid fitting and SHX/GBCBIG
+      precision. Current font task stops at the verified large-text correction; no new batch.
 - [ ] Missing-bigfont MTEXT: preserve CJK fallback while suppressing primary SHX text
       (`font-resolution/simplex-missing-bigfont`, note 04 §15.1); outside the arch-cn label fix.
 - [x] Regenerate all AutoCAD references now that the Liberation fonts are visible to AutoCAD

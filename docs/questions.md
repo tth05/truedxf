@@ -761,7 +761,7 @@ Answers (VERIFIED-BY-ACAD, AutoCAD 2027, 2026-09-30):
 | ID | topic | question | source | test | status |
 |---|---|---|---|---|---|
 | Q-0736 | fonts | [U] Why does empty group 3 with ACAD family 宋体 and flags 0 plot native FD as SHX: charset, localized family, or substitution before the harness sets FONTALT? | 04 §15 | `font-resolution/empty-*`, `file-simplex-song-*`, `arch-*-fd` | answered |
-| Q-0737 | fonts | [U] What anchor/em-size raster rule produces the arch-cn SimSun/GBCBIG fringes? Font choice is verified; missing bigfont suppresses TEXT but permits linked CJK MTEXT. | 04 §15 | `font-resolution/arch-*-cjk*`, `simplex-gbcbig`, `missing-shx-bigfont`; `font-metrics/simsun-*`, `gbcbig-*` (18 cases staged) | open |
+| Q-0737 | fonts | [U] What remaining curve/grid-fitting and SHX/GBCBIG raster rules explain the arch-cn fringes? Large upright SimSun string anchors are corrected; smaller/other orientations remain unverified. | 04 §15.3 | `font-resolution/arch-*-cjk*`; `font-metrics/simsun-*`, `gbcbig-*` (18 references analyzed) | open |
 | Q-0459 | fonts | [C] Which bits of STYLE XDATA 1071 encode bold, italic, charset and pitch/family (LOGFONT packing: italic 0x01000000, bold 0x02000000? 34306=0x8602)? | 02 §2.3; 11a §4, Open conflicts; 11b §10, Test ideas (11b:8) | `fileformat/style-xdata-computed` | open |
 | Q-0460 | fonts | [U] TTF family lacking bold/italic faces with XDATA bold/italic bits: does AutoCAD synthesise bold/italic, and how? | 04 §4.5 (04:T22) | `text/xdata-sans-bold`, `text/xdata-sans-italic`, `text/xdata-sans-bolditalic`, `text/xdata-mono-bold` (+4 more) | open |
 | Q-0461 | fonts | [U] Does AutoCAD support OpenType (.otf) fonts in STYLE group 3 or XDATA family? | 04 §4.5 (04:T22) | plan: text (png) — STYLE group 3 'SourceCodePro.otf' (installed), TEXT 'ABC' | open |
@@ -799,7 +799,13 @@ Answers (VERIFIED-BY-ACAD, AutoCAD 2027, 2026-09-30):
 Q-0736 (2026-10-03): English AutoCAD cannot resolve localized 宋体, with flags 0 or 34306;
 SimSun resolves with either flag. XDATA wins over group 3 and binds simplex at DXF load;
 changing FONTALT afterward does not replace it. Linked CJK TEXT uses SimSun, including the
-intervening space (note 04 §15.1). Q-0737 remains open for raster phase/em-size, not font choice.
+intervening space (note 04 §15.1).
+
+Q-0737 partial answer (2026-10-03): near/far AutoCAD pairs are identical; anchor masks step
+on whole pixels. Large upright SimSun uses a shared snapped string origin plus separately
+rounded outline offsets; keep the fractional em size (note 04 §15.3). The correction improves
+all large controls/native labels; smaller controls retain their existing path. Curve/edge,
+small-size grid fitting and SHX/GBCBIG residues remain open. No further probe batch is staged.
 
 <a id="attribs"></a>
 ## ATTRIB / ATTDEF (`attribs`)

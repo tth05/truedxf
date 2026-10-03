@@ -14,9 +14,11 @@ import {
   loadDxf,
   PropertyResolver as ModelResolver,
 } from "@truedxf/model";
+import { createPdfRasterizer, type PdfRasterizerOptions } from "@truedxf/pdf";
 import {
   ACI_RGB,
   type DisplayList,
+  type PdfRasterizer,
   type PlotArea,
   type PlotRequest,
   renderPlot,
@@ -108,6 +110,11 @@ export interface RenderParams {
   dpi?: number;
   /** Draw IMAGE / WIPEOUT (default true). */
   rasterEntities?: boolean;
+  /**
+   * PDF underlay content via PDF.js (`@truedxf/pdf`, loaded on first use): options, or false
+   * for frames only. Default: enabled without PDF.js assets.
+   */
+  pdf?: PdfRasterizerOptions | false;
   /** "display" (viewer default): no-plot / Defpoints layers are shown; "plot": as plotted. */
   visibility?: "display" | "plot";
   /** Plot style table name (plot mode), e.g. "monochrome.ctb". */
@@ -270,6 +277,8 @@ export class ViewerCore {
   private loadFont: AssetLoader;
   private loadImage: AssetLoader;
   private assets = 0;
+  /** One rasterizer per options: the renderer caches opened PDFs per rasterizer identity. */
+  private pdf: { key: string; rasterizer: PdfRasterizer } | undefined;
 
   constructor(loadFont: AssetLoader, loadImage: AssetLoader) {
     this.baseFont = loadFont;
@@ -291,6 +300,12 @@ export class ViewerCore {
       case "geometry":
         return this.matches(req.generation) ? this.drawing?.geometry(req.entity) : undefined;
     }
+  }
+
+  private pdfRasterizer(options: PdfRasterizerOptions): PdfRasterizer {
+    const key = JSON.stringify(options);
+    if (this.pdf?.key !== key) this.pdf = { key, rasterizer: createPdfRasterizer(options) };
+    return this.pdf.rasterizer;
   }
 
   load(bytes: Uint8Array, name: string): DocumentInfo {
@@ -376,6 +391,7 @@ export class ViewerCore {
         background: p.background,
         layerVisibility: toggles,
         rasterEntities: p.rasterEntities === false ? "omit" : "draw",
+        ...(p.pdf === false ? {} : { pdf: this.pdfRasterizer(p.pdf ?? {}) }),
         visibility: p.visibility ?? "display",
         ...(p.dpi ? { calibration: { dpi: p.dpi } } : {}),
         ...(p.fallbackFont !== undefined || p.fallbackBigFont !== undefined

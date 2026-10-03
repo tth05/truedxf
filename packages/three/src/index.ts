@@ -348,14 +348,21 @@ void main() {
     return obj;
   }
 
-  /** Nearest-sampled RGBA texture, rows top first (uv (0,0) = top-left, so no flip). */
+  /** RGBA texture (nearest-sampled unless `smooth`), rows top first (uv (0,0) = top-left, so no flip). */
   private texture(img: RasterImage): THREE.DataTexture {
     let t = this.textures.get(img);
     if (!t) {
       t = new THREE.DataTexture(img.pixels, img.width, img.height, THREE.RGBAFormat, THREE.UnsignedByteType);
-      t.magFilter = THREE.NearestFilter;
-      t.minFilter = THREE.NearestFilter;
-      t.generateMipmaps = false;
+      if (img.smooth) {
+        // rasterized for another scale than shown (PDF underlays): filter, mipmaps for zoom-out
+        t.magFilter = THREE.LinearFilter;
+        t.minFilter = THREE.LinearMipmapLinearFilter;
+        t.generateMipmaps = true;
+      } else {
+        t.magFilter = THREE.NearestFilter;
+        t.minFilter = THREE.NearestFilter;
+        t.generateMipmaps = false;
+      }
       t.flipY = false;
       t.colorSpace = THREE.NoColorSpace;
       t.unpackAlignment = 1;

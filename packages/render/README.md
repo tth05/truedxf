@@ -23,7 +23,8 @@ The rendering frontend: walks a model-space or paper-space layout of a `DxfDocum
   MPOLYGON, DIMENSION (regenerated with `generateDimension` when the `*D` block is missing),
   LEADER, MULTILEADER, TOLERANCE, MLINE, MESH, HELIX, ACAD_TABLE (its block), IMAGE and WIPEOUT
   (PNG, JPEG, TIFF, BMP), REGION/3DSOLID/BODY/surfaces as ACIS wireframe (SAT and SAB), proxy
-  graphics, VIEWPORT, underlay and OLE frames.
+  graphics, VIEWPORT, PDF underlays (content through `env.pdf`, e.g. @truedxf/pdf with PDF.js;
+  DWF / DGN frames only) and OLE frames.
 - Fonts and images come from the host through `env.loadFont` / `env.loadImage`; text is laid out by
   @truedxf/text. `env.text.missingFont` chooses AutoCAD's missing-font behaviour or a fallback
   font; missing fonts show up in `PlotResult.notes` (`font-missing`, `bigfont-missing`).
@@ -60,7 +61,7 @@ units). Viewers pass `raster: "smooth"`, `visibility: "display"` and `layerVisib
   docs/fixtures.md). Extents plots miss AutoCAD's padding (extents suite 9/18 at F1(r=1) ≥ 0.99).
 - Model space is drawn in plan view (the `*ACTIVE` VPORT view direction is not applied); no
   perspective viewports.
-- Open features: PDF underlay content (frame only), wide polylines with linetypes, some
+- Open features: wide polylines with linetypes, some
   MULTILEADER variants, XCLIP of ATTRIBs. Raster gaps: exact-pixel ties, spline tessellation, hatch
   islands, clipped huge arcs (docs/TODO.md).
 - Scoreboard (docs/PLAN.md, 2026-10-01): 3 279 of 3 583 reference cases at F1(r=1) ≥ 0.99, 924

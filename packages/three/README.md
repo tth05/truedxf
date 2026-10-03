@@ -8,7 +8,8 @@ three.js (WebGL) renderer for the display lists that `@truedxf/render` produces.
 
 - `setDisplayList(list)` turns each `Batch` into one three.js object: `Mesh` for triangles,
   `LineSegments` for hairlines, `Points` for points, a textured `Mesh` for image batches
-  (nearest-sampled `DataTexture`, no mipmaps).
+  (nearest-sampled `DataTexture`, no mipmaps; `RasterImage.smooth` images such as PDF underlays
+  are filtered linearly with mipmaps).
 - Draw order is the display-list order, set through `renderOrder`; depth test and depth writes
   are off.
 - Colours pass through unchanged: three.js colour management is disabled and the output colour

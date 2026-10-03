@@ -31,6 +31,11 @@ export const ViewerWarningCode = {
    * `items`: the IMAGEDEF paths as written in the file.
    */
   ImageMissing: "image-missing",
+  /**
+   * PDF files of PDF underlays not found or unreadable (render note): only their frame is drawn.
+   * `items`: the PDFDEFINITION paths as written in the file.
+   */
+  PdfMissing: "pdf-missing",
   /** Shape files (STYLE flag 1) not found while a SHAPE needs one (render note); `items`: file names. */
   ShapeFileMissing: "shapefile-missing",
   /**
@@ -49,6 +54,7 @@ export const MISSING_FILE_CODES: readonly string[] = [
   ViewerWarningCode.FontMissing,
   ViewerWarningCode.BigFontMissing,
   ViewerWarningCode.ImageMissing,
+  ViewerWarningCode.PdfMissing,
   ViewerWarningCode.ShapeFileMissing,
 ];
 

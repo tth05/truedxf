@@ -8,6 +8,7 @@
  *   old one stays visible (lod.ts).
  * - After GPU upload the main thread retains only metadata and selected/hover highlight geometry.
  */
+import type { PdfRasterizerOptions } from "@truedxf/pdf";
 import type { ClipRegion } from "@truedxf/render";
 import { CLIPPED_STENCIL, DisplayListRenderer } from "@truedxf/three";
 import * as THREE from "three";
@@ -85,6 +86,12 @@ export interface DxfViewerOptions {
    * URL when it is relative, then its base name in the drawing's folder. Default true.
    */
   resolveRelativeToDrawing?: boolean;
+  /**
+   * PDF underlay content, rendered by PDF.js (`@truedxf/pdf`, loaded only for drawings with
+   * PDF underlays): rasterizer options (`assetsUrl`: a folder with pdfjs-dist's standard_fonts/,
+   * cmaps/, wasm/ and iccs/), or false to draw underlay frames only. Default: enabled.
+   */
+  pdf?: PdfRasterizerOptions | false;
   /** Web Worker backend: true (default), false (main thread) or a factory. */
   worker?: boolean | (() => Worker);
   /** Show lineweights (default true). */
@@ -848,7 +855,7 @@ export class DxfViewer {
   renderList(params: RenderParams): Promise<RenderResult> {
     return this.backend.call({
       type: "render",
-      params: { assets: this.store.generation, ...params, retain: false },
+      params: { assets: this.store.generation, pdf: this.options.pdf ?? {}, ...params, retain: false },
     });
   }
 
@@ -972,6 +979,7 @@ export class DxfViewer {
       lod: this.options.lod !== false,
       dpi: 100 * this.dpr,
       assets: this.store.generation,
+      pdf: this.options.pdf ?? {},
       ...(this.options.fallbackFont !== undefined ? { fallbackFont: this.options.fallbackFont } : {}),
       ...(this.options.fallbackBigFont !== undefined
         ? { fallbackBigFont: this.options.fallbackBigFont }

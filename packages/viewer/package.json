@@ -48,6 +48,7 @@
   "dependencies": {
     "@truedxf/core": "workspace:*",
     "@truedxf/model": "workspace:*",
+    "@truedxf/pdf": "workspace:*",
     "@truedxf/render": "workspace:*",
     "@truedxf/three": "workspace:*",
     "flatbush": "^4.6.2"

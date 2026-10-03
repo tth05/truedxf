@@ -54,6 +54,7 @@ open work is listed in [docs/TODO.md](docs/TODO.md), and the method in [docs/PLA
 | [`@truedxf/fonts`](packages/fonts) | SHX fonts (shape, unifont, bigfont), TrueType, AutoCAD's font resolution |
 | [`@truedxf/text`](packages/text) | TEXT and MTEXT parsing and layout |
 | [`@truedxf/render`](packages/render) | Layouts, viewports, blocks and properties to a renderer-agnostic display list; AutoCAD raster rules |
+| [`@truedxf/pdf`](packages/pdf) | PDF underlay content, rendered by PDF.js |
 | [`@truedxf/three`](packages/three) | three.js renderer for the display list |
 | [`@truedxf/viewer`](packages/viewer) | Embeddable viewer: worker pipeline, pan / zoom, layouts, layers, picking, measuring |
 | [`@truedxf/testkit`](packages/testkit) | Scoring against AutoCAD: CPU rasterizer, headless Chromium harness, metrics (not published) |

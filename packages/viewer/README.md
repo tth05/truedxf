@@ -12,6 +12,7 @@ const viewer = new DxfViewer(document.getElementById("view")!, {
   background: "dark",        // "dark" | "light" | [r, g, b]; ACI 7 contrasts with it
   fontBaseUrl: "fonts/",     // default font loader: GET fonts/<file name, lower-case>
   fallbackFont: ["simplex.shx", "arial.ttf"], // for text whose font is missing (optional)
+  pdf: { assetsUrl: "pdfjs/" }, // PDF underlays via PDF.js (default on; false = frames only)
 });
 await viewer.load(file);      // Uint8Array | ArrayBuffer | File/Blob | URL string
 viewer.on("select", ({ handle }) => console.log(handle));
@@ -110,7 +111,8 @@ which Vite, webpack and Rollup bundle. Vite's dependency pre-bundling breaks tha
   - `nothing-visible`: entities on visible layers drew nothing.
   - `content-invisible`: everything is in the background colour.
   - Render notes passed through from `PlotResult.notes`: `font-missing` / `bigfont-missing`
-    (`items` = font names; text uses `fallbackFont`), `image-missing`, `shapefile-missing`, and
+    (`items` = font names; text uses `fallbackFont`), `image-missing`, `pdf-missing`,
+    `shapefile-missing`, and
     `colors-adjusted` (info; `items` like `"#FFFFFF (layer 0)"`, `"ACI 255 (layer W)"`).
 
   `DocumentInfo.warnings` holds the document-level ones, `RenderResult.warnings` /
@@ -170,10 +172,15 @@ viewer.findFile("C:\\any\\dir\\TXT.SHX", "font");     // which stored file a nam
   `warnings` / `missingFiles` update. A font already found keeps its source unless a stored file
   now matches first.
 - **Missing files.** `missingFiles` collects the `items` of the `MISSING_FILE_CODES` warnings
-  (`font-missing`, `bigfont-missing`, `image-missing`, `shapefile-missing`) as the drawing writes
-  them: font names may be style font names without extension, or family names.
+  (`font-missing`, `bigfont-missing`, `image-missing`, `pdf-missing`, `shapefile-missing`) as the
+  drawing writes them: font names may be style font names without extension, or family names.
 - **Worker.** Files stay on the main thread; the worker requests one at a time and gets a copy of
   its bytes.
+- **PDF underlays.** Their PDF files are found like images. `@truedxf/pdf` renders the pages with
+  PDF.js in the worker; PDF.js is loaded only when a drawing has a PDF underlay whose file was
+  found. The `pdf` option takes its `assetsUrl` (a folder with pdfjs-dist's `standard_fonts/`,
+  `cmaps/`, `wasm/`, `iccs/`, needed only by PDFs that use them) and `maxSize`, or `false` to
+  draw frames only. Underlay content is a bitmap: it cannot be picked or inspected.
 
 ## Limitations
 

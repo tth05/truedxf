@@ -4,11 +4,12 @@
  *        [--hide-fonts <regex>] [--json <file>]
  * Fonts are looked up like the visual harness (packages/fonts/assets, Windows fonts, AutoCAD fonts).
  * Images are resolved like the harness (IMAGEDEF path, then next to the fixture). IMAGE / WIPEOUT
- * are omitted like accoreconsole does unless --draw-raster.
+ * are omitted like accoreconsole does unless --draw-raster. PDF underlays are rasterized with PDF.js.
  */
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { loadDxf } from "@truedxf/model";
+import { createPdfRasterizer } from "@truedxf/pdf";
 import { renderPlot } from "@truedxf/render";
 import { rasterize } from "./cpu-raster.ts";
 import { nodeImageLoader } from "./image-files.ts";
@@ -26,6 +27,7 @@ let drawRaster = false;
 let hideFonts: string | undefined;
 let jsonOut: string | undefined;
 const targets: string[] = [];
+const pdf = createPdfRasterizer();
 for (let i = 0; i < args.length; i++) {
   if (args[i] === "--out") out = resolve(args[++i]!);
   else if (args[i] === "--quiet") quiet = true;
@@ -77,6 +79,7 @@ for (const t of targets) {
       const r = await renderPlot(doc, plot, {
         loadImage: nodeImageLoader(dir),
         loadFont,
+        pdf,
         rasterEntities: drawRaster ? "draw" : "omit",
         ...(hideFonts ? { text: { unavailableFonts: new RegExp(hideFonts, "i") } } : {}),
       });

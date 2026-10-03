@@ -35,6 +35,7 @@ import { type DisplayList, DisplayListBuilder, type Rgba } from "./displaylist.t
 import { DrawOrder } from "./draworder.ts";
 import { drawSpace, findLayout, layoutAreaView } from "./layout.ts";
 import { LinetypeResolver, type LinetypeSpec } from "./linetype.ts";
+import type { PdfRasterizer } from "./pdf.ts";
 import {
   DEFAULT_CALIBRATION,
   fitWindow,
@@ -77,6 +78,11 @@ export interface RenderEnv {
    * (omits them for R2004+ only), the reference harness uses it.
    */
   rasterEntities?: "draw" | "omit";
+  /**
+   * PDF underlay content: a rasterizer such as `@truedxf/pdf` (PDF.js). Without one only the
+   * underlay frames are drawn (note 07 §10.3). PDF files are fetched with `loadImage`.
+   */
+  pdf?: PdfRasterizer;
   calibration?: Partial<PlotCalibration>;
   /**
    * `autocad` (default for plots): emulate AutoCAD's raster plot rules exactly (pixel-snapped
@@ -292,6 +298,8 @@ export class Frontend {
   private recordingBlock = false;
   private blockCacheFull = false;
   private readonly blockReplayWorkspace = { xy: new Float64Array(0) };
+  /** Async work run by finish() before the list is handed out (PDF underlay bitmaps). */
+  private readonly deferred: (() => Promise<void>)[] = [];
 
   /** Pick identity of an entity: the top-level entity it is drawn in, its handle, or "#id". */
   pickId(e: Entity): string {
@@ -336,6 +344,20 @@ export class Frontend {
 
   note(what: string): void {
     this.unsupported[what] = (this.unsupported[what] ?? 0) + 1;
+  }
+
+  /**
+   * Schedules async work that completes what was drawn (e.g. filling a placeholder bitmap):
+   * drawing stays synchronous, and only the frontend whose list is returned runs it (finish()),
+   * so the extents probes never do.
+   */
+  defer(task: () => Promise<void>): void {
+    this.deferred.push(task);
+  }
+
+  /** Runs the deferred tasks in order (deterministic). */
+  async finish(): Promise<void> {
+    for (const t of this.deferred.splice(0)) await t();
   }
 
   // ---- traversal ---------------------------------------------------------------------------
@@ -1162,6 +1184,7 @@ export async function renderPlot(
         const bw = bounds.maxX - bounds.minX;
         const bh = bounds.maxY - bounds.minY;
         if (bw >= w / 4 && bw <= w * 4 && bh >= h / 4 && bh <= h * 4) {
+          await fast.finish();
           const contrast = fast.contrastNote();
           if (contrast) notes.push(contrast);
           return {
@@ -1183,6 +1206,7 @@ export async function renderPlot(
   }
   const fe = new Frontend(doc, request, view, calibration, env);
   drawSpace(fe, space);
+  await fe.finish();
   const contrast = fe.contrastNote();
   if (contrast) notes.push(contrast);
   return { displayList: fe.build(), view, unsupported: fe.unsupported, ...(notes.length ? { notes } : {}) };

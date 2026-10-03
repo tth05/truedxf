@@ -54,6 +54,11 @@ export interface RasterImage {
   readonly width: number;
   readonly height: number;
   readonly pixels: Uint8Array;
+  /**
+   * Sample with linear filtering (and mipmaps) instead of nearest: content rasterized at another
+   * resolution than it is shown at (PDF underlays in interactive lists).
+   */
+  readonly smooth?: boolean;
 }
 
 /** A clip region: polygons (even-odd) in the same world coordinates as the batches. */

@@ -15,12 +15,14 @@ import "./draw/shape.ts";
 import "./draw/mline.ts";
 import "./draw/viewport.ts";
 import "./draw/xclip.ts";
+import "./draw/underlay.ts";
 import "./text.ts";
 
 export * from "./displaylist.ts";
 export * from "./frontend.ts";
 export * from "./layout.ts";
 export * from "./linetype.ts";
+export * from "./pdf.ts";
 export * from "./plot.ts";
 export * from "./props.ts";
 export * from "./raster.ts";

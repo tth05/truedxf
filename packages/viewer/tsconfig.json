@@ -10,6 +10,7 @@
   "references": [
     { "path": "../core" },
     { "path": "../model" },
+    { "path": "../pdf" },
     { "path": "../render" },
     { "path": "../three" }
   ]

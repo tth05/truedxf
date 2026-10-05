@@ -3,5 +3,8 @@
 /** Fixtures / Corpus modes over the local samples/ folder (false in the public build). */
 declare const __SAMPLES__: boolean;
 
-/** Build stamp and repository URL. */
-declare const __BUILD__: { commit: string; date: string; repo: string };
+/** The deployed site checks version.json for newer deployments (true in the public build only). */
+declare const __UPDATES__: boolean;
+
+/** Build stamp (`id` differs per build) and repository URL. */
+declare const __BUILD__: { commit: string; date: string; id: string; repo: string };

@@ -73,8 +73,13 @@ function samples(): Plugin {
   };
 }
 
-/** Build stamp: short commit (+ "-dirty") and date. Only shown to people, never compared. */
-function buildInfo(): { commit: string; date: string } {
+/**
+ * Build stamp: short commit (+ "-dirty") and date, shown to people; `id` tells deployments
+ * apart (version.json, src/update.ts), so it changes with every build.
+ */
+let stamp: { commit: string; date: string; id: string } | undefined;
+function buildInfo(): { commit: string; date: string; id: string } {
+  if (stamp) return stamp;
   const git = (...args: string[]) => {
     try {
       return execFileSync("git", args, { cwd: import.meta.dirname, encoding: "utf8" }).trim();
@@ -84,10 +89,15 @@ function buildInfo(): { commit: string; date: string } {
   };
   const commit = git("rev-parse", "--short", "HEAD") || "unknown";
   const dirty = git("status", "--porcelain") !== "";
-  return { commit: dirty ? `${commit}-dirty` : commit, date: new Date().toISOString().slice(0, 10) };
+  const now = new Date().toISOString();
+  stamp = { commit: dirty ? `${commit}-dirty` : commit, date: now.slice(0, 10), id: `${commit}@${now}` };
+  return stamp;
 }
 
-/** `%SITE_URL%` / `%REPO_URL%` in index.html; robots.txt, sitemap.xml and _headers for the public site. */
+/**
+ * `%SITE_URL%` / `%REPO_URL%` in index.html; robots.txt, sitemap.xml, _headers, 404.html and
+ * version.json for the public site.
+ */
 function site(isPublic: boolean): Plugin {
   return {
     name: "truedxf-site",
@@ -111,6 +121,12 @@ function site(isPublic: boolean): Plugin {
           `  <url><loc>${SITE_URL}/</loc><lastmod>${buildInfo().date}</lastmod></url>\n</urlset>\n`,
       );
       asset("_headers", readFileSync(join(import.meta.dirname, "cloudflare", "_headers"), "utf8"));
+      // Without a top-level 404.html, Cloudflare Pages treats the site as a single-page app and
+      // answers every unknown path with index.html and status 200: search engines see duplicate
+      // pages, and a tab left open across a deploy gets HTML for its old (deleted) chunks.
+      asset("404.html", readFileSync(join(import.meta.dirname, "cloudflare", "404.html"), "utf8"));
+      // what the running page compares its own build id with (src/update.ts)
+      asset("version.json", JSON.stringify({ id: buildInfo().id }));
     },
   };
 }
@@ -123,6 +139,7 @@ export default defineConfig(({ mode }) => {
     plugins: [fonts(), samples(), site(isPublic)],
     define: {
       __SAMPLES__: JSON.stringify(!isPublic),
+      __UPDATES__: JSON.stringify(isPublic),
       __BUILD__: JSON.stringify({ ...buildInfo(), repo: REPO_URL }),
     },
     worker: { format: "es" },

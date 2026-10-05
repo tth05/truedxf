@@ -75,7 +75,13 @@ truedxf`) publishes to Cloudflare Pages. The `public` mode differs from the defa
   `https://truedxf.pages.dev`; set it for a custom domain) and `REPO_URL` (default
   `https://github.com/tth05/truedxf`); local builds drop the canonical link;
 - `robots.txt`, `sitemap.xml` and Cloudflare's `_headers` ([cloudflare/_headers](cloudflare/_headers):
-  CSP, `nosniff`, no framing, immutable `/assets/*`).
+  CSP, `nosniff`, no framing, immutable `/assets/*`);
+- `404.html` ([cloudflare/404.html](cloudflare/404.html)): without it Cloudflare Pages answers
+  every unknown path with `index.html` and status 200 (single-page-app mode);
+- `version.json` with the build id. An open tab checks it when it becomes visible again, every
+  30 minutes and after viewer errors ([src/update.ts](src/update.ts)): a newer deployment shows
+  "A new version is available" with a Reload button; a tab with nothing open that you come back
+  to reloads by itself.
 
 The static `#landing` content of `index.html` (heading, features, FAQ, licence and trademark
 notes) is what search engines and no-JS visitors see; `main.ts` moves it into the stage as the

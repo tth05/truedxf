@@ -570,6 +570,42 @@ body > .landing {
 .toast.on {
   display: block;
 }
+/* a newer deployment (update.ts) */
+.update-bar {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: none;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 6px 6px 14px;
+  border-radius: 10px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.3);
+  white-space: nowrap;
+  z-index: 8;
+}
+.update-bar.on {
+  display: flex;
+}
+.update-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex: none;
+}
+.btn.ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--muted);
+}
+.btn.ghost:hover {
+  color: var(--text);
+  border-color: var(--border);
+}
 .measure-chip {
   position: absolute;
   top: 12px;

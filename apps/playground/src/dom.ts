@@ -69,6 +69,7 @@ export const ICONS = {
     '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M12 10v6M9 13h6"/>',
   ),
   caret: P('<path d="M6 9l6 6 6-6"/>'),
+  close: P('<path d="M6 6l12 12M18 6L6 18"/>'),
   font: P('<path d="M5 7V5h14v2M12 5v14M9 19h6"/>'),
   help: P(
     '<circle cx="12" cy="12" r="9"/><path d="M9 9.5Q9 6.5 12 6.5T15 9.5Q15 11 12 12.5V14.5M12 17.5v.01"/>',

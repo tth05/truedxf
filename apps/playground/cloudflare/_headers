@@ -14,3 +14,7 @@
 
 /fonts/*
   Cache-Control: public, max-age=604800
+
+# polled by open tabs to find newer deployments (src/update.ts)
+/version.json
+  Cache-Control: no-cache

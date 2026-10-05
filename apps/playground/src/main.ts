@@ -27,6 +27,7 @@ import { droppedFiles, FilesPanel, inputFiles, isDrawing, pickDrawing } from "./
 import { FontFolder, fontLoader } from "./fonts.ts";
 import { fmtBytes, fmtCoord, fmtMs, fmtNum } from "./format.ts";
 import { resizableSections, resizableSidebars } from "./resize.ts";
+import { watchUpdates } from "./update.ts";
 
 const app = document.getElementById("app")!;
 
@@ -184,6 +185,7 @@ for (const b of emptyState.querySelectorAll<HTMLButtonElement>("[data-open]")) {
 }
 const busy = h("div", { class: "busy" }, h("span", { class: "spinner" }), h("span", {}, "Loading"));
 const toast = h("div", { class: "toast" });
+const updateBar = h("div", { class: "update-bar", role: "status" });
 const measureChip = h("div", { class: "measure-chip" });
 const layoutNotice = h("div", { class: "layout-notice" });
 const compare = new ComparePanel();
@@ -199,6 +201,7 @@ const stage = h(
   layoutNotice,
   compare.root,
   toast,
+  updateBar,
 );
 
 const inspector = h("div", { class: "section grow inspector" });
@@ -375,6 +378,8 @@ viewer.on("busy", ({ busy: on, what }) => {
 viewer.on("error", ({ error }) => {
   console.error(error);
   showError(error.message);
+  // a tab older than the deployment cannot load its chunks any more
+  updates?.check();
 });
 viewer.on("cursor", (c) => {
   status.cursor.textContent = c ? `${fmtCoord(c.x)}, ${fmtCoord(c.y)}` : "";
@@ -972,6 +977,36 @@ async function initModes(): Promise<void> {
   const fromUrl = new URLSearchParams(location.search).has("file");
   set(!fromUrl && (saved === "fixtures" || saved === "corpus") ? saved : "viewer");
 }
+
+// ---- updates -----------------------------------------------------------------------------------
+
+const updates = __UPDATES__
+  ? watchUpdates({
+      inUse: () => viewer.document !== undefined || viewer.files.length > 0,
+      offer: (reload) => {
+        mount(
+          updateBar,
+          h("span", { class: "update-dot" }),
+          h("span", {}, "A new version of truedxf is available."),
+          h(
+            "button",
+            {
+              class: "btn primary",
+              onclick: reload,
+              title: "Reload the page. Drawings opened from your computer need to be opened again.",
+            },
+            "Reload",
+          ),
+          h(
+            "button",
+            { class: "btn icon ghost", title: "Not now", onclick: () => updateBar.classList.remove("on") },
+            icon(ICONS.close),
+          ),
+        );
+        updateBar.classList.add("on");
+      },
+    })
+  : undefined;
 
 // ---- start -------------------------------------------------------------------------------------
 

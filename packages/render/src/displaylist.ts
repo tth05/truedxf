@@ -1,6 +1,6 @@
 /**
- * The display list: the renderer-agnostic, transferable output of the frontend (docs/PLAN.md
- * §4.2a). Everything is already tessellated for a target resolution: fills and widened strokes
+ * The display list: the renderer-agnostic, transferable output of the frontend.
+ * Everything is already tessellated for a target resolution: fills and widened strokes
  * are triangles, true hairlines are line segments, single-pixel dots are points. Coordinates are
  * float32 relative to a float64 batch origin (precision for large coordinates). Batches are in
  * strict draw order; a renderer must draw them in sequence without depth testing.

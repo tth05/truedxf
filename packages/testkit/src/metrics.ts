@@ -1,6 +1,6 @@
 /**
  * Image comparison metrics between our render (A) and the AutoCAD reference (B), both RGBA with
- * the same size. docs/PLAN.md §7.
+ * the same size.
  *
  * - exact: pixels whose RGB differs at all (no tolerance).
  * - tolerant(r): an ink pixel (≠ background) of A is matched if B has an ink pixel within

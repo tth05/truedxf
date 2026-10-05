@@ -1,5 +1,5 @@
 /**
- * Fill triangulation: ring set + fill rule → triangle list for the display list (PLAN §4.2a).
+ * Fill triangulation: ring set + fill rule → triangle list for the display list.
  *
  * Pipeline:
  * 1. Snap to the fixed-point grid (fixed.ts; quantum ≤ tolerance/64) and **normalize** with a

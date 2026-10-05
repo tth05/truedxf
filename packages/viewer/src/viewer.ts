@@ -1,5 +1,5 @@
 /**
- * DxfViewer: an embeddable, framework-free DXF viewer (docs/PLAN.md Phase 7).
+ * DxfViewer: an embeddable, framework-free DXF viewer.
  *
  * - Parsing, the model and display-list generation run in a module worker (backend.ts); display
  *   lists arrive as transferred buffers and are drawn by @truedxf/three's DisplayListRenderer.

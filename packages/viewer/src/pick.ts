@@ -1,5 +1,5 @@
 /**
- * Picking over a display list (docs/PLAN.md §4.2b: our own spatial index, not the three.js
+ * Picking over a display list (our own spatial index, not the three.js
  * raycaster). Every pick range (batch, first vertex, vertex count, entity) becomes an item of a
  * flatbush index over its bounding box; a query tests the candidate primitives exactly.
  *

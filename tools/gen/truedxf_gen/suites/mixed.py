@@ -1,7 +1,6 @@
 """Seeded random drawings mixing many entity types and properties (crash + integration tests).
 
-These are not meant to pin a single rule; they catch interactions and regressions (PLAN §5 Phase 6
-anti-overfitting: hold-out seeds 1000+ are generated too but should not be looked at while fixing).
+These are not meant to pin a single rule; they catch interactions and regressions (anti-overfitting: hold-out seeds 1000+ are generated too but should not be looked at while fixing).
 """
 
 from __future__ import annotations

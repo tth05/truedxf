@@ -1,7 +1,7 @@
 /**
  * The rendering frontend: walks a layout of a DxfDocument and emits a display list for a target
  * resolution. It does all geometry work (tessellation, linetypes, lineweight widening, fills);
- * renderers only draw primitives (docs/PLAN.md §3 principle 5).
+ * renderers only draw primitives.
  *
  * Entity types are drawn by drawers registered with {@link registerDrawer} (see draw/*.ts,
  * text.ts). Drawers use the Frontend's output helpers so linetypes, lineweights, plot styles

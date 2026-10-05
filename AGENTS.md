@@ -2,14 +2,14 @@
 
 truedxf is a TypeScript DXF library: parser, lossless data model, and a three.js renderer whose
 output must match **AutoCAD's PLOT output**. AutoCAD 2027 on this machine is the ground truth.
-Read [docs/PLAN.md](docs/PLAN.md) first; it is the plan of record.
+Start with the [README](README.md); domain knowledge is in [research/notes](research/notes/README.md).
 
 ## Layout
 
 | Path | What |
 |---|---|
 | `packages/core` | Tag layer: tokenizer (ASCII + binary), encodings, lossless `TagStore` |
-| `packages/*` | Further packages per docs/PLAN.md §4.1 (model, geometry, fonts, text, plot, render, three, viewer, testkit) |
+| `packages/*` | Further packages (model, geometry, fonts, text, plot, render, three, viewer, testkit) |
 | `apps/playground` | Vite demo/inspection app |
 | `tools/gen` | Python (ezdxf) test-file generator |
 | `tools/acad` | AutoCAD reference harness (accoreconsole scripts, plot configs) |

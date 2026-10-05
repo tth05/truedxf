@@ -1,5 +1,5 @@
 /**
- * Dev-server API over the local samples/ folder (docs/PLAN.md §7.6: samples stay local and may be
+ * Dev-server API over the local samples/ folder (samples stay local and may be
  * absent: every endpoint then answers with empty data). Only files below samples/ are served.
  *
  *   GET /api/samples/status                → { available, refs, suites: [{ name, cases, score, grades }], corpus }

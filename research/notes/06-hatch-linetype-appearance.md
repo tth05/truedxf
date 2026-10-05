@@ -39,7 +39,7 @@ Families with spacing at least one pixel but a sub-pixel dash period become cont
 100,000-line test still counts **all original families before simplification** (§1.6.3).
 LOD also draws lineweight strokes at most 1.5 pixels wide as hairlines. Filled polyline bands
 keep their geometry: a centre-line shortcut increased vertices and visibly brightened sub-pixel
-bands in huge-blocks-187 (see docs/perf-render-results.md). These changes are excluded from plots.
+bands in huge-blocks-187. These changes are excluded from plots.
 
 1. **HATCH pattern lines in DXF are final geometry**: base point, offset and dash lengths are
    stored already scaled by 41 and rotated by 52 (and include the hatch origin and the doubled

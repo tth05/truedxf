@@ -17,7 +17,7 @@ plots.
   AutoCAD's integer blend. `Lines` primitives are not supported (that mode emits thin geometry as
   pixels).
 - `src/cpu-suite.ts`: scores whole suites with `rasterize` in Node, no browser. This is the scorer
-  behind the scoreboard in docs/PLAN.md; `--json` writes the per-case report the playground's
+  behind the scoreboard in the root README; `--json` writes the per-case report the playground's
   Fixtures view reads.
 - `src/metrics.ts`: `compare(a, b)` → `Metrics`, and `diffImage(a, b)` (red = only AutoCAD,
   blue = only truedxf, light grey = identical, dark grey = colour differs).
@@ -67,10 +67,10 @@ Visual flags: `--suite` and `--case` (repeatable), `--refs <dir>`, `--out <dir>`
 - `cpu-suite` reads references from `samples/refs/acad2027-R26.0` only; `visual` takes the most
   recently modified `samples/refs/*` folder unless `--refs` is given. Font folders are
   hard-coded Windows paths.
-- Only the raster metrics above exist. SSIM and the display-list vs AutoCAD PDF comparison from
-  docs/PLAN.md Phase 4 are not implemented.
+- Only the raster metrics above exist. SSIM and a display-list vs AutoCAD PDF geometry comparison are
+  not implemented.
 - The densest hatch fixtures exhaust browser memory in the visual harness (docs/TODO.md).
 
 ## See also
 
-- [@truedxf/three](../three/README.md), [docs/PLAN.md](../../docs/PLAN.md) §7 (testing strategy)
+- [@truedxf/three](../three/README.md)

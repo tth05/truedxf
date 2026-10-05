@@ -83,7 +83,7 @@ The hashing/snapshot unit checks (`tools/corpus/test/fingerprint.test.ts`) run w
 use a separate `--name` for LOD-off before/after checks. Ordinary checks still default to the
 saved `baseline` in `samples/reports/fingerprint/`.
 
-## Differential oracle (docs/PLAN.md §5 Phase 2 item 7)
+## Differential oracle
 
 `ezdxf_dump.py` (ezdxf 1.4.4; `ezdxf.readfile`, falling back to `ezdxf.recover.readfile`) and
 `src/dump.ts` write the same normalized JSON: a header-variable subset, LAYER/LTYPE/STYLE/

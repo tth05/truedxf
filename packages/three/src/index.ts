@@ -1,5 +1,5 @@
 /**
- * three.js renderer for the truedxf display list (docs/PLAN.md §4.2b).
+ * three.js renderer for the truedxf display list.
  *
  * Rules: batches are drawn in display-list order (renderOrder, no depth test); colours are passed
  * through unchanged (no colour management / sRGB conversion) so plot colours stay exact; batch
@@ -51,8 +51,8 @@ export interface RendererOptions {
   /** Merge opaque batches using depth for painter order (default false). Ignored with exactBlend. */
   mergeBatches?: boolean;
   /**
-   * Drop the renderer's references to vertex arrays after they are uploaded to the GPU (PLAN
-   * §4.2b memory budget). The caller's DisplayList still references them; release it too to free
+   * Drop the renderer's references to vertex arrays after they are uploaded to the GPU (memory
+   * budget). The caller's DisplayList still references them; release it too to free
    * the memory. Default false (tests re-read nothing, but keep the classic behaviour).
    */
   releaseArrays?: boolean;

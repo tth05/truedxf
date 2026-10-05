@@ -3,8 +3,7 @@
  * main thread as a fallback) behind these messages. `ViewerCore` is the backend logic itself; it
  * has no DOM or worker dependencies, so tests drive it directly.
  *
- * GPU buffers travel as transferables. Original lists and pick indexes stay in the backend
- * (docs/perf-plan.md steps 1 and 5).
+ * GPU buffers travel as transferables. Original lists and pick indexes stay in the backend.
  */
 import {
   type AttribEntity,

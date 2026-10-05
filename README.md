@@ -14,6 +14,41 @@ browser and never uploaded.
 - **Browser and Node.** Everything below the renderer has no DOM or Node dependencies. The viewer
   parses and builds display lists in a worker and draws them with three.js (WebGL).
 
+## Goals
+
+1. **Read every DXF in the wild:** R10 to R2018+, ASCII and binary, any code page, and broken
+   files from third-party programs, without crashing and with diagnostics for what was wrong.
+2. **Lose nothing:** unknown entities, unknown group codes inside known entities, XDATA,
+   extension dictionaries and 102 groups all survive. Effective properties (ByLayer, ByBlock,
+   layer 0, viewport overrides) can be resolved without the renderer.
+3. **Draw what AutoCAD plots:** for a DXF and a plot setup, the same geometry (tessellation,
+   dashes, hatch lines, glyphs), colours, lineweights, draw order and clipping as AutoCAD's plot.
+   The same input always gives the same output.
+4. **A fast, embeddable web viewer** for large drawings.
+
+Not goals: writing or editing DXF, reading DWG, 3D shaded or hidden-line views, and CAD editing
+tools in the viewer.
+
+## Principles
+
+- **AutoCAD output is the truth; everything else is a hypothesis.** Every rendering rule is
+  pinned by a test drawing plotted by AutoCAD. The official DXF reference is wrong in many places
+  (rotation units, PSLTSCALE, leader hooks, …), so it is a starting point, not the answer.
+- **Lossless first, typed second.** Tags are never thrown away; typed objects interpret them on
+  access.
+- **Render stored data before regenerating it.** A DXF usually carries the answer: dimension and
+  table geometry in their anonymous blocks (drawn as stored, even when stale), final hatch lines,
+  embedded linetypes, proxy graphics. truedxf regenerates only what is missing.
+- **Deterministic.** Float64 on the CPU, no randomness, count limits instead of time limits,
+  fonts only from the sources you give it.
+- **One geometry pipeline.** The frontend does all the work (dashing, hatching, text, lineweight
+  stroking, clipping) and emits a renderer-agnostic display list; the three.js renderer only
+  uploads and draws it. Other outputs (SVG, PDF) can be added without touching the frontend.
+- **Isomorphic below the renderer.** Parsing, the model and display-list building run in Node,
+  browsers and web workers.
+- **Clean licences.** MIT, with MIT/ISC/BSD/Apache-2.0/BSL-1.0 dependencies only. No Autodesk
+  fonts, patterns, linetypes or plot styles are included, and GPL code was read for facts only.
+
 ## Scoreboard
 
 30 feature suites, 3 583 generated cases with AutoCAD references (2026-10-01). **Good** = F1 score
@@ -42,7 +77,7 @@ renderer in plot mode.
 | mixed | 37 | 32 | 0 | | fileformat | 386 | 330 | 8 |
 
 Most of the remaining gap is TrueType text rasterization (few text cases are pixel-exact). The
-open work is listed in [docs/TODO.md](docs/TODO.md), and the method in [docs/PLAN.md](docs/PLAN.md).
+open work is listed in [docs/TODO.md](docs/TODO.md).
 
 ## Packages
 
@@ -65,7 +100,9 @@ generates the test drawings (Python, ezdxf), [`tools/acad`](tools/acad) plots th
 
 ## Usage
 
-The packages are not on npm yet. Once they are:
+```bash
+pnpm add @truedxf/viewer three
+```
 
 ```ts
 import { DxfViewer } from "@truedxf/viewer";
@@ -99,5 +136,5 @@ with screenshots and, if you may share it, the file.
 ## License
 
 MIT. truedxf ships no Autodesk files. The viewer site bundles the Liberation and Noto Sans SC fonts (SIL OFL 1.1).
-AutoCAD is a registered trademark of Autodesk, Inc.; truedxf is not affiliated with or endorsed
+AutoCAD and DXF are trademarks of Autodesk, Inc.; truedxf is not affiliated with or endorsed
 by Autodesk.

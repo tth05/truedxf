@@ -25,9 +25,9 @@ Tick items off (or delete them) when done.
       (`font-resolution/simplex-missing-bigfont`, gh109 native MTEXT 9B0, note 04 §15.1).
 - [x] Regenerate all AutoCAD references now that the Liberation fonts are visible to AutoCAD
       (started 2026-10-01; before, most suites were plotted with simplex.shx substitution), then
-      re-score without `--hide-fonts` and update the scoreboard in PLAN.md.
+      re-score without `--hide-fonts` and update the scoreboard in the README.
 - [x] `fileformat` suite harness failures (crash reports locked a worker directory; fixed in the runner).
-- [x] Re-score all suites against the regenerated (real-font) references (2026-10-01, PLAN.md
+- [x] Re-score all suites against the regenerated (real-font) references (2026-10-01, README
       scoreboard; reports in samples/reports/scoreboard/*.json list every case).
 - [ ] TrueType text against the real-font references: compared with the simplex-substituted
       plots, F1(r=1) ≥ 0.99 fell for mtext (204 → 138), fileformat (317 → 231), text (284 → 260),
@@ -76,7 +76,7 @@ Tick items off (or delete them) when done.
 - [ ] Generator: fixtures that need our own test SHX fonts (`plan:` entries in questions.md) —
       install/point AutoCAD at `packages/fonts/assets` and add the suites.
 - [ ] Visual harness: the densest hatch fixtures exhaust browser memory; cap or split them.
-- [ ] ezdxf baseline score (PLAN Phase 3.5): render every case with ezdxf's drawing add-on and
+- [ ] ezdxf baseline score: render every case with ezdxf's drawing add-on and
       score it, so the "beat ezdxf" claim is measured.
 
 ## Raster emulation (packages/render/src/raster.ts)
@@ -221,8 +221,16 @@ default, FILLMODE for pattern hatches, extents edge tolerance.
       pipeline, LOD, layouts, layers, picking, inspector, measure) and `apps/playground` (fixture
       compare, corpus browser). Follow-ups in "Viewer" below.
 - [ ] Phase 8: release (docs site, examples, npm publishing).
+  - [x] npm-ready package READMEs (install, absolute links, trademark notice), per-package
+        versions with `workspace:^`, Release workflow (docs/RELEASING.md), licence review
+        (2026-10-05).
+  - [ ] npm org `truedxf`, first publish, trusted publisher per package (docs/RELEASING.md).
+  - [ ] Before going public: legal opinion on the Autodesk EULA (black-box plot comparison),
+        confirm the AutoCAD seat's licence type permits this use, make the repository public.
+  - [x] Public site: emit a third-party notices file with the JS bundle:
+        `licenses.txt` from the bundled packages, linked from the landing footer (2026-10-05).
 
-## Performance (docs/perf-plan.md)
+## Performance
 
 - [x] Bench set, `tools/corpus/src/bench.ts`, baselines and profiles (2026-10-02); `perf:viewer
       --gpu` now really uses the GPU.
@@ -230,32 +238,32 @@ default, FILLMODE for pattern hatches, extents edge tolerance.
 - [x] 1: renderer batch merging and shared materials (viewer default), merging, picking and
       highlight geometry in the worker (2026-10-02).
 - [x] 2: frontend memoization (properties, text layouts), viewer first render without probe pass
-      when stored extents pass the scale check (2026-10-02). [Results](perf-render-results.md).
+      when stored extents pass the scale check (2026-10-02).
 - [x] Repair render regressions: retain one current property entry per inheritance/viewport
       context and skip speculative first fits for grossly stale-large header hints
-      (2026-10-02). [Results](perf-regress-results.md).
+      (2026-10-02).
 - [x] 3: viewer LOD: dense hatch patterns, sub-pixel text, narrow lineweights and view culling
-      of zoomed lists (2026-10-02). [Results](perf-cull-results.md).
+      of zoomed lists (2026-10-02).
 - [x] Density-preserving text greeking: cached TTF ink area / SHX stroke length, one opaque
       run quad, explicit viewer LOD switch and hardware-AA 4×4 density comparison (2026-10-02).
-- [x] 4: parser (2026-10-02): tokenizer, exact numbers, direct binary reads, compiled fields and lazy TTF parsing; all fingerprint gates identical. [Results](perf-parser-results.md).
+- [x] 4: parser (2026-10-02): tokenizer, exact numbers, direct binary reads, compiled fields and lazy TTF parsing; all fingerprint gates identical.
 - [x] 5: picking and merging in the worker, model per-entity heap (2026-10-02/03).
 - [ ] Compact display list (line strips / indexed segments, per-range colours): deferred — the
       merged upload is ≤ 0.11 s and the main thread keeps ~3 MB after upload; worth it only if
       worker memory or transfer size becomes the limit (arch-cn-114 list ~200 MB).
 - [x] Viewer block tessellation reuse (2026-10-02): bounded per-frontend Float64 primitive
       streams at exact scale/inherited properties, rigid replay with current picks; clips,
-      viewports and unsupported transforms fall back. [Results](perf-block-results.md).
+      viewports and unsupported transforms fall back.
 - [x] Block reuse admission (2026-10-02): draw first uses directly, record on the second,
       defer first-definition signatures, bound admission metadata, and skip measured cheap
       single continuous-LINE definitions.
       Recheck isolated render/zoom timings, fixed-view pixels and all fingerprint gates.
 - [ ] Make viewer block stroking/triangulation equivariant under rigid replay: mixed direct/
       canonical output still exceeds the 1e-3 px ordered-coordinate bound in huge-blocks,
-      viewports and dense-hatch despite identical counts and CPU pixels. [Measurements](perf-block-results.md).
+      viewports and dense-hatch despite identical counts and CPU pixels.
   - [x] Loaded-model heap: circles meet the ≤500 B/entity plan budget through record cache
         release, sparse optional properties, string interning, compact scan metadata and a
-        deferred entity index (2026-10-02). [Results](perf-memory-results.md).
+        deferred entity index (2026-10-02).
   - [ ] Stretch memory target: circles ≤400 B/entity; the retained implementation uses ~421 B.
         Frozen-default sharing needs a separately approved baseline migration: the existing
         model already shares frozen points, so a value-only frozen walker changes old hashes.
@@ -263,7 +271,7 @@ default, FILLMODE for pattern hatches, extents edge tolerance.
         unqualified record lookups no longer rebuild released parts, including app/XDATA ranges.
         Two alternating five-run pairs against rebased master keep all frontend cases below
         master while circles remain ~421 B/entity; smaller model timings vary within noise
-        (2026-10-03). [Measurements](perf-memory-followup-results.md).
+        (2026-10-03).
 
 ## Viewer (packages/viewer, apps/playground)
 
@@ -279,8 +287,7 @@ default, FILLMODE for pattern hatches, extents edge tolerance.
 - [x] Frontend view culling: cache complete-list top-level pick bounds in the worker; cull finer
       smooth lists to 3× visible coverage and re-request on pan with the LOD debounce. Retain the
       complete GPU list outside detail coverage with disjoint scissors; coarse fallback is
-      display-only for picking. Extents/plots stay identical (2026-10-02; perf/cull worktree patches,
-      docs/perf-cull-results.md).
+      display-only for picking. Extents/plots stay identical (2026-10-02).
 - [ ] Hairlines while navigating: lineweight-widened strokes scale with the list until the next
       LOD step (up to 2× too thick / thin).
 - [x] Publishable worker entry: `scripts/package-dist.ts` rewrites the worker URL to the
@@ -299,8 +306,8 @@ default, FILLMODE for pattern hatches, extents edge tolerance.
       DOM-free `@truedxf/three/merge` export; transferred pre-merged buffers are released after
       upload. Original geometry and Flatbush stay in the worker; asynchronous interaction is
       generation-guarded, hover requests coalesce, selected geometry is cached. Plot previews and
-      the >4-million-depth-order fallback keep ordinary batches. See docs/perf-plan.md.
-- [ ] WebGPU renderer trial (PLAN Phase 7.1).
+      the >4-million-depth-order fallback keep ordinary batches.
+- [ ] WebGPU renderer trial.
 - [x] Public site (2026-10-01): `vite build --mode public` without samples code / sourcemaps,
       landing content + meta / Open Graph / JSON-LD, robots.txt, sitemap.xml, Cloudflare
       `_headers`, Liberation fallback fonts, remembered fonts folder, "Report a problem" link.

@@ -1,5 +1,5 @@
 /**
- * Property resolution primitives (docs/PLAN.md §5 Phase 2 item 5): effective layer, color,
+ * Property resolution primitives: effective layer, color,
  * linetype, lineweight, transparency, plot style and visibility of an entity in a context
  * (block-reference nesting stack, paper-space viewport). Pure functions over the model; no
  * renderer state. Rules: research/notes/06 §3–§7, 07 §3, 02 §2.1.

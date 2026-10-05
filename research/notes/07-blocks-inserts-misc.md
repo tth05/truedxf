@@ -332,8 +332,7 @@ changed seven vertex counts, the admission follow-up changes only three. Mixed d
 canonical output also produces ordered triangle-array deltas of 0.37–0.82 px in three larger
 bench files despite equal counts and zero pixel differences; equal counts alone do not establish
 rigid-equivariant tessellation or a 1e−3 px ordered-coordinate bound.
-See [the measurements](../../docs/perf-block-results.md) for coordinate bounds, exceptions and
-the complete bench comparison; plot mode and LOD-off viewing never enter this path.
+Plot mode and LOD-off viewing never enter this path.
 
 ---------------------------------------------------------------------------------------------------
 

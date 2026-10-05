@@ -1050,7 +1050,7 @@ cmap indices, outlines, hmtx advances, cap-height/other metrics, GSUB tables and
 in `packages/fonts/test/ttf-lazy.test.ts`; every plot/viewer fingerprint is unchanged. Our font
 and text packages use cmap lookup and explicit glyph outlines/advances, with no GSUB shaping
 or kerning calls. Font initialization improved 2.6–5.5× in the local constructor benchmark;
-glyph work is deferred. See [parser performance results](../../docs/perf-parser-results.md).
+glyph work is deferred.
 
 - **Scale = height / yMax(glyph "A")** in font units, baseline at font y = 0. Not OS/2 sCapHeight,
   not ascender, not em. Verified to 4–6 digits for Arial (A 1466, sCap 1467), **Times (A.yMax 1387 vs

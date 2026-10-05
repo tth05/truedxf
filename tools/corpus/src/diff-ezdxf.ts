@@ -1,5 +1,5 @@
 /**
- * Differential oracle (docs/PLAN.md §5 Phase 2 item 7): compares truedxf's normalized dump
+ * Differential oracle: compares truedxf's normalized dump
  * (dump.ts) with ezdxf's (../ezdxf_dump.py) for every corpus DXF, classifies the disagreements
  * (diff-classes.ts) and writes samples/reports/diff-ezdxf.json + diff-ezdxf.md.
  *

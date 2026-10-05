@@ -20,7 +20,7 @@ A unit test checks that the committed files match the generator.
 
 ## Why not Hershey?
 
-The plan (docs/PLAN.md §6) suggested deriving the test font from the Hershey fonts. Their Usenet
+The original plan suggested deriving the test font from the Hershey fonts. Their Usenet
 distribution may be used for any purpose if two acknowledgements (Dr. A. V. Hershey / U.S. National
 Bureau of Standards, and James Hurt, Cognition Inc., for the data format) are distributed with the
 data, and it must not be redistributed in the NTIS format. That would have been acceptable, but the

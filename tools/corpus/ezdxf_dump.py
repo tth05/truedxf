@@ -1,5 +1,5 @@
 """
-ezdxf side of the differential oracle (docs/PLAN.md §5 Phase 2 item 7).
+ezdxf side of the differential oracle (tools/corpus/README.md).
 
 Loads a DXF with ezdxf (``ezdxf.readfile``; ``ezdxf.recover.readfile`` when that fails) and
 dumps a normalized JSON view of header variables, tables, blocks and entity spaces. The TS

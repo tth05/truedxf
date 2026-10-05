@@ -1180,7 +1180,7 @@ straight to the existing accurate probe. This is a path-selection heuristic, not
 unsampled geometry, symbols, thickness and blocks still participate in the full probe.
 Plots and paper layouts retain their existing fit path. A false positive can trade a valid
 one-pass viewer approximation for an accurate two-pass fit; a false negative retains the
-three-pass fallback. Fingerprints and measurements are in `docs/perf-regress-results.md`.
+three-pass fallback.
 
 This is a viewer implementation choice, not an AutoCAD rule. After a complete smooth render,
 ViewerCore unions each top-level pick's output vertices across batches, adding their float64
@@ -1201,8 +1201,8 @@ inner 25% coverage margin, with the existing LOD debounce. The complete GPU list
 outside detail coverage using disjoint integer scissor rectangles; depth/stencil are reset per
 partition. Detail picks/highlights are confined to coverage; the coarse fallback is display-only.
 Host measurements remain a full-view overlay. Keeping complete fit bounds prevents detail
-extents from changing navigation limits. See docs/perf-cull-results.md for measured checks and
-limitations; no new AutoCAD experiment was made for this optimization.
+extents from changing navigation limits. No new AutoCAD experiment was made for this
+optimization.
 
 ## 7. Implementation checklist (derived)
 

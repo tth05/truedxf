@@ -1424,7 +1424,7 @@ semantics remain those of section 6. Node v23.10.0 heap snapshots of r12-network
 267,272 DxfRecord objects (36.35 MB shallow), 680,375 array objects (21.77 MB), property
 arrays (20.38 MB), and 267,279 part-like objects with a `name` reference (14.97 MB). Point
 coordinates and other numeric values also retain heap-number boxes; shallow snapshot sizes
-exclude transitive storage. See docs/perf-memory-results.md for retained deltas and timings.
+exclude transitive storage.
 
 Expanded parts can be discarded after a record group is parsed: preserve scan flags and
 handle/owner offsets, skip absent app/XDATA/embedded sections by presence flags, and
@@ -1481,6 +1481,5 @@ all boundaries. This adds no per-record storage and preserves the original struc
 Two alternating five-run pairs now put circles at 1149/1128 ms versus master 1276/1275,
 and dimensions at 423/423 versus 435/433; all six selected frontend cases are faster.
 Loaded circle heap remains 421.23 B/entity. Sparse circle shapes, primitive string pools,
-handle indexing and default identities need no changes. See docs/perf-memory-followup-results.md
-for sampled self/inclusive times, retained heap and inherited viewer-baseline differences.
+handle indexing and default identities need no changes.
 These are implementation measurements, not additional AutoCAD verification.

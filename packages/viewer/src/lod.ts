@@ -1,5 +1,5 @@
 /**
- * Level of detail (docs/PLAN.md §4.2a resolution contract): a display list is tessellated and
+ * Level of detail: a display list is tessellated and
  * its lineweights widened for one pixel size. While zooming, the current list is scaled; once
  * the view's pixel size differs from the list's by more than `factor`, a new list is requested
  * (debounced by the viewer; the old one stays visible until the new one arrives).

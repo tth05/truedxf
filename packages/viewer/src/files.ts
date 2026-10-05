@@ -71,6 +71,8 @@ export function fileKind(name: string): ViewerFileKind {
   if (ext === ".dxf") return "drawing";
   if ((FONT_EXTENSIONS as readonly string[]).includes(ext)) return "font";
   if ((IMAGE_EXTENSIONS as readonly string[]).includes(ext)) return "image";
+  // PDF underlays are requested like images (loadImage); not an extension tried for bare names
+  if (ext === ".pdf") return "image";
   return "other";
 }
 

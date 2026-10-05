@@ -204,7 +204,15 @@ export class FilesPanel {
             h(
               "span",
               { class: "icon-16" },
-              icon(drawing || dwg ? ICONS.file : f.kind === "image" ? ICONS.grid : ICONS.font),
+              icon(
+                drawing || dwg || /\.pdf$/i.test(f.name)
+                  ? ICONS.file
+                  : f.kind === "image"
+                    ? ICONS.grid
+                    : f.kind === "font"
+                      ? ICONS.font
+                      : ICONS.file,
+              ),
             ),
             h("span", { class: "name" }, f.path),
             h("span", { class: "meta" }, fmtBytes(f.size)),

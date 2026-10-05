@@ -61,6 +61,14 @@ pnpm playground:deploy     # public build → Cloudflare Pages (see "Public site
   (show all layers, open the layout with content, switch the background).
   `?fallbackFont=a.shx,b.ttf` sets the fonts for text whose font is missing.
 
+## PDF underlays
+
+PDF underlays are drawn from the PDF opened together with the drawing (or added later, like
+images). PDF.js needs support files for some PDFs: the standard fonts for PDFs that do not embed
+them, CMaps for CJK text, wasm decoders for JPEG 2000 / JBIG2 images. `server/pdfjs.ts` serves
+pdfjs-dist's folders under `/pdfjs/` in dev and copies them into every build (about 4 MB, fetched
+only when a PDF needs them; licences included). The CSP allows `'wasm-unsafe-eval'` for them.
+
 ## Fonts
 
 Lookup order (`src/fonts.ts`), after the files opened with the drawing:

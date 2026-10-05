@@ -361,6 +361,8 @@ const viewer = new DxfViewer(viewerHost, {
   antialias: new URLSearchParams(location.search).get("aa") !== "0",
   lod: new URLSearchParams(location.search).get("lod") !== "0",
   loadFont: fontLoader(fontsFolder),
+  // PDF.js fonts, CMaps and decoders (vite.config.ts): absolute, the worker resolves it
+  pdf: { assetsUrl: new URL("pdfjs/", location.href).href },
   ...(fallbackFont?.length ? { fallbackFont } : {}),
   loadImage: async (path) => {
     if (!imageBase) return undefined;

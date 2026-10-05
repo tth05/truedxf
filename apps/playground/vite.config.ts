@@ -9,6 +9,7 @@ import {
   fontMiddleware,
   localFontDirs,
 } from "./server/fonts.ts";
+import { pdfjsFiles, pdfjsMiddleware } from "./server/pdfjs.ts";
 import { samplesMiddleware } from "./server/samples.ts";
 
 /**
@@ -55,6 +56,23 @@ function fonts(): Plugin {
         source: readFileSync(join(FALLBACK_FONT_DIR, "LICENSE-Liberation.txt")),
       });
       this.emitFile({ type: "asset", fileName: "fonts/index.json", source: JSON.stringify(names) });
+    },
+  };
+}
+
+/** PDF.js support files for PDF underlays under /pdfjs/ (server/pdfjs.ts), served and copied into builds. */
+function pdfjs(): Plugin {
+  return {
+    name: "truedxf-pdfjs",
+    configureServer(server) {
+      server.middlewares.use(pdfjsMiddleware());
+    },
+    configurePreviewServer(server) {
+      server.middlewares.use(pdfjsMiddleware());
+    },
+    generateBundle() {
+      for (const [path, file] of pdfjsFiles())
+        this.emitFile({ type: "asset", fileName: `pdfjs/${path}`, source: readFileSync(file) });
     },
   };
 }
@@ -136,7 +154,7 @@ export default defineConfig(({ mode }) => {
   return {
     root: import.meta.dirname,
     base: "./",
-    plugins: [fonts(), samples(), site(isPublic)],
+    plugins: [fonts(), pdfjs(), samples(), site(isPublic)],
     define: {
       __SAMPLES__: JSON.stringify(!isPublic),
       __UPDATES__: JSON.stringify(isPublic),

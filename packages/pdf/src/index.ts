@@ -127,6 +127,9 @@ export function createPdfRasterizer(options: PdfRasterizerOptions = {}): PdfRast
                 cMapUrl: `${base}cmaps/`,
                 wasmUrl: `${base}wasm/`,
                 iccUrl: `${base}iccs/`,
+                // PDF.js's default for this reads document.baseURI, which throws in a Web Worker
+                // (the viewer's backend): fetch the files directly when they are web URLs
+                ...(/^(https?|blob):/i.test(base) ? { useWorkerFetch: true } : {}),
               }
             : {}),
           ...(offscreen && typeof document === "undefined"

@@ -42,7 +42,7 @@ describe("file names", () => {
     expect(fileKind("txt.SHX")).toBe("font");
     expect(fileKind("arial.ttf")).toBe("font");
     expect(fileKind("photo.JPG")).toBe("image");
-    expect(fileKind("plan.pdf")).toBe("other");
+    expect(fileKind("plan.pdf")).toBe("image");
     expect(fileKind("README")).toBe("other");
   });
 

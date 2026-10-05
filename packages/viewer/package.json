@@ -1,6 +1,6 @@
 {
   "name": "@truedxf/viewer",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Embeddable DXF viewer: worker pipeline, pan/zoom, layouts, layers, picking",
   "license": "MIT",
   "repository": {

@@ -10,6 +10,7 @@ import {
   type FileInput,
   NotDxfError,
   type RenderStats,
+  type Tool,
   type ViewerFile,
   type ViewerWarning,
   ViewerWarningCode,
@@ -44,8 +45,12 @@ const app = document.getElementById("app")!;
 const fileInput = h("input", { type: "file", multiple: true, hidden: true });
 const folderInput = h("input", { type: "file", multiple: true, webkitdirectory: true, hidden: true });
 const fileName = h("span", { class: "filename" }, "No file");
-const btnSelect = toolButton(ICONS.select, "Select (click an entity)", true);
-const btnMeasure = toolButton(ICONS.measure, "Measure distance (two clicks)", false);
+const btnSelect = toolButton(ICONS.select, "Select and inspect (S); click again for no tool", true);
+const btnMeasure = toolButton(
+  ICONS.measure,
+  "Measure distance, two clicks (M); click again for no tool",
+  false,
+);
 const btnTheme = h("button", { class: "btn icon", title: "Dark / light background" }, icon(ICONS.sun));
 const btnLw = h(
   "button",
@@ -709,8 +714,9 @@ for (const input of [fileInput, folderInput]) {
     void openLocal(files);
   });
 }
-btnSelect.addEventListener("click", () => setTool("select"));
-btnMeasure.addEventListener("click", () => setTool("measure"));
+// clicking the active tool again turns it off: plain pan / zoom, no picking or measuring
+btnSelect.addEventListener("click", () => toggleTool("select"));
+btnMeasure.addEventListener("click", () => toggleTool("measure"));
 btnTheme.addEventListener("click", () => {
   const dark = !viewer.isDark;
   viewer.setBackground(dark ? "dark" : "light");
@@ -722,11 +728,19 @@ btnLw.addEventListener("click", () => {
   viewer.setLineweights(on);
 });
 
-function setTool(t: "select" | "measure"): void {
+function setTool(t: Tool): void {
   viewer.setTool(t);
   btnSelect.setAttribute("aria-pressed", String(t === "select"));
   btnMeasure.setAttribute("aria-pressed", String(t === "measure"));
-  if (t === "select") measureChip.classList.remove("on");
+  if (t !== "measure") {
+    measureChip.classList.remove("on");
+    snapLabel.classList.remove("on");
+  }
+}
+
+/** A tool button or key: turns the tool on, or off when it is already on. */
+function toggleTool(t: "select" | "measure"): void {
+  setTool(viewer.currentTool === t ? "none" : t);
 }
 
 function applyTheme(dark: boolean): void {
@@ -777,7 +791,8 @@ window.addEventListener("keydown", (ev) => {
     return;
   if (document.querySelector(".modal")) return;
   if (ev.key === "f" || ev.key === "F") viewer.fit();
-  else if (ev.key === "m" || ev.key === "M") setTool(viewer.currentTool === "measure" ? "select" : "measure");
+  else if (ev.key === "m" || ev.key === "M") toggleTool("measure");
+  else if (ev.key === "s" || ev.key === "S") toggleTool("select");
   else if (ev.key === "+" || ev.key === "=") viewer.zoom(ZOOM_STEP);
   else if (ev.key === "-" || ev.key === "_") viewer.zoom(1 / ZOOM_STEP);
   else if (ev.key === "?") showShortcuts();
@@ -817,8 +832,9 @@ function showShortcuts(): void {
           row(["Double-click"], "Fit (on empty space)"),
         ]),
         group("Tools", [
-          row(["Click"], "Select an entity and inspect it"),
-          row(["M"], "Measure on / off (two clicks)"),
+          row(["S"], "Select tool on / off (click an entity to inspect it)"),
+          row(["M"], "Measure tool on / off (two clicks)"),
+          row(["S", "M"], "Again: no tool, just pan and zoom"),
           row(["Alt"], "Measure without snapping (hold)"),
           row(["Esc"], "Clear the selection or measurement"),
           row(["Alt+click"], "Isolate a layer (Layers panel)"),

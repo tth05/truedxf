@@ -188,7 +188,11 @@ export class NotDxfError extends Error {
   }
 }
 
-export type Tool = "select" | "measure";
+/**
+ * What a click does: "select" picks (and hover highlights) entities, "measure" measures (no
+ * hover highlight), "none" only navigates.
+ */
+export type Tool = "select" | "measure" | "none";
 
 export type AutoFit = "load" | "always" | false;
 
@@ -359,7 +363,13 @@ export class DxfViewer {
   private readonly hoverQuery = new LatestQuery(
     (p: { x: number; y: number; current: CurrentList }) => this.pickAt(p.x, p.y),
     (handle, p) => {
-      if (this.current === p.current && !this.disposed && this.input.hover && this.pointers.size === 0)
+      if (
+        this.current === p.current &&
+        !this.disposed &&
+        this.input.hover &&
+        this.tool === "select" &&
+        this.pointers.size === 0
+      )
         this.setHover(handle);
     },
     (error) => this.interactionError(error),
@@ -878,6 +888,11 @@ export class DxfViewer {
 
   setTool(tool: Tool): void {
     this.tool = tool;
+    // only the select tool highlights what is under the pointer
+    if (tool !== "select") {
+      this.hoverQuery.cancel();
+      this.setHover(undefined);
+    }
     this.updateCursor();
     if (tool !== "measure") {
       this.setSnapPoint(undefined);
@@ -1360,7 +1375,7 @@ export class DxfViewer {
   private updateCursor(): void {
     let cursor = "";
     if (this.tool === "measure") cursor = "crosshair";
-    else if (this.hovered !== undefined && this.input.select) cursor = "pointer";
+    else if (this.tool === "select" && this.hovered !== undefined && this.input.select) cursor = "pointer";
     this.canvas.style.cursor = cursor;
   }
 
@@ -1765,7 +1780,7 @@ export class DxfViewer {
         if (this.tool === "measure" && this.view) {
           const at = ev.altKey ? screenToWorld(this.view, p.x, p.y) : this.measurePoint(p.x, p.y);
           if (at) this.measureClick(at[0], at[1]);
-        } else if (this.input.select) void this.clickAt(p.x, p.y);
+        } else if (this.tool === "select" && this.input.select) void this.clickAt(p.x, p.y);
       }
     };
     c.addEventListener("pointerup", end);
@@ -1780,9 +1795,9 @@ export class DxfViewer {
       if (this.hovered !== undefined && this.pointers.size === 0) this.setHover(undefined);
     });
     c.addEventListener("dblclick", (ev) => {
-      if (!this.input.dblclickFit || this.tool !== "select") return;
+      if (!this.input.dblclickFit || this.tool === "measure") return;
       const p = this.local(ev);
-      if (!this.input.select) this.fit();
+      if (!this.input.select || this.tool === "none") this.fit();
       else {
         const cur = this.current;
         void this.pickAt(p.x, p.y)
@@ -1809,12 +1824,13 @@ export class DxfViewer {
   }
 
   private scheduleHover(): void {
-    if (!this.input.hover || this.hoverScheduled) return;
+    if (!this.input.hover || this.tool !== "select" || this.hoverScheduled) return;
     this.hoverScheduled = true;
     requestAnimationFrame(() => {
       this.hoverScheduled = false;
       const p = this.lastPointer;
-      if (!p || this.pointers.size > 0 || !this.input.hover || !this.current) return;
+      if (!p || this.pointers.size > 0 || !this.input.hover || this.tool !== "select" || !this.current)
+        return;
       this.hoverQuery.push({ ...p, current: this.current });
     });
   }

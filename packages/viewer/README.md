@@ -92,7 +92,9 @@ which Vite, webpack and Rollup bundle. Vite's dependency pre-bundling breaks tha
   coalesce to one in flight and the latest pending point; obsolete list generations are ignored.
   Highlight geometry is requested separately and selection geometry is cached until the list
   changes. Hover and selection are highlighted in the renderer's overlay.
-- **Measure.** `setTool("measure")`: two clicks give distance, Δx, Δy and angle (`measure` event).
+- **Tools.** `setTool("select")` (default: hover highlight, click to select), `setTool("measure")`:
+  two clicks give distance, Δx, Δy and angle (`measure` event; no hover highlight),
+  `setTool("none")`: only pan / zoom (double-click fits).
 - **Memory.** The renderer runs with `releaseArrays: true`; after GPU upload the viewer keeps only
   metadata and the selected/hovered entity's highlight geometry. The backend retains original
   positions for picking; with `worker: false` these stay on the main thread. Explicit `renderList`

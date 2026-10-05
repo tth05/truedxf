@@ -131,7 +131,9 @@ last complete list, so hidden layers are not searched.
 POINTs within 10 px (marker: square, triangle, circle, diamond; event `snap`); Alt held measures
 freely, `setSnap(false)` / `snap: false` turns it off. Search and snapping use texts and snap
 points the backend records with each list (`annotations`, default on: render option
-`annotations` of `@truedxf/render`, kept in the worker).
+`annotations` of `@truedxf/render`, kept in the worker). Snap points cost 10–20 % render time on
+large drawings, so lists carry them only after the measure tool was first used (that switch
+re-renders once).
 
 A file that does not start like a DXF (`sniffFile` of `@truedxf/core`: a DWG, DXB, PDF, …) is
 rejected before parsing: `load` / `openFiles` / `openDrawing` throw (and emit) a `NotDxfError`

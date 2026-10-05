@@ -117,10 +117,11 @@ export interface RenderEnv {
    */
   visibility?: "plot" | "display";
   /**
-   * Record DisplayList.annotations: drawn texts (search) and snap points (measuring). Viewers
-   * only; default false.
+   * Record DisplayList.annotations: drawn texts (search) and / or snap points (measuring);
+   * `true` both. Viewers only; default false. Snap points cost the most (+10–40 % frontend time
+   * on large drawings), so viewers ask for them only once someone measures.
    */
-  annotations?: boolean;
+  annotations?: boolean | { texts?: boolean; snaps?: boolean };
 }
 
 export interface PlotResult {
@@ -328,7 +329,9 @@ export class Frontend {
     this.pixelSize = pixelSizeOf(view, request.canvas);
     this.tolerance = this.pixelSize * TOLERANCE_PX;
     this.builder = new DisplayListBuilder(this.pixelSize);
-    this.builder.annotate = env.annotations === true;
+    const ann = env.annotations;
+    this.builder.annotate = ann === true || (typeof ann === "object" && ann.texts === true);
+    this.builder.snapping = ann === true || (typeof ann === "object" && ann.snaps === true);
     const background: [number, number, number] = env.background ? [...env.background] : [255, 255, 255];
     this.builder.background = background;
     const lwDefault = request.sysvars?.LWDEFAULT;
@@ -606,6 +609,7 @@ export class Frontend {
       262_144 - this.recordedCommands,
     );
     recorder.annotate = out.annotate;
+    recorder.snapping = out.snapping;
     const before = { ...this.unsupported };
     this.builder = recorder;
     this.recordingBlock = true;
@@ -840,7 +844,7 @@ export class Frontend {
     st: DrawState,
     options: StrokeOptions = {},
   ): void {
-    if (this.builder.annotate) this.snapPath(path);
+    if (this.builder.snapping) this.snapPath(path);
     let lt = !options.noLinetype && e ? this.linetypeFor(e, r, st) : undefined;
     // A pattern whose period is below half a device pixel plots continuous (dash count does not
     // matter). VERIFIED-BY-ACAD (note 06 §2.6.1; linetypes/dense-*: 0.38 px continuous, 0.51 px dashed)
@@ -888,12 +892,8 @@ export class Frontend {
    * full circles and ellipses give their centre and quadrant points instead of ends.
    */
   private snapPath(path: Path2): void {
-    const xy: number[] = [];
-    const kinds: number[] = [];
-    const add = (x: number, y: number, k: SnapKind) => {
-      xy.push(x, y);
-      kinds.push(k);
-    };
+    const b = this.builder;
+    const add = (x: number, y: number, k: SnapKind) => b.snap(x, y, k);
     for (const sp of path.subpaths) {
       for (const s of sp.segments) {
         if (s.kind === "arc" || s.kind === "ellipticArc") {
@@ -908,17 +908,23 @@ export class Frontend {
             continue;
           }
         }
-        const a = segmentStart(s);
-        const b = segmentEnd(s);
-        add(a.x, a.y, SnapKind.Endpoint);
-        add(b.x, b.y, SnapKind.Endpoint);
-        if (s.kind === "line" || s.kind === "arc" || s.kind === "ellipticArc") {
-          const m = s.kind === "line" ? { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } : segmentPointAt(s, 0.5);
-          if (m.x !== a.x || m.y !== a.y) add(m.x, m.y, SnapKind.Midpoint);
+        if (s.kind === "line") {
+          add(s.p0.x, s.p0.y, SnapKind.Endpoint);
+          add(s.p1.x, s.p1.y, SnapKind.Endpoint);
+          if (s.p0.x !== s.p1.x || s.p0.y !== s.p1.y)
+            add((s.p0.x + s.p1.x) / 2, (s.p0.y + s.p1.y) / 2, SnapKind.Midpoint);
+          continue;
+        }
+        const p0 = segmentStart(s);
+        const p1 = segmentEnd(s);
+        add(p0.x, p0.y, SnapKind.Endpoint);
+        add(p1.x, p1.y, SnapKind.Endpoint);
+        if (s.kind === "arc" || s.kind === "ellipticArc") {
+          const m = segmentPointAt(s, 0.5);
+          add(m.x, m.y, SnapKind.Midpoint);
         }
       }
     }
-    this.builder.snaps(xy, kinds);
   }
 
   /** Strokes a flattened polyline (target coordinates) with the entity's lineweight. */

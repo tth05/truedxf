@@ -148,8 +148,11 @@ export interface RenderParams {
    * render's, the core drops its font and image caches, so files added since are looked up.
    */
   assets?: number;
-  /** Record drawn texts and snap points for search / snap requests (default false). */
-  annotations?: boolean;
+  /**
+   * Record drawn texts (search requests) and / or snap points (snap requests); `true` both.
+   * Default false. Snap points cost the most render time.
+   */
+  annotations?: boolean | { texts?: boolean; snaps?: boolean };
 }
 
 /** A text found by a search request, where it is drawn in the searched layout. */
@@ -455,7 +458,7 @@ export class ViewerCore {
         background: p.background,
         layerVisibility: toggles,
         rasterEntities: p.rasterEntities === false ? "omit" : "draw",
-        annotations: p.annotations === true && p.raster === "smooth",
+        ...(p.annotations && p.raster === "smooth" ? { annotations: p.annotations } : {}),
         ...(p.pdf === false ? {} : { pdf: this.pdfRasterizer(p.pdf ?? {}) }),
         visibility: p.visibility ?? "display",
         ...(p.dpi ? { calibration: { dpi: p.dpi } } : {}),

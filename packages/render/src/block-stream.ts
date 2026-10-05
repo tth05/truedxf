@@ -1,6 +1,12 @@
 /** Float64 builder calls, before batch rebasing/float32 conversion and pick attribution. */
 import { Affine2, Matrix44 } from "@truedxf/geometry";
-import { type ClipRegion, DisplayListBuilder, type RasterImage, type Rgba } from "./displaylist.ts";
+import {
+  type ClipRegion,
+  DisplayListBuilder,
+  type RasterImage,
+  type Rgba,
+  type SnapKind,
+} from "./displaylist.ts";
 
 type Command =
   | { kind: "triangles" | "points"; xy: Float64Array; color: Rgba }
@@ -110,7 +116,7 @@ export class BlockRecorder extends DisplayListBuilder {
     super.setClip(clip, pointClip);
   }
 
-  // Annotations (DisplayListBuilder.annotate, copied from the destination by the frontend).
+  // Annotations (DisplayListBuilder.annotate / snapping, copied from the destination by the frontend).
   // Texts keep their place among the commands so their bounds cover the replayed output; snap
   // points are kept apart (one command per stroked path would exhaust the command limit).
   private readonly recSnapXY: number[] = [];
@@ -125,13 +131,11 @@ export class BlockRecorder extends DisplayListBuilder {
     if (this.annotate && this.reserve(0)) this.commands.push({ kind: "endText" });
   }
 
-  override snaps(xy: ArrayLike<number>, kinds: ArrayLike<number>, clip = this.currentClip): void {
-    if (!this.annotate) return;
-    for (let i = 0; i < kinds.length; i++) {
-      this.recSnapXY.push(xy[i * 2]!, xy[i * 2 + 1]!);
-      this.recSnapKinds.push(kinds[i]!);
-      this.recSnapClips.push(clip);
-    }
+  override snap(x: number, y: number, kind: SnapKind, clip = this.currentClip): void {
+    if (!this.snapping) return;
+    this.recSnapXY.push(x, y);
+    this.recSnapKinds.push(kind);
+    this.recSnapClips.push(clip);
   }
 
   /** The recorded snap points (undefined without any). */
@@ -216,15 +220,11 @@ export function replayBlockStream(
     }
   }
   const s = stream.snaps;
-  if (s && out.annotate) {
+  if (s && out.snapping) {
     const xy = rigid.applyPoints(s.xy);
     for (let i = 0; i < s.kinds.length; i++) {
       const c = s.clips[i]!;
-      out.snaps(
-        xy.subarray(i * 2, i * 2 + 2),
-        s.kinds.subarray(i, i + 1),
-        c < 0 ? outerClip : (clips.get(c) ?? c),
-      );
+      out.snap(xy[i * 2]!, xy[i * 2 + 1]!, s.kinds[i] as SnapKind, c < 0 ? outerClip : (clips.get(c) ?? c));
     }
   }
 }

@@ -199,6 +199,22 @@ class GrowF64 {
   }
 }
 
+class GrowI32 {
+  data = new Int32Array(256);
+  length = 0;
+  push(v: number): void {
+    if (this.length === this.data.length) {
+      const d = new Int32Array(this.data.length * 2);
+      d.set(this.data);
+      this.data = d;
+    }
+    this.data[this.length++] = v;
+  }
+  take(): Int32Array {
+    return this.data.slice(0, this.length);
+  }
+}
+
 class GrowU8 {
   data = new Uint8Array(2048);
   length = 0;
@@ -259,10 +275,11 @@ export class DisplayListBuilder {
   /** Maximum vertices per batch (keeps GPU buffers bounded). */
   readonly maxBatchVertices: number;
   /**
-   * Record DisplayAnnotations (texts, snap points) for viewers. Off by default: plots and the
-   * fidelity tests never pay for it.
+   * Record DisplayAnnotations for viewers: `annotate` the drawn texts, `snapping` the snap
+   * points. Off by default: plots and the fidelity tests never pay for it.
    */
   annotate = false;
+  snapping = false;
   private readonly drawnTexts: DrawnText[] = [];
   /** The text being drawn (beginText … endText): its output's bounds, else undefined. */
   private textBox: Bounds | undefined;
@@ -270,8 +287,8 @@ export class DisplayListBuilder {
   private textClip = -1;
   private textDepth = 0;
   private readonly snapXY = new GrowF64();
-  private readonly snapKinds: number[] = [];
-  private readonly snapClips: number[] = [];
+  private readonly snapKinds = new GrowI32();
+  private readonly snapClips = new GrowI32();
 
   constructor(pixelSize: number, maxBatchVertices = 1 << 20) {
     this.pixelSize = pixelSize;
@@ -439,17 +456,12 @@ export class DisplayListBuilder {
       });
   }
 
-  /** Annotations: snap points (x, y pairs, one SnapKind each) in the current clip. */
-  snaps(xy: ArrayLike<number>, kinds: ArrayLike<number>, clip = this.areaClip): void {
-    if (!this.annotate) return;
-    for (let i = 0; i < kinds.length; i++) {
-      const x = xy[i * 2]!;
-      const y = xy[i * 2 + 1]!;
-      if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
-      this.snapXY.push2(x, y);
-      this.snapKinds.push(kinds[i]!);
-      this.snapClips.push(clip);
-    }
+  /** Annotations: a snap point in the current clip (or `clip`). No-op unless `snapping`. */
+  snap(x: number, y: number, kind: SnapKind, clip = this.areaClip): void {
+    if (!this.snapping || !Number.isFinite(x) || !Number.isFinite(y)) return;
+    this.snapXY.push2(x, y);
+    this.snapKinds.push(kind);
+    this.snapClips.push(clip);
   }
 
   /** Adds triangles from a flat [x0,y0,x1,y1,x2,y2,…] array (float64 world coordinates). */
@@ -546,13 +558,13 @@ export class DisplayListBuilder {
       clips: this.clips,
       images: this.images,
       entities: this.entities,
-      ...(this.annotate
+      ...(this.annotate || this.snapping
         ? {
             annotations: {
               texts: this.drawnTexts,
               snapXY: this.snapXY.take(),
-              snapKinds: Uint8Array.from(this.snapKinds),
-              snapClips: Int32Array.from(this.snapClips),
+              snapKinds: Uint8Array.from(this.snapKinds.take()),
+              snapClips: this.snapClips.take(),
             },
           }
         : {}),

@@ -153,7 +153,8 @@ export interface DxfViewerOptions {
   cjkFallbackFont?: string | readonly string[];
   /**
    * Keep the drawn texts and snap points of each list in the backend, for search() and measure
-   * snapping (default true). Costs some backend memory per list.
+   * snapping (default true). Texts cost little; snap points (+10–20 % render time on large
+   * drawings) are recorded only after the measure tool was first used.
    */
   annotations?: boolean;
   /**
@@ -393,6 +394,11 @@ export class DxfViewer {
   private readonly paperGroup = new THREE.Group();
   private marker: Rect | undefined;
   private snapOn: boolean;
+  /**
+   * Lists carry snap points once someone measured (they cost render time; texts for search are
+   * always recorded): switching to the measure tool re-renders with them.
+   */
+  private snapsWanted = false;
   /** The snap point under the pointer while measuring, with the list it came from. */
   private snapPoint: { hit: SnapHit; current: CurrentList } | undefined;
   private readonly snapQuery = new LatestQuery(
@@ -876,7 +882,14 @@ export class DxfViewer {
     if (tool !== "measure") {
       this.setSnapPoint(undefined);
       this.clearMeasure();
-    }
+    } else this.wantSnaps();
+  }
+
+  /** Snapping needs lists with snap points: ask for them from now on. */
+  private wantSnaps(): void {
+    if (this.snapsWanted || !this.snapOn || this.options.annotations === false) return;
+    this.snapsWanted = true;
+    if (this.info) this.requestList(0);
   }
 
   get currentTool(): Tool {
@@ -943,6 +956,7 @@ export class DxfViewer {
   setSnap(on: boolean): void {
     this.snapOn = on;
     if (!on) this.setSnapPoint(undefined);
+    else if (this.tool === "measure") this.wantSnaps();
   }
 
   /** Entity details (type, properties raw/resolved, raw DXF tags) from the model. */
@@ -1028,6 +1042,7 @@ export class DxfViewer {
       [...this.layerToggles].sort(),
       this.lineweights,
       this.store.generation,
+      this.snapsWanted,
     ]);
   }
 
@@ -1083,7 +1098,7 @@ export class DxfViewer {
       raster: "smooth" as const,
       mergeBatches: this.options.mergeBatches ?? true,
       lod: this.options.lod !== false,
-      annotations: this.options.annotations !== false,
+      annotations: this.options.annotations === false ? false : { texts: true, snaps: this.snapsWanted },
       dpi: 100 * this.dpr,
       assets: this.store.generation,
       pdf: this.options.pdf ?? {},

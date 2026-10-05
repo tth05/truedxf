@@ -3,10 +3,10 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Free online DXF viewer, private and accurate · truedxf</title>
+    <title>Free online DXF viewer and DXF to PNG converter · truedxf</title>
     <meta
       name="description"
-      content="Open DXF drawings in your browser: layouts, layers, text, hatches, dimensions and lineweights, drawn the way AutoCAD plots them. Your files never leave your computer. Free, no sign-up."
+      content="View DXF files online and convert DXF to PNG or PDF, drawn the way AutoCAD plots them. Runs in your browser: files are never uploaded. Free, no sign-up."
     />
     <link rel="canonical" href="%SITE_URL%/" />
     <meta name="theme-color" content="#0f1419" />
@@ -14,10 +14,10 @@
     <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="truedxf" />
-    <meta property="og:title" content="truedxf: free online DXF viewer" />
+    <meta property="og:title" content="truedxf: free online DXF viewer and DXF to PNG converter" />
     <meta
       property="og:description"
-      content="View DXF drawings in your browser, drawn the way AutoCAD plots them. Files never leave your computer."
+      content="View DXF drawings in your browser, drawn the way AutoCAD plots them, and save them as PNG or PDF. Files never leave your computer."
     />
     <meta property="og:url" content="%SITE_URL%/" />
     <meta property="og:image" content="%SITE_URL%/og.png" />
@@ -29,8 +29,16 @@
         "@context": "https://schema.org",
         "@type": "WebApplication",
         "name": "truedxf DXF viewer",
+        "alternateName": "truedxf DXF to PNG converter",
         "url": "%SITE_URL%/",
-        "description": "Free online DXF viewer that runs in your browser. Layouts, layers, text, hatches, dimensions and lineweights, drawn the way AutoCAD plots them. Files are never uploaded.",
+        "description": "Free online DXF viewer and DXF to PNG converter that runs in your browser. Layouts, layers, text, hatches, dimensions and lineweights, drawn the way AutoCAD plots them. Save any view as a PNG image or print it to PDF. Files are never uploaded.",
+        "featureList": [
+          "View DXF files online (ASCII and binary, R12 to current)",
+          "Convert DXF to PNG: save the current view as an image",
+          "Print DXF drawings or save them as PDF from the print dialog",
+          "Copy the view to the clipboard as an image",
+          "Model space and paper-space layouts, layer toggles, text search, measuring, entity inspector"
+        ],
         "applicationCategory": "DesignApplication",
         "operatingSystem": "Any (web browser with WebGL)",
         "browserRequirements": "Requires JavaScript and WebGL",
@@ -73,11 +81,12 @@
           paper-space layouts.
         </p>
         <ul class="landing-list">
-          <li><b>Layouts and layers</b>: model space and every paper-space layout; toggle or isolate layers.</li>
+          <li><b>Layouts and layers</b>: model space and every paper-space layout, with layers you can toggle or isolate.</li>
           <li><b>Search</b> the drawing's text, block attributes included, and jump to each match.</li>
           <li><b>Inspector</b>: click an entity for its layer, colour, linetype, lineweight and raw DXF tags.</li>
-          <li><b>Measure</b> distances and angles, snapping to end points, midpoints and centres; dark or light background; lineweights on or off.</li>
-          <li><b>Save, copy or print</b> the view as an image; recent drawings reopen with one click (Chrome, Edge).</li>
+          <li><b>Measure</b> distances and angles, snapping to end points, midpoints and centres. Dark or light background, lineweights on or off.</li>
+          <li><b>DXF to PNG</b>: save the view as a PNG image, copy it to the clipboard, or print it (or save it as PDF from the print dialog).</li>
+          <li><b>Recent drawings</b> reopen with one click (Chrome, Edge).</li>
           <li><b>Large files</b>: parsing and rendering run in a background worker, drawn with WebGL.</li>
           <li><b>ASCII and binary DXF</b>, from R12 to the current AutoCAD format.</li>
         </ul>
@@ -85,17 +94,26 @@
 
       <section>
         <h2>Questions</h2>
+        <h3>How do I convert a DXF file to PNG or PDF?</h3>
+        <p>
+          Open the DXF here, pick the layout and zoom to the part you want, then use the export button
+          in the toolbar: <b>Save view as PNG</b> downloads the image, <b>Copy view as image</b> puts it
+          on the clipboard, and <b>Print view</b> prints it on a white background, or saves it as a PDF
+          when you choose "Save as PDF" in the print dialog. The image has the size of the view on your
+          screen. Switch to the light background or turn lineweights off before saving if you prefer.
+          Nothing is uploaded: the conversion runs in your browser.
+        </p>
         <h3>Are my files uploaded?</h3>
         <p>
           No. The drawing, its fonts and its images are read by your browser and never sent
           anywhere. You can disconnect from the internet after the page has loaded. The site only
-          counts visits, without cookies (Cloudflare Web Analytics); it never sees your files.
+          counts visits, without cookies (Cloudflare Web Analytics). It never sees your files.
         </p>
         <h3>Why does the text look different from AutoCAD?</h3>
         <p>
           AutoCAD's fonts (txt.shx, simplex.shx, …) and Windows fonts are not ours to distribute,
           so this site falls back to the free Liberation fonts. Choose your own fonts folder, for
-          example a copy of AutoCAD's Fonts folder, in the Files panel or the Open menu; it stays on
+          example a copy of AutoCAD's Fonts folder, in the Files panel or the Open menu. It stays on
           your computer and, in Chromium-based browsers, is remembered for your next visit.
         </p>
         <h3>Can it open DWG files?</h3>

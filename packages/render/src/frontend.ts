@@ -31,7 +31,7 @@ import {
   strokePolyline,
   triangulateFill,
 } from "@truedxf/geometry";
-import type { Block, DxfDocument, Entity, InsertEntity } from "@truedxf/model";
+import type { Block, DxfDocument, Entity, EntityBase, InsertEntity } from "@truedxf/model";
 import { plotAciToRgb } from "./aci.ts";
 import { BlockRecorder, type BlockStream, replayBlockStream, splitBlockTransform } from "./block-stream.ts";
 import { type DisplayList, DisplayListBuilder, type Rgba, SnapKind } from "./displaylist.ts";
@@ -417,9 +417,7 @@ export class Frontend {
       this.drawInsert(e, st);
       return;
     }
-    if (!this.props.isPlotted(e, st.inh)) return;
-    const vis = this.env.layerVisibility;
-    if (vis && vis.size > 0 && vis.get(this.props.effectiveLayer(e, st.inh).toUpperCase()) === false) return;
+    if (!this.props.isPlotted(e, st.inh) || this.layerHidden(e, st.inh)) return;
     // entities without a drawer fall back to their proxy graphics (draw/proxy.ts, note 07 §15.3)
     const drawer =
       DRAWERS.get(e.type === "UNKNOWN" ? e.dxfType : e.type) ??
@@ -678,6 +676,14 @@ export class Frontend {
       extents,
       display,
     ]);
+  }
+
+  /** True if a viewer layer toggle (RenderEnv.layerVisibility) hides the entity's effective layer. */
+  layerHidden(e: EntityBase, inh: Inherited): boolean {
+    const vis = this.env.layerVisibility;
+    return (
+      vis !== undefined && vis.size > 0 && vis.get(this.props.effectiveLayer(e, inh).toUpperCase()) === false
+    );
   }
 
   private drawInsert(e: InsertEntity, st: DrawState): void {

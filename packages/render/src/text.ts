@@ -772,7 +772,8 @@ setAttribDrawer((fe, insert, st) => {
     }
   }
   for (const a of insert.attribs) {
-    if (!attribVisible(fe, a) || !fe.props.isPlotted(a, inh)) continue;
+    // ATTRIBs skip drawEntityContent, so the viewer's layer toggles are checked here too
+    if (!attribVisible(fe, a) || !fe.props.isPlotted(a, inh) || fe.layerHidden(a, inh)) continue;
     // an ATTRIB picks as its block reference (Frontend.pickOwner)
     try {
       const layout = attributeLayout(fe, fonts, a, a.text);

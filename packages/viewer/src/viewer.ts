@@ -8,6 +8,7 @@
  *   old one stays visible (lod.ts).
  * - After GPU upload the main thread retains only metadata and selected/hover highlight geometry.
  */
+import { type FileSniff, sniffFile } from "@truedxf/core";
 import type { PdfRasterizerOptions } from "@truedxf/pdf";
 import type { ClipRegion } from "@truedxf/render";
 import { CLIPPED_STENCIL, DisplayListRenderer } from "@truedxf/three";
@@ -142,6 +143,30 @@ export interface DxfViewerOptions {
   fallbackFont?: string | readonly string[];
   /** Big font (.shx) for missing big fonts (default: none). */
   fallbackBigFont?: string;
+}
+
+/**
+ * Thrown (and emitted as `error`) by load / openFiles / openDrawing for a file that does not
+ * start like a DXF (`sniffFile` of @truedxf/core): a DWG, DXB or any other file. The open drawing
+ * stays as it was.
+ */
+export class NotDxfError extends Error {
+  override name = "NotDxfError";
+  /** What the file looks like ("dwg", "dxb" or "unknown"). */
+  readonly kind: Exclude<FileSniff, "ascii" | "binary">;
+  readonly file: string;
+
+  constructor(file: string, kind: Exclude<FileSniff, "ascii" | "binary">) {
+    super(
+      kind === "dwg"
+        ? `${file} is a DWG file. Only DXF files can be opened.`
+        : kind === "dxb"
+          ? `${file} is a DXB file, not DXF.`
+          : `${file} is not a DXF file.`,
+    );
+    this.kind = kind;
+    this.file = file;
+  }
 }
 
 export type Tool = "select" | "measure";
@@ -616,6 +641,8 @@ export class DxfViewer {
         bytes = new Uint8Array(await r.arrayBuffer());
         label ??= decodeURIComponent(url.split(/[\\/]/).pop() ?? url);
       }
+      const sniff = sniffFile(bytes);
+      if (sniff !== "ascii" && sniff !== "binary") throw new NotDxfError(label ?? "The file", sniff);
       this.drawingUrl = url === undefined ? undefined : absoluteUrl(url);
       this.nearDrawing.clear();
       this.store.setDrawing(storePath);

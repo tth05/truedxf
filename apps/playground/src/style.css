@@ -558,17 +558,64 @@ body > .landing {
   bottom: 14px;
   left: 50%;
   transform: translateX(-50%);
-  max-width: 80%;
-  padding: 8px 14px;
+  max-width: calc(100% - 32px);
+  width: max-content;
+  padding: 6px 6px 6px 14px;
   border-radius: 8px;
   background: var(--danger);
   color: #fff;
   display: none;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 12px;
   z-index: 6;
-  white-space: pre-wrap;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.3);
 }
 .toast.on {
-  display: block;
+  display: flex;
+}
+.toast-text {
+  font-weight: 500;
+}
+.toast-sub {
+  opacity: 0.85;
+}
+.toast-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  color: #fff;
+  text-decoration: none;
+  font-weight: 500;
+}
+.toast-action:hover {
+  background: rgba(255, 255, 255, 0.26);
+}
+.toast-action svg,
+.toast-close svg {
+  width: 14px;
+  height: 14px;
+}
+.toast-close {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: #fff;
+  cursor: pointer;
+  opacity: 0.8;
+}
+.toast-close:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.16);
 }
 /* a newer deployment (update.ts) */
 .update-bar {
@@ -1057,6 +1104,14 @@ body > .landing {
 }
 .files .item.missing .name {
   color: var(--warn);
+}
+/* a DWG among the files: it cannot be opened (the tooltip says why) */
+.files .item.unsupported .name,
+.files .item.unsupported .icon-16 {
+  color: var(--danger);
+}
+.files .item.unsupported {
+  cursor: help;
 }
 .link.inline {
   padding: 0;

@@ -19,6 +19,10 @@ const FONT_CODES: readonly string[] = [
 const MAX_DROPPED_FILES = 20_000;
 
 export const isDrawing = (name: string) => /\.dxf$/i.test(name);
+export const isDwg = (name: string) => /\.dwg$/i.test(name);
+
+const DWG_HINT =
+  "DWG files cannot be opened. Save the drawing as DXF in your CAD program (DXFOUT or Save As), or convert it with the free ODA File Converter.";
 
 /** Files of an `<input type="file">` (folder picks keep `webkitRelativePath` as path). */
 export function inputFiles(input: HTMLInputElement): FileInput[] {
@@ -188,18 +192,19 @@ export class FilesPanel {
           this.viewer.removeFile(f.path);
         });
         const drawing = f.kind === "drawing";
+        const dwg = isDwg(f.name);
         rows.push(
           h(
             "div",
             {
-              class: `item${drawing && f.path === this.current ? " active" : ""}${drawing ? "" : " static"}`,
-              title: drawing ? `${f.path}: click to open` : f.path,
+              class: `item${drawing && f.path === this.current ? " active" : ""}${drawing ? "" : " static"}${dwg ? " unsupported" : ""}`,
+              title: drawing ? `${f.path}: click to open` : dwg ? `${f.path}: ${DWG_HINT}` : f.path,
               ...(drawing ? { onclick: () => this.actions.openDrawing(f) } : {}),
             },
             h(
               "span",
               { class: "icon-16" },
-              icon(drawing ? ICONS.file : f.kind === "image" ? ICONS.grid : ICONS.font),
+              icon(drawing || dwg ? ICONS.file : f.kind === "image" ? ICONS.grid : ICONS.font),
             ),
             h("span", { class: "name" }, f.path),
             h("span", { class: "meta" }, fmtBytes(f.size)),

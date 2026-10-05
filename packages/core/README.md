@@ -7,6 +7,8 @@ The DXF tag layer: turns ASCII or binary DXF bytes into a lossless, lazily decod
 - `tokenize(bytes)` splits ASCII DXF (CRLF, LF or lone CR line ends, UTF-8 BOM, padded group
   codes) and binary DXF (R12 1-byte codes with the 255 escape, R13+ 2-byte codes) into a
   `TagStore`. DXB input throws `DxfFormatError`.
+- `sniffFile(bytes)` tells ASCII / binary DXF from DWG, DXB and other files by their first lines
+  (lenient: `999` comments and files without a leading `0 SECTION` pass).
 - `TagStore` keeps the original bytes plus per-tag offsets (struct of typed arrays). Values are
   decoded only on access: `str`, `num`, `int`, `bigint`, `bool`, `handle`, `binary`, `value`;
   `lineOf(i)` gives the 1-based source line for diagnostics.

@@ -121,6 +121,10 @@ which Vite, webpack and Rollup bundle. Vite's dependency pre-bundling breaks tha
 Events: `load`, `layout`, `render` (stats and timings), `select`, `hover`, `cursor` (world
 coordinates), `view`, `busy`, `measure`, `warnings`, `files`, `error`.
 
+A file that does not start like a DXF (`sniffFile` of `@truedxf/core`: a DWG, DXB, PDF, …) is
+rejected before parsing: `load` / `openFiles` / `openDrawing` throw (and emit) a `NotDxfError`
+with `kind` `"dwg"`, `"dxb"` or `"unknown"`, and the open drawing stays.
+
 ## Additional files (fonts, shape files, images)
 
 A DXF names its fonts, shape files and images, often by a path on the machine that wrote it

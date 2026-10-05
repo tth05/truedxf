@@ -8,6 +8,7 @@ export {
   isUtf8Version,
 } from "./encoding.ts";
 export { Code, isNumericKind, isPointCode, MAX_GROUP_CODE, ValueKind, valueKind } from "./groupcodes.ts";
+export { type FileSniff, sniffFile } from "./sniff.ts";
 export {
   type DxfTags,
   detectEncoding,

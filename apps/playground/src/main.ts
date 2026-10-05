@@ -8,6 +8,7 @@ import {
   DxfViewer,
   type EntityInfo,
   type FileInput,
+  NotDxfError,
   type RenderStats,
   type ViewerFile,
   type ViewerWarning,
@@ -23,7 +24,7 @@ import {
 } from "./browse.ts";
 import { ComparePanel } from "./compare.ts";
 import { h, ICONS, icon, mount } from "./dom.ts";
-import { droppedFiles, FilesPanel, inputFiles, isDrawing, pickDrawing } from "./files.ts";
+import { droppedFiles, FilesPanel, inputFiles, isDrawing, isDwg, pickDrawing } from "./files.ts";
 import { FontFolder, fontLoader } from "./fonts.ts";
 import { fmtBytes, fmtCoord, fmtMs, fmtNum } from "./format.ts";
 import { resizableSections, resizableSidebars } from "./resize.ts";
@@ -377,7 +378,10 @@ viewer.on("busy", ({ busy: on, what }) => {
 });
 viewer.on("error", ({ error }) => {
   console.error(error);
-  showError(error.message);
+  if (error instanceof NotDxfError)
+    // a DWG is expected not to open; anything else may be a DXF the sniffer gets wrong
+    showError(error.message, error.kind === "dwg" ? undefined : notDxfReport(error));
+  else showError(error.message);
   // a tab older than the deployment cannot load its chunks any more
   updates?.check();
 });
@@ -440,19 +444,23 @@ async function openLocal(files: FileInput[]): Promise<void> {
   const drawings = files.filter((f) => isDrawing(f.name));
   if (drawings.length === 0) {
     viewer.addFiles(files);
-    if (!info) showError("No .dxf drawing among the files; they were added for the next drawing.");
+    const dwg = files.find((f) => isDwg(f.name));
+    if (dwg) showError(`${dwg.name} is a DWG file. Only DXF files can be opened.`);
+    else if (!info) showError("No .dxf drawing among the files; they were added for the next drawing.");
     return;
   }
   if (drawings.length === 1) {
+    const previous = filesPanel.current;
     beginOpen(undefined);
     filesPanel.current = undefined;
     try {
       const r = await viewer.openFiles(files);
       filesPanel.current = r.opened?.path;
-      filesPanel.render();
     } catch {
-      // reported through the error event
+      // reported through the error event; the open drawing stays (e.g. not a DXF)
+      filesPanel.current = previous;
     }
+    filesPanel.render();
     return;
   }
   const { drawings: added } = await viewer.openFiles(files, { drawing: false });
@@ -462,13 +470,16 @@ async function openLocal(files: FileInput[]): Promise<void> {
 
 /** Opens a drawing that is among the viewer's files. */
 async function openStored(f: ViewerFile): Promise<void> {
+  const previous = filesPanel.current;
   beginOpen(undefined);
   filesPanel.current = f.path;
   filesPanel.render();
   try {
     await viewer.openDrawing(f.path);
   } catch {
-    // reported through the error event
+    // reported through the error event; the open drawing stays (e.g. not a DXF)
+    filesPanel.current = previous;
+    filesPanel.render();
   }
 }
 
@@ -878,12 +889,46 @@ function updateReportLink(): void {
   reportLink.setAttribute("href", `${__BUILD__.repo}/issues/new?${q}`);
 }
 
+/** "Report it" link for a file the viewer did not take for a DXF (no file name or content). */
+function notDxfReport(e: NotDxfError): string {
+  const environment = [
+    `truedxf: ${__BUILD__.commit} (${__BUILD__.date})`,
+    `Browser: ${navigator.userAgent}`,
+    `Detected as: ${e.kind}`,
+  ].join("\n");
+  const q = new URLSearchParams({
+    template: "rendering.yml",
+    title: "File not recognised as DXF: ",
+    environment,
+  });
+  return `${__BUILD__.repo}/issues/new?${q}`;
+}
+
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
-function showError(msg: string): void {
-  toast.textContent = msg.split("\n")[0] ?? msg;
-  toast.classList.add("on");
+/**
+ * Error message at the bottom of the stage. With `reportUrl` it stays until closed and offers
+ * to report the problem on GitHub; otherwise it hides after a few seconds.
+ */
+function showError(msg: string, reportUrl?: string): void {
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(hideError, 8000);
+  mount(
+    toast,
+    h("span", { class: "toast-text" }, msg.split("\n")[0] ?? msg),
+    reportUrl
+      ? [
+          h("span", { class: "toast-sub" }, "Think this is wrong?"),
+          h(
+            "a",
+            { class: "toast-action", href: reportUrl, target: "_blank", rel: "noopener" },
+            icon(ICONS.github),
+            "Report on GitHub",
+          ),
+        ]
+      : null,
+    h("button", { class: "toast-close", title: "Close", onclick: hideError }, icon(ICONS.close)),
+  );
+  toast.classList.add("on");
+  if (!reportUrl) toastTimer = setTimeout(hideError, 8000);
 }
 function hideError(): void {
   toast.classList.remove("on");

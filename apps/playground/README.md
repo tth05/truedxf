@@ -106,6 +106,10 @@ truedxf`) publishes to Cloudflare Pages. The `public` mode differs from the defa
   CSP, `nosniff`, no framing, immutable `/assets/*`);
 - `404.html` ([cloudflare/404.html](cloudflare/404.html)): without it Cloudflare Pages answers
   every unknown path with `index.html` and status 200 (single-page-app mode);
+- `licenses.txt` (every build, [server/licenses.ts](server/licenses.ts)): third-party notices for
+  the npm packages whose modules are in the JavaScript output, main and worker bundles (name,
+  version, licence, the package's LICENSE/NOTICE files), sorted, so it only changes with the
+  dependencies; linked from the landing footer. The dev server answers with a pointer to the build;
 - `version.json` with the build id. An open tab checks it when it becomes visible again, every
   30 minutes and after viewer errors ([src/update.ts](src/update.ts)): a newer deployment shows
   "A new version is available" with a Reload button; a tab with nothing open that you come back

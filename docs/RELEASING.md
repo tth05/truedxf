@@ -1,7 +1,7 @@
 # Releasing the npm packages
 
 The publishable packages are every `packages/*` without `"private": true`: core, model,
-geometry, fonts, text, render, three and viewer (testkit and the plot placeholder stay private).
+geometry, fonts, text, render, pdf, three and viewer (testkit and the plot placeholder stay private).
 They share one version.
 
 In the workspace each package exports its TypeScript sources (`./src/*.ts`); `publishConfig`

@@ -283,8 +283,8 @@ default, FILLMODE for pattern hatches, extents edge tolerance.
       docs/perf-cull-results.md).
 - [ ] Hairlines while navigating: lineweight-widened strokes scale with the list until the next
       LOD step (up to 2× too thick / thin).
-- [ ] Publishable worker entry: the default worker URL (`./worker.ts`) only works when the
-      package is consumed from source; emit a `dist/worker.js` and resolve it in builds.
+- [x] Publishable worker entry: `scripts/package-dist.ts` rewrites the worker URL to the
+      emitted `dist/worker.js` (`pnpm build`).
 - [ ] Layers panel: per-layout VP-freeze state, layer colour / linetype overrides; xref layers.
 - [ ] Picking inside block references returns the innermost entity; offer "select parent INSERT".
 - [ ] Measure: object snaps (endpoint, midpoint, intersection) and a thicker overlay line.

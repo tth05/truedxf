@@ -165,6 +165,7 @@ LAYERS = [
     ("A-GRID-IDEN", 254, 25, "Continuous", "Grid bubbles"),
     ("L-PLNT", 94, 18, "Continuous", "Planting"),
     ("L-SITE", 62, 13, "Continuous", "Terrace, paths, lawn"),
+    ("G-ANNO-HEAD", 7, 50, "Continuous", "Drawing header"),
     ("G-ANNO-TTLB", 7, 35, "Continuous", "Sheet border and title block"),
     ("G-ANNO-TEXT", 7, 25, "Continuous", "Sheet text"),
     ("G-VPORT", 9, 13, "Continuous", "Viewports (no plot)"),
@@ -580,6 +581,10 @@ def plan(doc: ezdxf.document.Drawing) -> None:
     t.set_placement((13700, 5700), align=TextEntityAlignment.MIDDLE_CENTER)
     t = msp.add_text("%%c1300 dining table", height=100, dxfattribs={"layer": "A-ANNO-NOTE", "style": "ARIAL"})
     t.set_placement((5100, 5800), align=TextEntityAlignment.MIDDLE_CENTER)
+
+    # header above the plan and the trees
+    t = msp.add_text("AI-generated", height=1400, dxfattribs={"layer": "G-ANNO-HEAD", "style": "ARIAL-BOLD"})
+    t.set_placement((6200, 13800), align=TextEntityAlignment.BOTTOM_CENTER)
 
 
 # ---- the A3 sheet ---------------------------------------------------------------------------------------

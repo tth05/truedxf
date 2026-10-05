@@ -47,6 +47,7 @@ import type {
   SplineEntity,
   VertexEntity,
 } from "@truedxf/model";
+import { SnapKind } from "../displaylist.ts";
 import { DENSE_LINETYPE_PERIOD_PX, type DrawState, type Frontend, registerDrawer } from "../frontend.ts";
 import type { Resolved } from "../props.ts";
 import { pointSymbol } from "./points.ts";
@@ -481,6 +482,7 @@ registerDrawer("POINT", (fe, e, st) => {
   // POINT and its symbol ignore the lineweight: always one pixel. VERIFIED-BY-ACAD (note 08
   // §10.3; points/symbol-lineweight-*)
   const thin: Resolved = { ...r, lineweight: 0 };
+  fe.builder.snaps([loc.x, loc.y], [SnapKind.Node]);
   if (sym.dot) fe.pixel(loc.x, loc.y, fe.color(r));
   if (p.thickness !== 0) {
     // thickness: a line from P to P + t·N̂ (note 03 §2.6)

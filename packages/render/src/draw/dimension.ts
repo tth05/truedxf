@@ -17,7 +17,7 @@ import {
 import { type InlineFontSpec, inlineFonts, layoutMText, type TextFonts } from "@truedxf/text";
 import { generateDimension } from "../dimension/index.ts";
 import { type DrawState, type Frontend, registerDrawer, registerPreparer } from "../frontend.ts";
-import { drawLayout, prepareTextFonts } from "../text.ts";
+import { drawLayout, prepareTextFonts, searchText } from "../text.ts";
 
 /** Fonts for measuring and drawing generated dimension / leader / tolerance text, per document. */
 const FONTS = new WeakMap<DxfDocument, TextFonts | undefined>();
@@ -93,7 +93,15 @@ function drawGeneratedContent(
         continue;
       }
       if (!fe.props.isPlotted(e, inh)) continue;
-      drawLayout(fe, layoutMText(e as MTextEntity, fonts, { dimension: true }), e, sub.m, inh);
+      const mt = e as MTextEntity;
+      drawLayout(
+        fe,
+        layoutMText(mt, fonts, { dimension: true }),
+        e,
+        sub.m,
+        inh,
+        searchText(fe, mt.text, "mtext"),
+      );
     } catch (err) {
       fe.note(`error:${e.type}:${err instanceof Error ? err.message : String(err)}`);
     }

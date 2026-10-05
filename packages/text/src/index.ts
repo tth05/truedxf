@@ -7,6 +7,7 @@ export * from "./fonts.ts";
 export * from "./glyphs.ts";
 export * from "./mtext-layout.ts";
 export * from "./mtext-parser.ts";
+export * from "./plain.ts";
 export * from "./specials.ts";
 export * from "./text-layout.ts";
 export * from "./types.ts";

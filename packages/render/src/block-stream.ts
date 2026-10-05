@@ -9,12 +9,23 @@ type Command =
   | { kind: "break" }
   | { kind: "unbounded"; on: boolean }
   | { kind: "clip"; clip: number; pointClip: number }
-  | { kind: "addClip"; region: ClipRegion; index: number };
+  | { kind: "addClip"; region: ClipRegion; index: number }
+  | { kind: "beginText"; text: string }
+  | { kind: "endText" };
+
+/** Snap points of a recorded block (DisplayAnnotations), replayed after its commands. */
+export interface BlockSnaps {
+  readonly xy: Float64Array;
+  readonly kinds: Uint8Array;
+  /** Recorder clip index per point; -1 = the clip in effect where the block is replayed. */
+  readonly clips: Int32Array;
+}
 
 export interface BlockStream {
   readonly commands: readonly Command[];
   readonly vertices: number;
   readonly notes: Readonly<Record<string, number>>;
+  readonly snaps?: BlockSnaps;
 }
 
 /**
@@ -96,6 +107,41 @@ export class BlockRecorder extends DisplayListBuilder {
 
   override setClip(clip: number, pointClip = clip): void {
     if (this.reserve(0)) this.commands.push({ kind: "clip", clip, pointClip });
+    super.setClip(clip, pointClip);
+  }
+
+  // Annotations (DisplayListBuilder.annotate, copied from the destination by the frontend).
+  // Texts keep their place among the commands so their bounds cover the replayed output; snap
+  // points are kept apart (one command per stroked path would exhaust the command limit).
+  private readonly recSnapXY: number[] = [];
+  private readonly recSnapKinds: number[] = [];
+  private readonly recSnapClips: number[] = [];
+
+  override beginText(text: string): void {
+    if (this.annotate && this.reserve(0)) this.commands.push({ kind: "beginText", text });
+  }
+
+  override endText(): void {
+    if (this.annotate && this.reserve(0)) this.commands.push({ kind: "endText" });
+  }
+
+  override snaps(xy: ArrayLike<number>, kinds: ArrayLike<number>, clip = this.currentClip): void {
+    if (!this.annotate) return;
+    for (let i = 0; i < kinds.length; i++) {
+      this.recSnapXY.push(xy[i * 2]!, xy[i * 2 + 1]!);
+      this.recSnapKinds.push(kinds[i]!);
+      this.recSnapClips.push(clip);
+    }
+  }
+
+  /** The recorded snap points (undefined without any). */
+  recordedSnaps(): BlockSnaps | undefined {
+    if (this.recSnapKinds.length === 0) return undefined;
+    return {
+      xy: Float64Array.from(this.recSnapXY),
+      kinds: Uint8Array.from(this.recSnapKinds),
+      clips: Int32Array.from(this.recSnapClips),
+    };
   }
 }
 
@@ -128,6 +174,7 @@ export function replayBlockStream(
   workspace = { xy: new Float64Array(0) },
 ): void {
   const clips = new Map<number, number>();
+  const outerClip = out.currentClip;
   // One scratch allocation per replay, reused by all primitive calls (the builder consumes
   // synchronously). Keep original call boundaries: they affect batching and pick ranges.
   const points = (src: Float64Array): Float64Array => {
@@ -160,6 +207,24 @@ export function replayBlockStream(
       case "clip":
         out.setClip(clips.get(cmd.clip) ?? cmd.clip, clips.get(cmd.pointClip) ?? cmd.pointClip);
         break;
+      case "beginText":
+        out.beginText(cmd.text);
+        break;
+      case "endText":
+        out.endText();
+        break;
+    }
+  }
+  const s = stream.snaps;
+  if (s && out.annotate) {
+    const xy = rigid.applyPoints(s.xy);
+    for (let i = 0; i < s.kinds.length; i++) {
+      const c = s.clips[i]!;
+      out.snaps(
+        xy.subarray(i * 2, i * 2 + 2),
+        s.kinds.subarray(i, i + 1),
+        c < 0 ? outerClip : (clips.get(c) ?? c),
+      );
     }
   }
 }

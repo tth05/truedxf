@@ -74,6 +74,48 @@ export interface Bounds {
   maxY: number;
 }
 
+/** What a snap point is (DisplayAnnotations), like AutoCAD's object snap modes. */
+export const SnapKind = {
+  /** End of a line, arc, polyline segment, spline. */
+  Endpoint: 0,
+  /** Middle of a line or arc. */
+  Midpoint: 1,
+  /** Centre of a circle, arc or ellipse. */
+  Center: 2,
+  /** A POINT. */
+  Node: 3,
+  /** 0°/90°/180°/270° point of a circle or ellipse. */
+  Quadrant: 4,
+} as const;
+export type SnapKind = (typeof SnapKind)[keyof typeof SnapKind];
+
+/** A text as drawn (DisplayAnnotations.texts). */
+export interface DrawnText {
+  /** Plain text: formatting codes removed, paragraphs as "\n". */
+  readonly text: string;
+  /** The top-level pick entity it was drawn in (the text itself, or e.g. its INSERT). */
+  readonly entity: string;
+  /** Bounds of its drawn output. */
+  readonly bounds: Bounds;
+  /** Clip region it was drawn in (index into DisplayList.clips), -1 for none. */
+  readonly clip: number;
+}
+
+/**
+ * What viewers need besides the geometry (RenderEnv.annotations, off by default): the texts and
+ * where they were drawn (search), and snap points (measuring), in the list's world coordinates.
+ * Nothing here is drawn.
+ */
+export interface DisplayAnnotations {
+  readonly texts: readonly DrawnText[];
+  /** Snap points as x, y pairs. */
+  readonly snapXY: Float64Array;
+  /** SnapKind per snap point. */
+  readonly snapKinds: Uint8Array;
+  /** Clip region per snap point (-1: none). */
+  readonly snapClips: Int32Array;
+}
+
 export interface DisplayList {
   /** World units per device pixel the geometry was tessellated / widened for. */
   readonly pixelSize: number;
@@ -90,6 +132,8 @@ export interface DisplayList {
   readonly images: readonly RasterImage[];
   /** Entity identities referenced by pick ranges: handle (or "#id" when the entity has none). */
   readonly entities: readonly string[];
+  /** Present when the list was built with annotations (RenderEnv.annotations). */
+  readonly annotations?: DisplayAnnotations;
 }
 
 export function emptyBounds(): Bounds {
@@ -110,6 +154,13 @@ export function transferables(list: DisplayList): ArrayBuffer[] {
   }
   // an image may be shared by several lists (caches): transfer copies only
   for (const im of list.images) if (im.pixels.byteOffset === 0) out.push(im.pixels.buffer as ArrayBuffer);
+  const a = list.annotations;
+  if (a)
+    out.push(
+      a.snapXY.buffer as ArrayBuffer,
+      a.snapKinds.buffer as ArrayBuffer,
+      a.snapClips.buffer as ArrayBuffer,
+    );
   return [...new Set(out)];
 }
 
@@ -127,6 +178,23 @@ class GrowF32 {
     this.data = d;
   }
   take(): Float32Array {
+    return this.data.slice(0, this.length);
+  }
+}
+
+class GrowF64 {
+  data = new Float64Array(256);
+  length = 0;
+  push2(a: number, b: number): void {
+    if (this.length + 2 > this.data.length) {
+      const d = new Float64Array(this.data.length * 2);
+      d.set(this.data.subarray(0, this.length));
+      this.data = d;
+    }
+    this.data[this.length++] = a;
+    this.data[this.length++] = b;
+  }
+  take(): Float64Array {
     return this.data.slice(0, this.length);
   }
 }
@@ -190,6 +258,20 @@ export class DisplayListBuilder {
   private entityStart = 0;
   /** Maximum vertices per batch (keeps GPU buffers bounded). */
   readonly maxBatchVertices: number;
+  /**
+   * Record DisplayAnnotations (texts, snap points) for viewers. Off by default: plots and the
+   * fidelity tests never pay for it.
+   */
+  annotate = false;
+  private readonly drawnTexts: DrawnText[] = [];
+  /** The text being drawn (beginText … endText): its output's bounds, else undefined. */
+  private textBox: Bounds | undefined;
+  private textString = "";
+  private textClip = -1;
+  private textDepth = 0;
+  private readonly snapXY = new GrowF64();
+  private readonly snapKinds: number[] = [];
+  private readonly snapClips: number[] = [];
 
   constructor(pixelSize: number, maxBatchVertices = 1 << 20) {
     this.pixelSize = pixelSize;
@@ -277,6 +359,13 @@ export class DisplayListBuilder {
   }
 
   private vertex(x: number, y: number, c: Rgba): void {
+    const t = this.textBox;
+    if (t) {
+      if (x < t.minX) t.minX = x;
+      if (x > t.maxX) t.maxX = x;
+      if (y < t.minY) t.minY = y;
+      if (y > t.maxY) t.maxY = y;
+    }
     this.pos.push2(x - this.originX, y - this.originY);
     this.col.push4(c[0], c[1], c[2], c[3]);
     this.vertexCount++;
@@ -319,6 +408,48 @@ export class DisplayListBuilder {
   /** Ends the current batch (the next primitive starts a new one, e.g. per transparent entity). */
   breakBatch(): void {
     this.flush();
+  }
+
+  /** The clip region subsequent area primitives get (-1: none). */
+  get currentClip(): number {
+    return this.areaClip;
+  }
+
+  /**
+   * Annotations: the output until the matching endText() is the text `text` (nested calls belong
+   * to the outermost one). No-ops unless `annotate`.
+   */
+  beginText(text: string): void {
+    if (!this.annotate || this.textDepth++ > 0) return;
+    this.textString = text;
+    this.textClip = this.areaClip;
+    this.textBox = emptyBounds();
+  }
+
+  endText(): void {
+    if (!this.annotate || this.textDepth === 0 || --this.textDepth > 0) return;
+    const b = this.textBox!;
+    this.textBox = undefined;
+    if (b.minX <= b.maxX && this.textString.trim() !== "")
+      this.drawnTexts.push({
+        text: this.textString,
+        entity: this.entityId ?? "",
+        bounds: b,
+        clip: this.textClip,
+      });
+  }
+
+  /** Annotations: snap points (x, y pairs, one SnapKind each) in the current clip. */
+  snaps(xy: ArrayLike<number>, kinds: ArrayLike<number>, clip = this.areaClip): void {
+    if (!this.annotate) return;
+    for (let i = 0; i < kinds.length; i++) {
+      const x = xy[i * 2]!;
+      const y = xy[i * 2 + 1]!;
+      if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+      this.snapXY.push2(x, y);
+      this.snapKinds.push(kinds[i]!);
+      this.snapClips.push(clip);
+    }
   }
 
   /** Adds triangles from a flat [x0,y0,x1,y1,x2,y2,…] array (float64 world coordinates). */
@@ -415,6 +546,16 @@ export class DisplayListBuilder {
       clips: this.clips,
       images: this.images,
       entities: this.entities,
+      ...(this.annotate
+        ? {
+            annotations: {
+              texts: this.drawnTexts,
+              snapXY: this.snapXY.take(),
+              snapKinds: Uint8Array.from(this.snapKinds),
+              snapClips: Int32Array.from(this.snapClips),
+            },
+          }
+        : {}),
     };
   }
 }

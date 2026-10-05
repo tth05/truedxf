@@ -23,6 +23,9 @@ import {
   LineJoin,
   Matrix44,
   type Path2,
+  segmentEnd,
+  segmentPointAt,
+  segmentStart,
   selectHatchLoops,
   strokeDot,
   strokePolyline,
@@ -31,7 +34,7 @@ import {
 import type { Block, DxfDocument, Entity, InsertEntity } from "@truedxf/model";
 import { plotAciToRgb } from "./aci.ts";
 import { BlockRecorder, type BlockStream, replayBlockStream, splitBlockTransform } from "./block-stream.ts";
-import { type DisplayList, DisplayListBuilder, type Rgba } from "./displaylist.ts";
+import { type DisplayList, DisplayListBuilder, type Rgba, SnapKind } from "./displaylist.ts";
 import { DrawOrder } from "./draworder.ts";
 import { drawSpace, findLayout, layoutAreaView } from "./layout.ts";
 import { LinetypeResolver, type LinetypeSpec } from "./linetype.ts";
@@ -113,6 +116,11 @@ export interface RenderEnv {
    * Defpoints layers are drawn too (interactive viewers).
    */
   visibility?: "plot" | "display";
+  /**
+   * Record DisplayList.annotations: drawn texts (search) and snap points (measuring). Viewers
+   * only; default false.
+   */
+  annotations?: boolean;
 }
 
 export interface PlotResult {
@@ -320,6 +328,7 @@ export class Frontend {
     this.pixelSize = pixelSizeOf(view, request.canvas);
     this.tolerance = this.pixelSize * TOLERANCE_PX;
     this.builder = new DisplayListBuilder(this.pixelSize);
+    this.builder.annotate = env.annotations === true;
     const background: [number, number, number] = env.background ? [...env.background] : [255, 255, 255];
     this.builder.background = background;
     const lwDefault = request.sysvars?.LWDEFAULT;
@@ -596,6 +605,7 @@ export class Frontend {
       32_000_000 - this.recordedVertices,
       262_144 - this.recordedCommands,
     );
+    recorder.annotate = out.annotate;
     const before = { ...this.unsupported };
     this.builder = recorder;
     this.recordingBlock = true;
@@ -619,7 +629,13 @@ export class Frontend {
       const delta = count - (before[what] ?? 0);
       if (delta) notes[what] = delta;
     }
-    const recorded: BlockStream = { commands: recorder.commands, vertices: recorder.vertices, notes };
+    const snaps = recorder.recordedSnaps();
+    const recorded: BlockStream = {
+      commands: recorder.commands,
+      vertices: recorder.vertices,
+      notes,
+      ...(snaps ? { snaps } : {}),
+    };
     if (!entries) this.blockStreams.set(block, (entries = new Map()));
     entries.set(key, recorded);
     this.recordedVertices += recorder.vertices;
@@ -824,6 +840,7 @@ export class Frontend {
     st: DrawState,
     options: StrokeOptions = {},
   ): void {
+    if (this.builder.annotate) this.snapPath(path);
     let lt = !options.noLinetype && e ? this.linetypeFor(e, r, st) : undefined;
     // A pattern whose period is below half a device pixel plots continuous (dash count does not
     // matter). VERIFIED-BY-ACAD (note 06 §2.6.1; linetypes/dense-*: 0.38 px continuous, 0.51 px dashed)
@@ -864,6 +881,44 @@ export class Frontend {
   private strokeOptions(w: number) {
     // Round caps/joins: ASSUMPTION until calibration (note 06 §5.2)
     return { width: w, cap: LineCap.Round, join: LineJoin.Round, tolerance: this.tolerance };
+  }
+
+  /**
+   * Snap points of a stroked path (annotations): segment ends, line and arc midpoints, centres;
+   * full circles and ellipses give their centre and quadrant points instead of ends.
+   */
+  private snapPath(path: Path2): void {
+    const xy: number[] = [];
+    const kinds: number[] = [];
+    const add = (x: number, y: number, k: SnapKind) => {
+      xy.push(x, y);
+      kinds.push(k);
+    };
+    for (const sp of path.subpaths) {
+      for (const s of sp.segments) {
+        if (s.kind === "arc" || s.kind === "ellipticArc") {
+          add(s.center.x, s.center.y, SnapKind.Center);
+          if (Math.abs(s.sweep) >= 2 * Math.PI - 1e-9) {
+            const u = s.kind === "arc" ? { x: s.radius, y: 0 } : s.u;
+            const v = s.kind === "arc" ? { x: 0, y: s.radius } : s.v;
+            add(s.center.x + u.x, s.center.y + u.y, SnapKind.Quadrant);
+            add(s.center.x + v.x, s.center.y + v.y, SnapKind.Quadrant);
+            add(s.center.x - u.x, s.center.y - u.y, SnapKind.Quadrant);
+            add(s.center.x - v.x, s.center.y - v.y, SnapKind.Quadrant);
+            continue;
+          }
+        }
+        const a = segmentStart(s);
+        const b = segmentEnd(s);
+        add(a.x, a.y, SnapKind.Endpoint);
+        add(b.x, b.y, SnapKind.Endpoint);
+        if (s.kind === "line" || s.kind === "arc" || s.kind === "ellipticArc") {
+          const m = s.kind === "line" ? { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } : segmentPointAt(s, 0.5);
+          if (m.x !== a.x || m.y !== a.y) add(m.x, m.y, SnapKind.Midpoint);
+        }
+      }
+    }
+    this.builder.snaps(xy, kinds);
   }
 
   /** Strokes a flattened polyline (target coordinates) with the entity's lineweight. */
@@ -1152,6 +1207,7 @@ export async function renderPlot(
         ...env,
         raster: "smooth",
         lod: false,
+        annotations: false,
       });
       probe.props.extents = true;
       drawSpace(probe, space);

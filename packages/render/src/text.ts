@@ -51,6 +51,8 @@ import {
   inlineFonts,
   layoutMText,
   layoutText,
+  plainMText,
+  plainText,
   TextFonts,
   type TextLayout,
   type TextRun,
@@ -577,7 +579,28 @@ export function drawProxyText(fe: Frontend, text: ProxyText, e: Entity, st: Draw
     })),
     tracking: text.tracking,
   });
-  drawLayout(fe, layout, e, st.m, st.inh);
+  const plain = fe.builder.annotate ? characters.map((c) => String.fromCodePoint(c.cp)).join("") : undefined;
+  drawLayout(fe, layout, e, st.m, st.inh, plain);
+}
+
+/**
+ * Plain text for the display-list annotations (search), or undefined when the list has none.
+ * Cached per raw string: the same texts repeat across renders and block instances.
+ */
+export function searchText(fe: Frontend, raw: string, kind: "text" | "mtext"): string | undefined {
+  if (!fe.builder.annotate) return undefined;
+  let cache = fe.caches.get(`text:plain:${kind}`) as Map<string, string> | undefined;
+  if (!cache) fe.caches.set(`text:plain:${kind}`, (cache = new Map()));
+  let s = cache.get(raw);
+  if (s === undefined) {
+    try {
+      s = kind === "mtext" ? plainMText(raw) : plainText(raw);
+    } catch {
+      s = raw;
+    }
+    cache.set(raw, s);
+  }
+  return s;
 }
 
 /** Single-line text input: a missing group 71 means "use the STYLE's flags" (VERIFIED-BY-ACAD). */
@@ -641,7 +664,7 @@ registerDrawer(["TEXT", "MTEXT", "ATTDEF"], (fe, e, st) => {
     const layout = cachedLayout(fe, e, fonts, ["text", (e as TextEntity).text], (opts) =>
       layoutText(singleLine(e as TextEntity), fonts, opts),
     );
-    drawLayout(fe, layout, e, st.m, st.inh);
+    drawLayout(fe, layout, e, st.m, st.inh, searchText(fe, (e as TextEntity).text, "text"));
   } else if (e.type === "MTEXT") {
     const mt = e as MTextEntity;
     const wrapWidth = linkedColumnWidths(fe).get(mt.handle.toUpperCase());
@@ -658,17 +681,17 @@ registerDrawer(["TEXT", "MTEXT", "ATTDEF"], (fe, e, st) => {
       const opts = { ...options, dimension };
       return layoutMText(input, fonts, wrapWidth !== undefined ? { ...opts, wrapWidth } : opts);
     });
-    drawLayout(fe, layout, e, st.m, st.inh);
+    drawLayout(fe, layout, e, st.m, st.inh, searchText(fe, mt.text, "mtext"));
   } else {
     const a = e as AttribEntity;
     if (st.stack.length > 1) {
       // inside a block: only constant ATTDEFs draw (their value) — note 07 §4.1; flag 1 and
       // $ATTMODE are honoured for them too (ASSUMPTION)
       if ((a.attribFlags & 2) === 0 || !attribVisible(fe, a)) return;
-      drawLayout(fe, attributeLayout(fe, fonts, a, a.text), e, st.m, st.inh);
+      drawLayout(fe, attributeLayout(fe, fonts, a, a.text), e, st.m, st.inh, searchText(fe, a.text, "text"));
     } else {
       // a loose ATTDEF shows its tag (note 04 §2.2)
-      drawLayout(fe, attributeLayout(fe, fonts, a, a.tag), e, st.m, st.inh);
+      drawLayout(fe, attributeLayout(fe, fonts, a, a.tag), e, st.m, st.inh, searchText(fe, a.tag, "text"));
     }
   }
 });
@@ -700,7 +723,8 @@ setAttribDrawer((fe, insert, st) => {
     // an ATTRIB picks as its block reference (Frontend.pickOwner)
     try {
       const layout = attributeLayout(fe, fonts, a, a.text);
-      for (const m of cells) drawLayout(fe, layout, a, m, inh);
+      const plain = searchText(fe, a.text, "text");
+      for (const m of cells) drawLayout(fe, layout, a, m, inh, plain);
     } catch (err) {
       fe.note(`error:ATTRIB:${err instanceof Error ? err.message : String(err)}`);
     }
@@ -830,8 +854,31 @@ export function largeCjkPixelTriangles(
   return out;
 }
 
-/** Emits a text layout: backgrounds, glyphs, decoration lines. */
-export function drawLayout(fe: Frontend, layout: TextLayout, e: Entity, m: Matrix44, inh: Inherited): void {
+/**
+ * Emits a text layout: backgrounds, glyphs, decoration lines. `text` (plain, see searchText) is
+ * recorded with the output's bounds in the list's annotations.
+ */
+export function drawLayout(
+  fe: Frontend,
+  layout: TextLayout,
+  e: Entity,
+  m: Matrix44,
+  inh: Inherited,
+  text?: string,
+): void {
+  if (text === undefined) {
+    emitLayout(fe, layout, e, m, inh);
+    return;
+  }
+  fe.builder.beginText(text);
+  try {
+    emitLayout(fe, layout, e, m, inh);
+  } finally {
+    fe.builder.endText();
+  }
+}
+
+function emitLayout(fe: Frontend, layout: TextLayout, e: Entity, m: Matrix44, inh: Inherited): void {
   for (const n of layout.notes) fe.note(n);
   if (layout.glyphs.length === 0 && layout.lines.length === 0 && layout.backgrounds.length === 0) return;
   const r = fe.props.resolve(e, inh);

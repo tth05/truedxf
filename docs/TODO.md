@@ -300,9 +300,11 @@ default, FILLMODE for pattern hatches, extents edge tolerance.
 - [x] Public site (2026-10-01): `vite build --mode public` without samples code / sourcemaps,
       landing content + meta / Open Graph / JSON-LD, robots.txt, sitemap.xml, Cloudflare
       `_headers`, Liberation fallback fonts, remembered fonts folder, "Report a problem" link.
-- [ ] Public site: CJK fallback font (Noto Sans SC is 8.5 MB as OTF/CFF: check our CFF support,
-      subset it or load it on demand); SHX-looking fallback for missing SHX fonts (today they
-      fall back to Liberation Sans).
+- [x] Public site: CJK fallback font: Noto Sans SC (OTF/CFF parses in ~50 ms), loaded only for
+      drawings with CJK text (`cjkFallbackFont`, render `text.cjkFallbacks`) (2026-10-05).
+- [ ] Public site: a Hangul fallback (Noto Sans SC has none; e.g. Noto Sans KR / Nanum, OFL);
+      subset the CJK fonts; SHX-looking fallback for missing SHX fonts (today they fall back to
+      Liberation Sans).
 - [ ] Public site: long-tail pages (e.g. "open DXF without AutoCAD", DXF → PNG / PDF export once
       plotting to a file exists in the viewer); a small licence-clean demo drawing to try.
 - [ ] Public site launch: remove the Basic Auth gate (`apps/playground/functions/_middleware.ts`).

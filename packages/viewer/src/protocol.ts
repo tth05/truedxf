@@ -139,6 +139,11 @@ export interface RenderParams {
   /** Big font for missing big fonts (default: none). */
   fallbackBigFont?: string;
   /**
+   * Font file(s) for CJK characters that the text's fonts lack, loaded only for drawings with CJK
+   * text (default none: then only the render layer's glyph fallbacks, SimSun among them).
+   */
+  cjkFallbackFont?: string | readonly string[];
+  /**
    * Asset generation (DxfViewer: its file store's generation). When it differs from the previous
    * render's, the core drops its font and image caches, so files added since are looked up.
    */
@@ -454,11 +459,17 @@ export class ViewerCore {
         ...(p.pdf === false ? {} : { pdf: this.pdfRasterizer(p.pdf ?? {}) }),
         visibility: p.visibility ?? "display",
         ...(p.dpi ? { calibration: { dpi: p.dpi } } : {}),
-        ...(p.fallbackFont !== undefined || p.fallbackBigFont !== undefined
+        ...(p.fallbackFont !== undefined || p.fallbackBigFont !== undefined || p.cjkFallbackFont !== undefined
           ? {
               text: {
                 ...(p.fallbackFont !== undefined ? { fallbackFont: p.fallbackFont } : {}),
                 ...(p.fallbackBigFont !== undefined ? { fallbackBigFont: p.fallbackBigFont } : {}),
+                ...(p.cjkFallbackFont !== undefined
+                  ? {
+                      cjkFallbacks:
+                        typeof p.cjkFallbackFont === "string" ? [p.cjkFallbackFont] : p.cjkFallbackFont,
+                    }
+                  : {}),
               },
             }
           : {}),

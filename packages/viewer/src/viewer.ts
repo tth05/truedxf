@@ -146,6 +146,12 @@ export interface DxfViewerOptions {
   /** Big font (.shx) for missing big fonts (default: none). */
   fallbackBigFont?: string;
   /**
+   * Font file(s) for CJK characters missing from the text's fonts, e.g. a free CJK font when
+   * SimSun (the default glyph fallback, like AutoCAD) is not available. Requested only for
+   * drawings with CJK text. Default none.
+   */
+  cjkFallbackFont?: string | readonly string[];
+  /**
    * Keep the drawn texts and snap points of each list in the backend, for search() and measure
    * snapping (default true). Costs some backend memory per list.
    */
@@ -1084,6 +1090,9 @@ export class DxfViewer {
       ...(this.options.fallbackFont !== undefined ? { fallbackFont: this.options.fallbackFont } : {}),
       ...(this.options.fallbackBigFont !== undefined
         ? { fallbackBigFont: this.options.fallbackBigFont }
+        : {}),
+      ...(this.options.cjkFallbackFont !== undefined
+        ? { cjkFallbackFont: this.options.cjkFallbackFont }
         : {}),
     };
     if (this.fitPending || !this.view) {

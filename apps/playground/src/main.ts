@@ -361,6 +361,9 @@ const viewer = new DxfViewer(viewerHost, {
   antialias: new URLSearchParams(location.search).get("aa") !== "0",
   lod: new URLSearchParams(location.search).get("lod") !== "0",
   loadFont: fontLoader(fontsFolder),
+  // Chinese / Japanese characters that the drawing's fonts lack (fonts/README.md); fetched only
+  // for drawings with CJK text
+  cjkFallbackFont: "notosanssc-regular.otf",
   // PDF.js fonts, CMaps and decoders (vite.config.ts): absolute, the worker resolves it
   pdf: { assetsUrl: new URL("pdfjs/", location.href).href },
   ...(fallbackFont?.length ? { fallbackFont } : {}),

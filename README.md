@@ -98,6 +98,6 @@ with screenshots and, if you may share it, the file.
 
 ## License
 
-MIT. truedxf ships no Autodesk files. The viewer site bundles the Liberation fonts (SIL OFL 1.1).
+MIT. truedxf ships no Autodesk files. The viewer site bundles the Liberation and Noto Sans SC fonts (SIL OFL 1.1).
 AutoCAD is a registered trademark of Autodesk, Inc.; truedxf is not affiliated with or endorsed
 by Autodesk.

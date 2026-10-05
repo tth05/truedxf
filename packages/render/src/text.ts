@@ -84,6 +84,12 @@ export interface TextRenderOptions {
   /** Fallback TTFs for glyphs missing from a TTF (which ones AutoCAD uses is UNKNOWN, note 04 §4.5). */
   glyphFallbacks?: readonly string[];
   /**
+   * More glyph fallbacks after `glyphFallbacks`, loaded only for documents with CJK text (CJK
+   * code page, UTF-8 or `\U+` CJK characters): CJK fonts are large. Viewers without SimSun
+   * (default glyph fallback) put a free CJK font here. Default none.
+   */
+  cjkFallbacks?: readonly string[];
+  /**
    * Text whose font, bigfont or MTEXT `\f`/`\F` font cannot be loaded:
    * - `"autocad"`: AutoCAD 2027's plot behaviour — FONTALT for style fonts and `\F` files, a
    *   missing bigfont suppresses the text, an unknown `\f` family draws nothing (note 04 §4.1).
@@ -200,7 +206,11 @@ export async function prepareTextFonts(
 ): Promise<TextFonts | undefined> {
   if (!loadFont) return undefined;
   const fontAlt = options.fontAlt ?? "simplex.shx";
-  const glyphFallbacks = options.glyphFallbacks ?? ["arial.ttf", "seguisym.ttf", "simsun.ttc"];
+  const encoding = codepageToEncoding(doc.header.str("$DWGCODEPAGE", "ANSI_1252")).encoding;
+  const glyphFallbacks = [
+    ...(options.glyphFallbacks ?? ["arial.ttf", "seguisym.ttf", "simsun.ttc"]),
+    ...(options.cjkFallbacks?.length && hasCjkText(doc, encoding) ? options.cjkFallbacks : []),
+  ];
   const missingFont = options.missingFont ?? "autocad";
   const fb = options.fallbackFont;
   // an explicit list comes first; FONTALT stays the last resort
@@ -233,7 +243,6 @@ export async function prepareTextFonts(
     });
     byKey.set(key, manager);
   }
-  const encoding = codepageToEncoding(doc.header.str("$DWGCODEPAGE", "ANSI_1252")).encoding;
   const styles: TextStyleSpec[] = [...doc.tables.styles].filter((s) => !s.isShapeFile);
   const proxyStyles = new Map<string, TextStyleSpec>();
   const inline = new Map<string, InlineFontSpec>();
@@ -269,10 +278,54 @@ export async function prepareTextFonts(
   };
   for (const b of doc.blocks) visit(b.entities);
   visit(doc.modelSpace.entities);
-  const fonts = new TextFonts(manager, [...styles, ...proxyStyles.values()], encoding);
+  const fonts = new TextFonts(manager, [...styles, ...proxyStyles.values()], encoding, glyphFallbacks);
   await fonts.prepare(inline.values());
   USED_STYLES.set(fonts, used);
   return fonts;
+}
+
+const CJK_ENCODINGS = new Set(["shift_jis", "gbk", "gb18030", "euc-kr", "big5"]);
+const HAS_CJK = new WeakMap<DxfDocument, boolean>();
+
+/** CJK code points: radicals … CJK unified ideographs, Yi, Hangul, compatibility, fullwidth forms. */
+function isCjk(cp: number): boolean {
+  return (
+    (cp >= 0x2e80 && cp <= 0xa4cf) ||
+    (cp >= 0xac00 && cp <= 0xd7af) ||
+    (cp >= 0xf900 && cp <= 0xfaff) ||
+    (cp >= 0xff00 && cp <= 0xffef)
+  );
+}
+
+const hex = (b: number) => (b >= 0x30 && b <= 0x39) || ((b | 0x20) >= 0x61 && (b | 0x20) <= 0x66);
+
+/**
+ * Whether a document has CJK text, cheaply (it only decides whether to load the large CJK glyph
+ * fallbacks): a CJK code page, `\U+XXXX` escapes of CJK characters or `\M+` (multibyte)
+ * escapes, and in ASCII files UTF-8 sequences of CJK characters. Binary files' numbers would
+ * look like UTF-8, so only their escapes and code page count.
+ */
+export function hasCjkText(doc: DxfDocument, encoding: string): boolean {
+  let r = HAS_CJK.get(doc);
+  if (r !== undefined) return r;
+  r = CJK_ENCODINGS.has(encoding);
+  const store = doc.tags.store;
+  const b = store.bytes;
+  const ascii = store.format !== "binary";
+  for (let i = 0; !r && i < b.length; i++) {
+    const c = b[i]!;
+    if (c === 0x5c) {
+      const k = b[i + 1]! | 0x20;
+      if (b[i + 2] !== 0x2b) continue;
+      if (k === 0x6d)
+        r = true; // \M+nXXXX: a double-byte code page character
+      else if (k === 0x75 && hex(b[i + 3]!) && hex(b[i + 4]!) && hex(b[i + 5]!) && hex(b[i + 6]!))
+        r = isCjk(Number.parseInt(String.fromCharCode(b[i + 3]!, b[i + 4]!, b[i + 5]!, b[i + 6]!), 16));
+    } else if (ascii && c >= 0xe2 && c <= 0xef && (b[i + 1]! & 0xc0) === 0x80 && (b[i + 2]! & 0xc0) === 0x80)
+      r = isCjk(((c & 0x0f) << 12) | ((b[i + 1]! & 0x3f) << 6) | (b[i + 2]! & 0x3f));
+  }
+  HAS_CJK.set(doc, r);
+  return r;
 }
 
 /**

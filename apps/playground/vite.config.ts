@@ -49,12 +49,14 @@ function fonts(): Plugin {
             source: readFileSync(join(dir, f)),
           });
         }
-      // the OFL travels with the Liberation fonts (fonts/README.md)
-      this.emitFile({
-        type: "asset",
-        fileName: "fonts/LICENSE-Liberation.txt",
-        source: readFileSync(join(FALLBACK_FONT_DIR, "LICENSE-Liberation.txt")),
-      });
+      // the OFL travels with the fonts (fonts/README.md)
+      for (const f of readdirSync(FALLBACK_FONT_DIR).sort())
+        if (/^LICENSE-.*\.txt$/.test(f))
+          this.emitFile({
+            type: "asset",
+            fileName: `fonts/${f}`,
+            source: readFileSync(join(FALLBACK_FONT_DIR, f)),
+          });
       this.emitFile({ type: "asset", fileName: "fonts/index.json", source: JSON.stringify(names) });
     },
   };

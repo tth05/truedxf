@@ -12,11 +12,14 @@
  * the user's own folder.
  */
 import { type AssetLoader, fetchFontLoader } from "@truedxf/viewer";
+import { idbDelete, idbGet, idbPut } from "./storage.ts";
 
 const FONT_FILE = /\.(shx|ttf|ttc|otf)$/i;
 /** A fonts folder is indexed up to this many files / this depth (a picked drive must not hang the page). */
 const MAX_FOLDER_FILES = 20_000;
 const MAX_FOLDER_DEPTH = 4;
+/** IndexedDB key of the remembered folder handle (storage.ts). */
+const FOLDER_KEY = "fonts-folder";
 
 /** Windows core fonts → their metric-compatible Liberation stand-ins (lower-case file names). */
 export const FONT_ALIASES: Readonly<Record<string, string>> = {
@@ -125,7 +128,7 @@ export class FontFolder {
 
   /** Restores the remembered folder (start-up): ready when the permission persisted. */
   async restore(): Promise<void> {
-    const h = await idb<FsDir>("get");
+    const h = await idbGet<FsDir>(FOLDER_KEY);
     if (!h) return;
     this.handle = h;
     this.name = h.name;
@@ -152,7 +155,7 @@ export class FontFolder {
       return;
     }
     this.handle = h;
-    this.remembered = await idb("put", h);
+    this.remembered = await idbPut(FOLDER_KEY, h);
     await this.index(h);
   }
 
@@ -166,7 +169,7 @@ export class FontFolder {
   /** Forgets the folder (and its remembered handle). */
   async forget(): Promise<void> {
     this.handle = undefined;
-    await idb("delete");
+    await idbDelete(FOLDER_KEY);
     this.set(undefined, [], false);
   }
 
@@ -207,36 +210,5 @@ export class FontFolder {
     this.remembered = remembered;
     this.state = name === undefined ? "none" : "ready";
     this.onChange();
-  }
-}
-
-/** The remembered folder handle in IndexedDB; `false` / undefined when storage is unavailable. */
-async function idb<T>(op: "get"): Promise<T | undefined>;
-async function idb(op: "put", value: unknown): Promise<boolean>;
-async function idb(op: "delete"): Promise<boolean>;
-async function idb(op: "get" | "put" | "delete", value?: unknown): Promise<unknown> {
-  const STORE = "handles";
-  const KEY = "fonts-folder";
-  try {
-    const db = await new Promise<IDBDatabase>((ok, fail) => {
-      const r = indexedDB.open("truedxf-playground", 1);
-      r.onupgradeneeded = () => r.result.createObjectStore(STORE);
-      r.onsuccess = () => ok(r.result);
-      r.onerror = () => fail(r.error);
-    });
-    try {
-      const store = db.transaction(STORE, op === "get" ? "readonly" : "readwrite").objectStore(STORE);
-      const req = op === "get" ? store.get(KEY) : op === "put" ? store.put(value, KEY) : store.delete(KEY);
-      const result = await new Promise<unknown>((ok, fail) => {
-        req.onsuccess = () => ok(req.result);
-        req.onerror = () => fail(req.error);
-      });
-      return op === "get" ? result : true;
-    } finally {
-      db.close();
-    }
-  } catch {
-    // private mode, blocked storage, handles not cloneable: the folder lasts for this visit
-    return op === "get" ? undefined : false;
   }
 }

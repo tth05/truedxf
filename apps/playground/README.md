@@ -30,13 +30,28 @@ pnpm playground:deploy     # public build → Cloudflare Pages (see "Public site
   (`C:\…\Fonts\txt.shx`, `..\images\a.png`) do not matter, and `txt` finds `txt.shx`. The panel
   lists what the drawing still lacks (fonts, big fonts, images, shape files). Drawings opened
   with `?file=<url>` also find images next to them on the server. Nothing leaves the browser.
+- **Recent drawings** (Chromium: File System Access API, [src/recent.ts](src/recent.ts)): drawings
+  opened with the Open / folder dialog or dropped keep their file handles in IndexedDB and are
+  listed on the start page and in the Open menu; one click reopens them with the files opened
+  together with them (or their folder). The browser asks again for permission to read them.
+  Other browsers use plain file inputs and have no list.
 - **Layouts** and **Layers** (click: toggle, Alt+click: isolate, filter box) in the left panel.
+- **Search** (`Ctrl+F`, top bar): texts of the current layout, block content and attributes
+  included; Enter / Shift+Enter step through the matches, each zoomed to and outlined; matches
+  in other layouts are offered as links.
+- **Export** (download button): the view as PNG, copied to the clipboard, or printed (`Ctrl+P`,
+  dark model space on white). **Zoom** buttons (+ / − / fit) at the bottom right; `?` lists the
+  keyboard shortcuts.
 - **Resizable panels**: drag a sidebar's inner edge or the line between two panels;
   double-click a handle to reset. Sizes are kept in `localStorage` (`truedxf.layout`).
 - **Inspector**: click an entity for its type, handle, owning block, layer, colour / linetype /
   lineweight / transparency (raw → resolved) and the raw DXF tags of its record.
-- **Measure** (`M`, two clicks), **Fit** (`F` or double-click on empty space), dark / light
+- **Measure** (`M`, two clicks; snaps to end points, midpoints, centres, quadrants and points,
+  Alt held measures freely), **Fit** (`F` or double-click on empty space), dark / light
   background, lineweights on/off.
+- **Errors**: a file that is not a DXF is refused with a message (and, unless it is a DWG, a
+  "Report on GitHub" button); DWG files among the opened files are shown in red with a hint.
+  Screens narrower than 900 px hide the side panels; a one-time dialog says so.
 - **Status bar**: file, entity count, parse / render / upload times, first frame, batches and
   vertices, backend (worker or main thread), cursor world coordinates.
 - **Diagnostics panel**: viewer warnings (`viewer.warnings`, e.g. missing fonts, colours adjusted

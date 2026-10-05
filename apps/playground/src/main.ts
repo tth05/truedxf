@@ -30,6 +30,7 @@ import { droppedFiles, FilesPanel, inputFiles, isDrawing, isDwg, pickDrawing } f
 import { FontFolder, fontLoader } from "./fonts.ts";
 import { fmtBytes, fmtCoord, fmtMs, fmtNum } from "./format.ts";
 import { dropdown, type MenuItem } from "./menu.ts";
+import { droppedSource, openedAgo, type RecentEntry, RecentFiles, type RecentSource } from "./recent.ts";
 import { resizableSections, resizableSidebars } from "./resize.ts";
 import { SearchBox } from "./search.ts";
 import { watchUpdates } from "./update.ts";
@@ -103,23 +104,32 @@ function openButton(): HTMLElement {
       "button",
       {
         class: "btn primary",
-        onclick: () => fileInput.click(),
+        onclick: () => chooseFiles(),
         title: "Open a DXF with its fonts, shape files and images, or add files to the open drawing (Ctrl+O)",
       },
       icon(ICONS.open),
       h("span", { class: "label" }, "Open"),
     ),
   );
-  const items = (): MenuItem[] => [
-    { icon: ICONS.open, label: "Open files…", keys: "Ctrl+O", run: () => fileInput.click() },
-    { icon: ICONS.folder, label: "Open folder…", run: () => folderInput.click() },
-    {
-      icon: ICONS.font,
-      label: "Fonts folder…",
-      title: "A folder with your SHX / TrueType fonts, e.g. a copy of AutoCAD's Fonts folder",
-      run: () => void fontsFolder.choose(),
-    },
-  ];
+  const items = (): (MenuItem | "separator")[] => {
+    const recentItems: MenuItem[] = recent.entries.slice(0, 5).map((e) => ({
+      icon: e.folder ? ICONS.folder : ICONS.clock,
+      label: e.name,
+      title: `${e.path}, opened ${openedAgo(e.opened)}${e.folder ? " (with its folder)" : ""}`,
+      run: () => void openRecent(e),
+    }));
+    return [
+      { icon: ICONS.open, label: "Open files…", keys: "Ctrl+O", run: () => chooseFiles() },
+      { icon: ICONS.folder, label: "Open folder…", run: () => chooseFolder() },
+      {
+        icon: ICONS.font,
+        label: "Fonts folder…",
+        title: "A folder with your SHX / TrueType fonts, e.g. a copy of AutoCAD's Fonts folder",
+        run: () => void fontsFolder.choose(),
+      },
+      ...(recentItems.length ? (["separator", ...recentItems] as const) : []),
+    ];
+  };
   const menu = dropdown(
     root,
     items,
@@ -220,10 +230,13 @@ const viewerHost = h("div", { class: "viewer" });
  */
 const emptyState = document.getElementById("landing") ?? h("article", { class: "landing" });
 for (const b of emptyState.querySelectorAll<HTMLButtonElement>("[data-open]")) {
-  const input = b.dataset.open === "folder" ? folderInput : fileInput;
-  b.prepend(icon(b.dataset.open === "folder" ? ICONS.folder : ICONS.open));
-  b.addEventListener("click", () => input.click());
+  const folder = b.dataset.open === "folder";
+  b.prepend(icon(folder ? ICONS.folder : ICONS.open));
+  b.addEventListener("click", () => (folder ? chooseFolder() : chooseFiles()));
 }
+/** Recently opened drawings, below the landing card's buttons (recent.ts; Chromium only). */
+const recentList = h("div", { class: "recent", hidden: true });
+emptyState.querySelector(".empty-actions")?.after(recentList);
 const busy = h("div", { class: "busy" }, h("span", { class: "spinner" }), h("span", {}, "Loading"));
 const toast = h("div", { class: "toast" });
 const updateBar = h("div", { class: "update-bar", role: "status" });
@@ -339,6 +352,8 @@ let imageBase: ((path: string) => string) | undefined;
 /** `?fallbackFont=a.shx,b.ttf`: fonts for text whose font is missing (default: the viewer's). */
 const fallbackFont = new URLSearchParams(location.search).get("fallbackFont")?.split(",").filter(Boolean);
 const fontsFolder = new FontFolder();
+const recent = new RecentFiles();
+recent.onChange = renderRecent;
 const viewer = new DxfViewer(viewerHost, {
   background: "dark",
   mergeBatches: new URLSearchParams(location.search).get("merge") !== "0",
@@ -359,7 +374,7 @@ searchSlot.replaceWith(searchBox.root);
 filesPanel = new FilesPanel(
   viewer,
   {
-    addFiles: () => fileInput.click(),
+    addFiles: () => chooseFiles(),
     openDrawing: (f) => void openStored(f),
   },
   fontsFolder,
@@ -519,7 +534,7 @@ export async function openSource(
  * resources; a choice when there are several drawings; without a drawing, the files are added
  * to the open one.
  */
-async function openLocal(files: FileInput[]): Promise<void> {
+async function openLocal(files: FileInput[], source?: RecentSource, drawing?: string): Promise<void> {
   if (files.length === 0) return;
   const drawings = files.filter((f) => isDrawing(f.name));
   if (drawings.length === 0) {
@@ -529,13 +544,14 @@ async function openLocal(files: FileInput[]): Promise<void> {
     else if (!info) showError("No .dxf drawing among the files; they were added for the next drawing.");
     return;
   }
-  if (drawings.length === 1) {
+  if (drawings.length === 1 || drawing !== undefined) {
     const previous = filesPanel.current;
     beginOpen(undefined);
     filesPanel.current = undefined;
     try {
-      const r = await viewer.openFiles(files);
+      const r = await viewer.openFiles(files, drawing !== undefined ? { drawing } : {});
       filesPanel.current = r.opened?.path;
+      if (source && r.opened) void recent.remember(source, r.opened);
     } catch {
       // reported through the error event; the open drawing stays (e.g. not a DXF)
       filesPanel.current = previous;
@@ -545,22 +561,94 @@ async function openLocal(files: FileInput[]): Promise<void> {
   }
   const { drawings: added } = await viewer.openFiles(files, { drawing: false });
   const chosen = await pickDrawing(stage, added);
-  if (chosen) await openStored(chosen);
+  if (chosen && (await openStored(chosen)) && source) void recent.remember(source, chosen);
 }
 
-/** Opens a drawing that is among the viewer's files. */
-async function openStored(f: ViewerFile): Promise<void> {
+/** Opens a drawing that is among the viewer's files; false when it could not be opened. */
+async function openStored(f: ViewerFile): Promise<boolean> {
   const previous = filesPanel.current;
   beginOpen(undefined);
   filesPanel.current = f.path;
   filesPanel.render();
   try {
     await viewer.openDrawing(f.path);
+    return true;
   } catch {
     // reported through the error event; the open drawing stays (e.g. not a DXF)
     filesPanel.current = previous;
     filesPanel.render();
+    return false;
   }
+}
+
+/**
+ * The Open dialog. Where the browser has file handles the drawing is remembered for the recent
+ * list (recent.ts); elsewhere it is the plain file input.
+ */
+function chooseFiles(): void {
+  if (!recent.supported) {
+    fileInput.click();
+    return;
+  }
+  void recent.pickFiles().then((r) => r && openLocal(r.files, r.source));
+}
+
+function chooseFolder(): void {
+  if (!recent.supported) {
+    folderInput.click();
+    return;
+  }
+  void recent.pickFolder().then((r) => r && openLocal(r.files, r.source));
+}
+
+/** Reopens a recent drawing (a click: the browser may ask for permission to read it again). */
+async function openRecent(e: RecentEntry): Promise<void> {
+  let r: Awaited<ReturnType<RecentFiles["reopen"]>>;
+  try {
+    r = await recent.reopen(e);
+  } catch {
+    await recent.remove(e);
+    showError(`${e.name} is no longer where it was opened from and was removed from the list.`);
+    return;
+  }
+  if (!r) {
+    showError(`${e.name}: the browser did not allow reading it.`);
+    return;
+  }
+  await openLocal(r.files, e.folder ? { folder: e.folder } : { files: e.files ?? [] }, r.drawing);
+}
+
+function renderRecent(): void {
+  const items = recent.entries.slice(0, 5);
+  recentList.hidden = items.length === 0;
+  mount(
+    recentList,
+    h("div", { class: "recent-head" }, "Recent drawings"),
+    items.map((e) => {
+      const remove = h(
+        "button",
+        { class: "recent-remove", title: "Remove from the list", type: "button" },
+        icon(ICONS.close),
+      );
+      remove.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        void recent.remove(e);
+      });
+      return h(
+        "button",
+        {
+          class: "recent-item",
+          type: "button",
+          title: `${e.path}${e.folder ? " (opened with its folder)" : ""}`,
+          onclick: () => void openRecent(e),
+        },
+        icon(e.folder ? ICONS.folder : ICONS.file),
+        h("span", { class: "recent-name" }, e.name),
+        h("span", { class: "recent-meta" }, openedAgo(e.opened)),
+        remove,
+      );
+    }),
+  );
 }
 
 /**
@@ -646,7 +734,7 @@ window.addEventListener("keydown", (ev) => {
   const mod = ev.ctrlKey || ev.metaKey;
   if (mod && !ev.altKey && (ev.key === "o" || ev.key === "O")) {
     ev.preventDefault();
-    fileInput.click();
+    chooseFiles();
     return;
   }
   // Ctrl+F searches the drawing's texts (the browser's find sees only the page around it)
@@ -749,7 +837,11 @@ window.addEventListener("drop", (ev) => {
   stage.classList.remove("dragging");
   if (!ev.dataTransfer) return;
   // read the items now: they are only accessible during the event
-  void droppedFiles(ev.dataTransfer).then(openLocal, (e) => showError(String(e)));
+  const source = droppedSource(ev.dataTransfer);
+  void droppedFiles(ev.dataTransfer).then(
+    async (files) => openLocal(files, await source),
+    (e) => showError(String(e)),
+  );
 });
 
 // ---- panels ------------------------------------------------------------------------------------
@@ -1262,6 +1354,7 @@ if (initial) void openSource(initial);
 if (__SAMPLES__) void initModes();
 updateReportLink();
 void fontsFolder.restore();
+void recent.restore();
 smallScreenNotice();
 
 export { viewer };

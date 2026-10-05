@@ -1395,6 +1395,77 @@ body > .landing {
   color: var(--muted);
 }
 
+/* ---- recent drawings (recent.ts), on the landing card ---- */
+.recent {
+  margin: 18px auto 0;
+  max-width: 380px;
+  text-align: left;
+}
+.recent-head {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  padding: 0 8px 4px;
+}
+.recent-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+}
+.recent-item:hover {
+  background: var(--panel-2);
+}
+.recent-item svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  color: var(--muted);
+}
+.recent-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.recent-meta {
+  color: var(--faint);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.recent-remove {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--faint);
+  cursor: pointer;
+  visibility: hidden;
+}
+.recent-item:hover .recent-remove {
+  visibility: visible;
+}
+.recent-remove:hover {
+  color: var(--danger);
+  background: var(--panel);
+}
+.recent-remove svg {
+  width: 13px;
+  height: 13px;
+}
+
 /* ---- files ---- */
 .empty-actions {
   display: flex;

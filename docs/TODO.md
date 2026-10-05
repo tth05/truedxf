@@ -310,7 +310,8 @@ default, FILLMODE for pattern hatches, extents edge tolerance.
       subset the CJK fonts; SHX-looking fallback for missing SHX fonts (today they fall back to
       Liberation Sans).
 - [ ] Public site: long-tail pages (e.g. "open DXF without AutoCAD", DXF → PNG / PDF export once
-      plotting to a file exists in the viewer); a small licence-clean demo drawing to try.
+      plotting to a file exists in the viewer). Sample drawing done (2026-10-05):
+      `tools/gen/showcase.py` → `apps/playground/public/samples/`, "Try the sample drawing".
 - [x] Public site (2026-10-05): real 404 page, "new version" notice (version.json), non-DXF /
       DWG messages with a report button, zoom buttons, export (PNG, clipboard, print), keyboard
       shortcuts dialog, recent drawings (file handles, Chromium), PDF.js support files,

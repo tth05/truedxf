@@ -71,6 +71,7 @@ export const ICONS = {
   caret: P('<path d="M6 9l6 6 6-6"/>'),
   close: P('<path d="M6 6l12 12M18 6L6 18"/>'),
   plus: P('<path d="M12 5v14M5 12h14"/>'),
+  house: P('<path d="M3 11l9-7 9 7"/><path d="M5 9.5V20h14V9.5"/><path d="M10 20v-6h4v6"/>'),
   minus: P('<path d="M5 12h14"/>'),
   download: P('<path d="M12 4v11M7 10l5 5 5-5"/><path d="M5 19h14"/>'),
   image: P(

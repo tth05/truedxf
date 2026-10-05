@@ -1,7 +1,15 @@
 # @truedxf/model
 
 A typed, read-only DXF document model whose entities, table entries and objects are views over
-the lossless tag store of [@truedxf/core](../core/README.md).
+the lossless tag store of [@truedxf/core](https://github.com/tth05/truedxf/tree/master/packages/core).
+
+## Install
+
+```bash
+pnpm add @truedxf/model
+```
+
+ESM only. No DOM and no Node.js APIs: runs in browsers, workers and Node.
 
 ## What it does
 
@@ -49,22 +57,26 @@ for (const d of doc.diagnostics.items) console.warn(d.code, d.message);
 
 ## Status
 
-- Not published to npm yet (version 0.0.0); consumed from source inside the workspace.
 - Read-only by design: truedxf reads and views DXF, it does not write or edit it. Parsers are
   hand-written.
 - 182 corpus entities of 14 custom classes (KS_*, LIGHT, 3DLINE, REPEAT/ENDREP, ...) stay
   UNKNOWN. ACAD_TABLE cell content and MESH override data are not decoded.
-- Against ezdxf over the local corpus: 99.77 % attribute agreement over 50.8 M compared
-  attributes, residuals classified (PLAN.md). Loading runs at ~53 MB/s (docs/TODO.md).
+- Against ezdxf over the project's real-world corpus: 99.77 % attribute agreement over 50.8 M compared
+  attributes, residuals classified. Loading runs at ~53 MB/s.
 - Some resolution rules are not confirmed in AutoCAD (ATTRIB parent, frozen vs. off INSERT
   layers; marked UNVERIFIED with question ids in `resolve.ts`).
 
 ## See also
 
-- [01-file-format](../../research/notes/01-file-format.md),
-  [02-tables-objects](../../research/notes/02-tables-objects.md),
-  [03-entities-geometry](../../research/notes/03-entities-geometry.md),
-  [05-dimensions-leaders](../../research/notes/05-dimensions-leaders.md),
-  [06-hatch-linetype-appearance](../../research/notes/06-hatch-linetype-appearance.md) (property
-  resolution), [07-blocks-inserts-misc](../../research/notes/07-blocks-inserts-misc.md)
-- [@truedxf/geometry](../geometry/README.md) takes model points (`{ x, y, z }`) directly
+- [01-file-format](https://github.com/tth05/truedxf/blob/master/research/notes/01-file-format.md),
+  [02-tables-objects](https://github.com/tth05/truedxf/blob/master/research/notes/02-tables-objects.md),
+  [03-entities-geometry](https://github.com/tth05/truedxf/blob/master/research/notes/03-entities-geometry.md),
+  [05-dimensions-leaders](https://github.com/tth05/truedxf/blob/master/research/notes/05-dimensions-leaders.md),
+  [06-hatch-linetype-appearance](https://github.com/tth05/truedxf/blob/master/research/notes/06-hatch-linetype-appearance.md) (property
+  resolution), [07-blocks-inserts-misc](https://github.com/tth05/truedxf/blob/master/research/notes/07-blocks-inserts-misc.md)
+- [@truedxf/geometry](https://github.com/tth05/truedxf/tree/master/packages/geometry) takes model points (`{ x, y, z }`) directly
+
+## License
+
+MIT. AutoCAD and DXF are trademarks of Autodesk, Inc.; truedxf is not affiliated with or
+endorsed by Autodesk.

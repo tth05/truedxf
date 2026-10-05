@@ -237,13 +237,13 @@ importers:
   packages/model:
     dependencies:
       '@truedxf/core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../core
 
   packages/pdf:
     dependencies:
       '@truedxf/render':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../render
       pdfjs-dist:
         specifier: ~6.3.289
@@ -264,19 +264,19 @@ importers:
   packages/render:
     dependencies:
       '@truedxf/core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../core
       '@truedxf/fonts':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../fonts
       '@truedxf/geometry':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../geometry
       '@truedxf/model':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../model
       '@truedxf/text':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../text
       earcut:
         specifier: ^3.2.4
@@ -332,13 +332,13 @@ importers:
   packages/text:
     dependencies:
       '@truedxf/core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../core
       '@truedxf/fonts':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../fonts
       '@truedxf/geometry':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../geometry
     devDependencies:
       '@truedxf/model':
@@ -348,7 +348,7 @@ importers:
   packages/three:
     dependencies:
       '@truedxf/render':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../render
     devDependencies:
       '@types/three':
@@ -361,22 +361,22 @@ importers:
   packages/viewer:
     dependencies:
       '@truedxf/core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../core
       '@truedxf/model':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../model
       '@truedxf/pdf':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../pdf
       '@truedxf/render':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../render
       '@truedxf/text':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../text
       '@truedxf/three':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../three
       flatbush:
         specifier: ^4.6.2

@@ -2,6 +2,14 @@
 
 three.js (WebGL) renderer for the display lists that `@truedxf/render` produces.
 
+## Install
+
+```bash
+pnpm add @truedxf/three three
+```
+
+ESM only. `three` (>= 0.170) is a peer dependency.
+
 ## What it does
 
 `DisplayListRenderer` owns a `THREE.WebGLRenderer`, a `Scene` and an `OrthographicCamera`.
@@ -21,7 +29,7 @@ three.js (WebGL) renderer for the display lists that `@truedxf/render` produces.
   triangle fans with `InvertStencilOp`, which gives even-odd coverage for any polygon.
 - Transparency: with `exactBlend` (default `true`) a batch with alpha < 255 copies the frame
   below it to a texture and blends in a shader with AutoCAD's integer plot formula
-  `(src·a + dst·(256 − a)) >> 8` (research/notes/06 §4.2). `exactBlend: false` uses ordinary
+  `(src·a + dst·(256 − a)) >> 8` ([note 06](https://github.com/tth05/truedxf/blob/master/research/notes/06-hatch-linetype-appearance.md) §4.2). `exactBlend: false` uses ordinary
   alpha blending.
 - `overlay` and `underlay` groups take host content in world coordinates, drawn above or below the
   drawing. The viewer puts selection highlights and the paper sheet there.
@@ -47,9 +55,6 @@ three.js (WebGL) renderer for the display lists that `@truedxf/render` produces.
 
 ## Usage
 
-`three` (>= 0.170) is a peer dependency. Not on npm yet (version 0.0.0): use it from source in
-this workspace (`"@truedxf/three": "workspace:*"`).
-
 ```ts
 import { loadDxf } from "@truedxf/model";
 import { renderPlot } from "@truedxf/render";
@@ -70,7 +75,7 @@ Call `clear()` before dropping a list and `dispose()` when done.
 
 ## Limitations
 
-- WebGL only; the WebGPU trial (docs/PLAN.md Phase 7) has not started.
+- WebGL only; a WebGPU renderer has not been tried yet.
 - No instancing: block references arrive flattened. The original path draws each batch
   separately; merging reduces opaque draw calls but does not merge alpha/image batches.
 - Changing from per-batch origins to a common clip-run origin changes float32 rounding: aliased
@@ -81,6 +86,10 @@ Call `clear()` before dropping a list and `dispose()` when done.
 
 ## See also
 
-- [docs/PLAN.md](../../docs/PLAN.md) §4.2a (display list) and §4.2b (three.js rules)
-- [@truedxf/viewer](../viewer/README.md): interactive use of this renderer
-- [@truedxf/testkit](../testkit/README.md): pixel comparison against AutoCAD plots
+- [@truedxf/viewer](https://github.com/tth05/truedxf/tree/master/packages/viewer): interactive use of this renderer
+- [@truedxf/testkit](https://github.com/tth05/truedxf/tree/master/packages/testkit): pixel comparison against AutoCAD plots
+
+## License
+
+MIT. AutoCAD and DXF are trademarks of Autodesk, Inc.; truedxf is not affiliated with or
+endorsed by Autodesk.

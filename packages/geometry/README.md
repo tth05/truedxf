@@ -3,6 +3,14 @@
 The float64 geometry kernel of truedxf: curves, OCS, flattening, stroking, dashing, hatch
 patterns and polygon clipping, with no dependency on the DXF model.
 
+## Install
+
+```bash
+pnpm add @truedxf/geometry
+```
+
+ESM only. No DOM and no Node.js APIs: runs in browsers, workers and Node.
+
 ## What it does
 
 - Vectors as plain `{ x, y }` / `{ x, y, z }` objects (`Vec2`, `Vec3`, `add3`, `cross3`, ...), so
@@ -54,19 +62,23 @@ console.log(triangles.length / 6, "triangles,", dashed.dashes.length, "dashes");
 
 ## Status
 
-- Not published to npm yet (version 0.0.0); consumed from source inside the workspace.
 - AutoCAD's own plot tessellation is not reproduced here; the raster-plot rules live in
-  `@truedxf/render` (`raster.ts`), and the SPLINE plot rule is still open (docs/TODO.md).
+  `@truedxf/render` (`raster.ts`), and the SPLINE plot rule is still open ([docs/TODO.md](https://github.com/tth05/truedxf/blob/master/docs/TODO.md)).
 - Unknown in AutoCAD, implemented as a best guess: closed (periodic) fit-point splines are
   treated as open, fit tolerance > 0 is treated as interpolation (Q-0177), the wide-polyline
   miter limit between 7.2° and 30°, and the diamond cap/join shapes.
 - `autocadCandidateFit` is the UNVERIFIED dash-fitting hypothesis of note 06 §2.6; dashed wide
-  polylines still drift in phase (docs/TODO.md).
+  polylines still drift in phase ([docs/TODO.md](https://github.com/tth05/truedxf/blob/master/docs/TODO.md)).
 
 ## See also
 
-- [03-entities-geometry](../../research/notes/03-entities-geometry.md): OCS, curves, SPLINE math,
+- [03-entities-geometry](https://github.com/tth05/truedxf/blob/master/research/notes/03-entities-geometry.md): OCS, curves, SPLINE math,
   wide polylines, tessellation
-- [06-hatch-linetype-appearance](../../research/notes/06-hatch-linetype-appearance.md): hatch
+- [06-hatch-linetype-appearance](https://github.com/tth05/truedxf/blob/master/research/notes/06-hatch-linetype-appearance.md): hatch
   loops and patterns, linetype fitting, lineweights
-- [@truedxf/model](../model/README.md) for the entity data these functions consume
+- [@truedxf/model](https://github.com/tth05/truedxf/tree/master/packages/model) for the entity data these functions consume
+
+## License
+
+MIT. AutoCAD and DXF are trademarks of Autodesk, Inc.; truedxf is not affiliated with or
+endorsed by Autodesk.

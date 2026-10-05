@@ -48,6 +48,10 @@ try {
     ])
       if (!list.includes(need)) errors.push(`${m.name}: ${need} missing from the tarball`);
     if (list.some((f) => /\/test\/|\.test\./.test(f))) errors.push(`${m.name}: tests in the tarball`);
+    // no fonts, drawings, plot configs or other data files (AGENTS.md: never ship Autodesk files)
+    for (const f of list)
+      if (/\.(shx|shp|ttf|ttc|otf|pat|lin|ctb|stb|pc3|pmp|fmp|dwg|dxf|pdf|png|jpe?g)$/i.test(f))
+        errors.push(`${m.name}: data file ${f} in the tarball`);
     const extracted = join(work, `x-${pkg}`);
     mkdirSync(extracted);
     sh(

@@ -2,6 +2,14 @@
 
 The DXF tag layer: turns ASCII or binary DXF bytes into a lossless, lazily decoded tag store.
 
+## Install
+
+```bash
+pnpm add @truedxf/core
+```
+
+ESM only. No DOM and no Node.js APIs: runs in browsers, workers and Node.
+
 ## What it does
 
 - `tokenize(bytes)` splits ASCII DXF (CRLF, LF or lone CR line ends, UTF-8 BOM, padded group
@@ -43,13 +51,17 @@ for (const d of diagnostics.items) console.warn(d.severity, d.code, d.message);
 
 ## Status
 
-- Not published to npm yet (version 0.0.0); consumed from source inside the workspace.
-- The whole local corpus tokenizes without exceptions (`pnpm corpus:tags`). PLAN.md records
-  ~140 MB/s tokenizing.
+- Every file of the project's real-world test corpus tokenizes without exceptions, at about
+  140 MB/s.
 - Input is one complete `Uint8Array`; there is no chunked or `ReadableStream` tokenizer.
 
 ## See also
 
-- [research/notes/01-file-format.md](../../research/notes/01-file-format.md): group codes,
+- [research/notes/01-file-format.md](https://github.com/tth05/truedxf/blob/master/research/notes/01-file-format.md): group codes,
   binary DXF, encodings, tolerant parsing
-- [@truedxf/model](../model/README.md): the typed document built on this store
+- [@truedxf/model](https://github.com/tth05/truedxf/tree/master/packages/model): the typed document built on this store
+
+## License
+
+MIT. AutoCAD and DXF are trademarks of Autodesk, Inc.; truedxf is not affiliated with or
+endorsed by Autodesk.

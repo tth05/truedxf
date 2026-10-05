@@ -2,6 +2,14 @@
 
 The rendering frontend: walks a model-space or paper-space layout of a `DxfDocument` and emits a renderer-agnostic display list, emulating AutoCAD 2027's raster plot.
 
+## Install
+
+```bash
+pnpm add @truedxf/render
+```
+
+ESM only. No DOM and no Node.js APIs: runs in browsers, workers and Node.
+
 ## What it does
 
 - `renderPlot(doc, request, env)` returns `PlotResult { displayList, view, unsupported, notes? }`.
@@ -51,7 +59,7 @@ console.log(displayList.batches.length, view, unsupported, notes);
 
 For a paper-space layout pass its name and `area: { type: "layout" }` (or a `window` in paper
 units). Viewers pass `raster: "smooth"`, `visibility: "display"` and `layerVisibility`, as
-[viewer/src/protocol.ts](../viewer/src/protocol.ts) does.
+[viewer/src/protocol.ts](https://github.com/tth05/truedxf/blob/master/packages/viewer/src/protocol.ts) does.
 
 ## Limitations
 
@@ -63,16 +71,21 @@ units). Viewers pass `raster: "smooth"`, `visibility: "display"` and `layerVisib
   perspective viewports.
 - Open features: wide polylines with linetypes, some
   MULTILEADER variants, XCLIP of ATTRIBs. Raster gaps: exact-pixel ties, spline tessellation, hatch
-  islands, clipped huge arcs (docs/TODO.md).
-- Scoreboard (docs/PLAN.md, 2026-10-01): 3 279 of 3 583 reference cases at F1(r=1) ≥ 0.99, 924
-  pixel-exact. Not published to npm yet (version 0.0.0); consumed from source in the workspace.
+  islands, clipped huge arcs ([docs/TODO.md](https://github.com/tth05/truedxf/blob/master/docs/TODO.md)).
+- Scoreboard ([project README](https://github.com/tth05/truedxf#scoreboard), 2026-10-01): 3 279 of 3 583 reference cases at F1(r=1) ≥ 0.99, 924
+  pixel-exact.
 
 ## See also
 
-- Notes: [03](../../research/notes/03-entities-geometry.md) geometry,
-  [05](../../research/notes/05-dimensions-leaders.md) dimensions,
-  [06](../../research/notes/06-hatch-linetype-appearance.md) hatch, linetypes, colours,
-  [07](../../research/notes/07-blocks-inserts-misc.md) blocks, images, proxies,
-  [08](../../research/notes/08-layouts-viewports-plotting.md) layouts and plotting (§10 raster rules)
-- [@truedxf/three](../three) (`DisplayListRenderer`), [@truedxf/viewer](../viewer),
-  [@truedxf/testkit](../testkit) (CPU rasterizer and scorer), [@truedxf/text](../text)
+- Notes: [03](https://github.com/tth05/truedxf/blob/master/research/notes/03-entities-geometry.md) geometry,
+  [05](https://github.com/tth05/truedxf/blob/master/research/notes/05-dimensions-leaders.md) dimensions,
+  [06](https://github.com/tth05/truedxf/blob/master/research/notes/06-hatch-linetype-appearance.md) hatch, linetypes, colours,
+  [07](https://github.com/tth05/truedxf/blob/master/research/notes/07-blocks-inserts-misc.md) blocks, images, proxies,
+  [08](https://github.com/tth05/truedxf/blob/master/research/notes/08-layouts-viewports-plotting.md) layouts and plotting (§10 raster rules)
+- [@truedxf/three](https://github.com/tth05/truedxf/tree/master/packages/three) (`DisplayListRenderer`), [@truedxf/viewer](https://github.com/tth05/truedxf/tree/master/packages/viewer),
+  [@truedxf/testkit](https://github.com/tth05/truedxf/tree/master/packages/testkit) (CPU rasterizer and scorer), [@truedxf/text](https://github.com/tth05/truedxf/tree/master/packages/text)
+
+## License
+
+MIT. AutoCAD and DXF are trademarks of Autodesk, Inc.; truedxf is not affiliated with or
+endorsed by Autodesk.

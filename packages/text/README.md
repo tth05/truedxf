@@ -2,6 +2,14 @@
 
 TEXT, ATTRIB/ATTDEF and MTEXT parsing and layout, measured against AutoCAD 2027 plots and DXFOUT values.
 
+## Install
+
+```bash
+pnpm add @truedxf/text
+```
+
+ESM only. No DOM and no Node.js APIs: runs in browsers, workers and Node.
+
 ## What it does
 
 - `layoutText` (TEXT, ATTRIB, ATTDEF) and `layoutMText` (MTEXT, multi-line attributes, dimension
@@ -24,7 +32,7 @@ TEXT, ATTRIB/ATTDEF and MTEXT parsing and layout, measured against AutoCAD 2027 
 
 Input types (`TextStyleSpec`, `MTextInput`) are structurally compatible with @truedxf/model's
 `TextStyleEntry` and `MTextEntity`, so model objects can be passed directly; `TextInput` needs a
-small mapping from `TextEntity` (see `singleLine` in [render/src/text.ts](../render/src/text.ts)).
+small mapping from `TextEntity` (see `singleLine` in [render/src/text.ts](https://github.com/tth05/truedxf/blob/master/packages/render/src/text.ts)).
 
 ## Usage
 
@@ -33,9 +41,9 @@ import { readFile } from "node:fs/promises";
 import { FontManager, MemoryFontProvider } from "@truedxf/fonts";
 import { layoutText, TextFonts } from "@truedxf/text";
 
-const shx = new Uint8Array(await readFile("packages/fonts/assets/truedxf-test.shx"));
-const manager = new FontManager(new MemoryFontProvider({ "truedxf-test.shx": shx }), { fontAlt: "truedxf-test.shx" });
-const style = { name: "Standard", font: "truedxf-test.shx", bigFont: "", widthFactor: 1, oblique: 0,
+const shx = new Uint8Array(await readFile("fonts/romans.shx")); // any SHX or TrueType file
+const manager = new FontManager(new MemoryFontProvider({ "romans.shx": shx }), { fontAlt: "romans.shx" });
+const style = { name: "Standard", font: "romans.shx", bigFont: "", widthFactor: 1, oblique: 0,
   generationFlags: 0, fixedHeight: 0, vertical: false };
 const fonts = new TextFonts(manager, [style]);
 await fonts.prepare(); // pass inline fonts (inlineFonts(mtextContent)) for MTEXT
@@ -51,20 +59,24 @@ for (const g of layout.glyphs) console.log(g.glyph.code, g.matrix); // font unit
 
 ## Status
 
-- Scoreboard (docs/PLAN.md, 2026-10-01): F1(r=1) ≥ 0.99 for 278/294 `text`, 209/250 `mtext`,
+- Scoreboard ([project README](https://github.com/tth05/truedxf#scoreboard), 2026-10-01): F1(r=1) ≥ 0.99 for 278/294 `text`, 209/250 `mtext`,
   64/65 `attribs` and 21/23 `text-lato` cases, but only 15 `text` and 1 `mtext` pixel-exact.
 - TrueType glyph rasterization and some positions are the largest remaining gap: text after tabs,
-  wrapped `\L` paragraphs, column MTEXT with a centred attachment (docs/TODO.md).
+  wrapped `\L` paragraphs, column MTEXT with a centred attachment ([docs/TODO.md](https://github.com/tth05/truedxf/blob/master/docs/TODO.md)).
 - Open or not exact: explicit `\pt` tab stops, TrueType stack geometry, `\A1`/`\A2` against
   stacks, synthetic italic, complex scripts (Arabic/Thai shaping, bidi), kerning (none).
 - Several rules come from single samples or are UNVERIFIED (MTEXT decoration offsets, oblique
   order, mixed-height line pitch); the source comments say which.
-- Not published to npm yet (version 0.0.0); consumed from source in the workspace.
 
-`node packages/text/scripts/oracle.ts [--suite text|mtext|attribs]` compares the layout with
+In the repository, `node packages/text/scripts/oracle.ts [--suite text|mtext|attribs]` compares the layout with
 AutoCAD's DXFOUT values (needs the local references in `samples/`).
 
 ## See also
 
-- [research/notes/04-text-fonts.md](../../research/notes/04-text-fonts.md) (§1 TEXT, §3 MTEXT, §11 plot findings)
-- [@truedxf/fonts](../fonts), [@truedxf/render](../render) (`prepareTextFonts`, drawing a `TextLayout`)
+- [research/notes/04-text-fonts.md](https://github.com/tth05/truedxf/blob/master/research/notes/04-text-fonts.md) (§1 TEXT, §3 MTEXT, §11 plot findings)
+- [@truedxf/fonts](https://github.com/tth05/truedxf/tree/master/packages/fonts), [@truedxf/render](https://github.com/tth05/truedxf/tree/master/packages/render) (`prepareTextFonts`, drawing a `TextLayout`)
+
+## License
+
+MIT. AutoCAD and DXF are trademarks of Autodesk, Inc.; truedxf is not affiliated with or
+endorsed by Autodesk.

@@ -1,7 +1,15 @@
 # @truedxf/viewer
 
 Embeddable, framework-free DXF viewer on top of `@truedxf/model`, `@truedxf/render` and
-`@truedxf/three` (docs/PLAN.md Phase 7).
+`@truedxf/three`.
+
+## Install
+
+```bash
+pnpm add @truedxf/viewer three
+```
+
+ESM only, for browsers. `three` (>= 0.170) is a peer dependency.
 
 ## Usage
 
@@ -20,9 +28,6 @@ await viewer.setLayout("Layout1");
 viewer.setLayerVisible("WALLS", false);
 const info = await viewer.inspect(handle); // type, raw/resolved properties, raw DXF tags
 ```
-
-Not on npm yet (version 0.0.0); consumed from source in the workspace. `three` is a peer
-dependency.
 
 ## Embedding
 
@@ -208,8 +213,10 @@ viewer.findFile("C:\\any\\dir\\TXT.SHX", "font");     // which stored file a nam
   after the family (`My Font` → `MyFont.ttf` / `myfont.ttf`) or is a known family file
   (`arial.ttf`, …); stored files' name tables are not scanned.
 - XREF drawings are not loaded, though the store already holds `.dxf` files (kind `drawing`).
-- The default worker is `new Worker(new URL("./worker.ts", import.meta.url))`, which bundlers such
-  as Vite resolve only when the package is consumed from source. Otherwise pass
-  `worker: () => new Worker(...)` pointing at your build of `@truedxf/viewer/worker`.
 - No view culling: every list tessellates the whole drawing, so a LOD step costs about as much as
   the first render.
+
+## License
+
+MIT. AutoCAD and DXF are trademarks of Autodesk, Inc.; truedxf is not affiliated with or
+endorsed by Autodesk.

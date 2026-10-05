@@ -4,6 +4,14 @@ PDF underlay content for `@truedxf/render`, rendered by [PDF.js](https://mozilla
 (`pdfjs-dist`, Apache-2.0). truedxf never parses or draws PDF itself: PDF.js renders the page and
 the renderer places the pixels like an IMAGE.
 
+## Install
+
+```bash
+pnpm add @truedxf/pdf
+```
+
+ESM only. Brings `pdfjs-dist` along as a dependency.
+
 ```ts
 import { createPdfRasterizer } from "@truedxf/pdf";
 import { renderPlot } from "@truedxf/render";
@@ -34,7 +42,7 @@ const result = await renderPlot(doc, request, { loadImage, pdf });
   skipped.
 
 Contrast, fade, monochrome and the clip boundary are applied by the renderer, with the formulas
-fitted to AutoCAD's plots (research/notes/07-blocks-inserts-misc.md §10.3).
+fitted to AutoCAD's plots ([note 07](https://github.com/tth05/truedxf/blob/master/research/notes/07-blocks-inserts-misc.md) §10.3).
 
 ## Limitations
 
@@ -44,3 +52,8 @@ fitted to AutoCAD's plots (research/notes/07-blocks-inserts-misc.md §10.3).
   neither (Q-0746).
 - No per-underlay PDF layer (OCG) states: the PDF's default layer visibility is used.
 - Encrypted PDFs (with a password) are reported as missing (`pdf-missing`).
+
+## License
+
+MIT. AutoCAD and DXF are trademarks of Autodesk, Inc.; truedxf is not affiliated with or
+endorsed by Autodesk.

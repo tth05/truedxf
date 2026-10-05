@@ -46,7 +46,7 @@
     "src"
   ],
   "dependencies": {
-    "@truedxf/render": "workspace:*",
+    "@truedxf/render": "workspace:^",
     "pdfjs-dist": "~6.3.289"
   }
 }

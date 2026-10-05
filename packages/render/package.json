@@ -42,11 +42,11 @@
     "src"
   ],
   "dependencies": {
-    "@truedxf/core": "workspace:*",
-    "@truedxf/fonts": "workspace:*",
-    "@truedxf/geometry": "workspace:*",
-    "@truedxf/model": "workspace:*",
-    "@truedxf/text": "workspace:*",
+    "@truedxf/core": "workspace:^",
+    "@truedxf/fonts": "workspace:^",
+    "@truedxf/geometry": "workspace:^",
+    "@truedxf/model": "workspace:^",
+    "@truedxf/text": "workspace:^",
     "earcut": "^3.2.4",
     "fast-png": "^8.0.0",
     "jpeg-js": "^0.4.4",

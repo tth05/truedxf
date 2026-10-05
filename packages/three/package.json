@@ -42,7 +42,7 @@
     "src"
   ],
   "dependencies": {
-    "@truedxf/render": "workspace:*"
+    "@truedxf/render": "workspace:^"
   },
   "peerDependencies": {
     "three": ">=0.170.0"

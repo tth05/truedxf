@@ -39,6 +39,6 @@
     "src"
   ],
   "dependencies": {
-    "@truedxf/core": "workspace:*"
+    "@truedxf/core": "workspace:^"
   }
 }

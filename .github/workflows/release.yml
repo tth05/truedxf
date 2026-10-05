@@ -1,0 +1,93 @@
+name: Release
+
+# Bumps, tags and publishes @truedxf/* packages to npm (docs/RELEASING.md). Run it from the
+# Actions tab ("Run workflow") on master. Publishing uses npm trusted publishing (OIDC, with
+# provenance); an NPM_TOKEN secret is only needed for packages that are not on npm yet.
+
+on:
+  workflow_dispatch:
+    inputs:
+      packages:
+        description: '"all", or package names separated by spaces or commas (core, model, viewer, ...)'
+        required: true
+        default: all
+      bump:
+        description: Version bump per package ("none" publishes the current versions that are not on npm yet)
+        type: choice
+        options: [patch, minor, major, none]
+        default: patch
+      version:
+        description: Exact version for every selected package instead of the bump (e.g. 0.1.0)
+        required: false
+        default: ""
+      dry-run:
+        description: Dry run (build, check and pack only; no commit, tags or publish)
+        type: boolean
+        default: true
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write # push the release commit and tags
+  id-token: write # npm trusted publishing (OIDC) and provenance
+
+jobs:
+  release:
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      # no registry-url: setup-node's .npmrc would get in the way of pnpm's OIDC token exchange
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test
+
+      - name: Set versions
+        id: plan
+        env:
+          TARGET: ${{ inputs.version || inputs.bump }}
+          PACKAGES: ${{ inputs.packages }}
+        run: node scripts/set-version.ts "$TARGET" "$PACKAGES" --github-output
+
+      - run: pnpm build && pnpm packages:check
+
+      - name: Commit and tag
+        if: ${{ !inputs.dry-run && steps.plan.outputs.tags != '' }}
+        env:
+          TAGS: ${{ steps.plan.outputs.tags }}
+          SUMMARY: ${{ steps.plan.outputs.summary }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "Release $SUMMARY"
+          for tag in $TAGS; do git tag "$tag"; done
+          # atomic: if master moved since the checkout, nothing is pushed and nothing published
+          git push --atomic origin HEAD:master $TAGS
+
+      - name: Publish
+        env:
+          FILTERS: ${{ steps.plan.outputs.filters }}
+          DRY_RUN: ${{ inputs.dry-run && '--dry-run' || '' }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -n "$NPM_TOKEN" ]; then
+            echo "//registry.npmjs.org/:_authToken=\${NPM_TOKEN}" >> ~/.npmrc
+          fi
+          # skips versions that are already on npm, so a failed run can be repeated with bump "none"
+          pnpm -r $FILTERS publish --access public --no-git-checks $DRY_RUN
+
+      - name: Summary
+        env:
+          SUMMARY: ${{ steps.plan.outputs.summary }}
+          DRY_RUN: ${{ inputs.dry-run }}
+        run: |
+          if [ "$DRY_RUN" = "true" ]; then echo "Dry run: $SUMMARY" >> "$GITHUB_STEP_SUMMARY"
+          else echo "Released: $SUMMARY" >> "$GITHUB_STEP_SUMMARY"; fi

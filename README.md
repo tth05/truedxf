@@ -4,7 +4,7 @@ truedxf is a TypeScript DXF library that tries to be fast and to draw drawings e
 AutoCAD plots them. Try the viewer at **<https://truedxf.pages.dev>**: files are opened in your
 browser and never uploaded.
 
-![The same drawing plotted by AutoCAD 2027 and rendered by truedxf, with the pixel difference](docs/images/compare.png)
+![The truedxf viewer with the sample house plan open and a door selected in the inspector](docs/images/sample.png)
 
 - **AutoCAD is the reference.** Over 3 500 generated test drawings are plotted by AutoCAD 2027
   and compared with truedxf's output pixel by pixel. When AutoCAD and the DXF reference disagree,

@@ -25,9 +25,11 @@ import {
 import { ComparePanel } from "./compare.ts";
 import { openDialog } from "./dialog.ts";
 import { h, ICONS, icon, mount } from "./dom.ts";
+import { canCopyImage, copyPng, printView, savePng } from "./export.ts";
 import { droppedFiles, FilesPanel, inputFiles, isDrawing, isDwg, pickDrawing } from "./files.ts";
 import { FontFolder, fontLoader } from "./fonts.ts";
 import { fmtBytes, fmtCoord, fmtMs, fmtNum } from "./format.ts";
+import { dropdown, type MenuItem } from "./menu.ts";
 import { resizableSections, resizableSidebars } from "./resize.ts";
 import { watchUpdates } from "./update.ts";
 
@@ -42,11 +44,6 @@ const folderInput = h("input", { type: "file", multiple: true, webkitdirectory: 
 const fileName = h("span", { class: "filename" }, "No file");
 const btnSelect = toolButton(ICONS.select, "Select (click an entity)", true);
 const btnMeasure = toolButton(ICONS.measure, "Measure distance (two clicks)", false);
-const btnFit = h(
-  "button",
-  { class: "btn icon", title: "Fit to extents (double-click empty space)" },
-  icon(ICONS.fit),
-);
 const btnTheme = h("button", { class: "btn icon", title: "Dark / light background" }, icon(ICONS.sun));
 const btnLw = h(
   "button",
@@ -54,6 +51,12 @@ const btnLw = h(
   icon(ICONS.weight),
 );
 const modeTabs = h("div", { class: "seg", id: "modes" });
+/** Zoom factor of the + / − buttons and keys. */
+const ZOOM_STEP = 1.5;
+/** The image printed by "Print view" (shown only in print, style.css). */
+const printHost = h("div", { id: "print" });
+document.body.append(printHost);
+const exportUi = exportButton();
 
 const topbar = h(
   "header",
@@ -71,9 +74,13 @@ const topbar = h(
   fileName,
   h("div", { class: "spacer" }),
   h("div", { class: "seg" }, btnSelect, btnMeasure),
-  btnFit,
-  btnLw,
-  btnTheme,
+  h("div", { class: "seg" }, btnLw, btnTheme),
+  exportUi.root,
+  h(
+    "button",
+    { class: "btn icon keys-help", title: "Keyboard shortcuts (?)", onclick: () => showShortcuts() },
+    icon(ICONS.keyboard),
+  ),
   openButton(),
   fileInput,
   folderInput,
@@ -85,35 +92,6 @@ const topbar = h(
  * browser dialog picks either files or a folder, not both).
  */
 function openButton(): HTMLElement {
-  const menu = h(
-    "div",
-    { class: "menu" },
-    h("button", { onclick: () => pick(fileInput) }, icon(ICONS.open), "Open files…"),
-    h("button", { onclick: () => pick(folderInput) }, icon(ICONS.folder), "Open folder…"),
-    h(
-      "button",
-      {
-        onclick: () => {
-          close();
-          void fontsFolder.choose();
-        },
-        title: "A folder with your SHX / TrueType fonts, e.g. a copy of AutoCAD's Fonts folder",
-      },
-      icon(ICONS.font),
-      "Fonts folder…",
-    ),
-    h(
-      "div",
-      { class: "menu-hint" },
-      "Select the .dxf together with its fonts, shape files and images. Files without a .dxf are added to the open drawing. " +
-        "Your fonts folder is used for every drawing.",
-    ),
-  );
-  const close = () => menu.classList.remove("on");
-  function pick(input: HTMLInputElement): void {
-    close();
-    input.click();
-  }
   const root = h(
     "div",
     { class: "split" },
@@ -122,11 +100,29 @@ function openButton(): HTMLElement {
       {
         class: "btn primary",
         onclick: () => fileInput.click(),
-        title: "Open a DXF with its fonts, shape files and images, or add files to the open drawing",
+        title: "Open a DXF with its fonts, shape files and images, or add files to the open drawing (Ctrl+O)",
       },
       icon(ICONS.open),
-      "Open",
+      h("span", { class: "label" }, "Open"),
     ),
+  );
+  const items = (): MenuItem[] => [
+    { icon: ICONS.open, label: "Open files…", keys: "Ctrl+O", run: () => fileInput.click() },
+    { icon: ICONS.folder, label: "Open folder…", run: () => folderInput.click() },
+    {
+      icon: ICONS.font,
+      label: "Fonts folder…",
+      title: "A folder with your SHX / TrueType fonts, e.g. a copy of AutoCAD's Fonts folder",
+      run: () => void fontsFolder.choose(),
+    },
+  ];
+  const menu = dropdown(
+    root,
+    items,
+    "Select the .dxf together with its fonts, shape files and images. Files without a .dxf are added to the open drawing. " +
+      "Your fonts folder is used for every drawing.",
+  );
+  root.insertBefore(
     h(
       "button",
       {
@@ -134,20 +130,59 @@ function openButton(): HTMLElement {
         title: "More ways to open",
         onclick: (ev: Event) => {
           ev.stopPropagation();
-          menu.classList.toggle("on");
+          menu.toggle();
         },
       },
       icon(ICONS.caret),
     ),
-    menu,
+    root.querySelector(".menu"),
   );
-  document.addEventListener("click", (ev) => {
-    if (!root.contains(ev.target as Node)) close();
-  });
-  document.addEventListener("keydown", (ev) => {
-    if (ev.key === "Escape") close();
-  });
   return root;
+}
+
+/** Export menu: the current view as PNG (download or clipboard) or printed. */
+function exportButton(): { root: HTMLElement; button: HTMLButtonElement; print(): void } {
+  const button = h(
+    "button",
+    { class: "btn icon", title: "Export the view (PNG, print)", disabled: true },
+    icon(ICONS.download),
+  );
+  const root = h("div", { class: "split export" }, button);
+  const run = (what: string, job: () => Promise<void>) =>
+    void job().catch((e: unknown) => showError(`${what} failed: ${e instanceof Error ? e.message : e}`));
+  const menu = dropdown(root, () => [
+    {
+      icon: ICONS.image,
+      label: "Save view as PNG",
+      title: "The current view at screen resolution",
+      run: () => run("Saving the image", () => savePng(viewer)),
+    },
+    ...(canCopyImage()
+      ? [
+          {
+            icon: ICONS.copy,
+            label: "Copy view as image",
+            run: () =>
+              run("Copying the image", async () => {
+                await copyPng(viewer);
+                showNote("Image copied to the clipboard");
+              }),
+          },
+        ]
+      : []),
+    {
+      icon: ICONS.print,
+      label: "Print view…",
+      keys: "Ctrl+P",
+      title: "Prints the current view (on a white background)",
+      run: () => run("Printing", () => printView(viewer, printHost)),
+    },
+  ]);
+  button.addEventListener("click", (ev) => {
+    ev.stopPropagation();
+    menu.toggle();
+  });
+  return { root, button, print: () => run("Printing", () => printView(viewer, printHost)) };
 }
 
 const layoutList = h("div", { class: "list" });
@@ -189,6 +224,29 @@ const busy = h("div", { class: "busy" }, h("span", { class: "spinner" }), h("spa
 const toast = h("div", { class: "toast" });
 const updateBar = h("div", { class: "update-bar", role: "status" });
 const measureChip = h("div", { class: "measure-chip" });
+const zoomControls = h(
+  "div",
+  { class: "zoom-controls" },
+  h(
+    "button",
+    { class: "zoom-btn", title: "Zoom in (+)", onclick: () => viewer.zoom(ZOOM_STEP) },
+    icon(ICONS.plus),
+  ),
+  h(
+    "button",
+    { class: "zoom-btn", title: "Zoom out (−)", onclick: () => viewer.zoom(1 / ZOOM_STEP) },
+    icon(ICONS.minus),
+  ),
+  h(
+    "button",
+    {
+      class: "zoom-btn",
+      title: "Fit to extents (F, or double-click empty space)",
+      onclick: () => viewer.fit(),
+    },
+    icon(ICONS.fit),
+  ),
+);
 const layoutNotice = h("div", { class: "layout-notice" });
 const compare = new ComparePanel();
 compare.root.style.display = "none";
@@ -200,6 +258,7 @@ const stage = h(
   h("div", { class: "drop" }, "Drop to open"),
   busy,
   measureChip,
+  zoomControls,
   layoutNotice,
   compare.root,
   toast,
@@ -329,6 +388,8 @@ viewer.on("load", (d) => {
   if (filesPanel.current === undefined && filesPanel.urlDrawing) filesPanel.urlDrawing.size = d.byteLength;
   filesPanel.render();
   emptyState.style.display = "none";
+  stage.classList.add("has-drawing");
+  exportUi.button.disabled = false;
   fileName.textContent = d.name;
   document.title = `${d.name} · truedxf`;
   status.file.innerHTML = "";
@@ -520,7 +581,6 @@ for (const input of [fileInput, folderInput]) {
     void openLocal(files);
   });
 }
-btnFit.addEventListener("click", () => viewer.fit());
 btnSelect.addEventListener("click", () => setTool("select"));
 btnMeasure.addEventListener("click", () => setTool("measure"));
 btnTheme.addEventListener("click", () => {
@@ -565,14 +625,79 @@ function applyTheme(dark: boolean): void {
 }
 
 window.addEventListener("keydown", (ev) => {
-  if (ev.target instanceof HTMLInputElement) return;
-  if (ev.key === "f" || ev.key === "F") viewer.fit();
-  else if (ev.key === "m" || ev.key === "M") setTool(viewer.currentTool === "measure" ? "select" : "measure");
-  else if (ev.key === "o" && (ev.ctrlKey || ev.metaKey)) {
+  const mod = ev.ctrlKey || ev.metaKey;
+  if (mod && !ev.altKey && (ev.key === "o" || ev.key === "O")) {
     ev.preventDefault();
     fileInput.click();
+    return;
   }
+  // Ctrl+P prints the view (the browser's own print of this page would be empty)
+  if (mod && !ev.altKey && (ev.key === "p" || ev.key === "P") && info) {
+    ev.preventDefault();
+    exportUi.print();
+    return;
+  }
+  if (mod || ev.altKey) return;
+  const t = ev.target;
+  if (t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement || t instanceof HTMLSelectElement)
+    return;
+  if (document.querySelector(".modal")) return;
+  if (ev.key === "f" || ev.key === "F") viewer.fit();
+  else if (ev.key === "m" || ev.key === "M") setTool(viewer.currentTool === "measure" ? "select" : "measure");
+  else if (ev.key === "+" || ev.key === "=") viewer.zoom(ZOOM_STEP);
+  else if (ev.key === "-" || ev.key === "_") viewer.zoom(1 / ZOOM_STEP);
+  else if (ev.key === "?") showShortcuts();
+  else return;
+  ev.preventDefault();
 });
+
+/** The keyboard and mouse reference (the keyboard button, `?`). */
+function showShortcuts(): void {
+  const mac = /Mac|iPhone|iPad/.test(navigator.platform);
+  const ctrl = mac ? "⌘" : "Ctrl";
+  const row = (keys: string[], what: string) =>
+    h(
+      "tr",
+      {},
+      h(
+        "td",
+        { class: "keys" },
+        keys.flatMap((k, i) => [i ? h("span", { class: "or" }, " / ") : null, h("kbd", {}, k)]),
+      ),
+      h("td", {}, what),
+    );
+  const group = (title: string, rows: HTMLElement[]) =>
+    h("div", { class: "shortcut-group" }, h("h3", {}, title), h("table", { class: "shortcuts" }, rows));
+  openDialog({
+    title: "Keyboard and mouse",
+    class: "wide",
+    body: [
+      h(
+        "div",
+        { class: "shortcut-cols" },
+        group("View", [
+          row(["Wheel"], "Zoom at the pointer"),
+          row(["Drag"], "Pan (any mouse button)"),
+          row(["+", "−"], "Zoom in / out"),
+          row(["F"], "Fit the drawing"),
+          row(["Double-click"], "Fit (on empty space)"),
+        ]),
+        group("Tools", [
+          row(["Click"], "Select an entity and inspect it"),
+          row(["M"], "Measure on / off (two clicks)"),
+          row(["Esc"], "Clear the selection or measurement"),
+          row(["Alt+click"], "Isolate a layer (Layers panel)"),
+        ]),
+        group("Files", [
+          row([`${ctrl}+O`], "Open files"),
+          row([`${ctrl}+P`], "Print the view"),
+          row(["Drop"], "Open dropped files or folders"),
+        ]),
+        group("Help", [row(["?"], "This overview")]),
+      ),
+    ],
+  });
+}
 
 // ---- drag and drop -----------------------------------------------------------------------------
 
@@ -928,11 +1053,20 @@ function showError(msg: string, reportUrl?: string): void {
       : null,
     h("button", { class: "toast-close", title: "Close", onclick: hideError }, icon(ICONS.close)),
   );
+  toast.classList.remove("note");
   toast.classList.add("on");
   if (!reportUrl) toastTimer = setTimeout(hideError, 8000);
 }
 function hideError(): void {
-  toast.classList.remove("on");
+  toast.classList.remove("on", "note");
+}
+
+/** A short neutral confirmation ("Image copied …") in the error toast's place. */
+function showNote(msg: string): void {
+  clearTimeout(toastTimer);
+  mount(toast, h("span", { class: "toast-text" }, msg));
+  toast.classList.add("on", "note");
+  toastTimer = setTimeout(hideError, 2500);
 }
 
 // ---- modes: viewer / fixtures / corpus (dev server with local samples only) -------------------------

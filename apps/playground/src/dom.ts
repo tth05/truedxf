@@ -70,6 +70,22 @@ export const ICONS = {
   ),
   caret: P('<path d="M6 9l6 6 6-6"/>'),
   close: P('<path d="M6 6l12 12M18 6L6 18"/>'),
+  plus: P('<path d="M12 5v14M5 12h14"/>'),
+  minus: P('<path d="M5 12h14"/>'),
+  download: P('<path d="M12 4v11M7 10l5 5 5-5"/><path d="M5 19h14"/>'),
+  image: P(
+    '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-9 9"/>',
+  ),
+  copy: P(
+    '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>',
+  ),
+  print: P(
+    '<path d="M7 9V4h10v5"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M7 14h10v6H7z"/>',
+  ),
+  keyboard: P(
+    '<rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/>',
+  ),
+  clock: P('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'),
   font: P('<path d="M5 7V5h14v2M12 5v14M9 19h6"/>'),
   help: P(
     '<circle cx="12" cy="12" r="9"/><path d="M9 9.5Q9 6.5 12 6.5T15 9.5Q15 11 12 12.5V14.5M12 17.5v.01"/>',

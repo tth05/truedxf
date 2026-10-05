@@ -72,6 +72,10 @@ select {
   border-bottom: 1px solid var(--border);
   min-width: 0;
 }
+/* buttons keep their size; the file name and the spacer give way */
+.topbar > * {
+  flex-shrink: 0;
+}
 .brand {
   display: flex;
   align-items: center;
@@ -89,6 +93,7 @@ select {
   place-items: center;
 }
 .filename {
+  flex-shrink: 1;
   color: var(--muted);
   white-space: nowrap;
   overflow: hidden;
@@ -574,6 +579,12 @@ body > .landing {
 .toast.on {
   display: flex;
 }
+.toast.note {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  padding: 8px 14px;
+}
 .toast-text {
   font-weight: 500;
 }
@@ -652,6 +663,143 @@ body > .landing {
 .btn.ghost:hover {
   color: var(--text);
   border-color: var(--border);
+}
+/* zoom in / out / fit, bottom right of the drawing (only with a drawing) */
+.zoom-controls {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  display: none;
+  flex-direction: column;
+  border-radius: 8px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+  z-index: 4;
+}
+.stage.has-drawing .zoom-controls {
+  display: flex;
+}
+.zoom-btn {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+.zoom-btn + .zoom-btn {
+  border-top: 1px solid var(--border);
+}
+.zoom-btn:hover {
+  background: var(--panel-2);
+}
+.zoom-btn svg {
+  width: 16px;
+  height: 16px;
+}
+.btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.btn:disabled:hover {
+  border-color: var(--border);
+}
+/* menus: separator, label and shortcut */
+.menu-sep {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--border);
+}
+.menu .menu-label {
+  flex: 1;
+}
+.menu kbd,
+.shortcuts kbd {
+  font: 11px var(--font);
+  color: var(--muted);
+  padding: 1px 6px;
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: var(--panel-2);
+  white-space: nowrap;
+}
+.menu svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  color: var(--muted);
+}
+.split.export .menu {
+  min-width: 220px;
+}
+/* keyboard shortcuts dialog */
+.shortcut-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 24px;
+}
+.shortcut-group h3 {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 8px 0 4px;
+}
+.shortcuts {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 12.5px;
+}
+.shortcuts td {
+  padding: 3px 0;
+  vertical-align: middle;
+}
+.shortcuts td.keys {
+  width: 1%;
+  padding-right: 12px;
+  white-space: nowrap;
+}
+.shortcuts .or {
+  color: var(--faint);
+}
+@media (max-width: 560px) {
+  .shortcut-cols {
+    grid-template-columns: 1fr;
+  }
+}
+/* "Print view" prints only the image (export.ts) */
+#print {
+  display: none;
+}
+@media print {
+  @page {
+    margin: 10mm;
+  }
+  html,
+  body {
+    height: auto;
+    overflow: visible;
+    background: #fff;
+  }
+  /* :not(#print) has id specificity: it wins over #app and the class rules */
+  body > :not(#print) {
+    display: none;
+  }
+  #print {
+    display: block;
+  }
+  #print img {
+    display: block;
+    max-width: 100%;
+    max-height: 100vh;
+    margin: 0 auto;
+    object-fit: contain;
+  }
 }
 .measure-chip {
   position: absolute;
@@ -825,6 +973,27 @@ body > .landing {
   .sidebar,
   .col-resize {
     display: none;
+  }
+  .filename {
+    display: none;
+  }
+}
+/* phones: the top bar keeps its buttons on one line */
+@media (max-width: 560px) {
+  .topbar {
+    gap: 6px;
+    padding: 0 8px;
+  }
+  .brand {
+    margin-right: 0;
+  }
+  .split > .btn.primary .label,
+  .topbar .keys-help,
+  #modes {
+    display: none;
+  }
+  .statusbar {
+    gap: 10px;
   }
 }
 

@@ -127,6 +127,14 @@ password `truedxf`, also for preview URLs and `preview:public`). Delete it and r
 public. The gate is part of each deployment: a deployment's own URL (`<id>.truedxf.pages.dev`)
 keeps the state it was deployed with (`wrangler pages deployment delete <id>` removes one).
 
+**Visitor statistics: Cloudflare Web Analytics** (cookie-free, no consent banner; page views,
+visitors, referrers, countries, browsers, Core Web Vitals; it cannot see drawings). Either
+switch it on in the Pages project (Metrics → Web Analytics → Enable; Cloudflare injects the beacon
+into the HTML at the edge), or set `CF_ANALYTICS_TOKEN` (the site token from the Web Analytics
+"JS snippet") when building, and the public build embeds the beacon itself. Use one of the two.
+The CSP in `_headers` allows `https://static.cloudflareinsights.com`. Pages' own request and
+bandwidth graphs need nothing.
+
 Deploys from `master` go to production, other branches to preview URLs. For search, verify the
 domain in Google Search Console (a DNS record in Cloudflare) and submit `sitemap.xml`.
 

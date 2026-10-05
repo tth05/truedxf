@@ -24,6 +24,12 @@ const PUBLIC_MODE = "public";
 const SITE_URL = (process.env.SITE_URL ?? "https://truedxf.pages.dev").replace(/\/+$/, "");
 /** Repository (links, "Report a problem"). */
 const REPO_URL = process.env.REPO_URL ?? "https://github.com/tth05/truedxf";
+/**
+ * Cloudflare Web Analytics site token (dashboard → Web Analytics → the site → "JS snippet"). The
+ * public build then embeds the beacon itself; without it, the Pages project's "Web Analytics"
+ * switch makes Cloudflare inject the same beacon at the edge. README "Public site".
+ */
+const CF_ANALYTICS_TOKEN = process.env.CF_ANALYTICS_TOKEN ?? "";
 
 /** Serves /fonts/* (dev: bundled + local font folders) and copies the bundled fonts into builds. */
 function fonts(): Plugin {
@@ -128,6 +134,12 @@ function site(isPublic: boolean): Plugin {
         let out = html.replaceAll("%SITE_URL%", SITE_URL).replaceAll("%REPO_URL%", REPO_URL);
         // only the deployed site claims a canonical URL; local builds must not
         if (!isPublic) out = out.replace(/\s*<link rel="canonical"[^>]*>/, "");
+        if (isPublic && CF_ANALYTICS_TOKEN) {
+          if (!/^[0-9a-f]{32}$/i.test(CF_ANALYTICS_TOKEN))
+            throw new Error("CF_ANALYTICS_TOKEN: 32 hex digits expected");
+          const beacon = `<script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "${CF_ANALYTICS_TOKEN}"}'></script>`;
+          out = out.replace("</body>", `    ${beacon}\n  </body>`);
+        }
         return out;
       },
     },

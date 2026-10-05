@@ -132,12 +132,6 @@ function openButton(): HTMLElement {
         title: "A folder with your SHX / TrueType fonts, e.g. a copy of AutoCAD's Fonts folder",
         run: () => void fontsFolder.choose(),
       },
-      {
-        icon: ICONS.house,
-        label: "Sample drawing",
-        title: "A small house plan that shows what the viewer draws",
-        run: () => openSample(),
-      },
       ...(recentItems.length ? (["separator", ...recentItems] as const) : []),
     ];
   };

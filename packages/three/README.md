@@ -16,9 +16,9 @@ ESM only. `three` (>= 0.170) is a peer dependency.
 
 - `setDisplayList(list)` turns each `Batch` into one three.js object: `Mesh` for triangles,
   `LineSegments` for hairlines, `Points` for points, a textured `Mesh` for image batches
-  (nearest-sampled `DataTexture`, no mipmaps; `RasterImage.smooth` images such as PDF underlays
-  are filtered linearly with mipmaps).
-- Draw order is the display-list order, set through `renderOrder`; depth test and depth writes
+  (nearest-sampled `DataTexture` without mipmaps, while `RasterImage.smooth` images such as PDF
+  underlays are filtered linearly with mipmaps).
+- Draw order is the display-list order, set through `renderOrder`. Depth test and depth writes
   are off.
 - Colours pass through unchanged: three.js colour management is disabled and the output colour
   space is linear, so the RGB bytes in the list are the bytes in the framebuffer.
@@ -35,9 +35,9 @@ ESM only. `three` (>= 0.170) is a peer dependency.
   drawing. The viewer puts selection highlights and the paper sheet there.
 - `mergeBatches: true` with `exactBlend: false` merges opaque geometry by primitive kind within
   each consecutive clip run, with buffers capped at four million vertices. Pick ranges and
-  uncovered vertex ranges receive increasing global z values; `LessEqualDepth` preserves painter
+  uncovered vertex ranges receive increasing global z values. `LessEqualDepth` preserves painter
   order, including primitive order within a range. The four-million-order limit leaves distinct
-  24-bit depth values after float32 rounding; larger lists fall back to the original path.
+  24-bit depth values after float32 rounding. Larger lists fall back to the original path.
   `mergeBatches` defaults to false and is ignored with `exactBlend: true`.
 - `setMergedDisplayList(list)` uploads pre-merged GPU buffers (`exactBlend: false`). Workers can
   import `mergedGroups`, `orderCount` and `MAX_DEPTH_ORDERS` from `@truedxf/three/merge` without
@@ -45,10 +45,10 @@ ESM only. `three` (>= 0.170) is a peer dependency.
   xyz positions, RGBA colours, and individual alpha/image parts (UVs and image indices).
   Keep the ordinary path when `orderCount(list) > MAX_DEPTH_ORDERS`.
 - Merged opaque materials are shared by kind and clipping state. Unclipped opaque objects use
-  the opaque queue; clipped ones use the transparent queue with blending disabled, keeping each
+  the opaque queue. Clipped ones use the transparent queue with blending disabled, keeping each
   stencil reset/mask ahead of its content. Individual alpha/image batches follow the opaque
   content of their clip run, with normal blending and depth writes. Underlay, drawing and overlay
-  render in separate stages; stencil masks never write depth. Group origins are computed in
+  render in separate stages. Stencil masks never write depth. Group origins are computed in
   float64 from all vertex bounds, then subtracted from the camera centre in `render()`.
 - `readPixels()` returns RGBA, top row first (needs `preserveDrawingBuffer`, or a call right after
   `render`). `releaseArrays: true` drops the renderer's CPU copies of vertex arrays after GPU upload.
@@ -75,12 +75,12 @@ Call `clear()` before dropping a list and `dispose()` when done.
 
 ## Limitations
 
-- WebGL only; a WebGPU renderer has not been tried yet.
+- WebGL only. A WebGPU renderer has not been tried yet.
 - No instancing: block references arrive flattened. The original path draws each batch
-  separately; merging reduces opaque draw calls but does not merge alpha/image batches.
+  separately. Merging reduces opaque draw calls but does not merge alpha/image batches.
 - Changing from per-batch origins to a common clip-run origin changes float32 rounding: aliased
   edge pixels can differ from the original path. Keep merging off for exact plot comparisons.
-- `exactBlend` costs one framebuffer copy per transparent batch; interactive hosts turn it off.
+- `exactBlend` costs one framebuffer copy per transparent batch, so interactive hosts turn it off.
 - Importing the module sets `THREE.ColorManagement.enabled = false` globally, which also affects
   other three.js content on the page.
 
@@ -91,5 +91,5 @@ Call `clear()` before dropping a list and `dispose()` when done.
 
 ## License
 
-MIT. AutoCAD and DXF are trademarks of Autodesk, Inc.; truedxf is not affiliated with or
+MIT. AutoCAD and DXF are trademarks of Autodesk, Inc. truedxf is not affiliated with or
 endorsed by Autodesk.

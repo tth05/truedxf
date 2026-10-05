@@ -7,7 +7,8 @@ gitignored).
 
 ## Setup
 
-The venv is `tools/gen/.venv` (gitignored; Python 3.11, ezdxf 1.4.4, matplotlib, pillow, pymupdf):
+The venv is `tools/gen/.venv` (gitignored, with Python 3.11, ezdxf 1.4.4, matplotlib, pillow,
+pymupdf):
 
 ```bash
 py -3.11 -m venv tools/gen/.venv
@@ -33,7 +34,7 @@ $PY -m truedxf_gen.preview samples/generated/polylines/width-*.json --out sheet.
 - Every written DXF is re-read and run through `ezdxf.audit`: audit errors fail the run (exit
   code 1), fixes are printed as warnings. `--no-audit` skips it.
 - `--clean` deletes only the selected suites' folders. `samples/generated/calibration` belongs to
-  `tools/acad`; the registry rejects that suite name.
+  `tools/acad`, and the registry rejects that suite name.
 - The generator re-executes itself with `PYTHONHASHSEED=0`, because ezdxf creates a few objects
   in set-iteration order and the bytes would otherwise change between runs.
 
@@ -62,7 +63,7 @@ def build(s: SuiteBuilder) -> None:
 ### `s.case(name, title, **kw)` keywords
 
 `tags`, `questions`, `seed` (int → `c.rng = random.Random(seed)`, the only allowed randomness),
-`params`, `dxfversion` (`"R2018"` default = AC1032; also R12…R2013), `units` ($INSUNITS, default
+`params`, `dxfversion` (`"R2018"` default = AC1032, also R12…R2013), `units` ($INSUNITS, default
 4 = mm), `header` (dict of `$VAR` overrides), `standard_font` (STANDARD style font, default
 Liberation Sans), `style_table` (`"monochrome.ctb"` | `"acad.ctb"`, default from the suite),
 `outputs` (default `["png", "pdf", "dxf"]`).
@@ -71,22 +72,22 @@ Liberation Sans), `style_table` (`"monochrome.ctb"` | `"acad.ctb"`, default from
 
 | Helper | What |
 |---|---|
-| `c.window(min, max, canvas=(2000,1500))` | window plot; raises unless the window aspect equals the canvas aspect |
+| `c.window(min, max, canvas=(2000,1500))` | window plot (raises unless the window aspect equals the canvas aspect) |
 | `c.window_scale(origin, px_per_unit)` / `c.window_center(center, px_per_unit)` | window of exactly `canvas/px_per_unit` units |
-| `c.fit(bmin=None, bmax=None, margin=0.05)` | window around a box (default: ezdxf extents) at a *nice* scale (1, 2, 2.5, 4, 5, 8 × 10^k px/unit); returns px/unit |
+| `c.fit(bmin=None, bmax=None, margin=0.05)` | window around a box (default: ezdxf extents) at a *nice* scale (1, 2, 2.5, 4, 5, 8 × 10^k px/unit). Returns px/unit |
 | `c.plot_extents()` | plot area "extents" |
 | `c.plot_layout(name, scale="fit")` / `c.layout_window(name, min, max)` | paper-space plots |
 | `c.layer(name, color=, linetype=, lineweight=, plot=, on=, frozen=, locked=, true_color=, transparency=)` | create a layer once |
-| `c.linetype(name)` | add an AutoCAD-valued standard/ISO linetype (`resources.py`; note 11a §12) |
-| `c.style(name, font=, width=, oblique=, height=, bigfont=)` | text style; fonts from [FONTS.md](FONTS.md) |
+| `c.linetype(name)` | add an AutoCAD-valued standard/ISO linetype (`resources.py`, note 11a §12) |
+| `c.style(name, font=, width=, oblique=, height=, bigfont=)` | text style with fonts from [FONTS.md](FONTS.md) |
 | `c.sysvar("PLOTTRANSPARENCYOVERRIDE", 2)` / `c.plot.paperSpaceFirst = True` | emitted as `plot.sysvars` / `plot.paperSpaceFirst`: registry sysvars and plot prompts a DXF cannot carry (see tools/acad) |
 | `c.header(pdmode=3, ltscale=2)` | set header vars (`$` + upper-cased name) |
-| `c.add_file("img-a.png", data)` | extra file written next to the case; returns its absolute canonical path (`samples/generated/<suite>/…`) |
+| `c.add_file("img-a.png", data)` | extra file written next to the case. Returns its absolute canonical path (`samples/generated/<suite>/…`) |
 | `c.notes.append("…")` | free-text notes copied into the meta JSON (`notes`) |
 | `c.byte_filters.append(fn)` | `bytes -> bytes` post-processing of the serialised DXF (deliberately malformed files for `fileformat` questions) |
 | `c.allow_audit_errors = True` | ezdxf audit errors are reported but do not fail the run (only for cases that are invalid on purpose) |
 
-Canvases: `2000×1500` (default), `1000×1000`, `800×600` (`plotwin.CANVASES`; the tools/acad
+Canvases: `2000×1500` (default), `1000×1000`, `800×600` (`plotwin.CANVASES`, but the tools/acad
 README is authoritative). Default document (`core.new_doc`): no ezdxf `setup` resources,
 STANDARD style → `LiberationSans-Regular.ttf`, `$MEASUREMENT 1`, `$INSUNITS 4`,
 `$LTSCALE`/`$CELTSCALE 1`, `$PSLTSCALE 1`, `$PDMODE 0`, `$FILLMODE 1`, `$MIRRTEXT 0`,
@@ -105,12 +106,12 @@ and the `*Active` VPORT is centred on the plot window so AutoCAD opens on the fe
   coordinates hit pixel centres instead of exact pixel-boundary ties (tools/acad calibration).
   Set `c.half_pixel_shift = False` for cases about exact boundaries.
 - **Extra files.** `tools/acad` copies only the DXF into its work dir, so IMAGE/underlay/xref
-  paths must be the absolute paths returned by `c.add_file`; relative paths resolve only when
+  paths must be the absolute paths returned by `c.add_file`. Relative paths resolve only when
   AutoCAD opens the fixture in `samples/generated/<suite>/`.
 - **Hairline geometry.** Geometry suites register `layer0_lineweight=0` so entities plot at the
-  thinnest width (pixel-exact comparisons); appearance suites keep the defaults.
-- **Style tables.** `monochrome.ctb` by default; colour/appearance suites use `acad.ctb`.
-- **Fonts.** Only [FONTS.md](FONTS.md) fonts; AutoCAD SHX fonts only in `acad-default-fonts`.
+  thinnest width (pixel-exact comparisons). Appearance suites keep the defaults.
+- **Style tables.** `monochrome.ctb` by default, while colour/appearance suites use `acad.ctb`.
+- **Fonts.** Only [FONTS.md](FONTS.md) fonts. AutoCAD SHX fonts only in `acad-default-fonts`.
 - **Determinism.** No `random` module functions, no time, no `set` iteration, no absolute paths
   except those from `c.add_file` (canonical folder, independent of `--out`).
   `--check-determinism` must pass.

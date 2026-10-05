@@ -15,7 +15,7 @@ ESM only. No DOM and no Node.js APIs: runs in browsers, workers and Node.
 - `layoutText` (TEXT, ATTRIB, ATTDEF) and `layoutMText` (MTEXT, multi-line attributes, dimension
   text) return a device-independent `TextLayout`: glyph placements (`Glyph` + `Affine2` from font
   units to the text plane), decoration lines, background fills, TrueType runs and a `plane`
-  matrix to WCS. Isomorphic; the renderer turns it into strokes and fills.
+  matrix to WCS. The layout is isomorphic, and the renderer turns it into strokes and fills.
 - TEXT: all 72/73 alignments including FIT and ALIGNED, backward / upside-down, oblique, width
   factor, $TEXTSIZE for height 0, $QTEXTMODE boxes, vertical text with dual-orientation SHX fonts.
   `textFrame` gives AutoCAD's first alignment point 10.
@@ -31,7 +31,7 @@ ESM only. No DOM and no Node.js APIs: runs in browsers, workers and Node.
   where AutoCAD does, and reports missing fonts (`missingFonts`).
 
 Input types (`TextStyleSpec`, `MTextInput`) are structurally compatible with @truedxf/model's
-`TextStyleEntry` and `MTextEntity`, so model objects can be passed directly; `TextInput` needs a
+`TextStyleEntry` and `MTextEntity`, so model objects can be passed directly. `TextInput` needs a
 small mapping from `TextEntity` (see `singleLine` in [render/src/text.ts](https://github.com/tth05/truedxf/blob/master/packages/render/src/text.ts)).
 
 ## Usage
@@ -66,7 +66,7 @@ for (const g of layout.glyphs) console.log(g.glyph.code, g.matrix); // font unit
 - Open or not exact: explicit `\pt` tab stops, TrueType stack geometry, `\A1`/`\A2` against
   stacks, synthetic italic, complex scripts (Arabic/Thai shaping, bidi), kerning (none).
 - Several rules come from single samples or are UNVERIFIED (MTEXT decoration offsets, oblique
-  order, mixed-height line pitch); the source comments say which.
+  order, mixed-height line pitch). The source comments say which.
 
 In the repository, `node packages/text/scripts/oracle.ts [--suite text|mtext|attribs]` compares the layout with
 AutoCAD's DXFOUT values (needs the local references in `samples/`).
@@ -78,5 +78,5 @@ AutoCAD's DXFOUT values (needs the local references in `samples/`).
 
 ## License
 
-MIT. AutoCAD and DXF are trademarks of Autodesk, Inc.; truedxf is not affiliated with or
+MIT. AutoCAD and DXF are trademarks of Autodesk, Inc. truedxf is not affiliated with or
 endorsed by Autodesk.

@@ -10,8 +10,8 @@ pnpm add @truedxf/fonts
 
 ESM only. No DOM and no Node.js APIs: runs in browsers, workers and Node.
 
-Isomorphic: no DOM and no `node:*` imports in `src/`; font files come through an injected
-`FontProvider`. Glyphs are in font units, y up, baseline at y = 0; `font.scaleForHeight(h)`
+Isomorphic: no DOM and no `node:*` imports in `src/`. Font files come through an injected
+`FontProvider`. Glyphs are in font units (y up, baseline at y = 0). `font.scaleForHeight(h)`
 (= `h / capHeight`) converts to drawing units.
 
 ## What it does
@@ -24,9 +24,9 @@ Isomorphic: no DOM and no `node:*` imports in `src/`; font files come through an
   is extracted with `extractFace`, since opentype.js cannot read collections). `readNames`,
   `faceCount` read sfnt tables without a full parse.
 - One `Font` interface over both (`capHeight`, `ascent`, `descent`, `unitsPerEm`, `glyph(code)`).
-  SHX glyphs are `{ kind: "strokes" }` with exact arcs as DXF bulges; TTF glyphs are
-  `{ kind: "outline" }` paths (M/L/Q/C/Z). `bounds` is the exact ink box; `advance` is the final
-  pen x (SHX) or the hmtx advance (TTF, no kerning).
+  SHX glyphs are `{ kind: "strokes" }` with exact arcs as DXF bulges, while TTF glyphs are
+  `{ kind: "outline" }` paths (M/L/Q/C/Z). `bounds` is the exact ink box and `advance` is the
+  final pen x (SHX) or the hmtx advance (TTF, no kerning).
 - `FontManager.resolveStyle` turns a STYLE entry into a `StyleFont` (primary + bigfont + glyph
   fallbacks) following AutoCAD 2027 (note 04 §4.1) and reports every substitution.
 - `flattenStrokes` / `flattenPath` turn glyphs into polylines, deterministically.
@@ -59,53 +59,54 @@ if (r?.glyph.kind === "strokes") {
 - `loadFile("txt")`: case-insensitive, extension optional (`.shx`, `.ttf`, `.ttc`, `.otf`),
   `name.ttc#1` selects a collection face, one instance per file.
 - `findFamily(family, bold, italic)`: GDI face name (name ID 1) plus style bits, via an index over
-  `listFiles()` built on first use; exact style first, then the closest face.
+  `listFiles()` built on first use. It prefers the exact style, then the closest face.
 - `resolveStyle({ fontFile, bigFontFile, family, flags })`: font map first (`fontMap`, parse
-  `acad.fmp` with `FontManager.parseFontMap`); a non-empty XDATA family wins over group 3 (flags bit
-  25 bold, 24 italic); quotes are stripped; an SHX path resolves by its base name, a TrueType path
-  goes to FONTALT (`resolveFullPaths: true` changes that); anything unresolved becomes FONTALT
-  (default `simplex.shx`, then `lastResort`); a bigfont next to a TTF is ignored; a missing bigfont
-  suppresses the text (`missingBigFont: "ignore"` to draw it).
+  `acad.fmp` with `FontManager.parseFontMap`). A non-empty XDATA family wins over group 3 (flags
+  bit 25 bold, 24 italic). Quotes are stripped. An SHX path resolves by its base name, while a
+  TrueType path goes to FONTALT (`resolveFullPaths: true` changes that). Anything unresolved
+  becomes FONTALT (default `simplex.shx`, then `lastResort`). A bigfont next to a TTF is ignored.
+  A missing bigfont suppresses the text (`missingBigFont: "ignore"` to draw it).
 - `missingFont: "fallback"` (viewers) always draws the text: missing primary fonts use the first
   loadable of `fallbackFonts`, missing bigfonts `fallbackBigFont` or none. The default `"autocad"`
   is the plot behaviour above.
 - `StyleFont.glyph(code)` returns `{ glyph, font, scale, fallback }`. Codes at or above
-  `BIG_FONT_CODE` address the bigfont directly (`bigFontCode`); ASCII, and every raw code of a
-  non-Unicode shape font, try the bigfont first. SHX misses draw the font's "?"; TTF misses go
-  through `glyphFallbacks` at the primary font's em scale. Bigfont glyphs use the bigfont's own
-  `above` (`bigFontScale: "primary"` to change; UNKNOWN in AutoCAD). Bigfont subshapes the bigfont
+  `BIG_FONT_CODE` address the bigfont directly (`bigFontCode`). ASCII, and every raw code of a
+  non-Unicode shape font, try the bigfont first. SHX misses draw the font's "?", while TTF misses
+  go through `glyphFallbacks` at the primary font's em scale. Bigfont glyphs use the bigfont's own
+  `above` (`bigFontScale: "primary"` to change, UNKNOWN in AutoCAD). Bigfont subshapes the bigfont
   lacks resolve in the primary font (`withCompanion`, needed by special.shx).
-- Code spaces: unifonts and TTF take Unicode code points; non-Unicode shape fonts take code page
-  bytes (256/257/258 for `%%d %%p %%c`); bigfonts take `lead·256 + trail` in their own DBCS code
-  page (`bigFontEncoding`, `StyleFont.bigFontEncoding`). Mapping text to codes is @truedxf/text's job.
+- Code spaces: unifonts and TTF take Unicode code points, non-Unicode shape fonts take code page
+  bytes (256/257/258 for `%%d %%p %%c`), and bigfonts take `lead·256 + trail` in their own DBCS
+  code page (`bigFontEncoding`, `StyleFont.bigFontEncoding`). Mapping text to codes is
+  @truedxf/text's job.
 
 ## SHX details
 
 - Interpreter: pen up/down, 16 vector directions, cumulative scale ×/÷, position stack (overflow
-  past 4 warns), subshapes (1-byte; unifont 2-byte high byte first; extended bigfont
+  past 4 warns), subshapes (1-byte, 2-byte high byte first in unifonts, and extended bigfont
   `7,0,shape,x,y,w,h` with non-uniform scaling), single and multiple displacements, octant,
   fractional (radius = high·256 + low) and bulge arcs, polyarcs, code 0x0E (skips the next command
   unless vertical text is requested and the font has modes = 2), 0x0F as a no-op.
 - `ShxFontOptions`: `penRounding: "none" | "arcs" | "all"` (default `arcs`: snap the pen to the
-  `penGrid`, default 1, after octant and fractional arcs; the arc keeps its sweep and ends at the
+  `penGrid`, default 1, after octant and fractional arcs. The arc keeps its sweep and ends at the
   snapped point), `maxDepth` (subshape nesting, default 16), `anisotropicArcSegments` (default 64
   per circle).
-- Metrics: `capHeight` = `above` (shape 0 or unifont header; measured "A" for shape files; gbcbig's
-  `0,64,2,0` header gives 8), `descent` = `below`, `modes`, `cell` for extended bigfonts.
-- `ShxFont.shapeByName` / `glyphByName` serve SHAPE entities and complex linetypes; `splitCodes`
+- Metrics: `capHeight` = `above` (shape 0 or unifont header, measured "A" for shape files, and
+  gbcbig's `0,64,2,0` header gives 8), `descent` = `below`, `modes`, `cell` for extended bigfonts.
+- `ShxFont.shapeByName` / `glyphByName` serve SHAPE entities and complex linetypes. `splitCodes`
   pairs DBCS bytes for bigfonts.
 - `flattenStrokes(strokes, { maxAngle = 5.625, tolerance?, scale? })` cuts each arc into
   `ceil(|sweep| / maxAngle)` chords (64 per circle by default), more if `tolerance` demands it.
   `flattenPath(path, { tolerance? | segments = 8, scale? })` does the same for outlines.
 
-TrueType: `capHeight` is the yMax of "A" (fallback OS/2 sCapHeight, then the ascender;
-`capHeightSource` says which), `ascent` / `descent` come from hhea, `metrics` exposes the hhea /
+TrueType: `capHeight` is the yMax of "A" (fallback OS/2 sCapHeight, then the ascender,
+and `capHeightSource` says which), `ascent` / `descent` come from hhea, `metrics` exposes the hhea /
 OS/2 / win values. Width factor and oblique are applied by the layout, not here.
 
 ## Test fonts (repository only)
 
 Not part of the npm package. Our own MIT fonts in `packages/fonts/assets`, no Autodesk data (see [assets/LICENSES.md](https://github.com/tth05/truedxf/blob/master/packages/fonts/assets/LICENSES.md)), generated by
-`node packages/fonts/scripts/build-test-fonts.ts` from `scripts/test-fonts.ts`; a test checks the
+`node packages/fonts/scripts/build-test-fonts.ts` from `scripts/test-fonts.ts`. A test checks the
 committed files match. `truedxf-test.shx` (Latin shape font using every SHX command, on-grid so it
 does not depend on pen rounding), `truedxf-test-uni.shx` (same as a unifont), `truedxf-big.shx`
 (Shift-JIS bigfont), `truedxf-extbig.shx` (extended bigfont), `truedxf-lt.shx` + `truedxf.lin`
@@ -125,10 +126,10 @@ From local tests (facts only, details in note 04 §10):
 - The bigfont index is a hash table: slot = byteswap(code) mod size (a prime), forward linear
   probing, empty slots zero, in all 13 bigfonts. `writeShx` builds it the same way.
 - Pen rounding after arcs is strongly supported: chineset.shx has 15 arc glyphs whose exact end is
-  off its 48-unit advance grid (e.g. 48.2254); rounding after every octant/fractional arc puts all
+  off its 48-unit advance grid (e.g. 48.2254). Rounding after every octant/fractional arc puts all
   of them on 48 (27 of 28 in bold.shx).
 - The position stack spans characters in ISO.shx, times.shx, bold.shx (shape 1 pushes, shape 13
-  pops); decoded alone those shapes under/overflow and warn.
+  pops). Decoded alone, those shapes under/overflow and warn.
 - special.shx, spec_bar.shx and spec_sl.shx bigfont glyphs call 1-byte subshapes that exist only in
   the primary font. special.shx `~z` is `3,4` only (a scale change meant to persist? UNKNOWN).
 - gbcbig.shx glyphs plot at 1/8 of the text height although shape 0 reads as above 64
@@ -143,7 +144,7 @@ From local tests (facts only, details in note 04 §10):
   stack persist across characters (reset per glyph here), extended-subshape pen placement, fonts
   without "A", synthetic bold/italic when a family lacks the face, which Windows font supplies
   missing TTF glyphs.
-- No kerning, no Type 1 (`.pfb`) fonts; OpenType variations are ignored.
+- No kerning and no Type 1 (`.pfb`) fonts. OpenType variations are ignored.
 - The family index reads every TTF the provider lists on first use. For large or remote
   collections, implement `findFamily` on the provider.
 
@@ -154,5 +155,5 @@ From local tests (facts only, details in note 04 §10):
 
 ## License
 
-MIT. AutoCAD and DXF are trademarks of Autodesk, Inc.; truedxf is not affiliated with or
+MIT. AutoCAD and DXF are trademarks of Autodesk, Inc. truedxf is not affiliated with or
 endorsed by Autodesk.

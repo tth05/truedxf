@@ -31,10 +31,10 @@ tools in the viewer.
 
 ## Principles
 
-- **AutoCAD output is the truth; everything else is a hypothesis.** Every rendering rule is
+- **AutoCAD output is the truth. Everything else is a hypothesis.** Every rendering rule is
   pinned by a test drawing plotted by AutoCAD. The official DXF reference is wrong in many places
   (rotation units, PSLTSCALE, leader hooks, …), so it is a starting point, not the answer.
-- **Lossless first, typed second.** Tags are never thrown away; typed objects interpret them on
+- **Lossless first, typed second.** Tags are never thrown away. Typed objects interpret them on
   access.
 - **Render stored data before regenerating it.** A DXF usually carries the answer: dimension and
   table geometry in their anonymous blocks (drawn as stored, even when stale), final hatch lines,
@@ -42,7 +42,7 @@ tools in the viewer.
 - **Deterministic.** Float64 on the CPU, no randomness, count limits instead of time limits,
   fonts only from the sources you give it.
 - **One geometry pipeline.** The frontend does all the work (dashing, hatching, text, lineweight
-  stroking, clipping) and emits a renderer-agnostic display list; the three.js renderer only
+  stroking, clipping) and emits a renderer-agnostic display list. The three.js renderer only
   uploads and draws it. Other outputs (SVG, PDF) can be added without touching the frontend.
 - **Isomorphic below the renderer.** Parsing, the model and display-list building run in Node,
   browsers and web workers.
@@ -52,7 +52,7 @@ tools in the viewer.
 ## Scoreboard
 
 30 feature suites, 3 583 generated cases with AutoCAD references (2026-10-01). **Good** = F1 score
-of at least 0.99 when ink pixels within 1 px of same-coloured ink count as matching; **exact** =
+of at least 0.99 when ink pixels within 1 px of same-coloured ink count as matching. **Exact** =
 every pixel identical. Measured with the CPU scorer, which draws the same pixels as the browser
 renderer in plot mode.
 
@@ -88,7 +88,7 @@ open work is listed in [docs/TODO.md](docs/TODO.md).
 | [`@truedxf/geometry`](packages/geometry) | OCS, arcs, ellipses, NURBS, flattening, stroking, dashing, hatching, clipping |
 | [`@truedxf/fonts`](packages/fonts) | SHX fonts (shape, unifont, bigfont), TrueType, AutoCAD's font resolution |
 | [`@truedxf/text`](packages/text) | TEXT and MTEXT parsing and layout |
-| [`@truedxf/render`](packages/render) | Layouts, viewports, blocks and properties to a renderer-agnostic display list; AutoCAD raster rules |
+| [`@truedxf/render`](packages/render) | Layouts, viewports, blocks and properties to a renderer-agnostic display list, with AutoCAD raster rules |
 | [`@truedxf/pdf`](packages/pdf) | PDF underlay content, rendered by PDF.js |
 | [`@truedxf/three`](packages/three) | three.js renderer for the display list |
 | [`@truedxf/viewer`](packages/viewer) | Embeddable viewer: worker pipeline, pan / zoom, layouts, layers, picking, measuring |
@@ -113,7 +113,7 @@ viewer.on("select", async ({ handle }) => console.log(await viewer.inspect(handl
 ```
 
 Without a viewer, `loadDxf` from `@truedxf/model` gives you the document and
-`renderPlot` from `@truedxf/render` a display list or plot; see the package READMEs.
+`renderPlot` from `@truedxf/render` a display list or plot. See the package READMEs.
 
 ## Development
 
@@ -127,7 +127,7 @@ pnpm playground        # the viewer app on http://localhost:5173
 
 The test drawings, AutoCAD references and the real-world corpus live in `samples/`, which is not
 in the repository: real-world files are not ours to redistribute, and the references need a local
-AutoCAD install. `tools/gen` regenerates the drawings; tests that need samples skip without them.
+AutoCAD install. `tools/gen` regenerates the drawings. Tests that need samples skip without them.
 Contributor conventions are in [AGENTS.md](AGENTS.md).
 
 Found a drawing that looks wrong? [Open an issue](https://github.com/tth05/truedxf/issues/new?template=rendering.yml)
@@ -136,5 +136,5 @@ with screenshots and, if you may share it, the file.
 ## License
 
 MIT. truedxf ships no Autodesk files. The viewer site bundles the Liberation and Noto Sans SC fonts (SIL OFL 1.1).
-AutoCAD and DXF are trademarks of Autodesk, Inc.; truedxf is not affiliated with or endorsed
+AutoCAD and DXF are trademarks of Autodesk, Inc. truedxf is not affiliated with or endorsed
 by Autodesk.

@@ -45,10 +45,10 @@ const app = document.getElementById("app")!;
 const fileInput = h("input", { type: "file", multiple: true, hidden: true });
 const folderInput = h("input", { type: "file", multiple: true, webkitdirectory: true, hidden: true });
 const fileName = h("span", { class: "filename" }, "No file");
-const btnSelect = toolButton(ICONS.select, "Select and inspect (S); click again for no tool", true);
+const btnSelect = toolButton(ICONS.select, "Select and inspect (S). Click again for no tool", true);
 const btnMeasure = toolButton(
   ICONS.measure,
-  "Measure distance, two clicks (M); click again for no tool",
+  "Measure distance, two clicks (M). Click again for no tool",
   false,
 );
 const btnTheme = h("button", { class: "btn icon", title: "Dark / light background" }, icon(ICONS.sun));
@@ -553,7 +553,7 @@ async function openLocal(files: FileInput[], source?: RecentSource, drawing?: st
     viewer.addFiles(files);
     const dwg = files.find((f) => isDwg(f.name));
     if (dwg) showError(`${dwg.name} is a DWG file. Only DXF files can be opened.`);
-    else if (!info) showError("No .dxf drawing among the files; they were added for the next drawing.");
+    else if (!info) showError("No .dxf drawing among the files. They were added for the next drawing.");
     return;
   }
   if (drawings.length === 1 || drawing !== undefined) {

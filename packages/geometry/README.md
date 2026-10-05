@@ -14,7 +14,7 @@ ESM only. No DOM and no Node.js APIs: runs in browsers, workers and Node.
 ## What it does
 
 - Vectors as plain `{ x, y }` / `{ x, y, z }` objects (`Vec2`, `Vec3`, `add3`, `cross3`, ...), so
-  model points pass in without conversion; `Matrix44`, `Affine2`, `Bounds2`, `Bounds3`.
+  model points pass in without conversion, plus `Matrix44`, `Affine2`, `Bounds2`, `Bounds3`.
 - OCS: `arbitraryAxis`, `ocsToWcsMatrix`, `wcsToOcsMatrix` (arbitrary axis algorithm, 1/64
   threshold) and `entityCoordinateSystem` / `isOcsPoint`, which say per entity type and group
   code whether a point is OCS or WCS.
@@ -62,12 +62,12 @@ console.log(triangles.length / 6, "triangles,", dashed.dashes.length, "dashes");
 
 ## Status
 
-- AutoCAD's own plot tessellation is not reproduced here; the raster-plot rules live in
+- AutoCAD's own plot tessellation is not reproduced here. The raster-plot rules live in
   `@truedxf/render` (`raster.ts`), and the SPLINE plot rule is still open ([docs/TODO.md](https://github.com/tth05/truedxf/blob/master/docs/TODO.md)).
 - Unknown in AutoCAD, implemented as a best guess: closed (periodic) fit-point splines are
   treated as open, fit tolerance > 0 is treated as interpolation (Q-0177), the wide-polyline
   miter limit between 7.2° and 30°, and the diamond cap/join shapes.
-- `autocadCandidateFit` is the UNVERIFIED dash-fitting hypothesis of note 06 §2.6; dashed wide
+- `autocadCandidateFit` is the UNVERIFIED dash-fitting hypothesis of note 06 §2.6. Dashed wide
   polylines still drift in phase ([docs/TODO.md](https://github.com/tth05/truedxf/blob/master/docs/TODO.md)).
 
 ## See also
@@ -80,5 +80,5 @@ console.log(triangles.length / 6, "triangles,", dashed.dashes.length, "dashes");
 
 ## License
 
-MIT. AutoCAD and DXF are trademarks of Autodesk, Inc.; truedxf is not affiliated with or
+MIT. AutoCAD and DXF are trademarks of Autodesk, Inc. truedxf is not affiliated with or
 endorsed by Autodesk.

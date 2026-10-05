@@ -24,7 +24,7 @@ ESM only. No DOM and no Node.js APIs: runs in browsers, workers and Node.
   TOLERANCE, VIEWPORT, IMAGE, WIPEOUT, underlays, OLE2FRAME, MLINE, ACAD_TABLE, MESH, HELIX, the
   ACIS family and ACAD_PROXY_ENTITY. Anything else is an `UnknownEntity` with its `dxfType`.
 - Every view keeps its `record: DxfRecord`, which exposes subclass, 102 app-data, embedded
-  object and XDATA parts (`parts`, `subclass`, `appData`, `xdata`); `recordTags` and
+  object and XDATA parts (`parts`, `subclass`, `appData`, `xdata`). `recordTags` and
   `xdataTags` return typed tags. Nothing in the file is dropped.
 - Tables (`layers`, `linetypes`, `styles`, `dimstyles`, `vports`, `views`, `ucs`, `appids`,
   `blockRecords`) and objects (DICTIONARY, XRECORD, SORTENTSTABLE, LAYOUT, PLOTSETTINGS,
@@ -64,7 +64,7 @@ for (const d of doc.diagnostics.items) console.warn(d.code, d.message);
 - Against ezdxf over the project's real-world corpus: 99.77 % attribute agreement over 50.8 M compared
   attributes, residuals classified. Loading runs at ~53 MB/s.
 - Some resolution rules are not confirmed in AutoCAD (ATTRIB parent, frozen vs. off INSERT
-  layers; marked UNVERIFIED with question ids in `resolve.ts`).
+  layers). They are marked UNVERIFIED with question ids in `resolve.ts`.
 
 ## See also
 
@@ -78,5 +78,5 @@ for (const d of doc.diagnostics.items) console.warn(d.code, d.message);
 
 ## License
 
-MIT. AutoCAD and DXF are trademarks of Autodesk, Inc.; truedxf is not affiliated with or
+MIT. AutoCAD and DXF are trademarks of Autodesk, Inc. truedxf is not affiliated with or
 endorsed by Autodesk.

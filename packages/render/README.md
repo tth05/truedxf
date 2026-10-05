@@ -20,8 +20,8 @@ ESM only. No DOM and no Node.js APIs: runs in browsers, workers and Node.
   `Triangles`, `Lines` (1 px), `Points` and textured `Image` triangles in strict draw order, float32
   positions relative to a float64 origin, clip regions and pick ranges back to entity handles.
   `transferables(list)` lists its buffers for `postMessage`.
-- `raster: "autocad"` (default) computes pixel spans on the CPU with AutoCAD's raster rules (thin
-  lines, arcs, lineweight polygons, fills; `PixelGrid`, `linePixels`, `arcVertices`,
+- `raster: "autocad"` (default) computes pixel spans on the CPU with AutoCAD's raster rules for
+  thin lines, arcs, lineweight polygons and fills (`PixelGrid`, `linePixels`, `arcVertices`,
   `fillPolygon`) at the driver's 100 dpi. `raster: "smooth"` gives plain geometry for viewers.
 - Properties (`PropertyResolver`): ByLayer/ByBlock, layer on/off/frozen/no-plot/Defpoints,
   per-viewport freeze, the plotted ACI palette (`PLOT_ACI_RGB`), plotted transparency
@@ -31,13 +31,13 @@ ESM only. No DOM and no Node.js APIs: runs in browsers, workers and Node.
   MPOLYGON, DIMENSION (regenerated with `generateDimension` when the `*D` block is missing),
   LEADER, MULTILEADER, TOLERANCE, MLINE, MESH, HELIX, ACAD_TABLE (its block), IMAGE and WIPEOUT
   (PNG, JPEG, TIFF, BMP), REGION/3DSOLID/BODY/surfaces as ACIS wireframe (SAT and SAB), proxy
-  graphics, VIEWPORT, PDF underlays (content through `env.pdf`, e.g. @truedxf/pdf with PDF.js;
-  DWF / DGN frames only) and OLE frames.
-- Fonts and images come from the host through `env.loadFont` / `env.loadImage`; text is laid out by
-  @truedxf/text. `env.text.missingFont` chooses AutoCAD's missing-font behaviour or a fallback
-  font; missing fonts show up in `PlotResult.notes` (`font-missing`, `bigfont-missing`).
+  graphics, VIEWPORT, PDF underlays (content through `env.pdf`, e.g. @truedxf/pdf with PDF.js),
+  DWF / DGN underlays (frames only) and OLE frames.
+- Fonts and images come from the host through `env.loadFont` / `env.loadImage`. Text is laid out
+  by @truedxf/text. `env.text.missingFont` chooses AutoCAD's missing-font behaviour or a fallback
+  font. Missing fonts show up in `PlotResult.notes` (`font-missing`, `bigfont-missing`).
 
-Importing the package registers every drawer (side effects in `src/draw/*.ts`); `registerDrawer`
+Importing the package registers every drawer (side effects in `src/draw/*.ts`). `registerDrawer`
 and `registerPreparer` add more.
 
 ## Usage
@@ -63,12 +63,12 @@ units). Viewers pass `raster: "smooth"`, `visibility: "display"` and `layerVisib
 
 ## Limitations
 
-- Plot styles: only `monochrome.ctb` (ACI colours to black, true colours kept) is emulated; CTB/STB
+- Plot styles: only `monochrome.ctb` (ACI colours to black, true colours kept) is emulated. CTB/STB
   files are not read (rung 15, `@truedxf/plot` is a placeholder).
 - Stored page setups are not read: the caller supplies the plot area and canvas (`PlotRequest`,
   docs/fixtures.md). Extents plots miss AutoCAD's padding (extents suite 9/18 at F1(r=1) ≥ 0.99).
-- Model space is drawn in plan view (the `*ACTIVE` VPORT view direction is not applied); no
-  perspective viewports.
+- Model space is drawn in plan view (the `*ACTIVE` VPORT view direction is not applied).
+  Perspective viewports are not supported.
 - Open features: wide polylines with linetypes, some
   MULTILEADER variants, XCLIP of ATTRIBs. Raster gaps: exact-pixel ties, spline tessellation, hatch
   islands, clipped huge arcs ([docs/TODO.md](https://github.com/tth05/truedxf/blob/master/docs/TODO.md)).
@@ -87,5 +87,5 @@ units). Viewers pass `raster: "smooth"`, `visibility: "display"` and `layerVisib
 
 ## License
 
-MIT. AutoCAD and DXF are trademarks of Autodesk, Inc.; truedxf is not affiliated with or
+MIT. AutoCAD and DXF are trademarks of Autodesk, Inc. truedxf is not affiliated with or
 endorsed by Autodesk.

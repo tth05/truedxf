@@ -39,12 +39,12 @@ with `TRUEDXF_PLOTTERS_DIR`, `TRUEDXF_ACAD_ROAMING`, `TRUEDXF_ACAD_DIR` (install
 ### PIA file format (PC3 / PMP / CTB / STB)
 
 `src/pia.ts`: 48-byte ASCII header `PIAFILEVERSION_2.0,PC3VER1,compress\r\npmzlibcodec`
-(`PC3VER1` also for PMP; `CTBVER1`/`STBVER1` for plot styles), three uint32 LE (**adler32 of the
+(`PC3VER1` also for PMP, `CTBVER1`/`STBVER1` for plot styles), three uint32 LE (**adler32 of the
 compressed body**, plain length, compressed length), then a zlib stream of latin-1 text: one
 `key=value` per line, one space of indent per level, `key{ … }` sections, string values start
-with `"` and have no closing quote; some files end with a NUL. Numbers ≥ 1e5 or with many digits
+with `"` and have no closing quote. Some files end with a NUL. Numbers ≥ 1e5 or with many digits
 carry an optional ` (xxxxxxxxxxxxxx)` token (uuencode-style little-endian double plus 16 bits of
-an unknown checksum); AutoCAD accepts plain decimals without it. Raster sizes use inclusive pixel
+an unknown checksum). AutoCAD accepts plain decimals without it. Raster sizes use inclusive pixel
 indices: zero margins = printable bounds `(0,0)–(W−1,H−1)`. AutoCAD 2027 also reads an
 uncompressed `PIAFILEVERSION_3.0,json` variant (not used). The parser round-trips all stock files
 byte-exactly (text level).
@@ -78,27 +78,27 @@ node tools/acad/src/run.ts --list                   # list the cases it would co
 
 Defaults: `--jobs min(4, cores/2)`, `--timeout 120` s per case. Exit code 2 if any case is not
 `ok`. A reference is up to date when its `.json` has the same `fixtureSha256`, `metaSha256` and
-`harness` version and status `ok` or `invalid-fixture`; everything else is re-run.
+`harness` version and status `ok` or `invalid-fixture`. Everything else is re-run.
 
 Per case the runner:
 
-1. copies the DXF to a short, space-free work dir (`%TEMP%\truedxf-acad\w<slot>\case.dxf`; root
-   override `TRUEDXF_ACAD_TMP`);
+1. copies the DXF to a short, space-free work dir (`%TEMP%\truedxf-acad\w<slot>\case.dxf`, root
+   override `TRUEDXF_ACAD_TMP`).
 2. writes `run.scr` (CRLF, no BOM): LISP helpers, the sysvar prologue, `_.UCS _W`, optional
    `_.DXFOUT` (R2018, 16 digits), the harness ZOOM, one detailed `_.-PLOT` per requested output
-   (`png` → truedxf PNG.pc3, `pdf` → truedxf PDF.pc3), `_.QUIT _Y`;
+   (`png` → truedxf PNG.pc3, `pdf` → truedxf PDF.pc3), `_.QUIT _Y`.
 3. runs `accoreconsole.exe /isolate truedxf-w<slot> <tmp>\profile-w<slot> /i case.dxf /s run.scr
-   /l en-US` (stdin = NUL; on timeout the process tree is killed, `senddmp.exe` is killed after a
-   crash);
+   /l en-US` (stdin = NUL, the process tree is killed on timeout and `senddmp.exe` is killed after
+   a crash).
 4. decodes the UTF-16LE transcript and verifies it: every expected prompt answered in order (no
    re-prompt), `Effective plotting area` after each plot, no error lines (`Unknown command`,
-   `; error:`, `Invalid …`, `not found.` …), the PNG exists and its size equals the canvas;
+   `; error:`, `Invalid …`, `not found.` …), the PNG exists and its size equals the canvas.
 5. writes `<case>.png/.pdf/.dxf` (as requested), `<case>.log` (decoded transcript) and
    `<case>.json` (docs/fixtures.md + `harness`, `outputs.png.{width,height,channels,depth,palette,
    sha256,effectivePlottingArea}`, `outputs.pdf.{bytes,sha256,mediaBox,pages}`).
 
-Statuses: `ok`; `invalid-fixture` (AutoCAD rejected the DXF: "Invalid or incomplete DXF input",
-exit code 53); `timeout`; `crash` (non-zero exit before the end of the script);
+Statuses: `ok`, `invalid-fixture` (AutoCAD rejected the DXF: "Invalid or incomplete DXF input",
+exit code 53), `timeout`, `crash` (non-zero exit before the end of the script) and
 `harness-failure` (anything else: desynchronised prompts, missing output, wrong PNG size, error
 lines).
 
@@ -117,17 +117,17 @@ work dirs and `/isolate` profiles never collide.
   layouts after `CTAB = <layout>`, `_.PSPACE`, LAYOUTCREATEVIEWPORT 0). Without it AutoCAD trims
   the window to the geometry extents and re-centres the plot when the geometry comes within ~2 %
   of the view height of the window edge (note 08 §10.1).
-- -PLOT answers: `_Y`, layout, device, paper, (`_I` paper units for PDF), orientation (`_L`;
+- -PLOT answers: `_Y`, layout, device, paper, (`_I` paper units for PDF), orientation (`_L`, but
   **`_P` for square sheets**, since Landscape rotates a square sheet by 90°), `_N` upside down,
-  area (`_W` + corners | `_E` | `_L` layout), scale (`_F` or `p=d`; PNG units are pixels, PDF
-  units inches = px/100), offset `_C` (`0,0` for area Layout, which has no Center option), `_Y`
-  plot styles, CTB, lineweights `_Y/_N`, then `_A` shade plot (model) or `_N` scale lineweights,
-  `_N/_Y` paper space first, `_N` hide paperspace objects (layouts), file name, `_N` save page
-  setup, `_Y` proceed.
+  area (`_W` + corners | `_E` | `_L` layout), scale (`_F` or `p=d`, with PNG units in pixels and
+  PDF units in inches = px/100), offset `_C` (`0,0` for area Layout, which has no Center option),
+  `_Y` plot styles, CTB, lineweights `_Y/_N`, then `_A` shade plot (model) or `_N` scale
+  lineweights, `_N/_Y` paper space first, `_N` hide paperspace objects (layouts), file name, `_N`
+  save page setup, `_Y` proceed.
 
 ### Meta extensions understood by the runner
 
-`plot.paperSpaceFirst` (boolean, layouts; default false = AutoCAD's default answer "No"),
+`plot.paperSpaceFirst` (boolean, for layouts, default false = AutoCAD's default answer "No"),
 `plot.sysvars` (`{ "PLOTTRANSPARENCYOVERRIDE": 2 }` etc., set after the prologue). `outputs`
 defaults to `["png"]`.
 
@@ -154,12 +154,12 @@ The `calibration` suite is owned by tools/acad (tools/gen refuses to write it).
   tie that AutoCAD resolves by floating-point noise. Shift the window by half a pixel (e.g.
   `min = (-0.05, -0.05)`) so round coordinates hit pixel centres.
 - Use `monochrome.ctb` only with ACI colours: true-colour entities keep their RGB under it.
-- POINT ignores the lineweight (1 px); ACI 255 plots FAFAFA, true-colour white is invisible.
+- POINT ignores the lineweight (1 px). ACI 255 plots FAFAFA, true-colour white is invisible.
 
 ## Troubleshooting
 
 - `harness-failure … prompt not found`: the first unexpected line in `<case>.log` shows which
   answer AutoCAD rejected.
-- Git Bash converts `/i`-style arguments to paths; run the console only through `run.ts` (Node
-  spawn) or with `MSYS_NO_PATHCONV=1`.
+- Git Bash converts `/i`-style arguments to paths, so run the console only through `run.ts`
+  (Node spawn) or with `MSYS_NO_PATHCONV=1`.
 - `ErrorReports/` folders in the work dirs are AutoCAD crash dumps (ignored by git).

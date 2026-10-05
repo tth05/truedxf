@@ -145,7 +145,7 @@ export class FilesPanel {
           "div",
           {
             class: `item transient${open ? " active" : ""}`,
-            title: `${u.url}: opened from a URL (link, fixture or corpus), not one of your files${open ? "" : "; click to open"}`,
+            title: `${u.url}: opened from a URL (link, fixture or corpus), not one of your files${open ? "" : ". Click to open"}`,
             onclick: () => {
               if (!open) u.reopen();
             },
@@ -226,7 +226,7 @@ export class FilesPanel {
           "div",
           { class: "hint" },
           "Fonts, shape files and images the drawing references. Open them together with the " +
-            "drawing (several files or a folder), or add them later; names match without folders.",
+            "drawing (several files or a folder), or add them later. Names match without folders.",
         ),
       );
     }
@@ -280,7 +280,7 @@ export class FilesPanel {
       "This site ships no AutoCAD or Windows fonts (txt.shx, simplex.shx, …), so missing fonts are " +
       "drawn in Liberation Sans and text can look different from AutoCAD. Choose your fonts folder " +
       "(e.g. a copy of AutoCAD's Fonts folder): it stays on your computer" +
-      (f.canRemember ? " and is remembered for your next visit." : "; this browser keeps it for this visit.");
+      (f.canRemember ? " and is remembered for your next visit." : ". This browser keeps it for this visit.");
     return [
       h(
         "div",
@@ -320,7 +320,7 @@ export function pickDrawing(
         "div",
         { class: "picker-card" },
         h("b", {}, `${drawings.length} drawings. Open which one?`),
-        h("p", {}, "The other files stay available; switch drawings in the Files panel."),
+        h("p", {}, "The other files stay available. Switch drawings in the Files panel."),
         h(
           "div",
           { class: "list" },

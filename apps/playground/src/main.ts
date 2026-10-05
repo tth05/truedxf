@@ -23,6 +23,7 @@ import {
   samplesStatus,
 } from "./browse.ts";
 import { ComparePanel } from "./compare.ts";
+import { openDialog } from "./dialog.ts";
 import { h, ICONS, icon, mount } from "./dom.ts";
 import { droppedFiles, FilesPanel, inputFiles, isDrawing, isDwg, pickDrawing } from "./files.ts";
 import { FontFolder, fontLoader } from "./fonts.ts";
@@ -1053,6 +1054,39 @@ const updates = __UPDATES__
     })
   : undefined;
 
+// ---- small screens -----------------------------------------------------------------------------
+
+/**
+ * Below 900 px the side panels are hidden (style.css): say so once, the first time the page is
+ * opened on such a screen.
+ */
+function smallScreenNotice(): void {
+  if (!window.matchMedia("(max-width: 900px)").matches) return;
+  try {
+    if (localStorage.getItem("truedxf.small-screen-notice")) return;
+    localStorage.setItem("truedxf.small-screen-notice", "1");
+  } catch {
+    // storage unavailable: show it every visit rather than never
+  }
+  openDialog({
+    title: "Made for larger screens",
+    body: [
+      h(
+        "p",
+        {},
+        "truedxf is not optimized for phones yet. On small screens the side panels (layouts, layers, " +
+          "inspector and files) are hidden.",
+      ),
+      h(
+        "p",
+        {},
+        "Opening, panning and zooming drawings works. Turn the device sideways or use a computer for the rest.",
+      ),
+    ],
+    actions: [{ label: "Got it", primary: true }],
+  });
+}
+
 // ---- start -------------------------------------------------------------------------------------
 
 renderLayouts();
@@ -1064,6 +1098,7 @@ if (initial) void openSource(initial);
 if (__SAMPLES__) void initModes();
 updateReportLink();
 void fontsFolder.restore();
+smallScreenNotice();
 
 export { viewer };
 

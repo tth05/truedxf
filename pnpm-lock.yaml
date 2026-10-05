@@ -372,6 +372,9 @@ importers:
       '@truedxf/render':
         specifier: workspace:*
         version: link:../render
+      '@truedxf/text':
+        specifier: workspace:*
+        version: link:../text
       '@truedxf/three':
         specifier: workspace:*
         version: link:../three

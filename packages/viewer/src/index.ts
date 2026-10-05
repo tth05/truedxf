@@ -18,7 +18,10 @@ export type {
   RenderParams,
   RenderResult,
   Request,
+  SearchResult,
+  SnapHit,
   TagInfo,
+  TextMatch,
   ToWorker,
 } from "./protocol.ts";
 export * from "./view.ts";

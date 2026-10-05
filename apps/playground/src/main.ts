@@ -31,6 +31,7 @@ import { FontFolder, fontLoader } from "./fonts.ts";
 import { fmtBytes, fmtCoord, fmtMs, fmtNum } from "./format.ts";
 import { dropdown, type MenuItem } from "./menu.ts";
 import { resizableSections, resizableSidebars } from "./resize.ts";
+import { SearchBox } from "./search.ts";
 import { watchUpdates } from "./update.ts";
 
 const app = document.getElementById("app")!;
@@ -51,6 +52,8 @@ const btnLw = h(
   icon(ICONS.weight),
 );
 const modeTabs = h("div", { class: "seg", id: "modes" });
+/** Replaced by the search box once the viewer exists. */
+const searchSlot = h("div", { class: "search-box" });
 /** Zoom factor of the + / − buttons and keys. */
 const ZOOM_STEP = 1.5;
 /** The image printed by "Print view" (shown only in print, style.css). */
@@ -73,6 +76,7 @@ const topbar = h(
   modeTabs,
   fileName,
   h("div", { class: "spacer" }),
+  searchSlot,
   h("div", { class: "seg" }, btnSelect, btnMeasure),
   h("div", { class: "seg" }, btnLw, btnTheme),
   exportUi.root,
@@ -224,6 +228,9 @@ const busy = h("div", { class: "busy" }, h("span", { class: "spinner" }), h("spa
 const toast = h("div", { class: "toast" });
 const updateBar = h("div", { class: "update-bar", role: "status" });
 const measureChip = h("div", { class: "measure-chip" });
+/** Name of the measure tool's snap point, next to its marker. */
+const snapLabel = h("div", { class: "snap-label" });
+const SNAP_NAMES = ["Endpoint", "Midpoint", "Center", "Node", "Quadrant"];
 const zoomControls = h(
   "div",
   { class: "zoom-controls" },
@@ -258,6 +265,7 @@ const stage = h(
   h("div", { class: "drop" }, "Drop to open"),
   busy,
   measureChip,
+  snapLabel,
   zoomControls,
   layoutNotice,
   compare.root,
@@ -346,6 +354,8 @@ const viewer = new DxfViewer(viewerHost, {
   },
 });
 (window as unknown as { viewer: DxfViewer }).viewer = viewer;
+const searchBox = new SearchBox(viewer);
+searchSlot.replaceWith(searchBox.root);
 filesPanel = new FilesPanel(
   viewer,
   {
@@ -451,6 +461,14 @@ viewer.on("cursor", (c) => {
   status.cursor.textContent = c ? `${fmtCoord(c.x)}, ${fmtCoord(c.y)}` : "";
 });
 viewer.on("select", ({ handle }) => void showInspector(handle));
+viewer.on("snap", (s) => {
+  const p = s && viewer.worldToScreen(s.x, s.y);
+  snapLabel.classList.toggle("on", !!p);
+  if (!s || !p) return;
+  snapLabel.textContent = SNAP_NAMES[s.kind] ?? "Snap";
+  snapLabel.style.transform = `translate(${Math.round(p[0] + 12)}px, ${Math.round(p[1] + 10)}px)`;
+});
+viewer.on("view", () => snapLabel.classList.remove("on"));
 viewer.on("measure", (m) => {
   measureChip.classList.toggle("on", !!m);
   if (!m) return;
@@ -631,6 +649,12 @@ window.addEventListener("keydown", (ev) => {
     fileInput.click();
     return;
   }
+  // Ctrl+F searches the drawing's texts (the browser's find sees only the page around it)
+  if (mod && !ev.altKey && (ev.key === "f" || ev.key === "F") && info) {
+    ev.preventDefault();
+    searchBox.focus();
+    return;
+  }
   // Ctrl+P prints the view (the browser's own print of this page would be empty)
   if (mod && !ev.altKey && (ev.key === "p" || ev.key === "P") && info) {
     ev.preventDefault();
@@ -685,8 +709,14 @@ function showShortcuts(): void {
         group("Tools", [
           row(["Click"], "Select an entity and inspect it"),
           row(["M"], "Measure on / off (two clicks)"),
+          row(["Alt"], "Measure without snapping (hold)"),
           row(["Esc"], "Clear the selection or measurement"),
           row(["Alt+click"], "Isolate a layer (Layers panel)"),
+        ]),
+        group("Search", [
+          row([`${ctrl}+F`], "Search text in the drawing"),
+          row(["Enter", "↓"], "Next match"),
+          row(["Shift+Enter", "↑"], "Previous match"),
         ]),
         group("Files", [
           row([`${ctrl}+O`], "Open files"),

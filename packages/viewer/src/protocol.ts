@@ -7,27 +7,34 @@
  * (docs/perf-plan.md steps 1 and 5).
  */
 import {
+  type AttribEntity,
+  type Block,
   type DxfDocument,
   type Entity,
   type InsertEntity,
   type LayerEntry,
   loadDxf,
   PropertyResolver as ModelResolver,
+  type MTextEntity,
+  type TextEntity,
 } from "@truedxf/model";
 import { createPdfRasterizer, type PdfRasterizerOptions } from "@truedxf/pdf";
 import {
   ACI_RGB,
+  type ClipRegion,
   type DisplayList,
+  type DrawnText,
   type PdfRasterizer,
   type PlotArea,
   type PlotRequest,
   renderPlot,
   transferables,
 } from "@truedxf/render";
+import { plainMText, plainText } from "@truedxf/text";
 import type { MergedDisplayList } from "@truedxf/three/merge";
 import { entityBounds, intersects } from "./cull.ts";
 import { DrawingState, drawingUpload, type EntityGeometry } from "./drawing.ts";
-import type { PickHit } from "./pick.ts";
+import { insideRings, type PickHit } from "./pick.ts";
 import { isValidRect, type Rect } from "./view.ts";
 import { documentWarnings, renderWarnings, type ViewerWarning } from "./warnings.ts";
 
@@ -136,6 +143,40 @@ export interface RenderParams {
    * render's, the core drops its font and image caches, so files added since are looked up.
    */
   assets?: number;
+  /** Record drawn texts and snap points for search / snap requests (default false). */
+  annotations?: boolean;
+}
+
+/** A text found by a search request, where it is drawn in the searched layout. */
+export interface TextMatch {
+  /** Plain text (formatting removed). */
+  text: string;
+  /** The top-level entity it is drawn in: the text itself, or e.g. the INSERT of its block. */
+  handle: string;
+  /** World bounds of the drawn text (paper units in layouts). */
+  bounds: Rect;
+}
+
+export interface SearchResult {
+  /** The layout the matches are in (the last complete list's); undefined before any render. */
+  layout: string | undefined;
+  /** In reading order (top to bottom, then left to right), at most `limit`. */
+  matches: TextMatch[];
+  /** All matches in that layout. */
+  total: number;
+  /**
+   * Matches in other layouts, from the model (top-level texts, attributes, block content;
+   * model space seen through viewports does not count): switch the layout to see them.
+   */
+  others: { layout: string; count: number }[];
+}
+
+/** A snap point near the pointer (measuring). */
+export interface SnapHit {
+  x: number;
+  y: number;
+  /** SnapKind of @truedxf/render: 0 endpoint, 1 midpoint, 2 centre, 3 node, 4 quadrant. */
+  kind: number;
 }
 
 export interface RenderResult {
@@ -207,7 +248,9 @@ export type Request =
   | { type: "render"; params: RenderParams }
   | { type: "pick"; point: [number, number]; tolerance: number; generation?: number }
   | { type: "geometry"; entity: string | number; generation?: number }
-  | { type: "inspect"; handle: string };
+  | { type: "inspect"; handle: string }
+  | { type: "search"; query: string; limit: number }
+  | { type: "snap"; point: [number, number]; tolerance: number; generation?: number };
 
 export type ResponseValue<R extends Request> = R extends { type: "load" }
   ? DocumentInfo
@@ -219,7 +262,11 @@ export type ResponseValue<R extends Request> = R extends { type: "load" }
         ? EntityGeometry | undefined
         : R extends { type: "inspect" }
           ? EntityInfo | undefined
-          : never;
+          : R extends { type: "search" }
+            ? SearchResult
+            : R extends { type: "snap" }
+              ? SnapHit | undefined
+              : never;
 
 /** Main thread → worker. */
 export type ToWorker =
@@ -279,6 +326,12 @@ export class ViewerCore {
   private assets = 0;
   /** One rasterizer per options: the renderer caches opened PDFs per rasterizer identity. */
   private pdf: { key: string; rasterizer: PdfRasterizer } | undefined;
+  /** Texts of the last complete (not culled) interactive list, for search. */
+  private textIndex:
+    | { layout: string; texts: readonly DrawnText[]; clips: readonly ClipRegion[] }
+    | undefined;
+  /** Plain texts per layout from the model (search counts for the other layouts). */
+  private layoutTexts: Map<string, string[]> | undefined;
 
   constructor(loadFont: AssetLoader, loadImage: AssetLoader) {
     this.baseFont = loadFont;
@@ -299,6 +352,10 @@ export class ViewerCore {
         return this.matches(req.generation) ? this.drawing?.pick(...req.point, req.tolerance) : undefined;
       case "geometry":
         return this.matches(req.generation) ? this.drawing?.geometry(req.entity) : undefined;
+      case "search":
+        return this.search(req.query, req.limit);
+      case "snap":
+        return this.matches(req.generation) ? this.drawing?.snap(...req.point, req.tolerance) : undefined;
     }
   }
 
@@ -321,6 +378,8 @@ export class ViewerCore {
     this.byId = undefined;
     this.byHandle = undefined;
     this.ownerBlock = undefined;
+    this.textIndex = undefined;
+    this.layoutTexts = undefined;
     return describe(doc, name, bytes.byteLength, ms);
   }
 
@@ -391,6 +450,7 @@ export class ViewerCore {
         background: p.background,
         layerVisibility: toggles,
         rasterEntities: p.rasterEntities === false ? "omit" : "draw",
+        annotations: p.annotations === true && p.raster === "smooth",
         ...(p.pdf === false ? {} : { pdf: this.pdfRasterizer(p.pdf ?? {}) }),
         visibility: p.visibility ?? "display",
         ...(p.dpi ? { calibration: { dpi: p.dpi } } : {}),
@@ -409,6 +469,8 @@ export class ViewerCore {
     if (!covered && p.retain !== false && p.raster === "smooth") {
       this.entityBounds = entityBounds(res.displayList);
       this.boundsPixelSize = res.displayList.pixelSize;
+      const texts = res.displayList.annotations?.texts;
+      this.textIndex = texts ? { layout: p.layout, texts, clips: res.displayList.clips } : undefined;
     }
     const t2 = performance.now();
     const upload = drawingUpload(res.displayList, p.mergeBatches ?? false);
@@ -439,6 +501,84 @@ export class ViewerCore {
       warnings,
       ms: { frontend: t1 - t0, pick: t2 - t1, merge: t3 - t2 },
     };
+  }
+
+  /**
+   * Texts containing `query` (case-insensitive, runs of white space as one space) in the last
+   * complete list, and how many the other layouts have.
+   */
+  search(query: string, limit: number): SearchResult {
+    const q = normalizeText(query);
+    const idx = this.textIndex;
+    if (!q || !this.doc) return { layout: idx?.layout, matches: [], total: 0, others: [] };
+    const found: TextMatch[] = [];
+    for (const t of idx?.texts ?? []) {
+      if (!normalizeText(t.text).includes(q)) continue;
+      // viewport content outside its viewport is clipped away: not a match there
+      const clip = t.clip >= 0 ? idx!.clips[t.clip] : undefined;
+      const cx = (t.bounds.minX + t.bounds.maxX) / 2;
+      const cy = (t.bounds.minY + t.bounds.maxY) / 2;
+      if (clip && !insideRings(clip.rings, cx, cy)) continue;
+      found.push({ text: t.text, handle: t.entity, bounds: { ...t.bounds } });
+    }
+    // reading order; rows within a fraction of the text height count as one line
+    found.sort((a, b) => {
+      const h = Math.max(a.bounds.maxY - a.bounds.minY, b.bounds.maxY - b.bounds.minY) * 0.5;
+      const dy = b.bounds.maxY - a.bounds.maxY;
+      return Math.abs(dy) > h ? dy : a.bounds.minX - b.bounds.minX;
+    });
+    const others: { layout: string; count: number }[] = [];
+    for (const [layout, texts] of this.textsByLayout()) {
+      if (layout.toUpperCase() === idx?.layout.toUpperCase()) continue;
+      const count = texts.reduce((n, t) => n + (normalizeText(t).includes(q) ? 1 : 0), 0);
+      if (count) others.push({ layout, count });
+    }
+    return { layout: idx?.layout, matches: found.slice(0, limit), total: found.length, others };
+  }
+
+  /** Plain texts per layout: top-level texts, attributes and (nested) block content. */
+  private textsByLayout(): Map<string, string[]> {
+    if (this.layoutTexts) return this.layoutTexts;
+    const doc = this.requireDoc();
+    const perBlock = new Map<Block, string[]>();
+    const visiting = new Set<Block>();
+    const collect = (entities: readonly Entity[], out: string[], depth: number) => {
+      for (const e of entities) {
+        if (e.type === "TEXT") out.push(plainText((e as TextEntity).text));
+        else if (e.type === "MTEXT") out.push(plainMText((e as MTextEntity).text));
+        else if (e.type === "ATTDEF" && depth === 0) out.push(plainText((e as AttribEntity).tag));
+        else if (e.type === "INSERT") {
+          const ins = e as InsertEntity;
+          for (const a of ins.attribs) out.push(plainText(a.text));
+          const b = doc.getBlock(ins.blockName);
+          if (b && depth < 16) out.push(...blockTexts(b, depth + 1));
+        }
+      }
+    };
+    const blockTexts = (b: Block, depth: number): string[] => {
+      let t = perBlock.get(b);
+      if (t) return t;
+      if (visiting.has(b)) return [];
+      visiting.add(b);
+      t = [];
+      // constant ATTDEFs draw inside blocks; ordinary ones do not
+      collect(
+        b.entities.filter((e) => e.type !== "ATTDEF" || ((e as AttribEntity).attribFlags & 2) !== 0),
+        t,
+        depth,
+      );
+      visiting.delete(b);
+      perBlock.set(b, t);
+      return t;
+    };
+    const map = new Map<string, string[]>();
+    for (const l of doc.layouts) {
+      const out: string[] = [];
+      collect(l.block.entities, out, 0);
+      map.set(l.isModel ? "Model" : l.name, out);
+    }
+    this.layoutTexts = map;
+    return map;
   }
 
   private matches(generation: number | undefined): boolean {
@@ -508,6 +648,10 @@ export class ViewerCore {
     if (!this.doc) throw new Error("no document loaded");
     return this.doc;
   }
+}
+
+function normalizeText(s: string): string {
+  return s.toLowerCase().replace(/\s+/g, " ").trim();
 }
 
 function formatValue(v: string | number | bigint | boolean | Uint8Array): string {

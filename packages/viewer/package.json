@@ -50,6 +50,7 @@
     "@truedxf/model": "workspace:*",
     "@truedxf/pdf": "workspace:*",
     "@truedxf/render": "workspace:*",
+    "@truedxf/text": "workspace:*",
     "@truedxf/three": "workspace:*",
     "flatbush": "^4.6.2"
   },

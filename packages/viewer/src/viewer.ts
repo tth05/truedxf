@@ -41,6 +41,8 @@ import type {
   LayoutInfo,
   RenderParams,
   RenderResult,
+  SearchResult,
+  SnapHit,
 } from "./protocol.ts";
 import {
   constrainView,
@@ -143,6 +145,16 @@ export interface DxfViewerOptions {
   fallbackFont?: string | readonly string[];
   /** Big font (.shx) for missing big fonts (default: none). */
   fallbackBigFont?: string;
+  /**
+   * Keep the drawn texts and snap points of each list in the backend, for search() and measure
+   * snapping (default true). Costs some backend memory per list.
+   */
+  annotations?: boolean;
+  /**
+   * The measure tool snaps to end points, midpoints, centres, quadrants and POINTs near the
+   * pointer (default true; holding Alt suspends it). Needs `annotations`. setSnap(on).
+   */
+  snap?: boolean;
 }
 
 /**
@@ -185,6 +197,10 @@ export interface ViewerColors {
   hover?: ViewerColor;
   /** Measure tool line and points (default #ff2d95). */
   measure?: ViewerColor;
+  /** Snap marker of the measure tool (default #2bd96b). */
+  snap?: ViewerColor;
+  /** Outline of setMarker() (default: the select colour). */
+  marker?: ViewerColor;
   /**
    * Around the paper sheet of a layout (default: a grey matching the background). The sheet
    * itself stays white: the drawing's colours are contrasted against white paper.
@@ -223,6 +239,8 @@ export interface ViewerEvents {
   busy: { busy: boolean; what: string };
   error: { error: Error };
   measure: Measurement | undefined;
+  /** The measure tool's snap point under the pointer changed (undefined: none). */
+  snap: SnapHit | undefined;
   layout: { name: string };
   /**
    * The current warnings changed (document warnings followed by those of the current layout's
@@ -256,7 +274,10 @@ const BACKGROUNDS = {
   dark: [33, 40, 48] as const,
   light: [255, 255, 255] as const,
 };
-const DEFAULT_COLORS = { select: 0x2f81f7, hover: 0xf0a33e, measure: 0xff2d95 } as const;
+const DEFAULT_COLORS = { select: 0x2f81f7, hover: 0xf0a33e, measure: 0xff2d95, snap: 0x2bd96b } as const;
+/** Snap aperture of the measure tool and size of its marker, CSS pixels. */
+const SNAP_APERTURE = 10;
+const SNAP_MARKER = 6;
 /** Margin of zoomToEntity: a lone entity right at the canvas edge looks cut off. */
 const ENTITY_MARGIN = 0.25;
 
@@ -351,6 +372,8 @@ export class DxfViewer {
     select: THREE.Color;
     hover: THREE.Color;
     measure: THREE.Color;
+    snap: THREE.Color;
+    marker: THREE.Color | undefined;
     surround: THREE.Color | undefined;
   };
   /** The view is the fitted one (autoFit "always" re-fits it on resize). */
@@ -360,7 +383,20 @@ export class DxfViewer {
   private readonly selectGroup = new THREE.Group();
   private readonly hoverGroup = new THREE.Group();
   private readonly measureGroup = new THREE.Group();
+  private readonly markerGroup = new THREE.Group();
   private readonly paperGroup = new THREE.Group();
+  private marker: Rect | undefined;
+  private snapOn: boolean;
+  /** The snap point under the pointer while measuring, with the list it came from. */
+  private snapPoint: { hit: SnapHit; current: CurrentList } | undefined;
+  private readonly snapQuery = new LatestQuery(
+    (p: { x: number; y: number; current: CurrentList }) => this.snapAt(p.x, p.y, p.current),
+    (hit, p) => {
+      if (this.current === p.current && !this.disposed && this.tool === "measure")
+        this.setSnapPoint(hit, p.current);
+    },
+    (error) => this.interactionError(error),
+  );
   private measureA: [number, number] | undefined;
   private measureB: [number, number] | undefined;
   private cursorWorld: [number, number] | undefined;
@@ -388,8 +424,11 @@ export class DxfViewer {
       select: new THREE.Color(DEFAULT_COLORS.select),
       hover: new THREE.Color(DEFAULT_COLORS.hover),
       measure: new THREE.Color(DEFAULT_COLORS.measure),
+      snap: new THREE.Color(DEFAULT_COLORS.snap),
+      marker: undefined,
       surround: undefined,
     };
+    this.snapOn = options.snap ?? true;
     this.assignColors(options.colors ?? {});
     // Every asset request: the viewer's files, then the configured loader (then, for images, the
     // drawing's URL folder). These identities stay fixed; the backend makes fresh ones per file
@@ -424,12 +463,12 @@ export class DxfViewer {
     });
     // nested groups set their own three.js groupOrder: keep them above / below the drawing, each
     // its own order so the stencil passes of clipped highlights do not interleave
-    [this.hoverGroup, this.selectGroup, this.measureGroup].forEach((g, i) => {
-      g.renderOrder = Number.MAX_SAFE_INTEGER - 2 + i;
+    [this.hoverGroup, this.selectGroup, this.markerGroup, this.measureGroup].forEach((g, i) => {
+      g.renderOrder = Number.MAX_SAFE_INTEGER - 3 + i;
     });
     this.paperGroup.renderOrder = -1;
     this.renderer.detailOverlay.add(this.hoverGroup, this.selectGroup);
-    this.renderer.overlay.add(this.measureGroup);
+    this.renderer.overlay.add(this.measureGroup, this.markerGroup);
     this.renderer.underlay.add(this.paperGroup);
     this.applyClearColor();
     this.resizeObserver = new ResizeObserver(() => this.handleResize());
@@ -821,13 +860,17 @@ export class DxfViewer {
     this.highlight(this.selectGroup, this.selected, this.colors.select, 1);
     this.highlight(this.hoverGroup, this.hoverShown(), this.colors.hover, 0.85);
     this.updateMeasureOverlay();
+    this.drawMarker();
     this.requestFrame();
   }
 
   setTool(tool: Tool): void {
     this.tool = tool;
     this.updateCursor();
-    if (tool !== "measure") this.clearMeasure();
+    if (tool !== "measure") {
+      this.setSnapPoint(undefined);
+      this.clearMeasure();
+    }
   }
 
   get currentTool(): Tool {
@@ -868,6 +911,32 @@ export class DxfViewer {
     this.highlight(this.hoverGroup, this.hoverShown(), this.colors.hover, 0.85);
     this.emit("select", { handle });
     this.requestFrame();
+  }
+
+  /**
+   * Texts containing `query` (case-insensitive) in the current layout, where they are drawn, in
+   * reading order: block content, attributes, dimension and leader texts included. Searches the
+   * last complete list, so it follows layer visibility; `others` counts matches in the other
+   * layouts. Needs `annotations` (default on).
+   */
+  search(query: string, limit = 200): Promise<SearchResult> {
+    return this.backend.call({ type: "search", query, limit });
+  }
+
+  /**
+   * Outlines a world rectangle (e.g. a search match) until it is replaced, cleared with
+   * undefined, or another drawing / layout is shown.
+   */
+  setMarker(rect: Rect | undefined): void {
+    this.marker = rect && isValidRect(rect) ? { ...rect } : undefined;
+    this.drawMarker();
+    this.requestFrame();
+  }
+
+  /** Switches measure snapping (DxfViewerOptions.snap). */
+  setSnap(on: boolean): void {
+    this.snapOn = on;
+    if (!on) this.setSnapPoint(undefined);
   }
 
   /** Entity details (type, properties raw/resolved, raw DXF tags) from the model. */
@@ -958,6 +1027,10 @@ export class DxfViewer {
 
   private async refit(): Promise<void> {
     this.fitPending = this.autoFit !== false || !this.view;
+    this.marker = undefined;
+    this.drawMarker();
+    this.snapQuery.cancel();
+    this.snapPoint = undefined;
     this.current = undefined;
     this.base = undefined;
     this.renderer.clearBase();
@@ -1004,6 +1077,7 @@ export class DxfViewer {
       raster: "smooth" as const,
       mergeBatches: this.options.mergeBatches ?? true,
       lod: this.options.lod !== false,
+      annotations: this.options.annotations !== false,
       dpi: 100 * this.dpr,
       assets: this.store.generation,
       pdf: this.options.pdf ?? {},
@@ -1241,6 +1315,8 @@ export class DxfViewer {
     if (c.select !== undefined) this.colors.select = new THREE.Color(c.select);
     if (c.hover !== undefined) this.colors.hover = new THREE.Color(c.hover);
     if (c.measure !== undefined) this.colors.measure = new THREE.Color(c.measure);
+    if (c.snap !== undefined) this.colors.snap = new THREE.Color(c.snap);
+    if (c.marker !== undefined) this.colors.marker = new THREE.Color(c.marker);
     if (c.surround !== undefined) this.colors.surround = new THREE.Color(c.surround);
   }
 
@@ -1392,6 +1468,144 @@ export class DxfViewer {
     this.requestFrame();
   }
 
+  // ---- snapping and the marker ---------------------------------------------------------------
+
+  private snapAt(x: number, y: number, cur: CurrentList): Promise<SnapHit | undefined> {
+    if (!this.view) return Promise.resolve(undefined);
+    const [wx, wy] = screenToWorld(this.view, x, y);
+    // the coarse list outside detail coverage has no snap points worth offering
+    if (cur.covered && !contains(cur.covered, wx, wy)) return Promise.resolve(undefined);
+    return this.backend.call({
+      type: "snap",
+      point: [wx, wy],
+      tolerance: SNAP_APERTURE * this.view.scale,
+      generation: cur.generation,
+    });
+  }
+
+  /** Measure tool: look for a snap point under the pointer (`off`: Alt held, no snapping). */
+  private requestSnap(x: number, y: number, off: boolean): void {
+    if (off || !this.snapOn || !this.current || this.options.annotations === false) {
+      this.snapQuery.cancel();
+      this.setSnapPoint(undefined);
+      return;
+    }
+    this.snapQuery.push({ x, y, current: this.current });
+  }
+
+  private setSnapPoint(hit: SnapHit | undefined, current?: CurrentList): void {
+    const prev = this.snapPoint?.hit;
+    if (prev === hit || (prev && hit && prev.x === hit.x && prev.y === hit.y && prev.kind === hit.kind))
+      return;
+    this.snapPoint = hit && current ? { hit, current } : undefined;
+    this.emit("snap", hit);
+    this.updateMeasureOverlay();
+  }
+
+  /** Where a measure click at canvas point (x, y) lands: the snap point when it is close. */
+  private measurePoint(x: number, y: number): [number, number] | undefined {
+    if (!this.view) return undefined;
+    const s = this.snapPoint;
+    if (s && s.current === this.current) {
+      const [sx, sy] = worldToScreen(this.view, s.hit.x, s.hit.y);
+      if (Math.hypot(sx - x, sy - y) <= SNAP_APERTURE * 1.5) return [s.hit.x, s.hit.y];
+    }
+    return screenToWorld(this.view, x, y);
+  }
+
+  /** The snap marker: a square (end), triangle (middle), circle (centre), circled × (node) or diamond (quadrant). */
+  private snapMarker(hit: SnapHit): THREE.Object3D | undefined {
+    if (!this.view) return undefined;
+    const r = SNAP_MARKER * this.view.scale;
+    const pts: number[] = [];
+    const poly = (corners: [number, number][]) => {
+      for (let i = 0; i < corners.length; i++) {
+        const a = corners[i]!;
+        const b = corners[(i + 1) % corners.length]!;
+        pts.push(a[0] * r, a[1] * r, b[0] * r, b[1] * r);
+      }
+    };
+    const circle = (k = 1) =>
+      poly(
+        Array.from({ length: 20 }, (_, i) => [
+          Math.cos((i / 20) * 2 * Math.PI) * k,
+          Math.sin((i / 20) * 2 * Math.PI) * k,
+        ]),
+      );
+    switch (hit.kind) {
+      case 0:
+        poly([
+          [-1, -1],
+          [1, -1],
+          [1, 1],
+          [-1, 1],
+        ]);
+        break;
+      case 1:
+        poly([
+          [-1.1, -0.8],
+          [1.1, -0.8],
+          [0, 1.1],
+        ]);
+        break;
+      case 2:
+        circle(1.1);
+        break;
+      case 3:
+        circle(1);
+        pts.push(-0.7 * r, -0.7 * r, 0.7 * r, 0.7 * r, -0.7 * r, 0.7 * r, 0.7 * r, -0.7 * r);
+        break;
+      default:
+        poly([
+          [0, -1.2],
+          [1.2, 0],
+          [0, 1.2],
+          [-1.2, 0],
+        ]);
+    }
+    const line = new THREE.LineSegments(
+      geometry2d(new Float32Array(pts)),
+      new THREE.LineBasicMaterial({
+        color: this.colors.snap,
+        transparent: true,
+        depthTest: false,
+        depthWrite: false,
+      }),
+    );
+    line.position.set(hit.x, hit.y, 0);
+    line.frustumCulled = false;
+    return line;
+  }
+
+  private drawMarker(): void {
+    disposeChildren(this.markerGroup);
+    const r = this.marker;
+    if (!r) return;
+    const w = r.maxX - r.minX;
+    const h = r.maxY - r.minY;
+    // a little air around the text, at least a few pixels at the current zoom
+    const pad = Math.max(Math.max(w, h) * 0.08, (this.view?.scale ?? 0) * 3);
+    const x0 = -pad;
+    const y0 = -pad;
+    const x1 = w + pad;
+    const y1 = h + pad;
+    const color = this.colors.marker ?? this.colors.select;
+    const common = { color, transparent: true, depthTest: false, depthWrite: false };
+    const outline = new THREE.LineSegments(
+      geometry2d(new Float32Array([x0, y0, x1, y0, x1, y0, x1, y1, x1, y1, x0, y1, x0, y1, x0, y0])),
+      new THREE.LineBasicMaterial(common),
+    );
+    const fill = new THREE.Mesh(
+      geometry2d(new Float32Array([x0, y0, x1, y0, x1, y1, x0, y0, x1, y1, x0, y1])),
+      new THREE.MeshBasicMaterial({ ...common, opacity: 0.18, side: THREE.DoubleSide }),
+    );
+    for (const o of [fill, outline]) {
+      o.position.set(r.minX, r.minY, 0);
+      o.frustumCulled = false;
+      this.markerGroup.add(o);
+    }
+  }
+
   private measureClick(wx: number, wy: number): void {
     if (!this.measureA || this.measureB) {
       this.measureA = [wx, wy];
@@ -1416,9 +1630,16 @@ export class DxfViewer {
 
   private updateMeasureOverlay(): void {
     disposeChildren(this.measureGroup);
+    if (!this.view) return;
+    const snap = this.tool === "measure" ? this.snapPoint?.hit : undefined;
+    const marker = snap ? this.snapMarker(snap) : undefined;
+    if (marker) this.measureGroup.add(marker);
     const a = this.measureA;
-    if (!a || !this.view) return;
-    const b = this.measureB ?? this.cursorWorld;
+    if (!a) {
+      this.requestFrame();
+      return;
+    }
+    const b = this.measureB ?? (snap ? ([snap.x, snap.y] as [number, number]) : this.cursorWorld);
     // positions relative to point a (float32 precision), group positioned at a
     const pts = b ? [0, 0, b[0] - a[0], b[1] - a[1]] : [0, 0];
     const g = geometry2d(new Float32Array(pts));
@@ -1480,6 +1701,7 @@ export class DxfViewer {
       if (this.view) {
         this.cursorWorld = screenToWorld(this.view, p.x, p.y);
         this.emit("cursor", { x: this.cursorWorld[0], y: this.cursorWorld[1] });
+        if (this.tool === "measure" && !prev) this.requestSnap(p.x, p.y, ev.altKey);
         if (this.measureA && !this.measureB) this.updateMeasureOverlay();
       }
       if (!prev) {
@@ -1517,8 +1739,8 @@ export class DxfViewer {
       if (prev.button === 0 && this.dragMoved <= 3 && this.pointers.size === 0) {
         const p = this.local(ev);
         if (this.tool === "measure" && this.view) {
-          const [wx, wy] = screenToWorld(this.view, p.x, p.y);
-          this.measureClick(wx, wy);
+          const at = ev.altKey ? screenToWorld(this.view, p.x, p.y) : this.measurePoint(p.x, p.y);
+          if (at) this.measureClick(at[0], at[1]);
         } else if (this.input.select) void this.clickAt(p.x, p.y);
       }
     };
@@ -1527,6 +1749,8 @@ export class DxfViewer {
     c.addEventListener("pointerleave", () => {
       this.lastPointer = undefined;
       this.hoverQuery.cancel();
+      this.snapQuery.cancel();
+      this.setSnapPoint(undefined);
       this.cursorWorld = undefined;
       this.emit("cursor", undefined);
       if (this.hovered !== undefined && this.pointers.size === 0) this.setHover(undefined);

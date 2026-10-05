@@ -160,6 +160,112 @@ select {
   background: var(--accent-soft);
 }
 
+/* ---- text search (search.ts) ---- */
+.search-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 240px;
+  height: 30px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel-2);
+}
+.search-box:focus-within {
+  border-color: var(--accent);
+}
+.search-box:has(.search-input:disabled) {
+  opacity: 0.5;
+}
+.search-icon {
+  display: inline-flex;
+  padding: 0 4px 0 8px;
+  color: var(--muted);
+}
+.search-icon svg {
+  width: 15px;
+  height: 15px;
+}
+.search-input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  outline: none;
+  background: none;
+  padding: 0 4px;
+}
+.search-count {
+  padding-right: 8px;
+  color: var(--faint);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.search-panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  width: 380px;
+  max-width: calc(100vw - 24px);
+  max-height: min(420px, 60vh);
+  overflow: auto;
+  padding: 4px;
+  border-radius: 8px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.3);
+  display: none;
+  z-index: 20;
+}
+.search-panel.on {
+  display: block;
+}
+.search-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.search-head kbd {
+  font: 11px var(--font);
+  padding: 0 5px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--muted);
+}
+.search-hit {
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.search-hit:hover {
+  background: var(--panel-2);
+}
+.search-hit.active {
+  background: var(--accent-soft);
+}
+.search-hit mark {
+  background: rgba(240, 163, 62, 0.35);
+  color: inherit;
+  border-radius: 2px;
+}
+.search-empty,
+.search-others {
+  padding: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.search-others {
+  border-top: 1px solid var(--border);
+  margin-top: 4px;
+}
+
 /* ---- main ---- */
 .main {
   position: relative;
@@ -801,6 +907,23 @@ body > .landing {
     object-fit: contain;
   }
 }
+.snap-label {
+  position: absolute;
+  top: 0;
+  left: 0;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  color: #2bd96b;
+  font-size: 11px;
+  pointer-events: none;
+  display: none;
+  z-index: 4;
+}
+.snap-label.on {
+  display: block;
+}
 .measure-chip {
   position: absolute;
   top: 12px;
@@ -977,6 +1100,9 @@ body > .landing {
   .filename {
     display: none;
   }
+  .search-box {
+    width: 180px;
+  }
 }
 /* phones: the top bar keeps its buttons on one line */
 @media (max-width: 560px) {
@@ -989,6 +1115,7 @@ body > .landing {
   }
   .split > .btn.primary .label,
   .topbar .keys-help,
+  .topbar .search-box,
   #modes {
     display: none;
   }

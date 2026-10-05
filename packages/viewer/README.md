@@ -121,6 +121,18 @@ which Vite, webpack and Rollup bundle. Vite's dependency pre-bundling breaks tha
 Events: `load`, `layout`, `render` (stats and timings), `select`, `hover`, `cursor` (world
 coordinates), `view`, `busy`, `measure`, `warnings`, `files`, `error`.
 
+**Search.** `await viewer.search("room 1")` finds texts of the current layout where they are
+drawn (TEXT, MTEXT, attributes, block content, dimension and leader texts; case-insensitive), in
+reading order with their world bounds, and counts the matches in other layouts (`others`).
+`viewer.fitTo(match.bounds, 2)` and `viewer.setMarker(match.bounds)` show one. It searches the
+last complete list, so hidden layers are not searched.
+
+**Measure snapping.** The measure tool snaps to end points, midpoints, centres, quadrants and
+POINTs within 10 px (marker: square, triangle, circle, diamond; event `snap`); Alt held measures
+freely, `setSnap(false)` / `snap: false` turns it off. Search and snapping use texts and snap
+points the backend records with each list (`annotations`, default on: render option
+`annotations` of `@truedxf/render`, kept in the worker).
+
 A file that does not start like a DXF (`sniffFile` of `@truedxf/core`: a DWG, DXB, PDF, …) is
 rejected before parsing: `load` / `openFiles` / `openDrawing` throw (and emit) a `NotDxfError`
 with `kind` `"dwg"`, `"dxb"` or `"unknown"`, and the open drawing stays.

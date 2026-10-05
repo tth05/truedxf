@@ -12,6 +12,7 @@
     { "path": "../model" },
     { "path": "../pdf" },
     { "path": "../render" },
+    { "path": "../text" },
     { "path": "../three" }
   ]
 }

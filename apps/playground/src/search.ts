@@ -8,8 +8,12 @@ import type { DxfViewer, SearchResult, TextMatch } from "@truedxf/viewer";
 import { h, ICONS, icon, mount } from "./dom.ts";
 import { fmtNum } from "./format.ts";
 
-/** Margin around a match when zooming to it, relative to its size per side (text ≈ 1/5 of the view). */
-const MATCH_MARGIN = 2;
+/**
+ * Area shown around a match: at least this many text heights high and its width three times,
+ * so a short word is shown with its surroundings rather than filling the view.
+ */
+const CONTEXT_HEIGHTS = 24;
+const CONTEXT_WIDTHS = 3;
 
 export class SearchBox {
   readonly root: HTMLElement;
@@ -143,7 +147,13 @@ export class SearchBox {
     const m = this.result?.matches[i];
     if (!m) return;
     this.index = i;
-    this.viewer.fitTo(m.bounds, MATCH_MARGIN);
+    const b = m.bounds;
+    const w = b.maxX - b.minX;
+    const h = b.maxY - b.minY;
+    const cx = (b.minX + b.maxX) / 2;
+    const cy = (b.minY + b.maxY) / 2;
+    const half = Math.max(w * CONTEXT_WIDTHS, h * CONTEXT_HEIGHTS) / 2;
+    this.viewer.fitTo({ minX: cx - half, minY: cy - half, maxX: cx + half, maxY: cy + half }, 0);
     this.viewer.setMarker(m.bounds);
     this.updateCount();
     // the match is in the middle of the view: the list must not cover it

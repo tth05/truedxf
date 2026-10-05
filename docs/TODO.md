@@ -287,7 +287,11 @@ default, FILLMODE for pattern hatches, extents edge tolerance.
       emitted `dist/worker.js` (`pnpm build`).
 - [ ] Layers panel: per-layout VP-freeze state, layer colour / linetype overrides; xref layers.
 - [ ] Picking inside block references returns the innermost entity; offer "select parent INSERT".
-- [ ] Measure: object snaps (endpoint, midpoint, intersection) and a thicker overlay line.
+- [x] Measure: object snaps (endpoint, midpoint, centre, quadrant, node) from display-list
+      annotations (render `annotations`), Alt suspends them (2026-10-05).
+- [ ] Measure: intersection / perpendicular / nearest snaps; a thicker overlay line.
+- [x] Text search (`viewer.search`, playground `Ctrl+F`) over the drawn texts of the current layout,
+      with a marker (`setMarker`) and counts for other layouts (2026-10-05).
 - [x] Batch fragmentation: viewer merges opaque geometry by kind per clip run with global depth
       order (2026-10-02); 89 903 frontend batches → 23 calls, RX 9070 XT frame 701 → 4.4 ms.
       Original plot path remains the default in `@truedxf/three`; `?merge=0` disables viewer merging.
@@ -307,6 +311,10 @@ default, FILLMODE for pattern hatches, extents edge tolerance.
       Liberation Sans).
 - [ ] Public site: long-tail pages (e.g. "open DXF without AutoCAD", DXF → PNG / PDF export once
       plotting to a file exists in the viewer); a small licence-clean demo drawing to try.
+- [x] Public site (2026-10-05): real 404 page, "new version" notice (version.json), non-DXF /
+      DWG messages with a report button, zoom buttons, export (PNG, clipboard, print), keyboard
+      shortcuts dialog, recent drawings (file handles, Chromium), PDF.js support files,
+      small-screen notice.
 - [ ] Public site launch: remove the Basic Auth gate (`apps/playground/functions/_middleware.ts`).
 - [ ] Public site: privacy policy / legal notice (Datenschutzerklärung, Impressum) before launch;
       custom domain (then set `SITE_URL`).

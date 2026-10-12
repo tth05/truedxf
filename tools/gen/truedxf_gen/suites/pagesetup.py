@@ -120,6 +120,7 @@ def build(s: SuiteBuilder) -> None:
     _margins(s)
     _pdf_offsets(s)
     _image_origin(s)
+    _rotmode(s)
 
 
 def _rotation(s: SuiteBuilder) -> None:
@@ -432,3 +433,29 @@ def _image_origin(s: SuiteBuilder) -> None:
         _raster_setup(c, plot_type=ptype, window=win, image_origin=io)
         _target(c.doc.layouts.get("Layout1"), s=0.3)
         _pagesetup_plot(c, area={"type": "window", "min": [10, 20], "max": [410, 320]} if win else None)
+
+
+def _rotmode(s: SuiteBuilder) -> None:
+    """PLOTROTMODE 0/1 against the harness default 2 (Q-0761): rotated stored page setups on the
+    margins sheet with 46/47 = (100, 50), plot type Layout and a not centred 1:1 Window
+    (0,0)-(400,300), whose effective plotting area is smaller than the paper."""
+    for ptype, pname in ((5, "layout"), (4, "window")):
+        for mode in ((0, 1) if ptype == 5 else (0, 1, 2)):
+            for rot in range(4):
+                win = ((0, 0), (400, 300)) if ptype == 4 else None
+                c = s.case(
+                    f"rotmode-{mode}-{pname}-rot-{rot}",
+                    f"PLOTROTMODE {mode}: raster margins sheet 1600x1200 px (margins L/B/R/T 10/20/30/40 px), rotation 73={rot}, "
+                    + ("plot type layout 1:1" if ptype == 5 else "plot type window (0,0)-(400,300) 1:1 not centred")
+                    + ", offset 46/47=(100, 50)",
+                    tags=["PLOTSETTINGS", "margins", "rotation", "offset", "pagesetup", "PLOTROTMODE"],
+                    questions=["Q-0761"],
+                    params={"layout": MARGIN_LAYOUT, "u": 1, "PLOTROTMODE": mode},
+                    outputs=["png"],
+                )
+                _raster_setup(c, rotation=rot, plot_type=ptype, window=win, canvas=MARGIN_CANVAS, margins=MARGINS_PX,
+                              media=MARGIN_MEDIA_PNG, offset=(100, 50))
+                _margin_target(c.doc.layouts.get("Layout1"))
+                _pagesetup_plot(c, area={"type": "window", "min": [0, 0], "max": [400, 300]} if win else None)
+                c.plot.canvas = MARGIN_CANVAS
+                c.sysvar("PLOTROTMODE", mode)

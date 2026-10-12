@@ -51,6 +51,8 @@ def build(s: SuiteBuilder) -> None:
     _colorbook(s)
     _styles_ref(s)
     _gradients(s)
+    _fill_anchor(s)
+    _lt_wide(s)
 
 
 # --- lineweight index ---------------------------------------------------------------------------
@@ -928,4 +930,137 @@ def _gradients(s: SuiteBuilder) -> None:
         for k, aci in enumerate((1, 5, 3)):
             y = 122 - 27 * k
             solid_rect(c.msp, 160, y, 190, y + 20, {"color": aci})
+        c.window((0, 0), (200, 150))
+
+
+# --- fill-style tile anchor (Q-0760) -------------------------------------------------------------
+
+# Probe sheets whose printable sizes are not multiples of 10/20 px (tools/acad/src/sizes.ts):
+# 1017 x 1013 without margins, 1030 x 1017 with margins L/B/R/T 3/7/11/13 (printable 1016 x 997).
+ODD_CANVAS = (1017, 1013)
+ODD_MARGIN_CANVAS = (1030, 1017)
+ODD_MARGINS = (3, 7, 11, 13)
+
+
+def _anchor_strips(space, pw: float, ph: float) -> None:
+    """Eight SOLID strips across the paper x range 0..pw (strip k = pen k+2 = Fill Patterns.ctb
+    fill style 65+k), 4 units apart, each from y = -200 to ph + 200 (clipped by the sheet)."""
+    for k in range(8):
+        x0 = -200 if k == 0 else k * pw / 8 + 2
+        x1 = pw + 200 if k == 7 else (k + 1) * pw / 8 - 2
+        solid_rect(space, round(x0, 3), -200, round(x1, 3), ph + 200, {"color": k + 2})
+
+
+ANCHOR_LAYOUT = (
+    "8 SOLID strips over the paper x range 0..W (W x H = printable paper of the rotation, paper units = px), "
+    "strip k = pen k+2 = fill style 65+k, from y -200 to H+200"
+)
+
+
+def _fill_anchor(s: SuiteBuilder) -> None:
+    from .pagesetup import _pagesetup_plot, _raster_setup
+
+    sheets = {
+        "": (ODD_CANVAS, (0, 0, 0, 0)),
+        "-margins": (ODD_MARGIN_CANVAS, ODD_MARGINS),
+    }
+    variants = [(sheet, rot, (0, 0)) for sheet in sheets for rot in range(4)]
+    variants += [("-margins", 0, (13, 7)), ("-margins", 1, (13, 7))]
+    for sheet, rot, off in variants:
+        canvas, margins = sheets[sheet]
+        pw, ph = canvas[0] - margins[0] - margins[2], canvas[1] - margins[1] - margins[3]
+        if rot in (1, 3):
+            pw, ph = ph, pw
+        name = f"fill-anchor{sheet}-rot-{rot}" + ("-offset" if off != (0, 0) else "")
+        c = s.case(
+            name,
+            f"Fill Patterns.ctb styles 65-72 on full-height SOLID strips, raster page setup {canvas[0]}x{canvas[1]} px "
+            f"(margins L/B/R/T {margins}), rotation 73={rot}, plot type layout 1:1, 46/47={off}: where is the tile anchored?",
+            tags=["CTB", "fill-style", "SOLID", "pagesetup", "rotation"],
+            questions=["Q-0760"],
+            params={"layout": ANCHOR_LAYOUT, "paper": [pw, ph], "canvas": list(canvas), "margins": list(margins),
+                    "offset": list(off)},
+            style_table="Fill Patterns.ctb",
+            outputs=["png"],
+        )
+        _raster_setup(c, rotation=rot, canvas=canvas, margins=margins, offset=off, style_sheet="Fill Patterns.ctb",
+                      media=f"UserDefinedRaster ({canvas[0]:.2f} x {canvas[1]:.2f}Pixels)")
+        _anchor_strips(c.doc.layouts.get("Layout1"), pw, ph)
+        _pagesetup_plot(c)
+        c.plot.canvas = canvas
+
+    # the same through a detailed -PLOT of a model window (Fit, centred = 1 px/unit), and at 1:1
+    # with an offset of 13,7 px
+    for name, off in (("fill-anchor-window", None), ("fill-anchor-window-offset", "13,7")):
+        c = s.case(
+            name,
+            "Fill Patterns.ctb styles 65-72 on full-height SOLID strips, model window 1017 x 1013 on the 1017x1013 px sheet"
+            + (f", scale 1:1, offset {off} px" if off else " (fit = 1 px/unit, centred)"),
+            tags=["CTB", "fill-style", "SOLID"],
+            questions=["Q-0760"],
+            params={"layout": ANCHOR_LAYOUT.replace("paper", "model"), "paper": list(ODD_CANVAS), "offset": off},
+            style_table="Fill Patterns.ctb",
+            outputs=["png"],
+        )
+        _anchor_strips(c.msp, *ODD_CANVAS)
+        c.window((0, 0), ODD_CANVAS, canvas=ODD_CANVAS)
+        if off:
+            c.plot.scale = "1:1"
+            c.plot.extra["offset"] = off
+
+
+# --- pen linetypes on wide lines: caps and joins of the dashes (Q-0761) ---------------------------
+
+LT_WIDE_ROWS = (
+    "left: LINE (10,y)-(52.3,y) per pen 1-4, 18, 20-24 (y = 142 - 9i); reference pens 5-8 / 19 as separate LINEs at "
+    "the model dashes (+50 in x; dots: zero-length LINEs). Right: LWPOLYLINE (110,y-4)-(112.5,y-4)-(112.5,y+0.5)-"
+    "(125,y+0.5) per pen 10-13, 18 (y = 140 - 16j); reference pens 14-17 / 19 at +40 in x: the first dash as a "
+    "polyline through the vertex, the second dash as a LINE"
+)
+
+
+def _lt_wide(s: SuiteBuilder) -> None:
+    # pen linetype 8 (Medium Dash X2, 0.5 in / 0.5 in = 50 / 50 px) and 16 (Sparse Dot, one dot
+    # per 0.5 in), fixed, so the dashes are known exactly (note 06 §6.7): [0,50], [100,150], ...,
+    # [400,423] px from the start point of the 42.3-unit LINE; dots every 50 px
+    pens: dict[int, dict] = {}
+    for e in range(4):
+        pens[1 + e] = {"linetype": 8, "adaptive_linetype": False, "lineweight": 1, "end_style": e}
+        pens[5 + e] = {"linetype": 0, "lineweight": 1, "end_style": e}
+        pens[10 + e] = {"linetype": 8, "adaptive_linetype": False, "lineweight": 1, "end_style": 0, "join_style": e}
+        pens[14 + e] = {"linetype": 0, "lineweight": 1, "end_style": 0, "join_style": e}
+        pens[20 + e] = {"linetype": 16, "adaptive_linetype": False, "lineweight": 1, "end_style": e}
+    pens[18] = {"linetype": 8, "adaptive_linetype": False, "lineweight": 1}
+    pens[19] = {"linetype": 0, "lineweight": 1}
+    pens[24] = {"linetype": 16, "adaptive_linetype": False, "lineweight": 1}
+    pens = dict(sorted(pens.items()))
+    ref = {1: 5, 2: 6, 3: 7, 4: 8, 18: 19, 20: 5, 21: 6, 22: 7, 23: 8, 24: 19}
+    for name, mm in (("lt-wide-508", 5.08), ("lt-wide-100", 1.0)):
+        c = s.case(
+            name,
+            f"CTB pen linetypes 8 (dash 0.5 in) and 16 (sparse dot) on {mm:.2f} mm lines: end styles 0-3/object per dash, "
+            "join styles 0-3 at a polyline vertex inside a dash, against solid-pen references of the same dashes",
+            tags=["CTB", "linetype", "lineweight", "caps", "joins", "LINE", "LWPOLYLINE"],
+            questions=["Q-0761"],
+            params={"pens": pens, "reference_pen": ref, "lineweight_mm": mm, "rows": LT_WIDE_ROWS},
+            outputs=["png", "pdf"],
+        )
+        c.plot_style_table(f"truedxf-{name}.ctb", ctb_bytes(pens, tuple([mm] * 27)))
+        for i, p in enumerate((1, 2, 3, 4, 18, 20, 21, 22, 23, 24)):
+            y = 142 - 9 * i
+            c.msp.add_line((10, y), (52.3, y), dxfattribs={"color": p, "lineweight": 0})
+            r = {"color": ref[p], "lineweight": 0}
+            if p < 20:
+                for x0, x1 in ((60, 65), (70, 75), (80, 85), (90, 95), (100, 102.3)):
+                    c.msp.add_line((x0, y), (x1, y), dxfattribs=r)
+            else:
+                for k in range(9):
+                    c.msp.add_line((60 + 5 * k, y), (60 + 5 * k, y), dxfattribs=r)
+        for j, p in enumerate((10, 11, 12, 13, 18)):
+            y = 140 - 16 * j
+            c.msp.add_lwpolyline([(110, y - 4), (112.5, y - 4), (112.5, y + 0.5), (125, y + 0.5)],
+                                 dxfattribs={"color": p, "lineweight": 0})
+            r = {"color": 14 + j if p != 18 else 19, "lineweight": 0}
+            c.msp.add_lwpolyline([(150, y - 4), (152.5, y - 4), (152.5, y - 1.5)], dxfattribs=r)
+            c.msp.add_line((155.5, y + 0.5), (160.5, y + 0.5), dxfattribs=r)
         c.window((0, 0), (200, 150))

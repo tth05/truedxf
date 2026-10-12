@@ -102,7 +102,14 @@ Tick items off (or delete them) when done.
 - [x] Plot styles measured (2026-10-12): CTB pen linetypes 1–30 + adaptive fitting (note 06 §6.7),
       fill-style tiles (§6.8), colour books and gradients bypass the pens (§6.4, §1.7), acad.ctb =
       no styles; margins x rotation, 46/47 units and axes, 148/149 (note 08 §2.1, §2.5, §10.17);
-      checks `analyze_pen_patterns.py`, `analyze_plotstyles.py`. Still open: Q-0760, Q-0761.
+      checks `analyze_pen_patterns.py`, `analyze_plotstyles.py`. Follow-up (2026-10-12): fill
+      tiles anchored to the PNG bottom-left pixel for every rotation/margin/offset (Q-0760, §6.8);
+      wide pen-linetype dashes are butt-ended, caps only at curve ends, joins inside dashes, dots =
+      discs (Q-0761, §6.7); Window plots apply 46/47 along the paper axes, PLOTROTMODE 0/1 table
+      (note 08 §2.1, §10.17).
+- [ ] `@truedxf/plot`: apply the Q-0761 results — butt dash ends with caps only at curve ends,
+      joins inside dashes, disc dots on wide pen-linetype lines; 46/47 of rotated Window page
+      setups along the paper axes (note 06 §6.7, note 08 §2.1).
 - [x] Apply the measured pen linetypes, fill-style tiles, stored margins (40–43, PNG = printable
       area), 46/47 device-axis offsets and 148/149 layout shift in `@truedxf/plot`
       (`penLinetypeDashes`, `fillStyleInk`, `plotPlacement`; 2026-10-12).

@@ -1514,26 +1514,53 @@ Rules:
   drawn (floating-point end test; both occur).
 - **Adaptive has no effect on CIRCLE and ARC** (`lt-curves`: pens with adaptive TRUE plot the same
   dashes as fixed, from angle 0 / the start angle, the last period simply cut).
-- Lines with a lineweight get the same dashes; each dash is a wide stroke with the pen's end style
-  (not analysed further).
+- **Wide lines (VERIFIED-BY-ACAD 2026-10-12, Q-0761, `plotstyles/lt-wide-508` = 20 px,
+  `lt-wide-100` = 1.00 mm = 4 px; pen linetypes 8 and 16 fixed, end styles 0–3 and object, join
+  styles 0–3; check `analyze_pen_patterns.py --wide`, 15/15 pixel-exact per case).** The dashes are
+  the same as on hairlines, and the wide stroke is cut into them with **butt ends**: the pen end
+  style applies **only where the curve itself starts or ends inside a dash** (the start cap of the
+  first dash, the end cap of a last dash that the line end truncates). A line whose end falls in a
+  gap gets no end cap. So a dashed line with square / round / diamond ends equals the butt-ended
+  dashes plus one cap at each curve end (pixel-identical to separate butt LINEs in the interior and to
+  the pen's capped LINE at the ends). Object end style (4) = round there too (§6.3).
+  - **Polyline vertices inside a dash are joined with the pen join style** (miter / bevel / round /
+    diamond, object = round), exactly like an unbroken polyline: the dash is one stroke through the
+    vertex, not two capped pieces. The dash ends next to it are still butt.
+  - **Dots** (0-length elements) are **discs of the line width** for every end style (20 px wide:
+    cols c−10…c+9 around the dot point, 20 rows; 4 px: a 4 × 3 px blob), identical for pens with end
+    style 0–4; only a dot at the curve start adds the start cap (square: a half square on the left).
+    Zero-length LINEs with the same pens plot 2 px smaller discs, so a dot is not simply a
+    zero-length stroke.
+  - The PDF device shows the same construction: each dash is a filled polygon (plus a 0-width
+    outline), the cap a separate polygon only at the curve start/end (e.g. square: a 0.1 × 0.2 in
+    rectangle before the first dash).
 
-### 6.8 CTB fill styles 65–72 (VERIFIED-BY-ACAD 2026-10-12, Q-0752)
+### 6.8 CTB fill styles 65–72 (VERIFIED-BY-ACAD 2026-10-12, Q-0752, Q-0760)
 
 Cases `plotstyles/fill-phase` (Fill Patterns.ctb, SOLID squares at three sub-unit offsets, solid
 HATCH, wide LWPOLYLINE, 2.11 mm LINE), `fill-phase-scale-half` (geometry and window ×2),
-`fill-targets` / `fill-targets-ref` (crosshatch on every pen vs acad.ctb). Check:
-`tools/acad/calibration/analyze_pen_patterns.py` (40/40 regions per case pixel-exact).
+`fill-targets` / `fill-targets-ref` (crosshatch on every pen vs acad.ctb), and for the anchor
+`fill-anchor-rot-{0..3}` (1017 × 1013 px sheet, page setup 73 = 0..3), `fill-anchor-margins-rot-{0..3}`
+(1030 × 1017 px sheet with margins L/B/R/T 3/7/11/13 px → 1016 × 997 px PNG),
+`fill-anchor-margins-rot-{0,1}-offset` (46/47 = 13/7 px), `fill-anchor-window` (detailed -PLOT, model
+window, Fit) and `fill-anchor-window-offset` (1:1, offset 13,7 px). Check:
+`tools/acad/calibration/analyze_pen_patterns.py` (40/40 regions per fill-phase case pixel-exact;
+`--anchors`: every fill-anchor strip matches only its own rule, at phase 0).
 
 - Applies **only to area fills**: SOLID, solid-fill HATCH, wide (const width) LWPOLYLINE. Pixel-identical
   to acad.ctb for TrueType TEXT and MTEXT (filled glyphs), SHX text, thin and 2.11 mm LINEs, a 1.00 mm
   CIRCLE, an ANSI31 pattern HATCH and a gradient HATCH (`fill-targets`).
 - The pattern is drawn in the fill's (pen) colour; the other pixels of the fill stay **paper white**
   (no background colour, no outline). The inked set = the solid fill's pixels ∧ the tile.
-- **Raster device (PNG): fixed device-pixel tiles anchored to the device origin**, independent of the
-  object position (squares shifted by 0.13/0.37 and 0.55/0.71 units show the same absolute pixels),
-  of the plot scale (×2 → same 10/20 px periods) — i.e. 0.1 in / 0.2 in at the fixed 100 dpi.
-  With u = pixel column from the left, v = pixel row from the bottom (all harness canvases are
-  multiples of 20 px high, so a top-anchored tile gives the same pixels — not separable here):
+- **Raster device (PNG): fixed device-pixel tiles anchored to the bottom-left pixel of the PNG**,
+  i.e. of the printable area in device orientation. Independent of the object position (squares
+  shifted by 0.13/0.37 and 0.55/0.71 units show the same absolute pixels), of the plot scale (×2 →
+  same 10/20 px periods; 0.1 in / 0.2 in at the fixed 100 dpi), of the plot rotation 73 (the slants
+  69/70 and the bars 68/72 keep their device direction for 73 = 1/2/3: the tile does not turn with
+  the paper), of the unprintable margins (not the sheet corner) and of the paper origin / offsets
+  46/47 and -PLOT offsets. With the PNG of W × H pixels, **u = column from the left (0 … W−1),
+  v = H − 1 − row (row 0 = top)**, so v = 0 is the bottom PNG row; on the 1013 and 997 px high PNGs a
+  top-anchored or sheet-anchored tile would be shifted by 3/7 px and does not match:
 
 | style | name | ink at (u, v) | period |
 |---|---|---|---|

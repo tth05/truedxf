@@ -18,6 +18,8 @@ references and prints PASS/FAIL per rule (plus the measured values on failure):
   apply 46/47 in mm also for 72 = 0; AutoCAD writes 148/149 = -(48, 49) (x 25.4 for 72 = 0) and a
   stored layout plot is shifted by +148/149; acad.ctb = no styles; gradients and colour books
   (430 + 420) bypass the pens (note 08 §2.1, §10.17; note 06 §6.3-§6.4).
+- PLOTROTMODE 0/1/2 x rotation x plot type Layout/Window with 46/47 = (100, 50): device position of
+  the paper origin (``ROTMODE_ORIGIN``, note 08 §10.17).
 """
 
 from __future__ import annotations
@@ -279,6 +281,72 @@ def image_origin() -> None:
               (b1[0] - b0[0], b0[1] - b1[1]) == (100, 50), f"{b0} {b1}")
 
 
+# PLOTROTMODE (Q-0761): device position (pixel-edge column, pixel-edge row from the top) of the
+# paper origin on the margins sheet (PNG 1560 x 1140 = printable area) with 46/47 = (100, 50).
+# 2 (default): Layout = rotation corner + 46/47 along the device width/height into the sheet;
+#              Window = rotation corner + 46 along paper +X, 47 along paper +Y.
+# 0: Window = rotation corner + (46 right, 47 up); Layout the same with 46/47 swapped for 73 = 1/3.
+# 1: the device lower-left corner of the (rotated) effective area goes to the printable lower-left
+#    + (46 right, 47 up); Layout effective area = the paper rectangle (0,0)-(W', H') of the printable
+#    size in the paper frame.
+ROTMODE_ORIGIN = {
+    ("layout", 2): [(100, 1090), (100, 50), (1460, 50), (1460, 1090)],
+    ("window", 2): [(100, 1090), (50, 100), (1460, 50), (1510, 1040)],
+    ("window", 0): [(100, 1090), (100, -50), (1660, -50), (1660, 1090)],
+    ("layout", 0): [(100, 1090), (50, -100), (1660, -50), (1610, 1040)],
+    ("window", 1): [(100, 1090), (100, 690), (500, 790), (400, 1090)],
+    ("layout", 1): [(100, 1090), (100, -50), (1660, -50), (1660, 1090)],
+}
+
+
+def _paper_to_device(rot: int, o, rect):
+    """Device pixel box (c0, r0, c1, r1), inclusive, of the paper rectangle (x0, y0, x1, y1) with the
+    paper origin at pixel edge o = (col, row) for rotation 73 = rot (note 08 §10.17)."""
+    (oc, orow), (x0, y0, x1, y1) = o, rect
+    return {
+        0: (oc + x0, orow - y1, oc + x1 - 1, orow - y0 - 1),
+        1: (oc + y0, orow + x0, oc + y1 - 1, orow + x1 - 1),
+        2: (oc - x1, orow + y0, oc - x0 - 1, orow + y1 - 1),
+        3: (oc - y1, orow - x1, oc - y0 - 1, orow - x0 - 1),
+    }[rot]
+
+
+def rotmode() -> None:
+    """Q-0761 (b): the red +X bar, green +Y bar and blue origin square of the margins probe land
+    where ROTMODE_ORIGIN says (±2 px: fill edges, §10.5, and window clip edges), clipped to the window / the Layout paper rectangle
+    and the PNG."""
+    items = {(255, 0, 0): (100, 0, 600, 30), (0, 255, 0): (0, 100, 30, 400), (0, 0, 255): (0, 0, 100, 100)}
+    for (kind, mode), origins in ROTMODE_ORIGIN.items():
+        for rot, o in enumerate(origins):
+            case = f"pagesetup/margins-rot-{rot}-offset" if (kind, mode) == ("layout", 2) else f"pagesetup/rotmode-{mode}-{kind}-rot-{rot}"
+            a = _np(case)
+            if a is None:
+                continue
+            h, w = a.shape[:2]
+            if kind == "window":
+                clip = (0, 0, 400, 300)
+            elif mode == 2:
+                clip = (-10**6, -10**6, 10**6, 10**6)
+            else:
+                clip = (0, 0, 1560, 1140) if rot in (0, 2) else (0, 0, 1140, 1560)
+            ok, details = True, []
+            for rgb, (x0, y0, x1, y1) in items.items():
+                r = (max(x0, clip[0]), max(y0, clip[1]), min(x1, clip[2]), min(y1, clip[3]))
+                c0, r0, c1, r1 = _paper_to_device(rot, o, r)
+                # a fill that ends exactly at the PNG edge from outside may leak one pixel row/column in
+                leak = c0 == w or r1 == -1 or c1 == -1 or r0 == h
+                c0, r1 = (w - 1 if c0 == w else c0), (0 if r1 == -1 else r1)
+                c1, r0 = (0 if c1 == -1 else c1), (h - 1 if r0 == h else r0)
+                c0, r0, c1, r1 = max(c0, 0), max(r0, 0), min(c1, w - 1), min(r1, h - 1)
+                exp = (c0, r0, c1, r1) if r[0] < r[2] and r[1] < r[3] and c0 <= c1 and r0 <= r1 else None
+                got = _bbox(a, rgb)
+                good = (got is None and leak) or (exp is None) == (got is None) and (exp is None or all(abs(g - e) <= 2 for g, e in zip(got, exp)))
+                ok &= good
+                if not good:
+                    details.append(f"{rgb}: {got} != {exp}")
+            check(f"PLOTROTMODE {mode} {kind} 73={rot}: paper origin at device {o}", ok, "; ".join(details))
+
+
 def pens_misc() -> None:
     a = [_np(f"plotstyles/styles-ref-{n}") for n in ("acad", "off", "none")]
     if all(x is not None for x in a):
@@ -304,6 +372,7 @@ def main() -> None:
     margins()
     pdf_offsets()
     image_origin()
+    rotmode()
     pens_misc()
     for name, ok, detail in results:
         print(f"{'PASS' if ok else 'FAIL'}  {name}{'' if ok else '  ' + detail}")

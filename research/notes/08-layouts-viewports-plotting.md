@@ -153,7 +153,7 @@ All lengths are in **mm**, unless noted.
 | 6 | Plot view name | Used by plot type 3. In DWG ≥ R2004 it is a handle to the VIEW (libredwg `dwg.spec:5246ff`). |
 | 40/41/42/43 | Unprintable margin left/bottom/right/top | Device-defined printable area, written in **unrotated device orientation** and in the units of 44/45 (raster: pixels): a PMP sheet with margins L/B/R/T = 10/20/30/40 px gives 40–43 = 10/20/30/40 for all four rotations (VERIFIED-BY-ACAD 2026-10-12, `pagesetup/margins-detailed-*`). **A stored page setup plots with the stored 40–43, not the device's** (`margins-rot-1-stored-zero`: 0 stored → full-sheet PNG). The paper origin is the printable-area corner of the rotation (§2.5, §10.17). |
 | 44/45 | Physical paper width/height | Stored in *unrotated device* orientation (VERIFIED-BY-ACAD: 2000/1500 for all four rotations). mm for mm/inch devices (20 × 15 in sheet → 508/381); **for raster devices (72 = 2) in pixels** (2000/1500, not px × 25.4/100; VERIFIED-BY-ACAD 2026-10-12, §10.17). |
-| 46/47 | Plot origin offset X/Y | **In mm for mm and inch page setups** (VERIFIED-BY-ACAD 2026-10-12: written in mm — centring a 1:50 inch plot writes 152.4/114.3 = 6/4.5 in, an offset answer of 0.3,0.4 in writes 7.62/10.16 — and read in mm: 46/47 = (5, 3) shifts by 5/3 mm with 72 = 0 as with 72 = 1, `pagesetup/pdf-*-offset-5-3`); **pixels for raster setups** (72 = 2). Measured from the printable-area corner where the paper origin sits, **along the device axes**: 46 runs along the device width (44), 47 along the device height (45), both pointing into the sheet, for every rotation — in paper coordinates (46, 47) for 73 = 0/2 and (47, 46) for 73 = 1/3 (`margins-rot-*-offset`, `pdf-mm-offset-5-3-rot-1`, `pdf-in-offset-5-3-rot-3`; harness PLOTROTMODE 2). The PLOTOFFSET sysvar (1 = from the paper edge) does not change a stored page setup plotted with -PLOT (`pdf-mm-offset-*-plotoffset-1`). AutoCAD writes the centring offset here when "center the plot" is on. Applied to plot type Layout and Window plots (`pagesetup/offset-*`, §10.17). |
+| 46/47 | Plot origin offset X/Y | **In mm for mm and inch page setups** (VERIFIED-BY-ACAD 2026-10-12: written in mm — centring a 1:50 inch plot writes 152.4/114.3 = 6/4.5 in, an offset answer of 0.3,0.4 in writes 7.62/10.16 — and read in mm: 46/47 = (5, 3) shifts by 5/3 mm with 72 = 0 as with 72 = 1, `pagesetup/pdf-*-offset-5-3`); **pixels for raster setups** (72 = 2). Measured from the printable-area corner where the paper origin sits (PLOTROTMODE 2, the default): **plot type Layout along the device axes** — 46 runs along the device width (44), 47 along the device height (45), both pointing into the sheet, for every rotation; in paper coordinates (46, 47) for 73 = 0/2 and (47, 46) for 73 = 1/3 (`margins-rot-*-offset`, `pdf-mm-offset-5-3-rot-1`, `pdf-in-offset-5-3-rot-3`) — but **plot type Window along the paper axes**: 46 along paper +X, 47 along paper +Y for every rotation (`rotmode-2-window-rot-*`, VERIFIED-BY-ACAD 2026-10-12, Q-0761). PLOTROTMODE 0/1 place them differently (§10.17). The PLOTOFFSET sysvar (1 = from the paper edge) does not change a stored page setup plotted with -PLOT (`pdf-mm-offset-*-plotoffset-1`). AutoCAD writes the centring offset here when "center the plot" is on. Applied to plot type Layout and Window plots (`pagesetup/offset-*`, §10.17). |
 | 48/49 | Plot window **lower-left** X/**Y** | **VERIFIED-BY-ACAD (`pagesetup/model-window`, 2026-10-12): LL = (48,49), UR = (140,141)**, as ezdxf, ixmilia, ACadSharp and libredwg say; the spec (p.190, "49 = Y value of upper-right") is wrong. |
 | 140/141 | Plot window **upper-right** X/Y | Spec says "140 = X of lower-left"; that is wrong, see above. Coordinates are in drawing units of the plotted space (WCS for model if UCS = World; paper units for layouts). |
 | 142/143 | Custom scale numerator (paper units) / denominator (drawing units) | 1:50 → 142 = 1, 143 = 50. "Paper units" = 72 units (inch or mm). |
@@ -261,7 +261,8 @@ examples, not independently verified):
   the paper's lower-left (73 = 0 device bottom-left, 1 top-left, 2 top-right, 3 bottom-right), and
   AutoCAD's own LIMMIN after saving = −(paper-frame left, bottom margin): (−10, −20), (−40, −10),
   (−30, −40), (−20, −30) for 73 = 0..3; LIMMAX = paper size − those (the paper edge, not the
-  printable edge). Offsets 46/47 do not rotate with the paper (§2.1).
+  printable edge). Offsets 46/47 of Layout plots do not rotate with the paper; those of Window plots
+  do (§2.1; PLOTROTMODE 2, other modes §10.17).
 - Plot type 5 "Layout": "plots everything within the printable area of the specified paper size"
   (Plot dialog help). This fits the origin rule above. For the harness we use Window instead (§7)
   so that we do not depend on it.
@@ -611,8 +612,9 @@ Files: `ezdxf:src/ezdxf/addons/drawing/{frontend.py, pipeline.py, layout.py, pro
   rotation icon aligns with the paper at lower-left/top-left/top-right/lower-right for
   0/90/180/270, with offsets relative to the lower-left corner. 1 = align the lower-left corner of
   the plot area with the lower-left of the paper. 2 = like 0, but offsets relative to the rotated
-  origin (BricsCAD/AutoCAD sysvar docs via search). Irrelevant if we always use Center + no
-  rotation.
+  origin (BricsCAD/AutoCAD sysvar docs via search). **VERIFIED-BY-ACAD (2026-10-12, Q-0761):** it
+  matters for every rotated plot with an offset (and mode 0/1 also crop Layout plots); measured
+  rules in §10.17. The harness pins 2.
 - **Orientation**: "Portrait … short edge of the paper represents the top", "Landscape … long
   edge … top", plus "Plot upside-down". For a 1600×1280 raster "paper", **Landscape** should give a
   1600-wide PNG (ASSUMPTION). The "twisted image" KB article
@@ -1604,6 +1606,27 @@ missing harness ZOOM to (2,2)–(398,298)) wrote 148/149 = (−2, −2) = −(48
 
 **Offsets** (`offset-layout`, `offset-window`): 46/47 = (100, 50) on the raster setup shift plot
 type Layout and non-centred Window plots by +100 px right and +50 px up.
+
+**PLOTROTMODE** (Q-0761, 2026-10-12; `rotmode-{0,1}-layout-rot-{0..3}` vs `margins-rot-*-offset`,
+`rotmode-{0,1,2}-window-rot-{0..3}`: margins sheet, 46/47 = (100, 50), Layout 1:1 or a not centred
+1:1 Window (0,0)–(400,300) in paper px; check `analyze_plotstyles.py` `rotmode`, 24/24 within
+±2 px). Device position of the paper origin, as pixel edges (column, row from the top) on the
+1560 × 1140 printable PNG; the rotation corner is bottom-left / top-left / top-right / bottom-right
+for 73 = 0/1/2/3, "right/up" are device directions:
+
+| PLOTROTMODE | Window plot | Layout plot |
+|---|---|---|
+| 2 (default) | corner + 46 along paper +X, 47 along paper +Y: (100,1090) (50,100) (1460,50) (1510,1040) | corner + 46/47 along the device width/height into the sheet: (100,1090) (100,50) (1460,50) (1460,1090) |
+| 0 | corner + (46 right, 47 up), also out of the sheet: (100,1090) (100,−50) (1660,−50) (1660,1090) | corner + (46 right, 47 up) for 73 = 0/2, (47 right, 46 up) for 1/3: (100,1090) (50,−100) (1660,−50) (1610,1040) |
+| 1 | the device lower-left of the rotated window at the printable lower-left + (46 right, 47 up); origin = its rotation corner: (100,1090) (100,690) (500,790) (400,1090) | the same with the paper rectangle (0,0)–(W′,H′) as area: (100,1090) (100,−50) (1660,−50) (1660,1090) |
+
+W′ × H′ = the printable area in the paper frame (1560 × 1140 for 73 = 0/2, 1140 × 1560 for 1/3).
+With 73 = 0 all modes agree. In modes 0 and 1 a Layout plot is also **clipped to that paper
+rectangle (0,0)–(W′,H′)**: nothing at negative paper coordinates plots (mode 2 plots the whole
+printable area around the origin), and the "Effective plotting area" line changes (e.g.
+1500 × 1140 instead of 1560 × 1140). Fills that end exactly at the PNG edge from outside may leak
+one pixel row/column into the PNG. truedxf models only mode 2 (AutoCAD's default; a DXF does not
+carry PLOTROTMODE).
 
 **Switches**: stored style sheet (7) + bit 32 → pens apply; bit 32 off → object colour and
 lineweight; bit 128 off → 1 px lines (pen colours still apply) (`flags-*`). **Bit 64 (scale

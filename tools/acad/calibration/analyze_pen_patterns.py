@@ -1,7 +1,11 @@
 """CTB pen linetypes and fill styles measured on the references of suite ``plotstyles`` (tools/gen):
-``lt-*`` (pen linetypes 0-30), ``fill-phase*`` (fill styles 65-72).
+``lt-*`` (pen linetypes 0-30), ``lt-wide-*`` (dash caps and joins on wide lines), ``fill-phase*`` and
+``fill-anchor*`` (fill styles 65-72: tiles and their anchor).
 
-    tools/gen/.venv/Scripts/python tools/acad/calibration/analyze_pen_patterns.py [--lt CASE] [--fills]
+    tools/gen/.venv/Scripts/python tools/acad/calibration/analyze_pen_patterns.py [--lt CASE] [--anchors] [--wide]
+
+Without arguments every check runs and prints PASS/FAIL; ``--anchors`` prints the matching rules and
+phases of every fill-anchor strip, ``--wide`` only the wide-line checks.
 
 Linetypes are read from the PDF of each case (truedxf PDF.pc3 writes every dash as its own
 ``x y m x y l S`` stroke in integer device units of 1/600 in, research/notes/08 §10.9), so dash and
@@ -145,8 +149,9 @@ def verify(case: str) -> tuple[int, int]:
 
 
 # CTB fill styles on the raster device (research/notes/06 §6.8): ink at device pixel (u, v), u = column
-# from the left, v = row from the bottom (all harness canvases are multiples of 20 px high, so a
-# top-anchored tile gives the same pixels). Independent of the object position and the plot scale.
+# from the left, v = row from the bottom of the PNG (= the printable area, in device orientation:
+# fill-anchor-* on 1017 x 1013 and 1016 x 997 px for every rotation 73, with margins and offsets).
+# Independent of the object position, the plot scale, the paper origin and the rotation.
 FILL_STYLES = {
     65: lambda u, v: (u % 10 <= 4 and v % 10 <= 4) and (u % 10 in (0, 4) or v % 10 in (0, 4)),  # checkerboard: 5x5 outlines
     66: lambda u, v: u % 10 == 0 or v % 10 == 0,  # crosshatch
@@ -188,9 +193,171 @@ def fills(case: str, f: float) -> tuple[int, int]:
     return ok, n
 
 
+# --- tile anchor (Q-0760): fill-anchor-* on sheets whose printable size is not a multiple of 20 px
+
+# plotted RGB of the strip pens (ACI k+2 -> fill style 65+k of Fill Patterns.ctb; palette note 06 §3.5)
+STRIP_RGB = {
+    65: (255, 255, 0), 66: (0, 255, 0), 67: (0, 255, 255), 68: (0, 0, 255),
+    69: (255, 0, 255), 70: (0, 0, 0), 71: (128, 128, 128), 72: (220, 220, 220),
+}
+
+
+def tile_phases(ink, rows, cols, h: int, rule) -> list[tuple[int, int]]:
+    """All (a, b) in [0, 20)^2 for which ink[rows, cols] == rule(col + a, (h - 1 - row) + b)."""
+    import numpy as np
+
+    u = cols[None, :]
+    v = (h - 1 - rows)[:, None]
+    sub = ink[np.ix_(rows, cols)]
+    out = []
+    for a in range(20):
+        for b in range(20):
+            if (rule(u + a, v + b) == sub).all():
+                out.append((a, b))
+    return out
+
+
+def _vec(style):
+    """FILL_STYLES as numpy expressions (u, v are integer arrays)."""
+    return {
+        65: lambda u, v: ((u % 10 <= 4) & (v % 10 <= 4)) & ((u % 10 == 0) | (u % 10 == 4) | (v % 10 == 0) | (v % 10 == 4)),
+        66: lambda u, v: (u % 10 == 0) | (v % 10 == 0),
+        67: lambda u, v: ((u + v) % 20 == 0) | ((u - v) % 20 == 0),
+        68: lambda u, v: (v % 10 == 0) | (u < -10**9),
+        69: lambda u, v: (u + v) % 20 == 0,
+        70: lambda u, v: (u - v) % 20 == 0,
+        71: lambda u, v: (u % 10 <= 1) & (v % 10 <= 1),
+        72: lambda u, v: (u % 10 == 0) | (v < -10**9),
+    }[style]
+
+
+def anchor_case(case: str, margins=(0, 0, 0, 0)) -> dict[int, tuple[int, list]]:
+    """Per strip (fill style): [(rule, phases)] of every rule that reproduces the strip interior
+    exactly, phases (a, b) relative to the PNG's bottom-left pixel (u = col + a, v = H-1-row + b)."""
+    import numpy as np
+    from PIL import Image
+
+    a = np.array(Image.open(REFS / f"{case}.png").convert("RGB")).astype(int)
+    h = a.shape[0]
+    res = {}
+    for style, rgb in STRIP_RGB.items():
+        m = (a[:, :, 0] == rgb[0]) & (a[:, :, 1] == rgb[1]) & (a[:, :, 2] == rgb[2])
+        if not m.any():
+            res[style] = []
+            continue
+        ys, xs = np.nonzero(m)
+        r0, r1, c0, c1 = ys.min() + 12, ys.max() - 12, xs.min() + 12, xs.max() - 12
+        rows, cols = np.arange(r0, r1 + 1), np.arange(c0, c1 + 1)
+        found = []
+        for rule in FILL_STYLES:
+            ph = tile_phases(m, rows, cols, h, _vec(rule))
+            if ph:
+                found.append((rule, ph))
+        res[style] = found
+    return res
+
+
+def anchors(verbose: bool = True) -> None:
+    """Q-0760: prints, per fill-anchor case and strip, the rules and phases that match, and checks
+    the hypothesis 'tile = FILL_STYLES of the style at (col, H-1-row) of the PNG' (phase (0, 0))."""
+    cases = [p.stem for p in sorted(REFS.glob("fill-anchor*.png"))]
+    for case in cases:
+        meta = json.loads((GEN / f"{case}.json").read_text(encoding="utf-8"))
+        res = anchor_case(case)
+        h = json.loads((REFS / f"{case}.json").read_text(encoding="utf-8"))["outputs"]["png"]["height"]
+        if verbose:
+            print(f"== {case} (PNG height {h}, margins {meta['params'].get('margins')}, offset {meta['params'].get('offset')})")
+        ok = True
+        for style, found in res.items():
+            own = [ph for rule, ph in found if rule == style]
+            ok &= bool(own) and (0, 0) in own[0]
+            desc = "; ".join(f"rule {rule}: {len(ph)} phases, first {ph[:3]}" for rule, ph in found) or "no rule matches"
+            if verbose:
+                print(f"   style {style}: {desc}")
+        print(f"{'PASS' if ok else 'FAIL'} {case}: every strip = its own tile at the PNG bottom-left pixel")
+
+
+# --- pen linetypes on wide lines (Q-0761): lt-wide-508 (20 px), lt-wide-100 (4 px) ----------------
+
+
+def wide_dashes(case: str) -> tuple[int, int]:
+    """Checks the rule 'every dash is a butt-ended piece of the stroke; the pen end style applies
+    only where the curve itself starts/ends inside a dash; polyline vertices inside a dash get the
+    pen join style; dots are discs (plus the start cap at the curve start)' pixel by pixel against
+    the solid-pen references drawn 50 units (lines) / 40 units (polylines) to the right."""
+    import numpy as np
+    from PIL import Image
+
+    a = np.array(Image.open(REFS / f"{case}.png").convert("RGB"))
+    ink = a.min(axis=2) < 255
+
+    def band(y: float, c0: int, c1: int, up: float = 1.6, down: float = 1.6):
+        r = 1499 - round(y * 10)
+        return ink[r - round(up * 10) : r + round(down * 10) + 1, c0:c1]
+
+    ys = {p: 142 - 9 * i for i, p in enumerate((1, 2, 3, 4, 18, 20, 21, 22, 23, 24))}
+    ok = n = 0
+
+    def report(name: str, bad: int) -> None:
+        nonlocal ok, n
+        n += 1
+        ok += bad == 0
+        if bad:
+            print(f"  MISMATCH {case} {name}: {bad} px")
+
+    # dashed LINE (10..52.3) = butt dashes [0,50], [100,150], [200,250], [300,350], [400,423] px;
+    # pen 1 (butt) must equal the separate butt LINEs of pen 5
+    butt = band(ys[1], 50, 560)
+    report("pen 1 (butt) = separate butt LINEs", int((butt != band(ys[1], 550, 1060)).sum()))
+    for p in (2, 3, 4, 18):
+        d, r = band(ys[p], 50, 560), band(ys[p], 550, 1060)
+        model = butt.copy()
+        model[:, : 125 - 50] = r[:, : 125 - 50]  # start of the first dash: the pen's cap (reference)
+        model[:, 511 - 50 :] = r[:, 511 - 50 :]  # end of the last dash [500, 523] = the line end: the pen's cap
+        report(f"pen {p}: caps only at the line ends, butt dash ends inside", int((d != model).sum()))
+    # sparse dots every 50 px (cols 100, 150, ..., 500): every dot after the first is the same disc
+    # of the line width whatever the end style (pen 22 = round as the model; the zero-length LINEs
+    # of the references are 2 px smaller discs, so they are not used); the first dot adds the start cap
+    disc = band(ys[22], 50, 560)[:, 175 - 50 : 225 - 50]
+    for p in (20, 21, 22, 23, 24):
+        d = band(ys[p], 50, 560)
+        bad = sum(int((d[:, c - 25 - 50 : c + 25 - 50] != disc).sum()) for c in range(150, 501, 50))
+        report(f"pen {p}: dots after the first = the same disc", bad)
+    cols = np.nonzero(disc.any(axis=0))[0]
+    rows = np.nonzero(disc.any(axis=1))[0]
+    print(f"  {case}: dot at col 200 covers cols {cols.min() + 175}..{cols.max() + 175}, {rows.max() - rows.min() + 1} rows")
+    # polylines: pens 10-13 (join 0-3, butt) = reference polyline (first dash through the vertex,
+    # same join) + LINE (second dash); pen 18 (object = round end, round join) = pen 12 (round
+    # join, butt) except the start cap
+    py = {p: 140 - 16 * j for j, p in enumerate((10, 11, 12, 13, 18))}
+
+    def pband(p: int, c0: int, c1: int):
+        return band(py[p], c0, c1, up=2.2, down=6.2)
+
+    for p in (10, 11, 12, 13):
+        report(f"pen {p}: join {p - 10} inside the dash, butt ends", int((pband(p, 1080, 1280) != pband(p, 1480, 1680)).sum()))
+    d, model = pband(18, 1080, 1280), pband(12, 1080, 1280).copy()
+    model[:, :20] = pband(18, 1480, 1500)  # cols < 1100: the round start cap of the reference
+    report("pen 18 (object end/join = round): round start cap, butt dash ends, round join", int((d != model).sum()))
+    return ok, n
+
+
 def main() -> None:
     args = sys.argv[1:]
     cases = [args[i + 1] for i, a in enumerate(args) if a == "--lt"]
+    if "--anchors" in args:
+        anchors()
+        return
+
+    def wide() -> None:
+        for c in ("lt-wide-508", "lt-wide-100"):
+            if (REFS / f"{c}.png").exists():
+                ok, n = wide_dashes(c)
+                print(f"{'PASS' if ok == n else 'FAIL'} {c}: {ok}/{n} wide-dash checks")
+
+    if "--wide" in args:
+        wide()
+        return
     for c in cases:
         linetypes(c)
     if not cases:
@@ -203,6 +370,8 @@ def main() -> None:
             if (REFS / f"{c}.png").exists():
                 ok, n = fills(c, f)
                 print(f"{'PASS' if ok == n else 'FAIL'} {c}: {ok}/{n} fill regions match the device-pixel tiles")
+        anchors(verbose=False)
+        wide()
 
 
 if __name__ == "__main__":

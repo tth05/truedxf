@@ -200,6 +200,37 @@ ${att71}  1 X
         });
     });
 
+    it("ignores XDATA columns before AC1021 like AutoCAD (mtext/columns-*-r2000/-r2004)", () => {
+        const xdataColumns = `
+  0 MTEXT
+  5 2F
+100 AcDbEntity
+  8 0
+100 AcDbMText
+ 10 0.0
+ 20 0.0
+ 30 0.0
+ 40 2.5
+ 41 15.5
+  1 col 1
+1001 ACAD
+1000 ACAD_MTEXT_COLUMN_INFO_BEGIN
+1070 75
+1070 2
+1070 76
+1070 2
+1070 48
+1040 7.5
+1000 ACAD_MTEXT_COLUMN_INFO_END
+`;
+        for (const [ver, expected] of [
+            ["AC1015", undefined],
+            ["AC1018", undefined],
+            ["AC1021", 2],
+        ] as const)
+            expect((loadEntities(xdataColumns, ver).entities[0] as MTextEntity).columns?.type).toBe(expected);
+    });
+
     it("decodes the embedded MTEXT of an R2018 multi-line ATTRIB", () => {
         const { entities } = loadEntities(`
   0 INSERT

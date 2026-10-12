@@ -724,6 +724,15 @@ back link; they are normal entities in the layout between other entities (ezdxf 
 layout). Each linked column is a self-sufficient MTEXT, so a naive renderer that draws every MTEXT
 renders pre-R2018 columns correctly *except* for wrapping width (must use 48 from the master).
 
+**The XDATA is only read from AC1021 on** (VERIFIED-BY-ACAD 2026-10-12, `mtext/columns-linked-r2000-
+totalwidth`, `-r2004-totalwidth`, `mtext/columns-dynamic-auto-r2000`, `-r2004`, `-r2007`,
+`fileformat/corpus-ezdxf-mtext-columns-r2000` vs `-r2007`): in AC1021+ files AutoCAD relinks master +
+linked MTEXTs into one column MTEXT (DXFOUT R2018 writes a single MTEXT with `101 Embedded Object`, the
+linked entities are gone). In **AC1015/AC1018** files the XDATA is kept verbatim but ignored: every MTEXT
+stays a plain one — no column flow (a dynamic master holding all the text plots as one long column past
+its defined height), each wraps at **its own 41** (linked 41 = total width ⇒ long overlapping lines), the
+XDATA defined height only becomes group 46 on output.
+
 R2018: one MTEXT with all text; the column split must be computed by the renderer. After the normal
 codes: `101 Embedded Object`, then
 `70` attachment point ("AutoCAD reads the attachment point from the embedded object, not from the

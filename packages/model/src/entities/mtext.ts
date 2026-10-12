@@ -90,6 +90,7 @@ export interface MTextProps {
 
 export interface MTextEntity extends EntityBase, MTextProps {
     readonly type: "MTEXT";
+    /** Columns as AutoCAD reads them: XDATA columns only from AC1021 on (note 04 §3.7). */
     readonly columns: MTextColumns | undefined;
     /**
      * Pre-R2018 text-frame LWPOLYLINE handles (XDATA ACAD_MTEXT_TEXT_BORDERS). These polylines are
@@ -317,7 +318,7 @@ type MTextFields = Omit<MTextProps, "text" | "attachment" | "rectWidth" | "rectH
     rectHeight?: number;
 };
 
-registerEntity<MTextEntity>("MTEXT", (rec, base) => {
+registerEntity<MTextEntity>("MTEXT", (rec, base, ctx) => {
     const f = readFields<MTextFields>(rec, MTEXT);
     const text = joinChunks(rec, textTags(rec));
     const emb = rec.embedded;
@@ -342,7 +343,9 @@ registerEntity<MTextEntity>("MTEXT", (rec, base) => {
         rectHeight ??= e.columns.totalHeight || undefined;
     }
     const acad = xdataTags(rec, "ACAD");
-    if (!columns && acad.length) columns = readXDataColumns(acad);
+    // AutoCAD relinks XDATA columns only in AC1021+ files; in AC1015/AC1018 every MTEXT stays a
+    // plain one with its own 41 (VERIFIED-BY-ACAD mtext/columns-*-r2000/-r2004, note 04 §3.7)
+    if (!columns && acad.length && ctx.acadver >= "AC1021") columns = readXDataColumns(acad);
     const textBorderHandles = (xdataBeginEnd(acad, "ACAD_MTEXT_TEXT_BORDERS") ?? [])
         .filter((t) => t.code === 1005)
         .map((t) => String(t.value));

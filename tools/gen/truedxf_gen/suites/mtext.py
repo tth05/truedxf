@@ -580,8 +580,9 @@ def _columns(s: SuiteBuilder) -> None:
     _cross(c, (x0, top))
     frame(c, x0, 2 * w + g, 40)
     c.window((0, 0), (200, 150))
-    for variant in ("colwidth", "totalwidth"):
-        c = s.case(f"columns-linked-r2013-{variant}", f"R2013 static columns as linked MTEXTs (3 x {w}, gutter {g}, h={h}); linked 41 = {'column width' if variant == 'colwidth' else f'total width {total3} (as AutoCAD writes)'}", tags=["MTEXT", "columns", "linked"], dxfversion="R2013", questions=["Q-0442"], params={"width": w, "gutter": g, "linked_41": w if variant == "colwidth" else total3})
+    # pre-R2018 linked columns: R2013 plus R2000/R2004 (does AutoCAD relink the XDATA columns there?)
+    for ver, variant in (("R2013", "colwidth"), ("R2013", "totalwidth"), ("R2000", "totalwidth"), ("R2004", "totalwidth")):
+        c = s.case(f"columns-linked-{ver.lower()}-{variant}", f"{ver} static columns as linked MTEXTs (3 x {w}, gutter {g}, h={h}); linked 41 = {'column width' if variant == 'colwidth' else f'total width {total3} (as AutoCAD writes)'}", tags=["MTEXT", "columns", "linked"], dxfversion=ver, questions=["Q-0442"], params={"width": w, "gutter": g, "linked_41": w if variant == "colwidth" else total3})
         c.msp.add_mtext_static_columns([LOREM[:200], LOREM[:200], LOREM[:200]], w, g, 70, dxfattribs=dict(ins))
         _cross(c, (x0, top))
         frame(c, x0, total3, 70)
@@ -595,11 +596,12 @@ def _columns(s: SuiteBuilder) -> None:
                 return head + tail.replace(needle, f" 41\n{_t}\n".encode())
             c.byte_filters.append(fix)
         c.window((0, 0), (200, 150))
-    c = s.case("columns-dynamic-auto-r2013", f"R2013 dynamic auto-height columns (height 60, count 3, h={h}): ezdxf stores all content in the first MTEXT (AutoCAD redistributes?)", tags=["MTEXT", "columns", "linked"], dxfversion="R2013", questions=["Q-0442", "Q-0441"], params={"width": w, "gutter": g, "height": 60, "count": 3})
-    c.msp.add_mtext_dynamic_auto_height_columns(text, w, g, 60, 3, dxfattribs=dict(ins))
-    _cross(c, (x0, top))
-    frame(c, x0, total3, 60)
-    c.window((0, 0), (200, 150))
+    for ver in ("R2000", "R2004", "R2007", "R2013"):
+        c = s.case(f"columns-dynamic-auto-{ver.lower()}", f"{ver} dynamic auto-height columns (height 60, count 3, h={h}): ezdxf stores all content in the first MTEXT (AutoCAD redistributes?)", tags=["MTEXT", "columns", "linked"], dxfversion=ver, questions=["Q-0442", "Q-0441"], params={"width": w, "gutter": g, "height": 60, "count": 3})
+        c.msp.add_mtext_dynamic_auto_height_columns(text, w, g, 60, 3, dxfattribs=dict(ins))
+        _cross(c, (x0, top))
+        frame(c, x0, total3, 60)
+        c.window((0, 0), (200, 150))
 
 
 # --------------------------------------------------------------------------------------------

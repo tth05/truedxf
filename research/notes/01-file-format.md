@@ -256,7 +256,7 @@ point assembler must support "x, y, then the next tag is not z".
 | Ints written as floats `"1.0"` in int16/int32 codes | ProE (ezdxf:lldxf/tagger.py `tag_compiler` comment "ProE stores int values as floats") | `int(float(v))` fallback |
 | Trailing garbage `"42xyz"`, `"47.11xyz"` | ezdxf:recover.py `_search_int`/`_search_float` emulate C `stoll`/`stod` ("just stop converting at the first invalid char") | regex-extract the leading number in lenient mode |
 | Whitespace inside floats | ezdxf `_strip_whitespace` in `recover_float`, ixmilia `Replace(" ","")` | strip all whitespace |
-| `1e999` → inf, `int(inf)` → OverflowError | ezdxf#1403/#1406 | treat as a structure error, or clamp in lenient mode |
+| `1e999` → inf, `int(inf)` → OverflowError | ezdxf#1403/#1406 | treat as a structure error, or clamp in lenient mode. **VERIFIED-BY-ACAD** 2026-10-12 (`fileformat/overflow-*`, Q-0021): AutoCAD loads `1e999` (DXFOUT 9.999999999999998E+98) and `1e300`, but rejects the whole file for `nan`, `-nan(ind)` and `inf` in any real (entity or header) and for int16 overflow (62 = 32768 / −32769); LWPOLYLINE 70 = 70000 loads (DXFOUT writes 70 = 0). truedxf reads non-finite reals as 0 (`tagNum`) |
 | `1.95059E+06` in 1071 | spec example (spec:L11380ff) | float → int fallback |
 | Decimal comma (`"1,5"`) | Locale bugs in .NET writers (netDxf#63 concerns .pat parsing) | **UNKNOWN** whether AutoCAD accepts it (probably not). Lenient mode: if the float parse fails and the value matches `^-?\d+,\d+$`, replace the comma |
 | 15-significant-digit output (precision loss) | acs#1179 (ACadSharp writer) | nothing to repair on read; such files carry only 15 significant digits |

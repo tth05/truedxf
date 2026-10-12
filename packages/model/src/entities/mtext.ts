@@ -322,7 +322,7 @@ registerEntity<MTextEntity>("MTEXT", (rec, base) => {
   const text = joinChunks(rec, textTags(rec));
   const emb = rec.embedded;
   let columns: MTextColumns | undefined;
-  let attachment = f.attachmentPoint71;
+  let attachment = validAttachment(f.attachmentPoint71);
   let rectWidth = f.rectWidth;
   let rectHeight = f.rectHeight;
   let { insert, width, direction, rotation } = f;
@@ -368,6 +368,14 @@ function hasCode(rec: DxfRecord, code: number): boolean {
 }
 
 /**
+ * AutoCAD loads a 71 outside 1..9 (0, 10, -1, 99) as 1, top left, and writes 1 on DXFOUT
+ * (VERIFIED-BY-ACAD 2026-10-12, `fileformat/mtext-attachment-*`, note 04 §3.1).
+ */
+function validAttachment(v: number): number {
+  return v >= 1 && v <= 9 ? v : 1;
+}
+
+/**
  * The embedded MTEXT of an R2018 multi-line ATTRIB/ATTDEF (`101 Embedded Object` followed by
  * AcDbMText codes from 10 on, note 04 §2.3). Graphical properties come from the host entity.
  * Returns undefined if the record has no embedded object.
@@ -394,7 +402,7 @@ export function parseEmbeddedMText(rec: DxfRecord): MTextProps | undefined {
   return {
     ...f,
     text: joinChunks(rec, tags),
-    attachment: f.attachmentPoint71,
+    attachment: validAttachment(f.attachmentPoint71),
     rectWidth: f.rectWidth,
     rectHeight: f.rectHeight,
   };

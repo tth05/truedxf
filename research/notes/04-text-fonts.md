@@ -392,7 +392,7 @@ MTEXT is a **WCS** entity (no OCS): 10 and 11 are WCS, 210 only defines the plan
 | 40 | nominal (initial) char height = cap height | ezdxf default 2.5, must be > 0 |
 | 41 | reference rectangle width | 0 or missing ⇒ no word wrap ("If you specify a width of 0, word wrap is turned off", AutoCAD MTEXT command help). In column mode wrong for linked columns (holds total width), see 3.7 |
 | 46 | defined height (R2007+, `AC1021`) | 0 except in column mode / "No columns" with manual height |
-| 71 | attachment point 1..9 (TL,TC,TR,ML,MC,MR,BL,BC,BR) | default 1 |
+| 71 | attachment point 1..9 (TL,TC,TR,ML,MC,MR,BL,BC,BR) | default 1. Absent or outside 1..9 (0, 10, −1, 99) loads as 1 and DXFOUT writes 1 (**VERIFIED-BY-ACAD** 2026-10-12, `fileformat/mtext-attachment-*`, Q-0748) |
 | 72 | drawing direction 1 = L→R, 3 = T→B, 5 = by style | ezdxf default 1; AutoCAD writes 5 in embedded MTEXT |
 | 1 / 3 | text: 3 = 250-char chunks, last chunk in 1 | see 3.2 |
 | 7 | style | "STANDARD" |

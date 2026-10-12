@@ -42,7 +42,7 @@ set the status here to `answered` (or `wontfix`) and add the answer in one line 
 | Q-0018 | file-format | [U] Does AutoCAD accept numbers with trailing garbage ('5xyz', '47.11xyz'), parsing the leading number like strtod? | 01 §1.4 (01:T5) | `fileformat/trailing-garbage-line-x`, `fileformat/trailing-garbage-circle-radius`, `fileformat/trailing-garbage-line-color` | open |
 | Q-0019 | file-format | [U] Does AutoCAD accept integers written as floats ('1.0', '1e0', '1.95059E+06' in 1071) in int16/int32 codes? | 01 §1.4 (01:T5) | `fileformat/int-as-float-color`, `fileformat/int-as-float-flags`, `fileformat/int-as-float-xdata-*` | open |
 | Q-0020 | file-format | [T] Does AutoCAD read 17-significant-digit doubles bit-exactly (as its DXFOUT shows), and accept reals written without '.0' (e.g. '943')? | 11c §3 doubles; 11c §18 #7 | `fileformat/float-17-digits`, `fileformat/float-integer-looking` | open |
-| Q-0021 | file-format | [U] What does AutoCAD do with int16 overflow (62=32768, 70=70000) and non-finite reals (1e999, 'nan', '-nan(ind)'): refuse, clamp or wrap? | 01 §1.4; 11c §3 NaN (netDxf#202) (01:T5) | `fileformat/overflow-color-32768`, `fileformat/overflow-color-minus-32769`, `fileformat/overflow-lwpolyline-flags-70000`, `fileformat/overflow-circle-radius-1e999` (+5 more) | open |
+| Q-0021 | file-format | [U] What does AutoCAD do with int16 overflow (62=32768, 70=70000) and non-finite reals (1e999, 'nan', '-nan(ind)'): refuse, clamp or wrap? | 01 §1.4; 11c §3 NaN (netDxf#202) (01:T5) | `fileformat/overflow-color-32768`, `fileformat/overflow-color-minus-32769`, `fileformat/overflow-lwpolyline-flags-70000`, `fileformat/overflow-circle-radius-1e999` (+5 more) | answered |
 | Q-0022 | file-format | [U] Are group codes 450-459 signed int32 in AutoCAD (values >= 2^31 written negative or rejected)? | 01 §1.2 | `fileformat/gradient-int32-450-2147483648`, `fileformat/gradient-int32-451-minus1`, `fileformat/gradient-int32-452-4294967295`, `fileformat/gradient-int32-453-minus1` | open |
 | Q-0023 | file-format | [U] Which 290 bool values does AutoCAD accept on OPEN: '2', '-1', 'true', padded '     1'? | 01 §1.2, §1.4 (01:T6) | `fileformat/bool-290-0`, `fileformat/bool-290-1`, `fileformat/bool-290-2`, `fileformat/bool-290-minus1` (+2 more) | open |
 | Q-0024 | file-format | [C] How does AutoCAD encode XDATA 1004 in ASCII (hex string) and binary DXF (length-prefixed chunk), and does it accept 1004 as plain text? | 01 §1.2 | `fileformat/xdata-1004-hex`, `fileformat/xdata-1004-plain-text`, `fileformat/xdata-1004-odd-hex`, `fileformat/xdata-1004-lowercase-hex` (+1 more) | open |
@@ -75,6 +75,7 @@ set the status here to `answered` (or `wontfix`) and add the answer in one line 
 - Q-0004: Trailing spaces after SECTION/ENTITIES names make the file invalid; a padded entity type (`LINE `) in AC1032 loads but the entity is dropped (`fileformat/trailing-space-*`, note 01 §8.1).
 - Q-0006: Lower-case section/structure names make the file invalid; lower-case entity types plot in R12 but are dropped in AC1032 (`fileformat/lowercase-*`).
 - Q-0007: Yes: 999 comments at the file start, between entities and between 0 SECTION and 2 name are accepted (`fileformat/comment-999-*`).
+- Q-0021: Reject: `nan`, `-nan(ind)`, `inf` (entity coordinates, circle radius, header $LTSCALE) and int16 overflow (62 = 32768 / −32769) make the whole file invalid ("Invalid or incomplete DXF input -- drawing discarded"). `1e999` and `1e300` load (`1e999` is written back as 9.999999999999998E+98), and LWPOLYLINE 70 = 70000 loads, written back as 70 = 0 (`fileformat/overflow-*`, note 01 §1.4).
 
 <a id="encoding"></a>
 ## Encodings (`encoding`)
@@ -754,6 +755,9 @@ Answers (VERIFIED-BY-ACAD, AutoCAD 2027, 2026-09-30):
 | Q-0456 | mtext | [U] What is the MTEXT background mask box: horizontal extent (41 or text extents, and with 41=0), and is the margin (45-1)*h on all four sides? | 04 §3.1, §8 item 8; 11b §10 (04:T16) | `mtext/bg-scale-10-w0`, `mtext/bg-scale-10-w150`, `mtext/bg-scale-15-w0`, `mtext/bg-scale-15-w150` (+5 more) | open |
 | Q-0457 | mtext | [U] What does the MTEXT text frame (90 bit 16, e.g. 90=17) plot: offset, box basis, colour and lineweight? | 04 §3.1, §8 item 8; 11a §9 (04:T16) | `mtext/bg-fill-aci`, `mtext/bg-fill-window`, `mtext/bg-fill-canvas`, `mtext/bg-frame-only` (+4 more) | open |
 | Q-0458 | mtext | [U] Pre-R2018 MTEXT text frame LWPOLYLINE referenced by ACAD_MTEXT_TEXT_BORDERS: does AutoCAD draw it (in addition to the frame)? | 04 §3.1, §8 item 8 (04:T16) | `mtext/bg-frame-r2013-xdata`, `mtext/bg-frame-r2013-no-xdata` | open |
+| Q-0748 | mtext | [U] How does AutoCAD place MTEXT whose attachment point 71 is absent or outside 1..9 (0, 10, -1, 99): default to top left, clamp, or reject the file? | 04 §3.1; dxf-viewer#176 | `fileformat/mtext-attachment-1`, `fileformat/mtext-attachment-5`, `fileformat/mtext-attachment-9`, `fileformat/mtext-attachment-missing` (+4 more) | answered |
+
+- Q-0748: Top left: an absent 71 and 71 = 0, 10, −1, 99 all load, plot pixel-identical to 71 = 1 and are written as 71 = 1 on DXFOUT (`fileformat/mtext-attachment-*`, 2026-10-12).
 
 <a id="fonts"></a>
 ## Fonts (`fonts`)

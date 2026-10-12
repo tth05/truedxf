@@ -84,6 +84,30 @@ describe("MTEXT", () => {
     expect(m.attachment).toBe(5);
   });
 
+  it("loads an absent or out-of-range 71 as top left (VERIFIED-BY-ACAD fileformat/mtext-attachment-*)", () => {
+    for (const [att71, raw] of [
+      ["", 1],
+      [" 71 0\n", 0],
+      [" 71 10\n", 10],
+      [" 71 -1\n", -1],
+      [" 71 99\n", 99],
+    ] as const) {
+      const m = loadEntities(`
+  0 MTEXT
+  5 20
+100 AcDbEntity
+  8 0
+100 AcDbMText
+ 10 0.0
+ 20 0.0
+ 40 2.0
+${att71}  1 X
+`).entities[0] as MTextEntity;
+      expect(m.attachmentPoint71).toBe(raw);
+      expect(m.attachment).toBe(1);
+    }
+  });
+
   it("joins 3-chunks and the 1-chunk in file order, reads rotation, direction and background", () => {
     const { entities } = loadEntities(`
   0 MTEXT

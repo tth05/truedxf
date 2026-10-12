@@ -120,6 +120,7 @@ def build(s: SuiteBuilder) -> None:
     _tables(s, mk)
     _objects(s, mk)
     _entities(s, mk)
+    _mtext_attachment(s, mk)
     _malformed_misc(s, mk)
     _binary_chunks(s, mk)
     _corpus(s, mk)
@@ -2052,6 +2053,23 @@ def _binary_chunks(s, mk) -> None:
                 chunks[-1] = (last + b"\0" * (127 - len(last))).hex().upper()
             t.insert(len(t) - 1, [(0, "SECTION"), (2, "THUMBNAILIMAGE"), (90, str(len(dib)))] + [(310, x) for x in chunks] + [(0, "ENDSEC")])
         c.byte_filters.append(tagfilter(thumb))
+
+
+# --------------------------------------------------------------------------------------------
+# MTEXT attachment point (71) missing or outside 1..9 (Q-0748)
+
+
+def _mtext_attachment(s, mk) -> None:
+    # insertion point (100, 75) = where the base drawing's diagonals cross; 1, 5, 9 are controls
+    for n, val in (("1", "1"), ("5", "5"), ("9", "9"), ("missing", None), ("0", "0"), ("10", "10"), ("minus1", "-1"),
+                   ("99", "99")):
+        c, h = mk(f"mtext-attachment-{n}", f"MTEXT 'ABC\\PDEFG' at the diagonals' crossing with 71 {'absent' if val is None else '= ' + val}",
+                  ["Q-0748"], malformed=n not in ("1", "5", "9"), tags=["MTEXT", "attachment"], params={"attachment": val})
+        m = c.msp.add_mtext("ABC\\PDEFG", dxfattribs={"insert": (100, 75), "char_height": 10, "attachment_point": 1})
+        if val is None:
+            c.byte_filters.append(tagfilter(lambda t, hh=m.dxf.handle: _drop(t, hh, 71)))
+        else:
+            c.byte_filters.append(tagfilter(lambda t, hh=m.dxf.handle, val=val: _setv(t, hh, 71, val)))
 
 
 def _malformed_misc(s, mk) -> None:

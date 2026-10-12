@@ -25,7 +25,7 @@ import { decode as decodePng } from "fast-png";
 import { CONFIG_FILES, sha256File } from "./configs.ts";
 import { ACAD_DIR, ACCORECONSOLE, GENERATED_DIR, PLOT_STYLES_DIR, REFS_DIR, requireFile } from "./env.ts";
 import { buildScript, type CaseMeta, MARK, verifySteps } from "./script.ts";
-import { isSupportedCanvas } from "./sizes.ts";
+import { canvasMargins, isSupportedCanvas } from "./sizes.ts";
 
 /** Bump when script generation or verification changes; references with another version are re-run. */
 export const HARNESS_VERSION = 3;
@@ -451,11 +451,17 @@ export async function runCase(
             if (ext === "png") {
                 const info = pngInfo(buf);
                 refOutputs.png = { ...refOutputs.png, ...info };
-                if (info.width !== meta.plot.canvas[0] || info.height !== meta.plot.canvas[1]) {
+                // The raster driver writes only the printable area: a sheet with margins gives a
+                // smaller PNG (VERIFIED-BY-ACAD 2026-10-12, research/notes/08 §10.17).
+                // A stored page setup brings its own margins (40-43), hence plot.pngSize.
+                const [ml, mb, mr, mt] = canvasMargins([meta.plot.canvas[0], meta.plot.canvas[1]]);
+                const [ew, eh] = meta.plot.pngSize ?? [
+                    meta.plot.canvas[0] - ml - mr,
+                    meta.plot.canvas[1] - mb - mt,
+                ];
+                if (info.width !== ew || info.height !== eh) {
                     status = status === "ok" ? "harness-failure" : status;
-                    messages.push(
-                        `png: size ${info.width}x${info.height} != canvas ${meta.plot.canvas.join("x")}`,
-                    );
+                    messages.push(`png: size ${info.width}x${info.height} != printable canvas ${ew}x${eh}`);
                 }
             } else if (ext === "pdf") refOutputs.pdf = { ...refOutputs.pdf, ...pdfInfo(buf) };
             else refOutputs.dxf = { bytes: buf.length, sha256: sha256(buf) };

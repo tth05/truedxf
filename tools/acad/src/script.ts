@@ -35,6 +35,10 @@ export type PlotMeta = {
     paperUnits?: "inches" | "mm";
     /** harness extension: answer "Save changes to page setup" with Yes and run DXFOUT after the plots */
     savePageSetup?: boolean;
+    /** harness extension: expected PNG size when it is not the canvas minus the sheet margins (stored 40-43) */
+    pngSize?: [number, number];
+    /** harness extension: verbatim plot offset answer "x,y" in paper units (default: Center for windows, 0,0 for Layout) */
+    offset?: string;
     /** harness extension: answer to "Plot paper space first?" (layouts only; default false = AutoCAD default) */
     paperSpaceFirst?: boolean;
     /** harness extension: extra sysvars set after the prologue, e.g. { "PLOTTRANSPARENCYOVERRIDE": 2 } */
@@ -176,8 +180,8 @@ export function plotSteps(meta: CaseMeta, device: "png" | "pdf", outFile: string
         { prompt: "Enter plot scale", answer: scale },
         // Plot area "Layout" has no [Center] option (VERIFIED-BY-ACAD: "_C" cancels -PLOT).
         a.type === "layout"
-            ? { prompt: "Enter plot offset (x,y)", answer: "0,0" }
-            : { prompt: "Enter plot offset (x,y) or [Center]", answer: "_C" },
+            ? { prompt: "Enter plot offset (x,y)", answer: p.offset ?? "0,0" }
+            : { prompt: "Enter plot offset (x,y) or [Center]", answer: p.offset ?? "_C" },
         // The style-table prompt also follows a "No" (VERIFIED-BY-ACAD 2026-10-12).
         { prompt: "Plot with plot styles?", answer: yn(p.plotStyles ?? true) },
         { prompt: "Enter plot style table name", answer: p.styleTable },

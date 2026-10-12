@@ -10,7 +10,22 @@ export const CANVASES: readonly Canvas[] = [
     [800, 600],
     // calibration only (lineweight / DPI checks at a larger canvas)
     [4000, 3000],
+    // page setup only: the one sheet with non-zero unprintable margins (CANVAS_MARGINS)
+    [1600, 1200],
 ];
+
+/**
+ * Unprintable margins [left, bottom, right, top] in pixels (PDF: the same in 1/100 inch) of the
+ * sheets that have them; every other sheet has zero margins. Four distinct values so a plot shows
+ * which paper edge each margin belongs to (research/notes/08 §2.5).
+ */
+export const CANVAS_MARGINS: Readonly<Record<string, readonly [number, number, number, number]>> = {
+    "1600x1200": [10, 20, 30, 40],
+};
+
+export function canvasMargins([w, h]: Canvas): readonly [number, number, number, number] {
+    return CANVAS_MARGINS[`${w}x${h}`] ?? [0, 0, 0, 0];
+}
 
 const f2 = (x: number) => x.toFixed(2);
 

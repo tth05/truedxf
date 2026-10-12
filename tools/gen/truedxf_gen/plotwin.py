@@ -11,7 +11,8 @@ import math
 from typing import Sequence
 
 # Paper sizes in the truedxf PC3/PMP (docs/fixtures.md; tools/acad/README.md is authoritative).
-CANVASES: tuple[tuple[int, int], ...] = ((2000, 1500), (1000, 1000), (800, 600))
+# 1600x1200 is the margins sheet (10/20/30/40 px unprintable margins, tools/acad/src/sizes.ts)
+CANVASES: tuple[tuple[int, int], ...] = ((2000, 1500), (1000, 1000), (800, 600), (1600, 1200))
 DEFAULT_CANVAS = (2000, 1500)
 
 

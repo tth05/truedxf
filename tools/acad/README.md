@@ -35,6 +35,11 @@ with `TRUEDXF_PLOTTERS_DIR`, `TRUEDXF_ACAD_ROAMING`, `TRUEDXF_ACAD_DIR` (install
 | 1000 × 1000 | `truedxf 1000x1000 (1000.00 x 1000.00 Pixels)` | `truedxf 1000x1000 (10.00 x 10.00 Inches)` |
 | 800 × 600 | `truedxf 800x600 (800.00 x 600.00 Pixels)` | `truedxf 800x600 (8.00 x 6.00 Inches)` |
 | 4000 × 3000 (calibration only) | `truedxf 4000x3000 (4000.00 x 3000.00 Pixels)` | `truedxf 4000x3000 (40.00 x 30.00 Inches)` |
+| 1600 × 1200 (page setups only) | `truedxf 1600x1200 (1600.00 x 1200.00 Pixels)` | `truedxf 1600x1200 (16.00 x 12.00 Inches)` |
+
+The 1600 × 1200 sheet is the only one with unprintable margins: left/bottom/right/top = 10/20/30/40 px
+(PDF: 0.10/0.20/0.30/0.40 in), `sizes.ts` `CANVAS_MARGINS`. The raster driver writes only the
+printable area, so its PNG is 1560 × 1140 (research/notes/08 §10.17).
 
 ### PIA file format (PC3 / PMP / CTB / STB)
 
@@ -60,9 +65,9 @@ path, so they are machine specific):
 | stock monochrome.ctb | `39e50a1605c0ff5805065a39766271192de6e52dd4b54cfd4f031ad6e4433608` |
 | stock acad.ctb | `9e6fdb8dc2735ab9000719ab77cff9c8403987b447a5863c2f3a95824b6bdb27` |
 | truedxf PNG.pc3 | `218204c1488ba910fdb2d763c49d8372ad57f400a7aa20bd6d27b678ad835a58` |
-| truedxf PNG.pmp | `0cf21c9f443837930cfd87e27d12c0fee1900c1af760004d80a478b5e19223ec` |
+| truedxf PNG.pmp | `8bad0ac8970ab27ddcaa8d637950af5a557c3a41d56154b61bcc752044d212ba` (2026-10-12, with the margins sheet) |
 | truedxf PDF.pc3 | `cc4b13f7a883d742126688d1ef394f1f7bce86beb2232bd55cfd379235769403` |
-| truedxf PDF.pmp | `a188dc80e30d5471d63660d29f9b0af6a8eecb89a82c82f7f55bb095a5afdc07` |
+| truedxf PDF.pmp | `4556afbf099c705f8942c00005b2246f92f8d7a3370511862231025e55a8e995` (2026-10-12, with the margins sheet) |
 
 Every reference `.json` records the hashes actually used (`configs`).
 
@@ -92,7 +97,8 @@ Per case the runner:
    a crash).
 4. decodes the UTF-16LE transcript and verifies it: every expected prompt answered in order (no
    re-prompt), `Effective plotting area` after each plot, no error lines (`Unknown command`,
-   `; error:`, `Invalid …`, `not found.` …), the PNG exists and its size equals the canvas.
+   `; error:`, `Invalid …`, `not found.` …), the PNG exists and its size equals the canvas minus
+   the sheet's margins (or `plot.pngSize`).
 5. writes `<case>.png/.pdf/.dxf` (as requested), `<case>.log` (decoded transcript) and
    `<case>.json` (docs/fixtures.md + `harness`, `outputs.png.{width,height,channels,depth,palette,
    sha256,effectivePlottingArea}`, `outputs.pdf.{bytes,sha256,mediaBox,pages}`).
@@ -140,6 +146,8 @@ defaults to `["png"]`. Further optional answers (defaults = the behaviour above)
 | `plot.paperUnits` | `"inches"` (default) / `"mm"` on the PDF device |
 | `plot.scale` | also a verbatim scale answer string, e.g. `"1:50"`, `"1=3"`, `"1/4\"=1'"` |
 | `plot.savePageSetup` | "Save changes to page setup" = Yes, and DXFOUT runs *after* the plots |
+| `plot.offset` | verbatim answer to "Enter plot offset", e.g. `"30,40"` (default `_C` for windows, `0,0` for Layout) |
+| `plot.pngSize` | expected PNG size when a stored page setup brings other margins than the sheet (e.g. 40–43 = 0 on the margins sheet) |
 | `plot.mode: "pagesetup"` | non-detailed -PLOT: `_N`, layout, page setup name = Enter (the layout's own settings), device (must be the one stored in the layout: `truedxf PNG.pc3` with media `UserDefinedRaster (2000.00 x 1500.00Pixels)`), file, save, proceed. Every other setting comes from the stored PLOTSETTINGS |
 
 **Plot style tables.** `plot.styleTable` names a table in the Plot Styles folder, or `"."` for
@@ -163,6 +171,7 @@ tools/gen/.venv/Scripts/python tools/acad/calibration/analyze_palette.py --dump 
 tools/gen/.venv/Scripts/python tools/acad/calibration/analyze_pdf.py          # PDF widths/curves
 tools/gen/.venv/Scripts/python tools/acad/calibration/analyze_viewports.py    # twist, layouts
 tools/gen/.venv/Scripts/python tools/acad/calibration/analyze_plotstyles.py   # CTB/STB rules, page setups (suites plotstyles, pagesetup)
+tools/gen/.venv/Scripts/python tools/acad/calibration/analyze_pen_patterns.py # CTB pen linetypes (PDF) and fill-style tiles (PNG)
 ```
 
 The `calibration` suite is owned by tools/acad (tools/gen refuses to write it).

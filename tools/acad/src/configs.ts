@@ -27,6 +27,7 @@ import {
 import {
     CANVASES,
     type Canvas,
+    canvasMargins,
     PDF_PC3,
     PDF_PMP,
     PNG_PC3,
@@ -47,9 +48,11 @@ const f2 = (x: number) => x.toFixed(2);
 
 function rasterSize([w, h]: Canvas, i: number) {
     // Raster printable bounds are inclusive pixel indices: zero margins = (0,0)x(w-1,h-1), exactly as
-    // in the user sizes of the stock PublishToWeb PNG.pmp.
+    // in the user sizes of the stock PublishToWeb PNG.pmp. Margin sheets move them inwards.
+    const [ml, mb, mr, mt] = canvasMargins([w, h]);
+    const [llx, lly, urx, ury] = [ml, mb, w - 1 - mr, h - 1 - mt];
     const canon = `UserDefinedRaster (${f2(w)} x ${f2(h)}Pixels)`;
-    const descName = `UserDefinedRaster Landscape ${f2(w)}W x ${f2(h)}H - (0, 0) x (${w - 1}, ${h - 1}) =${w * h} Pixels`;
+    const descName = `UserDefinedRaster Landscape ${f2(w)}W x ${f2(h)}H - (${llx}, ${lly}) x (${urx}, ${ury}) =${(urx - llx + 1) * (ury - lly + 1)} Pixels`;
     const size = sec(String(i), [
         val("caps_type", "2"),
         val("name", str(canon)),
@@ -63,11 +66,11 @@ function rasterSize([w, h]: Canvas, i: number) {
         val("name", str(descName)),
         val("media_bounds_urx", num(w)),
         val("media_bounds_ury", num(h)),
-        val("printable_bounds_llx", num(0)),
-        val("printable_bounds_lly", num(0)),
-        val("printable_bounds_urx", num(w - 1)),
-        val("printable_bounds_ury", num(h - 1)),
-        val("printable_area", num((w - 1) * (h - 1))),
+        val("printable_bounds_llx", num(llx)),
+        val("printable_bounds_lly", num(lly)),
+        val("printable_bounds_urx", num(urx)),
+        val("printable_bounds_ury", num(ury)),
+        val("printable_area", num((urx - llx) * (ury - lly))),
         val("dimensional", bool(false)),
     ]);
     return { size, desc, canon };
@@ -152,8 +155,12 @@ function pdfSize([w, h]: Canvas, i: number) {
     const hin = h / 100;
     const wmm = win * 25.4;
     const hmm = hin * 25.4;
+    // margins: the raster sheet's pixels as 1/100 inch
+    const [llx, lly, urx, ury] = ((m) => [m[0], m[1], w - m[2], h - m[3]].map((v) => (v / 100) * 25.4))(
+        canvasMargins([w, h]),
+    ) as [number, number, number, number];
     const canon = `UserDefinedImperial (${f2(win)} x ${f2(hin)}Inches)`;
-    const descName = `UserDefinedImperial Landscape ${f2(win)}W x ${f2(hin)}H - (0, 0) x (${f2(win)}, ${f2(hin)}) =${f2(win * hin)} Inches`;
+    const descName = `UserDefinedImperial Landscape ${f2(win)}W x ${f2(hin)}H - (${f2(llx / 25.4)}, ${f2(lly / 25.4)}) x (${f2(urx / 25.4)}, ${f2(ury / 25.4)}) =${f2(((urx - llx) * (ury - lly)) / 645.16)} Inches`;
     const size = sec(String(i), [
         val("caps_type", "2"),
         val("name", str(canon)),
@@ -167,11 +174,11 @@ function pdfSize([w, h]: Canvas, i: number) {
         val("name", str(descName)),
         val("media_bounds_urx", num(wmm)),
         val("media_bounds_ury", num(hmm)),
-        val("printable_bounds_llx", num(0)),
-        val("printable_bounds_lly", num(0)),
-        val("printable_bounds_urx", num(wmm)),
-        val("printable_bounds_ury", num(hmm)),
-        val("printable_area", num(wmm * hmm)),
+        val("printable_bounds_llx", num(llx)),
+        val("printable_bounds_lly", num(lly)),
+        val("printable_bounds_urx", num(urx)),
+        val("printable_bounds_ury", num(ury)),
+        val("printable_area", num((urx - llx) * (ury - lly))),
         val("dimensional", bool(true)),
     ]);
     return { size, desc, canon, wmm, hmm };

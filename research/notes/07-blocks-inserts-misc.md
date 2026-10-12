@@ -1458,7 +1458,7 @@ cyan, STAIR 2 yellow, walls 9 light grey, column fill 8 grey. Example wall strip
 the red axis at row 467 agrees exactly. This is a raster offset, not evidence of a colour
 mapping or transform-composition error. No coordinate/color/index workaround was introduced.
 Stair hatch discrepancies remain open; zoomed copies of the valid corpus will separate
-phase/spacing from pixel snapping (Q-0736).
+phase/spacing from pixel snapping (Q-0758).
 
 CPU scores: gh109 exact mismatch **24,057 → 20,197**, F1(r=1) **0.9079 → 0.9730**.
 All three arch-cn cases and all 677 text/mtext/blocks/misc case scores stay identical.
@@ -1582,7 +1582,7 @@ colour adjustment is not warranted. Stair hatch at the shifted window still has
 20,098 exact mismatches but F1(r=1)=1.0000; the original had 11,107 / 1.0000.
 The earlier PDF family-phase/spacing measurements remain valid (§15.7). These probes
 locate residual errors in device raster coverage; they do not define a universal tie
-rule. Q-0736 stays open for that rule. No hatch phase/spacing or proxy coordinates changed.
+rule. Q-0758 stays open for that rule. No hatch phase/spacing or proxy coordinates changed.
 
 **VERIFIED-BY-ACAD** (`fid-proxy-followup/tag-*`, `fid-proxy-probes/tags`,
 2026-10-03): localized-family 宋体 with explicit simplex.shx and with simsun.ttc both
@@ -1595,7 +1595,7 @@ but differs from the original by 8,120 pixels. Clearing the family differs by 2,
 The font choice is not fully explained by those equality results: the empty-family
 and Arial PDFs contain M0921 and C1815 as SimSun text while their PNGs differ, and one
 remaining tag is a path. This is a PDF/PNG font-selection distinction, not verified
-permission to substitute every Arial proxy with SimSun. Q-0737 retains this narrower
+permission to substitute every Arial proxy with SimSun. Q-0759 retains this narrower
 question; the ordinary resolver still receives the raw family, file, bigfont and flags.
 The localized-family plot correction belongs to the parallel font-resolution branch;
 these scores are from this proxy branch before that merge.

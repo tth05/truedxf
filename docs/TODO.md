@@ -66,7 +66,7 @@ Tick items off (or delete them) when done.
       MTEXT runs, retaining advances for inline runs (2026-10-03, `fid-proxy-followup`,
       Q-0738–Q-0739, note 07 §15.8; both mixed MTEXT zooms pixel-exact).
 - [ ] Proxy graphics: exact raster coverage/ties and the opcode-38 Arial/empty-family
-      PNG/PDF font-selection distinction (Q-0736–Q-0737, note 07 §15.8). Wall half-pixel
+      PNG/PDF font-selection distinction (Q-0758–Q-0759, note 07 §15.8). Wall half-pixel
       zoom is pixel-exact; hatch phase is correct. Shared localized-family resolution is
       handled by the parallel font branch; no proxy-only resolver.
       Non-unit tracking, raw/decoration flags and non-+Z text remain source-based/unit-tested.

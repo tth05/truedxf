@@ -791,8 +791,8 @@ Answers (VERIFIED-BY-ACAD, AutoCAD 2027, 2026-09-30):
 
 | ID | topic | question | source | test | status |
 |---|---|---|---|---|---|
-| Q-0736 | fonts | [U] Why does empty group 3 with ACAD family 宋体 and flags 0 plot native FD as SHX: charset, localized family, or substitution before the harness sets FONTALT? | 04 §15 | `font-resolution/empty-*`, `file-simplex-song-*`, `arch-*-fd` | answered |
-| Q-0737 | fonts | [U] What remaining curve/grid-fitting and SHX/GBCBIG raster rules explain the arch-cn fringes? Large upright SimSun string anchors are corrected; smaller/other orientations remain unverified. | 04 §15.3 | `font-resolution/arch-*-cjk*`; `font-metrics/simsun-*`, `gbcbig-*` (18 references analyzed) | open |
+| Q-0736 | fonts | [U] Why does empty group 3 with ACAD family 宋体 and flags 0 plot native FD as SHX: charset, localized family, or substitution before the harness sets FONTALT? | 04 §15 | `font-resolution/empty-no-xdata`, `font-resolution/empty-song-flags0`, `font-resolution/empty-song-flags34306`, `font-resolution/empty-simsun-flags0` (+21 more) | answered |
+| Q-0737 | fonts | [U] What remaining curve/grid-fitting and SHX/GBCBIG raster rules explain the arch-cn fringes? Large upright SimSun string anchors are corrected; smaller/other orientations remain unverified. | 04 §15.3 | `font-resolution/empty-no-xdata`, `font-resolution/empty-song-flags0`, `font-resolution/empty-song-flags34306`, `font-resolution/empty-simsun-flags0` (+39 more) | open |
 | Q-0459 | fonts | [C] Which bits of STYLE XDATA 1071 encode bold, italic, charset and pitch/family (LOGFONT packing: italic 0x01000000, bold 0x02000000? 34306=0x8602)? | 02 §2.3; 11a §4, Open conflicts; 11b §10, Test ideas (11b:8) | `fileformat/style-xdata-computed` | open |
 | Q-0460 | fonts | [U] TTF family lacking bold/italic faces with XDATA bold/italic bits: does AutoCAD synthesise bold/italic, and how? | 04 §4.5 (04:T22) | `text/xdata-sans-bold`, `text/xdata-sans-italic`, `text/xdata-sans-bolditalic`, `text/xdata-mono-bold` (+4 more) | open |
 | Q-0461 | fonts | [U] Does AutoCAD support OpenType (.otf) fonts in STYLE group 3 or XDATA family? | 04 §4.5 (04:T22) | plan: text (png) — STYLE group 3 'SourceCodePro.otf' (installed), TEXT 'ABC' | open |
@@ -1160,14 +1160,14 @@ small-size grid fitting and SHX/GBCBIG residues remain open. No further probe ba
 | Q-0700 | proxy | [U] Do proxy sub-entity traits default to the host's layer/color/ltype/lw, and how are color 0 (BYBLOCK) and circle normal (0,0,-1) resolved in an INSERT? | 07 §15.3, §17; 11a §16 (07:20, 11a:43) | `misc/proxy-color-layer`, `misc/proxy-traits-default-in-insert` | open |
 | Q-0701 | proxy | [U] Are proxy graphics coordinates of an entity inside a block in block coords, transformed by the INSERT matrix? | 07 §15.3, §17 (07:20) | `misc/proxy-traits-default-in-insert`, `misc/proxy-in-rotated-insert` | open |
 | Q-0702 | proxy | [U] Do nested PUSH_MODELXFORM (op 29/30) matrices in proxy graphics compose with each other and the outer transform? | 07 §15.3, §17 (07:20) | `misc/proxy-nested-matrix` | open |
-| Q-0736 | proxy | [U] How do gh109 wall/stair edges handle exact device-pixel ties (PDF geometry and stair hatch phase agree with stored data)? | 07 §15.7; 08 §10.2 | `fid-proxy-probes/wall-stair`, `fid-proxy-probes/stair-hatch`, `fid-proxy-followup/*-halfpixel` | open |
-| Q-0737 | proxy | [U] Which font fields select opcode-38 tags when typeface is set but files are empty (AutoCAD plots SHX strokes; axis digits already agree within one pixel)? | 07 §15.7; 04 §14 | `fid-proxy-probes/tags`, `fid-proxy-probes/axis-one`, `fid-proxy-followup/tag-*` | answered |
+| Q-0758 | proxy | [U] How do gh109 wall/stair edges handle exact device-pixel ties (PDF geometry and stair hatch phase agree with stored data)? | 07 §15.7; 08 §10.2 | `fid-proxy-probes/wall-stair`, `fid-proxy-probes/stair-hatch`, `fid-proxy-followup/*-halfpixel` | open |
+| Q-0759 | proxy | [U] Which font fields select opcode-38 tags when typeface is set but files are empty (AutoCAD plots SHX strokes; axis digits already agree within one pixel)? | 07 §15.7; 04 §14 | `fid-proxy-probes/tags`, `fid-proxy-probes/axis-one`, `fid-proxy-followup/tag-*` | answered |
 | Q-0738 | proxy | [U] How does missing base-style bigfont suppression apply to mixed base/inline MTEXT runs (fully overridden runs are verified to draw)? | 07 §15.8; 04 §4.1 | `fid-proxy-probes/columns-room`, `fid-proxy-probes/inline-missing-base-bigfont`, `fid-proxy-followup/inline-mixed-*` | answered |
 | Q-0739 | proxy | [T] Is FILLON consumed after SHELL/POLYGON/TEXT (POLYLINE survival and FILLMODE=0 outlines are verified)? | 07 §15.2, §15.7–15.8 | `fid-proxy-probes/fill-consumption`, `fid-proxy-probes/fill-explicit-control`, `fid-proxy-probes/shell-fillmode-zero`, `fid-proxy-followup/fill-after-*` | answered |
 | Q-0740 | proxy fonts | [U] Which charset/pitch/file/bigfont rules select proxy fonts? Arial/134 selects SimSun; charset 0/1 stays Arial; empty extended requests use TXT; typeface wins; SHX missing bigfont suppresses. | 04 §16.1; 07 §15.9 | `proxy-font-selection/*` (26 successful cases); `fid-proxy-followup/tag-*` | answered |
 | Q-0741 | proxy fonts | [U] Do other charsets/typefaces/style flags follow the same face rules, and why does file-only arial.ttf select Arial Italic despite zero italic flags? | 04 §16.1 | `proxy-font-selection/file-arial-c0`, `-c134`; additional controls not requested | open |
 
-Answers and remaining limits Q-0736–Q-0739 (**VERIFIED-BY-ACAD**, `fid-proxy-probes`
+Answers and remaining limits Q-0738–Q-0739, Q-0758–Q-0759 (**VERIFIED-BY-ACAD**, `fid-proxy-probes`
 and `fid-proxy-followup`, 2026-10-03; note 07 §15.7–15.8):
 
 - Q-0739: FILLON persists after POLYLINE, SHELL, POLYGON and TEXT. FILLMODE=0
@@ -1176,10 +1176,10 @@ and `fid-proxy-followup`, 2026-10-03; note 07 §15.7–15.8):
   (`font-resolution/simplex-missing-bigfont`, note 04 §15.1). Inline CD retains the same pen position
   as in a healthy AB/CD/EF control, so hidden AB still advances. Both CPU zooms are now
   pixel-exact. Vertical mixtures are not isolated.
-- Q-0736: The wall half-pixel window is pixel-exact; the original wall PNG differs at
+- Q-0758: The wall half-pixel window is pixel-exact; the original wall PNG differs at
   pixel ties. Both stair-hatch windows have F1(r=1)=1 and the PDF phase/spacing matches.
   Device coverage/tie rules remain open; coordinate/phase changes are not justified.
-- Q-0737: 宋体 with simplex.shx and simsun.ttc files is identical to the original
+- Q-0759: 宋体 with simplex.shx and simsun.ttc files is identical to the original
   localized-family tags, compatible with the shared localized-family FONTALT correction.
   The 26-case follow-up answers the typeface/charset rule (Q-0740, note 04 §16.1):
   resolved Arial with charset 134 selects SimSun; charset 0/1 stays Arial. Empty extended

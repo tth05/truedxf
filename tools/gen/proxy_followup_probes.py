@@ -140,7 +140,7 @@ def main():
         ("tag-file-simsun", "宋体", "simsun.ttc"),
         ("tag-file-arial", "Arial", "arial.ttf"),
     ]:
-        cases.append((name, tag_case(source, family, filename), tag_window, "Q-0737"))
+        cases.append((name, tag_case(source, family, filename), tag_window, "Q-0759"))
     for missing in (True, False):
         name = "inline-mixed-" + ("missing-base" if missing else "control")
         cases.append((name, mixed_inline(source, missing), ([10500, 4000], [14500, 7000]), "Q-0738"))
@@ -149,7 +149,7 @@ def main():
         ("stair-hatch-halfpixel", [-200, 0], [3400, 2700], 0.9),
     ]:
         window = ([v + half_pixel for v in low], [v + half_pixel for v in high])
-        cases.append((name, source, window, "Q-0736"))
+        cases.append((name, source, window, "Q-0758"))
     targets = [dest / f"{name}.{ext}" for name, *_ in cases for ext in ("dxf", "json")]
     if any(p.exists() for p in targets):
         raise FileExistsError("follow-up fixtures already exist; refusing to overwrite")

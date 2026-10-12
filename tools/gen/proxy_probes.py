@@ -78,11 +78,11 @@ def main():
     source = SOURCE.read_bytes()
     # Width/height of each world window is 4/3, matching the paper exactly.
     cases = [
-        ("wall-stair", [-500, 7000], [4500, 10750], source, {}, ["Q-0736"]),
-        ("tags", [15000, 6500], [23000, 12500], source, {}, ["Q-0737"]),
+        ("wall-stair", [-500, 7000], [4500, 10750], source, {}, ["Q-0758"]),
+        ("tags", [15000, 6500], [23000, 12500], source, {}, ["Q-0759"]),
         ("columns-room", [7000, 3500], [14000, 8750], source, {}, ["Q-0738"]),
-        ("axis-one", [-800, -6600], [1200, -5100], source, {}, ["Q-0737"]),
-        ("stair-hatch", [-200, 0], [3400, 2700], source, {}, ["Q-0736"]),
+        ("axis-one", [-800, -6600], [1200, -5100], source, {}, ["Q-0759"]),
+        ("stair-hatch", [-200, 0], [3400, 2700], source, {}, ["Q-0758"]),
         ("shell-fillmode-zero", [7000, 3500], [14000, 8750], source, {"FILLMODE": 0}, ["Q-0739"]),
         ("fill-consumption", [21000, 7000], [25000, 10000], fill_probe(source, False), {}, ["Q-0739"]),
         ("fill-explicit-control", [21000, 7000], [25000, 10000], fill_probe(source, True), {}, ["Q-0739"]),

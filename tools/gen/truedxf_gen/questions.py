@@ -50,7 +50,31 @@ def known_ids(path: Path) -> set[str]:
     return ids
 
 
+def duplicate_ids(path: Path) -> list[str]:
+    seen: set[str] = set()
+    dups: set[str] = set()
+    for line in path.read_text(encoding="utf-8").splitlines():
+        m = ROW_RE.match(line)
+        if m:
+            (dups if m.group(1) in seen else seen).add(m.group(1))
+    return sorted(dups)
+
+
+def _hand_written(cell: str, suite_names: list[str]) -> bool:
+    """True if the cell names cases outside the registry (standalone probe scripts, corpus
+    references) or is free text, so it cannot be regenerated."""
+    if cell in ("", "—"):
+        return False
+    ids = re.findall(r"`([^`]*)`", cell)
+    return not ids or any(i.split("/", 1)[0] not in suite_names for i in ids)
+
+
 def update_questions(path: Path, suite_names: list[str]) -> int:
+    # A case claims a question by id, so a duplicated id would write its cases into both rows.
+    dups = duplicate_ids(path)
+    if dups:
+        print(f"duplicate question ids, renumber them first: {dups}")
+        return 1
     cmap = _case_map(suite_names)
     text = path.read_text(encoding="utf-8")
     ids = known_ids(path)
@@ -68,9 +92,11 @@ def update_questions(path: Path, suite_names: list[str]) -> int:
         if len(cells) < 8:
             continue
         test_cell = cells[-3].strip()
-        # hand-written notes for questions without cases are kept if they start with "plan:"
-        # (e.g. "plan: needs custom CTB"); anything else is regenerated
-        planned = test_cell if test_cell.startswith("plan:") else "—"
+        # Questions without registry cases keep a hand-written cell: a "plan:" note (e.g.
+        # "plan: needs custom CTB") or references to probe-script / corpus cases. A cell that
+        # only lists registry cases is stale and regenerated.
+        keep = test_cell.startswith("plan:") or _hand_written(test_cell, suite_names)
+        planned = test_cell if keep else "—"
         q = m.group(1)
         new = _fmt(cmap.get(q, []), planned)
         if cmap.get(q):

@@ -86,6 +86,16 @@ function load(bytes: Uint8Array): ViewerCore {
 const codes = (ws: readonly { code: string }[]) => ws.map((w) => w.code);
 
 describe("viewer warnings", () => {
+  it("reports values that are not numbers; the entities holding them are skipped", async () => {
+    const bad = line("A2", "0").replace("10 0\n", "10 nan\n").replace("21 50", "21 inf");
+    const core = new ViewerCore(none, none);
+    const info = core.load(drawing([{ name: "0" }], [line("A1", "0"), bad]), "nan.dxf");
+    expect(info.warnings).toEqual([
+      expect.objectContaining({ code: ViewerWarningCode.UnparsedNumber, count: 2 }),
+    ]);
+    expect((await core.render(params())).list.batches.length).toBeGreaterThan(0);
+  });
+
   it("flags a drawing whose content layers are all set not to plot (LibreDWG 290 = 0)", async () => {
     const bytes = drawing(
       [

@@ -4,7 +4,16 @@
  * Ownership is derived from file position (ENTITIES → model space or the active paper space by
  * group 67; BLOCKS → enclosing BLOCK), not from 330 (note 02 §4.2 rule 12).
  */
-import { Diagnostics, type DxfTags, type ReadTagsOptions, readTags, type SectionInfo } from "@truedxf/core";
+import {
+  Diagnostics,
+  type DxfTags,
+  type ReadTagsOptions,
+  readTags,
+  type SectionInfo,
+  type TagStore,
+  ValueKind,
+  valueKind,
+} from "@truedxf/core";
 import {
   type ChildRecords,
   ENTITY_PARSERS,
@@ -125,7 +134,9 @@ export class DxfDocument {
     this.tags = tags;
     this.diagnostics = tags.diagnostics;
     const section = (name: string) => tags.sections.filter((s) => s.name === name);
-    this.header = new Header(tags.store, section("HEADER")[0]);
+    const headerSection = section("HEADER")[0];
+    this.header = new Header(tags.store, headerSection);
+    if (headerSection) this.reportUnparsedNumbers(headerSection.start, headerSection.end, "header");
     this.acadver = tags.encoding.acadver ?? "AC1009";
     this.ctx = { diagnostics: this.diagnostics, acadver: this.acadver };
 
@@ -416,6 +427,7 @@ export class DxfDocument {
         this.diagnostics.warn("orphan-subentity", `${type} without parent`, { tag: rec.start });
         continue;
       }
+      if (this.unparsedNumber(rec, children)) continue;
       const e = this.parseEntity(rec, children);
       // Release completed groups before allocating the next entities, reducing load's
       // peak live graph and GC work on R12 drawings with many child records.
@@ -434,6 +446,40 @@ export class DxfDocument {
       }
     }
     return out;
+  }
+
+  /**
+   * True (and reported) when the entity or one of its VERTEX/ATTRIB/SEQEND records has a numeric
+   * value that does not parse (`nan`, `-nan(ind)`, `inf`). AutoCAD rejects the whole file for
+   * such a value, while `1e999` loads (VERIFIED-BY-ACAD `fileformat/overflow-*`, Q-0021, note 01
+   * §1.4). Reading it as 0 would invent geometry, so the entity is skipped; its tags stay in the
+   * TagStore.
+   */
+  private unparsedNumber(rec: DxfRecord, children: ChildRecords | undefined): boolean {
+    let bad = this.reportUnparsedNumbers(rec.start, rec.end, rec.type);
+    if (children) {
+      for (const c of children.children) bad = this.reportUnparsedNumbers(c.start, c.end, rec.type) || bad;
+      if (children.seqend)
+        bad = this.reportUnparsedNumbers(children.seqend.start, children.seqend.end, rec.type) || bad;
+    }
+    return bad;
+  }
+
+  /** Reports every numeric tag in [start, end) whose value is NaN; true if there was one. */
+  private reportUnparsedNumbers(start: number, end: number, what: string): boolean {
+    const s = this.tags.store;
+    let bad = false;
+    for (let i = start; i < end; i++) {
+      if (!unparsedNumber(s, i)) continue;
+      bad = true;
+      const skipped = what === "header" ? "the header value uses its default" : `the ${what} is skipped`;
+      this.diagnostics.error(
+        "unparsed-number",
+        `group ${s.codes[i]} = "${s.str(i)}" is not a number (AutoCAD rejects the file); ${skipped}`,
+        { tag: i },
+      );
+    }
+    return bad;
   }
 
   private parseEntity(rec: DxfRecord, children: ChildRecords | undefined): Entity {
@@ -541,4 +587,22 @@ export class DxfDocument {
 
 export function loadDxf(bytes: Uint8Array, options: LoadOptions = {}): DxfDocument {
   return DxfDocument.load(bytes, options);
+}
+
+/**
+ * A real or integer tag whose value parses to NaN (bool 290-299 excluded: "true" is Q-0023).
+ * Runs over every entity tag, so the common case is decided without parsing: an ASCII value
+ * starting with a digit or "-digit" always yields a number (strtod prefix, note 01 §1.4), and
+ * only binary reals can hold NaN.
+ */
+function unparsedNumber(store: TagStore, i: number): boolean {
+  const kind = valueKind(store.codes[i]!);
+  if (kind < ValueKind.Double || kind > ValueKind.Int64) return false;
+  if (store.format === "ascii") {
+    const p = store.valueStarts[i]!;
+    let c = store.bytes[p]!;
+    if (c === 45) c = store.bytes[p + 1]!;
+    if (c >= 48 && c <= 57) return false;
+  } else if (kind !== ValueKind.Double) return false;
+  return Number.isNaN(store.num(i));
 }

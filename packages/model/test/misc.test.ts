@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   type AcadTableEntity,
   type AcisEntity,
+  DxfDocument,
   decodeSatLine,
   type HelixEntity,
   type LineEntity,
@@ -406,5 +407,90 @@ describe("ACAD_PROXY_ENTITY", () => {
     expect(l.proxyGraphics).toEqual(new Uint8Array([0xab, 0xcd]));
     const plain = loadEntities(MLINE).entities[0]!;
     expect(plain.proxyGraphics).toBeUndefined();
+  });
+});
+
+describe("unparsable numbers (VERIFIED-BY-ACAD fileformat/overflow-*, Q-0021)", () => {
+  const line = (x: string, handle = "A1") =>
+    `0 LINE
+5 ${handle}
+100 AcDbEntity
+8 0
+100 AcDbLine
+10 ${x}
+20 5
+11 10
+21 -5`;
+
+  it("skips an entity with nan / inf / -nan(ind) and reports it", () => {
+    for (const bad of ["nan", "inf", "-nan(ind)", "inf.0", "abc"]) {
+      const { doc, entities } = loadEntities(`${line("0", "A1")}
+${line(bad, "A2")}`);
+      expect(entities.map((e) => e.handle)).toEqual(["A1"]);
+      expect(errors(doc).map((d) => d.code)).toEqual(["unparsed-number"]);
+    }
+  });
+
+  it("skips a POLYLINE whose VERTEX holds nan", () => {
+    const { doc, entities } = loadEntities(`0 POLYLINE
+5 B0
+100 AcDbEntity
+8 0
+100 AcDb2dPolyline
+66 1
+70 0
+0 VERTEX
+5 B1
+100 AcDbEntity
+8 0
+100 AcDbVertex
+100 AcDb2dVertex
+10 0
+20 0
+0 VERTEX
+5 B2
+100 AcDbEntity
+8 0
+100 AcDbVertex
+100 AcDb2dVertex
+10 nan
+20 0
+0 SEQEND
+5 B3
+100 AcDbEntity
+8 0`);
+    expect(entities).toEqual([]);
+    expect(errors(doc).map((d) => d.code)).toEqual(["unparsed-number"]);
+  });
+
+  it("keeps numbers AutoCAD loads: overflow, trailing garbage, padding", () => {
+    for (const ok of ["1e999", "30xyz", " 30 ", "-5", ".5", "+30"]) {
+      const { doc, entities } = loadEntities(line(ok));
+      expect(entities).toHaveLength(1);
+      expect(errors(doc)).toEqual([]);
+    }
+  });
+
+  it("reports a header value and falls back to the default", () => {
+    const text = `0
+SECTION
+2
+HEADER
+9
+$ACADVER
+1
+AC1032
+9
+$LTSCALE
+40
+nan
+0
+ENDSEC
+0
+EOF
+`;
+    const doc = DxfDocument.load(new TextEncoder().encode(text));
+    expect(doc.header.num("$LTSCALE", 1)).toBe(1);
+    expect(errors(doc).map((d) => d.code)).toEqual(["unparsed-number"]);
   });
 });

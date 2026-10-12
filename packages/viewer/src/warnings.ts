@@ -43,6 +43,11 @@ export const ViewerWarningCode = {
    * info; viewing mode only; plots keep them). `items`: "#RRGGBB" / "ACI n" with their layers.
    */
   ColorsAdjusted: "colors-adjusted",
+  /**
+   * Numbers that do not parse (`nan`, `inf`): AutoCAD refuses to open such a file, the viewer
+   * skips the entities holding them (document level). `count`: the bad values.
+   */
+  UnparsedNumber: "unparsed-number",
 } as const;
 export type ViewerWarningCode = (typeof ViewerWarningCode)[keyof typeof ViewerWarningCode];
 
@@ -114,25 +119,35 @@ function contentLayers(doc: DxfDocument, roots: readonly Block[]): Map<string, s
 
 /**
  * Document-level warnings (at load): facts about the file that the viewer's display does not
- * show: every layer with content is set not to plot.
+ * show: values that are not numbers, every layer with content set not to plot.
  */
 export function documentWarnings(doc: DxfDocument): ViewerWarning[] {
+  const out: ViewerWarning[] = [];
+  const unparsed = doc.diagnostics.summary()["unparsed-number"] ?? 0;
+  if (unparsed > 0)
+    out.push({
+      code: ViewerWarningCode.UnparsedNumber,
+      severity: "warning",
+      message:
+        `${unparsed} ${unparsed === 1 ? "value is" : "values are"} not a number (e.g. nan, inf). ` +
+        "AutoCAD refuses to open this file; the entities holding them are not shown.",
+      count: unparsed,
+    });
   const roots = [doc.modelSpace, ...doc.layouts.filter((l) => !l.isModel).map((l) => l.block)];
   const layers = contentLayers(doc, roots);
-  if (layers.size === 0) return [];
+  if (layers.size === 0) return out;
   const noPlot = [...layers].filter(([k]) => !plots(doc, k)).map(([, n]) => n);
-  if (noPlot.length < layers.size) return [];
-  return [
-    {
-      code: ViewerWarningCode.LayersNoPlot,
-      severity: "info",
-      message:
-        `Every layer with content is set not to plot (${nameList(noPlot)}), so a plot of this ` +
-        "drawing is empty. The viewer shows no-plot layers anyway.",
-      items: noPlot.slice(0, MAX_ITEMS),
-      count: noPlot.length,
-    },
-  ];
+  if (noPlot.length < layers.size) return out;
+  out.push({
+    code: ViewerWarningCode.LayersNoPlot,
+    severity: "info",
+    message:
+      `Every layer with content is set not to plot (${nameList(noPlot)}), so a plot of this ` +
+      "drawing is empty. The viewer shows no-plot layers anyway.",
+    items: noPlot.slice(0, MAX_ITEMS),
+    count: noPlot.length,
+  });
+  return out;
 }
 
 function plots(doc: DxfDocument, key: string): boolean {

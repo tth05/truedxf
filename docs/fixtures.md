@@ -47,7 +47,8 @@ Rules:
   an exact scale (e.g. 200 × 150 units on 2000 × 1500 px = 10 px/unit).
 - Supported canvases (paper sizes in the truedxf PC3/PMP): `2000×1500` (default), `1000×1000`,
   `800×600`, and `1600×1200` (page setups only: the sheet with 10/20/30/40 px margins, whose PNG is
-  the 1560×1140 printable area). The harness README is authoritative if this list changes.
+  the 1560×1140 printable area); `1017×1013` and `1030×1017` (margins 3/7/11/13 px, PNG 1016×997)
+  only probe the fill-style tile anchor. The harness README is authoritative if this list changes.
 - Every fixture must open in AutoCAD without errors; the harness marks cases whose log shows a
   load error as `invalid-fixture`.
 - Fonts used by fixtures: only fonts listed in `tools/gen/FONTS.md` (free fonts installed for

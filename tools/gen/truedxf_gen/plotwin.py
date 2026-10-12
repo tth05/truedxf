@@ -11,8 +11,11 @@ import math
 from typing import Sequence
 
 # Paper sizes in the truedxf PC3/PMP (docs/fixtures.md; tools/acad/README.md is authoritative).
-# 1600x1200 is the margins sheet (10/20/30/40 px unprintable margins, tools/acad/src/sizes.ts)
-CANVASES: tuple[tuple[int, int], ...] = ((2000, 1500), (1000, 1000), (800, 600), (1600, 1200))
+# 1600x1200 is the margins sheet (10/20/30/40 px unprintable margins, tools/acad/src/sizes.ts);
+# 1017x1013 and 1030x1017 (margins 3/7/11/13 px) probe the fill-style tile anchor (note 06 §6.8)
+CANVASES: tuple[tuple[int, int], ...] = (
+    (2000, 1500), (1000, 1000), (800, 600), (1600, 1200), (1017, 1013), (1030, 1017)
+)
 DEFAULT_CANVAS = (2000, 1500)
 
 

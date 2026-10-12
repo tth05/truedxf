@@ -36,10 +36,14 @@ with `TRUEDXF_PLOTTERS_DIR`, `TRUEDXF_ACAD_ROAMING`, `TRUEDXF_ACAD_DIR` (install
 | 800 × 600 | `truedxf 800x600 (800.00 x 600.00 Pixels)` | `truedxf 800x600 (8.00 x 6.00 Inches)` |
 | 4000 × 3000 (calibration only) | `truedxf 4000x3000 (4000.00 x 3000.00 Pixels)` | `truedxf 4000x3000 (40.00 x 30.00 Inches)` |
 | 1600 × 1200 (page setups only) | `truedxf 1600x1200 (1600.00 x 1200.00 Pixels)` | `truedxf 1600x1200 (16.00 x 12.00 Inches)` |
+| 1017 × 1013 (fill-tile probes only) | `truedxf 1017x1013 (1017.00 x 1013.00 Pixels)` | `truedxf 1017x1013 (10.17 x 10.13 Inches)` |
+| 1030 × 1017 (fill-tile probes only) | `truedxf 1030x1017 (1030.00 x 1017.00 Pixels)` | `truedxf 1030x1017 (10.30 x 10.17 Inches)` |
 
-The 1600 × 1200 sheet is the only one with unprintable margins: left/bottom/right/top = 10/20/30/40 px
+The 1600 × 1200 sheet has unprintable margins left/bottom/right/top = 10/20/30/40 px
 (PDF: 0.10/0.20/0.30/0.40 in), `sizes.ts` `CANVAS_MARGINS`. The raster driver writes only the
-printable area, so its PNG is 1560 × 1140 (research/notes/08 §10.17).
+printable area, so its PNG is 1560 × 1140 (research/notes/08 §10.17). The 1017 × 1013 and
+1030 × 1017 sheets (margins 3/7/11/13 px, PNG 1016 × 997) have printable sizes and margins that
+are not multiples of 10/20 px, to locate the anchor of the fill-style tiles (research/notes/06 §6.8).
 
 ### PIA file format (PC3 / PMP / CTB / STB)
 
@@ -65,9 +69,9 @@ path, so they are machine specific):
 | stock monochrome.ctb | `39e50a1605c0ff5805065a39766271192de6e52dd4b54cfd4f031ad6e4433608` |
 | stock acad.ctb | `9e6fdb8dc2735ab9000719ab77cff9c8403987b447a5863c2f3a95824b6bdb27` |
 | truedxf PNG.pc3 | `218204c1488ba910fdb2d763c49d8372ad57f400a7aa20bd6d27b678ad835a58` |
-| truedxf PNG.pmp | `8bad0ac8970ab27ddcaa8d637950af5a557c3a41d56154b61bcc752044d212ba` (2026-10-12, with the margins sheet) |
+| truedxf PNG.pmp | `5055c51ced0019ee50e321abad0ce492ee45b80a0c4d31dabc943c649fdadb17` (2026-10-12, with the margins and fill-tile probe sheets) |
 | truedxf PDF.pc3 | `cc4b13f7a883d742126688d1ef394f1f7bce86beb2232bd55cfd379235769403` |
-| truedxf PDF.pmp | `4556afbf099c705f8942c00005b2246f92f8d7a3370511862231025e55a8e995` (2026-10-12, with the margins sheet) |
+| truedxf PDF.pmp | `c4bdc03fd9a5b2d8cea3a5dc8715e57b1c24488b71490adfbb8cd89aa2930f33` (2026-10-12, with the margins and fill-tile probe sheets) |
 
 Every reference `.json` records the hashes actually used (`configs`).
 

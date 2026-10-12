@@ -12,6 +12,10 @@ export const CANVASES: readonly Canvas[] = [
     [4000, 3000],
     // page setup only: the one sheet with non-zero unprintable margins (CANVAS_MARGINS)
     [1600, 1200],
+    // fill-style tile anchor probes (research/notes/06 §6.8): printable sizes that are not
+    // multiples of 10/20 px, without and with odd margins
+    [1017, 1013],
+    [1030, 1017],
 ];
 
 /**
@@ -21,6 +25,8 @@ export const CANVASES: readonly Canvas[] = [
  */
 export const CANVAS_MARGINS: Readonly<Record<string, readonly [number, number, number, number]>> = {
     "1600x1200": [10, 20, 30, 40],
+    // printable area 1016 x 997 px, offset by odd amounts from every sheet edge
+    "1030x1017": [3, 7, 11, 13],
 };
 
 export function canvasMargins([w, h]: Canvas): readonly [number, number, number, number] {

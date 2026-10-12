@@ -8,6 +8,7 @@ deterministic settings (:func:`new_doc`) and a plot description; the framework w
 
 from __future__ import annotations
 
+import hashlib
 import io
 import json
 import math
@@ -42,6 +43,12 @@ GENERATOR = f"tools/gen {VERSION} / ezdxf {ezdxf.__version__}"
 
 ID_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 STYLE_TABLES = ("monochrome.ctb", "acad.ctb")
+# Further stock tables of an AutoCAD install that plot-style cases may name (never copied), and
+# "." = no plot style table.
+STOCK_STYLE_TABLES = (
+    ".", "Grayscale.ctb", "Screening 25%.ctb", "Screening 50%.ctb", "Screening 75%.ctb",
+    "Screening 100%.ctb", "Fill Patterns.ctb", "acad.stb", "monochrome.stb",
+)
 DXFVERSIONS = {
     "R12": "AC1009",
     "R2000": "AC1015",
@@ -184,6 +191,9 @@ class Plot:
     # first?" and extra session sysvars set after the prologue (e.g. PLOTTRANSPARENCYOVERRIDE 2)
     paperSpaceFirst: Optional[bool] = None
     sysvars: dict[str, Any] = field(default_factory=dict)
+    # further harness extensions written verbatim (mode, orientation, upsideDown, plotStyles,
+    # scaleLineweights, paperUnits, savePageSetup, styleTableSha256; tools/acad/README.md)
+    extra: dict[str, Any] = field(default_factory=dict)
 
     def to_json(self) -> dict[str, Any]:
         d: dict[str, Any] = {
@@ -198,6 +208,7 @@ class Plot:
             d["paperSpaceFirst"] = self.paperSpaceFirst
         if self.sysvars:
             d["sysvars"] = dict(self.sysvars)
+        d.update(self.extra)
         return d
 
 
@@ -280,6 +291,17 @@ class Case:
             raise FixtureError(f"bad extra file name {filename!r}")
         self.extra_files[filename] = data
         return str((DEFAULT_OUT / self.suite.name / filename).resolve())
+
+    def plot_style_table(self, filename: str, data: bytes) -> str:
+        """Fixture-specific CTB/STB (``truedxf-*.ctb|stb``, see plotstyle.py): written next to the
+        case; the harness installs it into AutoCAD's Plot Styles folder and plots with it. Its
+        sha256 goes into the meta so a changed table re-runs the reference."""
+        if not re.match(r"^truedxf-[a-z0-9._-]+\.(ctb|stb)$", filename):
+            raise FixtureError(f"plot style table must be named truedxf-*.ctb|stb: {filename!r}")
+        self.add_file(filename, data)
+        self.plot.styleTable = filename
+        self.plot.extra["styleTableSha256"] = hashlib.sha256(data).hexdigest()
+        return filename
 
     # --- plot area -------------------------------------------------------------------------
     def window(
@@ -442,7 +464,8 @@ class Case:
     def validate_meta(self) -> None:
         if not self._plot_set:
             raise FixtureError(f"{self.id}: no plot area set")
-        if self.plot.styleTable not in STYLE_TABLES:
+        st = self.plot.styleTable
+        if st not in STYLE_TABLES and st not in STOCK_STYLE_TABLES and st not in self.extra_files:
             raise FixtureError(f"{self.id}: bad style table {self.plot.styleTable}")
         for f in self.extra_files:
             if f.endswith((".dxf", ".json")):

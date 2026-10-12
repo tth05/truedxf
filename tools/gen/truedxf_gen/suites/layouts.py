@@ -29,12 +29,12 @@ Conventions of this suite (fixtures stay minimal and consistent):
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field, fields
+from dataclasses import dataclass, field
 from typing import Any, Optional, Sequence
 
 from ezdxf.math import Vec3
 
-from ..core import Case, Plot, SuiteBuilder, suite
+from ..core import Case, SuiteBuilder, suite
 
 PAPER = (400.0, 300.0)
 WIN_MIN = (0.0, 0.0)
@@ -52,22 +52,8 @@ VP_NONRECT = 0x10000
 # helpers
 
 
-@dataclass
-class _PlotExt(Plot):
-    """Plot description with harness extensions (paperSpaceFirst, sysvars)."""
-
-    extra: dict[str, Any] = field(default_factory=dict)
-
-    def to_json(self) -> dict[str, Any]:
-        d = super().to_json()
-        d.update(self.extra)
-        return d
-
-
 def _plot_extra(c: Case, **extra: Any) -> None:
-    base = {f.name: getattr(c.plot, f.name) for f in fields(Plot)}
-    old = getattr(c.plot, "extra", {})
-    c.plot = _PlotExt(**base, extra={**old, **extra})
+    c.plot.extra.update(extra)
 
 
 def _layout(
@@ -1295,9 +1281,9 @@ def _pagesetup(s: SuiteBuilder) -> None:
 
     for name, units, std, num_den, uf in (
         ("mm-std-1-1", 1, 16, (1, 1), 1.0),
-        ("mm-std-1-50", 1, 25, (1, 50), 1.0),
+        ("mm-std-1-50", 1, 26, (1, 50), 1.0),
         ("inch-std-1-1", 0, 16, (1, 1), 1 / 25.4),
-        ("inch-std-1-50", 0, 25, (1, 50), 1 / 25.4),
+        ("inch-std-1-50", 0, 26, (1, 50), 1 / 25.4),
         ("mm-custom-1-3-spec147", 1, 16, (1, 3), 1 / 3),
     ):
         c = s.case(

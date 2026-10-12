@@ -65,7 +65,7 @@ def build(s: SuiteBuilder) -> None:
 `tags`, `questions`, `seed` (int → `c.rng = random.Random(seed)`, the only allowed randomness),
 `params`, `dxfversion` (`"R2018"` default = AC1032, also R12…R2013), `units` ($INSUNITS, default
 4 = mm), `header` (dict of `$VAR` overrides), `standard_font` (STANDARD style font, default
-Liberation Sans), `style_table` (`"monochrome.ctb"` | `"acad.ctb"`, default from the suite),
+Liberation Sans), `style_table` (`"monochrome.ctb"` | `"acad.ctb"` | a stock table such as `"Grayscale.ctb"` | `"."` = none; default from the suite),
 `outputs` (default `["png", "pdf", "dxf"]`).
 
 ### Case helpers
@@ -81,6 +81,8 @@ Liberation Sans), `style_table` (`"monochrome.ctb"` | `"acad.ctb"`, default from
 | `c.linetype(name)` | add an AutoCAD-valued standard/ISO linetype (`resources.py`, note 11a §12) |
 | `c.style(name, font=, width=, oblique=, height=, bigfont=)` | text style with fonts from [FONTS.md](FONTS.md) |
 | `c.sysvar("PLOTTRANSPARENCYOVERRIDE", 2)` / `c.plot.paperSpaceFirst = True` | emitted as `plot.sysvars` / `plot.paperSpaceFirst`: registry sysvars and plot prompts a DXF cannot carry (see tools/acad) |
+| `c.plot.extra["orientation"] = "portrait"` etc. | further harness answers written verbatim into `plot` (`mode`, `orientation`, `upsideDown`, `plotStyles`, `scaleLineweights`, `paperUnits`, `savePageSetup`; tools/acad README) |
+| `c.plot_style_table("truedxf-x.ctb", ctb_bytes(pens, lineweights))` | fixture-specific CTB/STB (`truedxf_gen/plotstyle.py`: `ctb_bytes`, `stb_bytes`, `rgb_color`; pens default to "object" like acad.ctb); written next to the case, installed by the harness, sha256 in the meta |
 | `c.header(pdmode=3, ltscale=2)` | set header vars (`$` + upper-cased name) |
 | `c.add_file("img-a.png", data)` | extra file written next to the case. Returns its absolute canonical path (`samples/generated/<suite>/…`) |
 | `c.notes.append("…")` | free-text notes copied into the meta JSON (`notes`) |
@@ -131,6 +133,7 @@ tools/gen/
   truedxf_gen/core.py         registry, Case/SuiteBuilder, document factory, writer
   truedxf_gen/plotwin.py      canvas list, aspect check, nice-scale windows
   truedxf_gen/resources.py    linetype table (AutoCAD values), font aliases
+  truedxf_gen/plotstyle.py    CTB/STB writer (PIA container, stock key order)
   truedxf_gen/questions.py    docs/questions.md test-column updater
   truedxf_gen/preview.py      ezdxf/matplotlib contact sheet (sanity check only)
   truedxf_gen/suites/*.py     one module per suite

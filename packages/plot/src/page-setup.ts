@@ -76,7 +76,11 @@ export interface PageSetup {
      */
     readonly paperWidth: number;
     readonly paperHeight: number;
-    /** Unprintable margins (40–43) in the units of the paper size, unrotated. */
+    /**
+     * Unprintable margins (40–43) in the units of the paper size, unrotated: left/bottom/right/top
+     * are device edges for every rotation. A stored page setup plots with these, not with the
+     * device's own margins (VERIFIED-BY-ACAD, Q-0706, note 08 §2.1).
+     */
     readonly margins: {
         readonly left: number;
         readonly bottom: number;
@@ -87,13 +91,22 @@ export interface PageSetup {
     /**
      * Raw 73. Paper point (x, y) → canvas column/row (W × H, row 0 at the top): 0 (x, H−1−y)
      * upright; 1 (y, x) 90° clockwise; 2 (W−1−x, y) 180°; 3 (W−1−y, H−1−x) 90° counter-clockwise
-     * (VERIFIED-BY-ACAD, Q-0706, note 08 §10.17). How margins rotate is still open.
+     * (VERIFIED-BY-ACAD, Q-0706, note 08 §10.17), W × H = the printable area.
      */
     readonly rotation: 0 | 1 | 2 | 3;
     readonly area: PlotArea;
     readonly scale: PlotScale;
-    /** Plot offset (46/47): mm (also in inch setups), pixels on raster setups. */
+    /**
+     * Plot offset (46/47): mm (also in inch setups), pixels on raster setups. Measured from the
+     * paper origin's printable corner along the device axes, into the sheet (Q-0757, note 08
+     * §2.1); see `plotPlacement`.
+     */
     readonly offset: Point2;
+    /**
+     * Paper image origin (148/149), paper units. Layout plots are shifted by it; window plots
+     * ignore it (AutoCAD writes −(48, 49) there; VERIFIED-BY-ACAD, Q-0256, note 08 §2.1).
+     */
+    readonly imageOrigin: Point2;
     readonly centered: boolean;
     /** Plot style table file name (7), undefined = none. */
     readonly styleSheet: string | undefined;
@@ -176,6 +189,7 @@ export function readPageSetup(settings: PlotSettings & { readonly record?: DxfRe
         area: plotArea(s),
         scale: plotScale(s),
         offset: s.plotOrigin,
+        imageOrigin: s.paperImageOrigin,
         centered: (flags & PlotFlags.PlotCentered) !== 0,
         styleSheet: s.styleSheet === "" ? undefined : s.styleSheet,
         plotStyles: (flags & PlotFlags.PlotPlotStyles) !== 0,
@@ -193,4 +207,129 @@ export function readPageSetup(settings: PlotSettings & { readonly record?: DxfRe
 export function paperMmPerDrawingUnit(setup: PageSetup): number | undefined {
     if (setup.scale === "fit") return undefined;
     return (setup.scale.paper / setup.scale.drawing) * mmPerPaperUnit(setup.paperUnits);
+}
+
+export interface PlotBounds {
+    readonly min: Point2;
+    readonly max: Point2;
+}
+
+export interface PlotPlacementOptions {
+    /**
+     * Device units per mm for mm and inch page setups (e.g. 600 / 25.4 for a 1/600 in PDF
+     * device); default 1 = device units are mm. Raster setups (72 = 2) store everything in device
+     * pixels and ignore it.
+     */
+    readonly unitsPerMm?: number;
+    /**
+     * The plotted area in drawing units, for the plot types the page setup cannot resolve
+     * (display, extents, limits, view) and for fitting a layout plot. Window plots use 48/49 and
+     * 140/141.
+     */
+    readonly bounds?: PlotBounds;
+}
+
+/** Affine map [a, b, c, d, e, f]: X = a·x + c·y + e, Y = b·x + d·y + f. */
+export type PlotMatrix = readonly [number, number, number, number, number, number];
+
+export interface PlotPlacement {
+    /** Printable area in device units and device orientation: the size of a raster plot image. */
+    readonly width: number;
+    readonly height: number;
+    /**
+     * Top-left corner of the printable area on the sheet (device units, from the sheet's
+     * top-left): where vector devices put the plot. The PDF driver rounds it to whole points.
+     */
+    readonly printableLeft: number;
+    readonly printableTop: number;
+    /** Device units per drawing unit. */
+    readonly scale: number;
+    /**
+     * Drawing coordinates of the plotted space → device coordinates in the printable area,
+     * X right, Y down. On raster devices pixel (column, row) covers [column, column + 1) ×
+     * [row, row + 1).
+     */
+    readonly matrix: PlotMatrix;
+}
+
+/**
+ * Where a page setup puts the drawing on the device (note 08 §2.1, §2.5, §10.17; VERIFIED-BY-ACAD
+ * 2026-10-12 for the margins, rotations, offsets and 148/149 of stored page setups plotted with
+ * PLOTROTMODE 2):
+ *
+ * - The device prints the printable area: the sheet (44/45) minus the margins (40–43), both in
+ *   device orientation. The paper origin is its bottom-left / top-left / top-right /
+ *   bottom-right corner for rotation 0 / 1 / 2 / 3.
+ * - The offset (46/47) moves the origin along the device width / height into the sheet, so in
+ *   paper coordinates it is (46, 47) for rotations 0/2 and (47, 46) for 1/3.
+ * - A window plot puts the window's lower-left corner on the origin; a layout plot puts paper
+ *   (0, 0) there, shifted by 148/149 (only verified unrotated).
+ * - Centred plots ignore the offset and centre the plotted area in the printable area (AutoCAD
+ *   stores the centring offset in 46/47); Fit scales it to the printable area.
+ */
+export function plotPlacement(setup: PageSetup, options: PlotPlacementOptions = {}): PlotPlacement {
+    const raster = setup.paperUnits === PlotPaperUnits.Pixels;
+    const perMm = raster ? 1 : (options.unitsPerMm ?? 1);
+    // Device units per paper unit.
+    const m = raster ? 1 : mmPerPaperUnit(setup.paperUnits) * perMm;
+    const { left, bottom, right, top } = setup.margins;
+    const width = (setup.paperWidth - left - right) * perMm;
+    const height = (setup.paperHeight - bottom - top) * perMm;
+    const rot = setup.rotation;
+    const odd = rot === 1 || rot === 3;
+    // Printable area in paper units, paper orientation.
+    const pw = (odd ? height : width) / m;
+    const ph = (odd ? width : height) / m;
+
+    const area = setup.area;
+    const layout = area.kind === "layout";
+    const bounds: PlotBounds | undefined = area.kind === "window" ? area : options.bounds;
+    const needBounds = !layout || setup.scale === "fit";
+    if (needBounds && !bounds) throw new Error(`plotPlacement: plot area "${area.kind}" needs bounds`);
+    const aw = bounds ? bounds.max.x - bounds.min.x : 0;
+    const ah = bounds ? bounds.max.y - bounds.min.y : 0;
+
+    // Paper units per drawing unit.
+    let k: number;
+    if (setup.scale === "fit")
+        k = aw > 0 && ah > 0 ? Math.min(pw / aw, ph / ah) : aw > 0 ? pw / aw : ah > 0 ? ph / ah : 1;
+    else k = setup.scale.paper / setup.scale.drawing;
+
+    // Paper point q = k·p + t, relative to the paper origin.
+    let tx: number;
+    let ty: number;
+    if (layout && setup.scale !== "fit") {
+        tx = setup.imageOrigin.x;
+        ty = setup.imageOrigin.y;
+    } else {
+        tx = -k * bounds!.min.x;
+        ty = -k * bounds!.min.y;
+    }
+    let ox = setup.offset.x * perMm;
+    let oy = setup.offset.y * perMm;
+    if (setup.centered && !layout) {
+        tx += (pw - k * aw) / 2;
+        ty += (ph - k * ah) / 2;
+        ox = 0;
+        oy = 0;
+    }
+
+    const s = m * k;
+    const ex = m * tx;
+    const ey = m * ty;
+    let matrix: PlotMatrix;
+    switch (rot) {
+        case 1:
+            matrix = [0, s, s, 0, ey + ox, ex + oy];
+            break;
+        case 2:
+            matrix = [-s, 0, 0, s, width - ex - ox, ey + oy];
+            break;
+        case 3:
+            matrix = [0, -s, -s, 0, width - ey - ox, height - ex - oy];
+            break;
+        default:
+            matrix = [s, 0, 0, -s, ex + ox, height - ey - oy];
+    }
+    return { width, height, printableLeft: left * perMm, printableTop: top * perMm, scale: s, matrix };
 }

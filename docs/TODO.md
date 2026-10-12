@@ -93,7 +93,8 @@ Tick items off (or delete them) when done.
 
 ## Entities and features
 
-- [ ] Plot styles: CTB/STB parsing and application (`@truedxf/plot` is a placeholder; rung 15).
+- [ ] Plot styles in the renderer (rung 15): `@truedxf/plot` parses CTB/STB and applies pens;
+      render still emulates only monochrome.ctb. STB 380/390 resolution is not implemented.
       AutoCAD facts are in (2026-10-12): note 06 §6.2–§6.5 (CTB/STB keys, lineweight index,
       colour/policy rules, grayscale/screening formulas, end/join/fill, STB resolution) and note 08
       §2.1/§2.3/§10.17 (page setups plotted as stored: 73, 147 vs 75 vs 142/143, flags 32/64/128,
@@ -102,8 +103,9 @@ Tick items off (or delete them) when done.
       fill-style tiles (§6.8), colour books and gradients bypass the pens (§6.4, §1.7), acad.ctb =
       no styles; margins x rotation, 46/47 units and axes, 148/149 (note 08 §2.1, §2.5, §10.17);
       checks `analyze_pen_patterns.py`, `analyze_plotstyles.py`. Still open: Q-0760, Q-0761.
-- [ ] Apply the measured pen linetypes, fill-style tiles, stored margins (40–43, PNG = printable
-      area), 46/47 device-axis offsets and 148/149 layout shift in `@truedxf/plot`.
+- [x] Apply the measured pen linetypes, fill-style tiles, stored margins (40–43, PNG = printable
+      area), 46/47 device-axis offsets and 148/149 layout shift in `@truedxf/plot`
+      (`penLinetypeDashes`, `fillStyleInk`, `plotPlacement`; 2026-10-12).
 - [ ] Wide polylines with linetypes (`pl-wide-*`, dash phase drift on dashed wide arcs).
 - [x] PDF underlay content: PDF.js via `@truedxf/pdf` (`RenderEnv.pdf`), clip, contrast / fade /
       monochrome fitted to AutoCAD (2026-10-03, note 07 §10.3).

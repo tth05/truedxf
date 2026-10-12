@@ -356,7 +356,11 @@ export function screenRgb(rgb: number, screening: number): number {
 export interface ObjectPen {
     /** Plotted RGB (ACI already mapped through the plot palette). */
     readonly rgb: number;
-    /** Resolved ACI 1…255, or undefined for a true colour (which gets no pen). */
+    /**
+     * Resolved ACI 1…255, or undefined for a true colour (which gets no pen). Colour-book
+     * colours (430 + 420) are true colours here; 430 without 420 is dropped and the 62 counts
+     * (VERIFIED-BY-ACAD, note 06 §6.4).
+     */
     readonly aci: number | undefined;
     /** Resolved lineweight in mm (Default already replaced by LWDEFAULT). */
     readonly lineweight: number;
@@ -368,8 +372,11 @@ export interface PlottedPen {
     readonly lineweight: number;
     readonly endStyle: PlotEndStyle | undefined;
     readonly joinStyle: PlotJoinStyle | undefined;
+    /** 65–72: raster fill tile (`fillStyleInk`), only for area fills; undefined = solid. */
     readonly fillStyle: number | undefined;
+    /** Pen linetype 0–30 (`penLinetypeDashes`), undefined = the object linetype. */
     readonly linetype: number | undefined;
+    readonly adaptiveLinetype: boolean;
 }
 
 /**
@@ -387,6 +394,7 @@ export function applyPlotStyle(style: PlotStyle | undefined, object: ObjectPen):
             joinStyle: undefined,
             fillStyle: undefined,
             linetype: undefined,
+            adaptiveLinetype: false,
         };
     let rgb = style.color ?? object.rgb;
     if (style.grayscale) rgb = grayscaleRgb(rgb);
@@ -396,8 +404,9 @@ export function applyPlotStyle(style: PlotStyle | undefined, object: ObjectPen):
         lineweight: style.lineweight ?? object.lineweight,
         endStyle: style.endStyle,
         joinStyle: style.joinStyle,
-        fillStyle: style.fillStyle,
+        fillStyle: style.fillStyle === 64 ? undefined : style.fillStyle,
         linetype: style.linetype,
+        adaptiveLinetype: style.adaptiveLinetype,
     };
 }
 

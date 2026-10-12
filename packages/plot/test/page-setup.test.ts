@@ -1,6 +1,12 @@
 import { DxfDocument, type LayoutObject } from "@truedxf/model";
 import { describe, expect, it } from "vitest";
-import { PlotPaperUnits, paperMmPerDrawingUnit, readPageSetup } from "../src/index.ts";
+import {
+    type PlotMatrix,
+    PlotPaperUnits,
+    paperMmPerDrawingUnit,
+    plotPlacement,
+    readPageSetup,
+} from "../src/index.ts";
 
 type Tag = readonly [number, string | number];
 
@@ -137,5 +143,136 @@ describe("readPageSetup", () => {
             layout([100, "AcDbPlotSettings"], [142, 0], [143, 0], [100, "AcDbLayout"]),
         );
         expect(setup.scale).toEqual({ paper: 1, drawing: 1 });
+    });
+});
+
+const apply = (m: PlotMatrix, x: number, y: number) => [
+    m[0] * x + m[2] * y + m[4],
+    m[1] * x + m[3] * y + m[5],
+];
+
+/** The harness margins sheet: 1600 × 1200 px, margins L/B/R/T 10/20/30/40, layout plot 1:1. */
+function marginsSheet(rotation: number, ...extra: Tag[]): Tag[] {
+    return [
+        [100, "AcDbPlotSettings"],
+        [2, "truedxf PNG.pc3"],
+        [40, 10],
+        [41, 20],
+        [42, 30],
+        [43, 40],
+        [44, 1600],
+        [45, 1200],
+        ...extra,
+        [70, 16 | 32 | 128],
+        [72, 2],
+        [73, rotation],
+        [74, 5],
+        [75, 16],
+        [147, 1],
+        [100, "AcDbLayout"],
+    ];
+}
+
+describe("plotPlacement (note 08 §10.17)", () => {
+    it("prints the printable area with the origin in the rotation's corner", () => {
+        // Paper pixel (x, y) → canvas (column, row) of the 1560 × 1140 printable image.
+        const cases: [number, number[]][] = [
+            [0, [3, 1140 - 1 - 5]],
+            [1, [5, 3]],
+            [2, [1560 - 1 - 3, 5]],
+            [3, [1560 - 1 - 5, 1140 - 1 - 3]],
+        ];
+        for (const [rot, pixel] of cases) {
+            const p = plotPlacement(readPageSetup(layout(...marginsSheet(rot))));
+            expect([p.width, p.height]).toEqual([1560, 1140]);
+            const [x, y] = apply(p.matrix, 3.5, 5.5);
+            expect([Math.floor(x!), Math.floor(y!)]).toEqual(pixel);
+        }
+    });
+
+    it("moves the origin by 46/47 along the device axes into the sheet", () => {
+        const offset: Tag[] = [
+            [46, 100],
+            [47, 50],
+        ];
+        const at = (rot: number) =>
+            apply(plotPlacement(readPageSetup(layout(...marginsSheet(rot, ...offset)))).matrix, 0, 0);
+        expect(at(0)).toEqual([100, 1140 - 50]);
+        expect(at(1)).toEqual([100, 50]);
+        expect(at(2)).toEqual([1560 - 100, 50]);
+        expect(at(3)).toEqual([1560 - 100, 1140 - 50]);
+    });
+
+    it("shifts layout plots by 148/149 and ignores them for windows", () => {
+        const image: Tag[] = [
+            [148, 100],
+            [149, 50],
+        ];
+        const shifted = plotPlacement(readPageSetup(layout(...marginsSheet(0, ...image))));
+        expect(apply(shifted.matrix, 0, 0)).toEqual([100, 1140 - 50]);
+        const window = readPageSetup(
+            layout(
+                ...marginsSheet(0, ...image, [48, 10], [49, 20], [140, 110], [141, 220]).map(
+                    (t): Tag => (t[0] === 74 ? [74, 4] : t),
+                ),
+            ),
+        );
+        expect(apply(plotPlacement(window).matrix, 10, 20)).toEqual([0, 1140]);
+    });
+
+    it("applies offsets in mm on inch and mm setups", () => {
+        const setup = (units: number) =>
+            readPageSetup(
+                layout(
+                    [100, "AcDbPlotSettings"],
+                    [44, 508],
+                    [45, 381],
+                    [46, 5],
+                    [47, 3],
+                    [70, 16],
+                    [72, units],
+                    [74, 5],
+                    [75, 16],
+                    [147, 1],
+                    [100, "AcDbLayout"],
+                ),
+            );
+        const perMm = 600 / 25.4;
+        const inch = plotPlacement(setup(0), { unitsPerMm: perMm });
+        expect(inch.height).toBeCloseTo(9000);
+        const [x, y] = apply(inch.matrix, 1, 1);
+        expect(x).toBeCloseTo(600 + 5 * perMm);
+        expect(y).toBeCloseTo(9000 - 600 - 3 * perMm);
+        const [xm] = apply(plotPlacement(setup(1), { unitsPerMm: perMm }).matrix, 25.4, 0);
+        expect(xm).toBeCloseTo(600 + 5 * perMm);
+    });
+
+    it("fits and centres a window, ignoring the offset", () => {
+        const setup = readPageSetup(
+            layout(
+                [100, "AcDbPlotSettings"],
+                [44, 2000],
+                [45, 1500],
+                [46, 7],
+                [47, 9],
+                [48, 0],
+                [49, 0],
+                [140, 100],
+                [141, 50],
+                [70, 16 | 4],
+                [72, 2],
+                [73, 1],
+                [74, 4],
+                [75, 0],
+                [100, "AcDbLayout"],
+            ),
+        );
+        // Rotated: the paper is 1500 wide, 2000 high; a 100 × 50 window fits at 15 px/unit and
+        // is centred vertically on the paper (= horizontally on the device).
+        const p = plotPlacement(setup);
+        expect(p.scale).toBe(15);
+        expect(apply(p.matrix, 0, 0)).toEqual([625, 0]);
+        expect(apply(p.matrix, 100, 50)).toEqual([1375, 1500]);
+        expect(() => plotPlacement({ ...setup, area: { kind: "extents" } })).toThrow(/bounds/);
     });
 });

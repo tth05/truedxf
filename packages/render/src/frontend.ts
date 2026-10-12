@@ -50,6 +50,7 @@ import {
     type PlotBounds,
     PlotEndStyle,
     PlotJoinStyle,
+    PlotPaperUnits,
     type PlotStyle,
     type PlotStyleTable,
     penForAci,
@@ -166,6 +167,11 @@ export interface PlotResult {
     view: View;
     /** Output size in device pixels: the request's canvas, or the printable area of a page setup. */
     canvas: readonly [number, number];
+    /**
+     * Page setup plots (`PlotRequest.pageSetup`): the whole sheet, margins included, in target
+     * coordinates (the printable area is 0…canvas).
+     */
+    sheet?: View;
     /** Counts of things the frontend could not render (entity types, features). */
     unsupported: Record<string, number>;
     /** Diagnostics for the user (e.g. missing fonts); absent when there are none. */
@@ -1645,6 +1651,14 @@ async function renderPageSetup(
     const h = Math.max(1, Math.round(placement.height));
     const canvas: [number, number] = [w, h];
     req = { ...req, canvas };
+    // margins are device edges, in device units (pixels on raster setups, else mm)
+    const perMm = setup.paperUnits === PlotPaperUnits.Pixels ? 1 : calibration.dpi / 25.4;
+    const sheet: View = {
+        minX: -setup.margins.left * perMm,
+        minY: -setup.margins.bottom * perMm,
+        maxX: w + setup.margins.right * perMm,
+        maxY: h + setup.margins.top * perMm,
+    };
     // device coordinates with Y up: (X, H − Y)
     const [a, b, c, d, e, f] = placement.matrix;
     const root = Matrix44.fromRows(a, c, 0, e, -b, -d, 0, h - f, 0, 0, 1, 0, 0, 0, 0, 1);
@@ -1680,6 +1694,7 @@ async function renderPageSetup(
         displayList: fe.build(),
         view,
         canvas,
+        sheet,
         unsupported: fe.unsupported,
         ...(notes.length ? { notes } : {}),
     };

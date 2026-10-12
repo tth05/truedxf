@@ -55,7 +55,8 @@ pnpm playground:deploy     # public build → Cloudflare Pages (see "Public site
   lineweight / transparency (raw → resolved) and the raw DXF tags of its record.
 - **Measure** (`M`, two clicks that snap to end points, midpoints, centres, quadrants and points
   unless Alt is held), **Fit** (`F` or double-click on empty space), dark / light
-  background, lineweights on/off.
+  background, lineweights on/off, **plot preview** (the layout's stored page setup: sheet,
+  scale, rotation, plot style table).
 - **Errors**: a file that is not a DXF is refused with a message (and, unless it is a DWG, a
   "Report on GitHub" button). DWG files among the opened files are shown in red with a hint.
   Screens narrower than 900 px hide the side panels, and a one-time dialog says so.

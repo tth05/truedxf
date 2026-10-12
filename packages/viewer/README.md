@@ -62,6 +62,12 @@ scale? })`, `zoom(factor)`, `viewState`, `zoomLevel` (1 = fitted), `screenToWorl
 `worldToScreen`, and the `view` event. `snapshot(type?, quality?)` draws and copies the frame in
 one task, so it needs no `preserveDrawingBuffer`.
 
+**Plot preview.** `setPlotPreview(true)` (or the `plotPreview` option) shows the current layout as
+its stored page setup plots it: the sheet with its margins, rotation and scale, the plot style
+table, the lineweight switches and plot visibility, with AutoCAD's raster rules at the screen's
+resolution. The sheet is one list in sheet pixels: zooming does not re-render it, picking works,
+`isPlotPreview` reads the mode. Layouts without a stored page setup render normally.
+
 **Bundlers.** The worker is created with `new Worker(new URL("./worker.js", import.meta.url))`,
 which Vite, webpack and Rollup bundle. Vite's dependency pre-bundling breaks that URL: add
 `optimizeDeps: { exclude: ["@truedxf/viewer"] }`. Or pass your own `worker: () => new Worker(…)`.

@@ -125,6 +125,12 @@ export interface RenderParams {
     visibility?: "display" | "plot";
     /** Plot style table name (plot mode), e.g. "monochrome.ctb". */
     styleTable?: string;
+    /**
+     * Plot the layout's stored page setup (`PlotRequest.pageSetup`): area, scale, rotation, sheet,
+     * style table and switches from the drawing; `area`, `canvas` and `styleTable` are ignored and
+     * the result is the printable area in device pixels at `dpi` (RenderResult.sheet: the sheet).
+     */
+    pageSetup?: boolean;
     /** Further plot request fields (fixture contract: meta.plot). */
     scale?: PlotRequest["scale"];
     sysvars?: PlotRequest["sysvars"];
@@ -195,6 +201,8 @@ export interface RenderResult {
     covered?: Rect;
     stats: { batches: number; vertices: number };
     view: Rect;
+    /** Page setup renders: the whole sheet (margins included) in list coordinates. */
+    sheet?: Rect;
     /**
      * Bounds of what is visible: like `list.bounds`, but clipped batches (viewport content) count
      * only within their clip region's bounding box. Undefined for an empty list.
@@ -443,6 +451,7 @@ export class ViewerCore {
                 ...(p.scale ? { scale: p.scale } : {}),
                 ...(p.sysvars ? { sysvars: p.sysvars } : {}),
                 ...(p.paperSpaceFirst !== undefined ? { paperSpaceFirst: p.paperSpaceFirst } : {}),
+                ...(p.pageSetup ? { pageSetup: true } : {}),
             },
             {
                 loadFont: this.loadFont,
@@ -519,6 +528,7 @@ export class ViewerCore {
             generation: this.generation,
             ...(covered ? { covered } : {}),
             view: { ...res.view },
+            ...(res.sheet ? { sheet: { ...res.sheet } } : {}),
             bounds: drawing.bounds,
             unsupported: res.unsupported,
             warnings,

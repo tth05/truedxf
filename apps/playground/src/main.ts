@@ -57,6 +57,15 @@ const btnLw = h(
     { class: "btn icon", title: "Show lineweights", "aria-pressed": "true" },
     icon(ICONS.weight),
 );
+const btnPlot = h(
+    "button",
+    {
+        class: "btn icon",
+        title: "Plot preview: the layout's stored page setup (sheet, scale, rotation, plot style table)",
+        "aria-pressed": "false",
+    },
+    icon(ICONS.sheet),
+);
 const modeTabs = h("div", { class: "seg", id: "modes" });
 /** Replaced by the search box once the viewer exists. */
 const searchSlot = h("div", { class: "search-box" });
@@ -84,7 +93,7 @@ const topbar = h(
     h("div", { class: "spacer" }),
     searchSlot,
     h("div", { class: "seg" }, btnSelect, btnMeasure),
-    h("div", { class: "seg" }, btnLw, btnTheme),
+    h("div", { class: "seg" }, btnPlot, btnLw, btnTheme),
     exportUi.root,
     h(
         "button",
@@ -720,6 +729,13 @@ btnLw.addEventListener("click", () => {
     const on = btnLw.getAttribute("aria-pressed") !== "true";
     btnLw.setAttribute("aria-pressed", String(on));
     viewer.setLineweights(on);
+});
+btnPlot.addEventListener("click", () => {
+    const on = !viewer.isPlotPreview;
+    btnPlot.setAttribute("aria-pressed", String(on));
+    // the page setup decides whether lineweights plot
+    btnLw.disabled = on;
+    viewer.setPlotPreview(on);
 });
 
 function setTool(t: Tool): void {

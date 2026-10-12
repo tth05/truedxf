@@ -99,6 +99,8 @@ export interface DxfViewerOptions {
     worker?: boolean | (() => Worker);
     /** Show lineweights (default true). */
     lineweights?: boolean;
+    /** Start in plot preview (default false); see {@link DxfViewer.setPlotPreview}. */
+    plotPreview?: boolean;
     /** Antialiasing (default true). */
     antialias?: boolean;
     /** Merge opaque display-list batches to reduce draw calls (default true). */
@@ -300,6 +302,8 @@ interface CurrentList {
     covered?: Rect;
     /** Clip regions of the list (highlights of viewport content are clipped like it). */
     clips: readonly ClipRegion[];
+    /** Plot preview: the sheet in list coordinates. */
+    sheet?: Rect;
 }
 
 /**
@@ -355,6 +359,7 @@ export class DxfViewer {
     private layerToggles = new Map<string, boolean>();
     private background: [number, number, number];
     private lineweights: boolean;
+    private plotPreview: boolean;
     private view: ViewState | undefined;
     private dpr = 1;
     private current: CurrentList | undefined;
@@ -441,6 +446,7 @@ export class DxfViewer {
         this.options = options;
         this.background = resolveBackground(options.background ?? "dark");
         this.lineweights = options.lineweights ?? true;
+        this.plotPreview = options.plotPreview ?? false;
         this.input = initialInteraction(options.interaction);
         this.autoFit = options.autoFit ?? "load";
         this.limits = options.limits;
@@ -802,6 +808,22 @@ export class DxfViewer {
     }
 
     /**
+     * Plot preview: the current layout as its stored page setup plots it (sheet size, rotation,
+     * scale, plot style table, lineweight switches, plot visibility; AutoCAD's raster rules at the
+     * screen's resolution). The sheet is one list in device pixels; zooming does not re-render it.
+     * Layouts without a stored page setup render normally.
+     */
+    setPlotPreview(on: boolean): void {
+        if (on === this.plotPreview) return;
+        this.plotPreview = on;
+        if (this.info) void this.refit();
+    }
+
+    get isPlotPreview(): boolean {
+        return this.plotPreview;
+    }
+
+    /**
      * Fits the view to the drawing extents (paper sheet included for layouts). With autoFit
      * "always" the view then follows container resizes again.
      */
@@ -1052,7 +1074,7 @@ export class DxfViewer {
 
     /** Render background: layouts draw on white paper. */
     private renderBackground(): [number, number, number] {
-        return this.layoutInfo()?.isModel === false ? [255, 255, 255] : this.background;
+        return this.plotPreview || this.layoutInfo()?.isModel === false ? [255, 255, 255] : this.background;
     }
 
     private contentKey(): string {
@@ -1064,6 +1086,7 @@ export class DxfViewer {
             this.lineweights,
             this.store.generation,
             this.snapsWanted,
+            this.plotPreview,
         ]);
     }
 
@@ -1097,7 +1120,8 @@ export class DxfViewer {
 
     private checkLod(): void {
         const cur = this.current;
-        if (!this.view || !cur) return;
+        // a plot preview is the plot's own resolution
+        if (!this.view || !cur || this.plotPreview) return;
         const options = typeof this.options.lod === "object" ? this.options.lod : undefined;
         const target = targetPixelSize(this.view.scale, this.dpr, this.fitRectangle(), options);
         if (
@@ -1132,6 +1156,17 @@ export class DxfViewer {
                 ? { cjkFallbackFont: this.options.cjkFallbackFont }
                 : {}),
         };
+        if (this.plotPreview) {
+            return {
+                ...base,
+                raster: "autocad",
+                visibility: "plot",
+                pageSetup: true,
+                lod: false,
+                annotations: false,
+                area: { type: "extents" },
+            };
+        }
         if (this.fitPending || !this.view) {
             // Paper layouts fit their sheet. Not the display-list extents: those include model-space
             // content outside the viewports (clipped by the stencil, but still in the bounds), which
@@ -1224,8 +1259,10 @@ export class DxfViewer {
             generation: res.generation,
             clips: list.clips,
             covered: res.covered,
+            ...(res.sheet ? { sheet: res.sheet } : {}),
         };
         if (!res.covered) this.base = this.current;
+        if (this.plotPreview) this.drawPaper();
         if (fit) {
             this.fitPending = false;
             const r = this.fitRectangle();
@@ -1275,6 +1312,7 @@ export class DxfViewer {
 
     /** The sheet (or stored paper-space extents) of a paper layout; undefined for model space. */
     private layoutFrame(): Rect | undefined {
+        if (this.plotPreview) return this.current?.sheet;
         const l = this.layoutInfo();
         return l && !l.isModel ? (l.paper ?? l.extents) : undefined;
     }
@@ -1286,7 +1324,7 @@ export class DxfViewer {
     // ---- drawing ------------------------------------------------------------------------------
 
     private applyClearColor(): void {
-        const sheet = this.layoutInfo()?.paper !== undefined;
+        const sheet = this.plotPreview || this.layoutInfo()?.paper !== undefined;
         if (sheet && this.colors.surround) {
             this.renderer.renderer.setClearColor(this.colors.surround, 1);
             return;
@@ -1304,7 +1342,7 @@ export class DxfViewer {
         disposeChildren(this.paperGroup);
         this.applyClearColor();
         // layouts without a page setup draw on a white background (applyClearColor)
-        const r = this.layoutInfo()?.paper;
+        const r = this.plotPreview ? this.current?.sheet : this.layoutInfo()?.paper;
         if (!r) return;
         const s = Math.max(r.maxX - r.minX, r.maxY - r.minY) * 0.006;
         this.paperGroup.add(

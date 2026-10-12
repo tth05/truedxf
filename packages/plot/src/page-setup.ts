@@ -103,8 +103,9 @@ export interface PageSetup {
      */
     readonly offset: Point2;
     /**
-     * Paper image origin (148/149), paper units. Layout plots are shifted by it; window plots
-     * ignore it (AutoCAD writes −(48, 49) there; VERIFIED-BY-ACAD, Q-0256, note 08 §2.1).
+     * Paper image origin (148/149): mm (also in inch setups, which AutoCAD writes ×25.4), pixels on
+     * raster setups, like the offset. Layout plots are shifted by it; window plots ignore it
+     * (AutoCAD writes −(48, 49) there; VERIFIED-BY-ACAD, Q-0256, note 08 §2.1).
      */
     readonly imageOrigin: Point2;
     readonly centered: boolean;
@@ -301,8 +302,8 @@ export function plotPlacement(setup: PageSetup, options: PlotPlacementOptions = 
     let tx: number;
     let ty: number;
     if (layout && setup.scale !== "fit") {
-        tx = setup.imageOrigin.x;
-        ty = setup.imageOrigin.y;
+        tx = (setup.imageOrigin.x * perMm) / m;
+        ty = (setup.imageOrigin.y * perMm) / m;
     } else {
         tx = -k * bounds!.min.x;
         ty = -k * bounds!.min.y;

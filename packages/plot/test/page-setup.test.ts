@@ -236,6 +236,26 @@ describe("plotPlacement (note 08 §10.17)", () => {
         expect(apply(plotPlacement(window).matrix, 10, 20)).toEqual([0, 1140]);
     });
 
+    it("reads 148/149 of inch setups in mm, like the offset", () => {
+        const setup = readPageSetup(
+            layout(
+                [100, "AcDbPlotSettings"],
+                [44, 508],
+                [45, 381],
+                [148, 25.4],
+                [149, 0],
+                [70, 16],
+                [72, 0],
+                [74, 5],
+                [75, 16],
+                [147, 1],
+                [100, "AcDbLayout"],
+            ),
+        );
+        // 25.4 mm = 1 in = 600 units of a 600 dpi device
+        expect(apply(plotPlacement(setup, { unitsPerMm: 600 / 25.4 }).matrix, 0, 0)[0]).toBeCloseTo(600);
+    });
+
     it("applies offsets in mm on inch and mm setups", () => {
         const setup = (units: number) =>
             readPageSetup(

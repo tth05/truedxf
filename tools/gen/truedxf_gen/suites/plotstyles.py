@@ -46,6 +46,11 @@ def build(s: SuiteBuilder) -> None:
     _named(s)
     _color_matrix(s)
     _pen_resolution(s)
+    _linetypes(s)
+    _fills(s)
+    _colorbook(s)
+    _styles_ref(s)
+    _gradients(s)
 
 
 # --- lineweight index ---------------------------------------------------------------------------
@@ -587,3 +592,340 @@ def _pen_resolution(s: SuiteBuilder) -> None:
     c.params["left"] = [d for d, _ in rows]
     c.params["inserts"] = {"rows": [d for d, _ in ins], "block": ["BYBLOCK at dy 0", "BYLAYER layer 0 at dy -5"], "y": "140 - 20k"}
     c.window((0, 0), (200, 150))
+
+
+# --- CTB linetypes: measured on long/short lines, curves, object linetypes (Q-0228) -----------
+
+# per pen row k (pen ACI k+1 -> CTB linetype k): (x0, x1, dy) in drawing units; window 0..200 at
+# 10 px/unit = 0.1 in/unit on the 20 x 15 in sheet. Lengths are deliberately not multiples of
+# 0.05 in, so whole-pattern fits and end phases are visible.
+LT_LINES = ((10.0, 183.37, 0.0), (10.0, 11.2, -2.0), (15.0, 18.3, -2.0), (25.0, 66.1, -2.0))
+
+
+def _lt_pens(adaptive: bool, size: float) -> dict:
+    return {k + 1: {"linetype": k, "adaptive_linetype": adaptive, "linepattern_size": size} for k in range(31)}
+
+
+def _lt_rows(c, f: float = 1.0) -> None:
+    for k in range(31):
+        y = 146 - 4.7 * k
+        for x0, x1, dy in LT_LINES:
+            c.msp.add_line((x0 * f, (y + dy) * f), (x1 * f, (y + dy) * f), dxfattribs={"color": k + 1, "lineweight": 0})
+
+
+def _linetypes(s: SuiteBuilder) -> None:
+    variants = [
+        # name, adaptive, linepattern_size, geometry factor (window 200 * f), outputs, PDF units
+        ("lt-fixed", False, 0.5, 1, ["png", "pdf"], None),
+        ("lt-adaptive", True, 0.5, 1, ["png", "pdf"], None),
+        ("lt-fixed-size-1", False, 1.0, 1, ["png", "pdf"], None),
+        ("lt-adaptive-size-1", True, 1.0, 1, ["png", "pdf"], None),
+        ("lt-fixed-size-0-2", False, 0.2, 1, ["png", "pdf"], None),
+        ("lt-fixed-scale-half", False, 0.5, 2, ["png", "pdf"], None),
+        ("lt-fixed-mm", False, 0.5, 1, ["pdf"], "mm"),
+    ]
+    for name, adaptive, size, f, outputs, units in variants:
+        c = s.case(
+            name,
+            f"CTB pen linetypes 0-30 (pen ACI k+1 -> linetype k), adaptive {adaptive}, linepattern_size {size}, "
+            f"hairline LINEs of 17.337 / 0.12 / 0.33 / 4.11 in on paper"
+            + (f", geometry x{f} with window x{f} (plot scale 1/{f})" if f != 1 else "")
+            + (f", PDF paper units {units}" if units else ""),
+            tags=["CTB", "linetype", "LINE"],
+            questions=["Q-0228"],
+            params={
+                "rows": "pen ACI k+1 (k = 0..30): y = 146 - 4.7k (x f); lines (x0, x1, dy) = LT_LINES",
+                "lines": LT_LINES,
+                "factor": f,
+                "paper_in_per_unit": 0.1 / f,
+            },
+            outputs=outputs,
+        )
+        c.plot_style_table(f"truedxf-{name}.ctb", ctb_bytes(_lt_pens(adaptive, size)))
+        _lt_rows(c, f)
+        c.window((0, 0), (200 * f, 150 * f))
+        if units:
+            c.plot.extra["paperUnits"] = units
+
+    # curves, polylines, reversed lines, thick lines
+    lts = (2, 4, 11, 23)
+    pens = {}
+    for i, lt in enumerate(lts):
+        pens[1 + i] = {"linetype": lt, "adaptive_linetype": False}
+        pens[5 + i] = {"linetype": lt, "adaptive_linetype": True}
+    c = s.case(
+        "lt-curves",
+        "CTB pen linetypes 2/4/11/23 (pens 1-4 fixed, 5-8 adaptive) on CIRCLE, ARC, LWPOLYLINE zigzag (plinegen off/on), reversed LINE, 1.00 mm LINE",
+        tags=["CTB", "linetype", "CIRCLE", "ARC", "LWPOLYLINE"],
+        questions=["Q-0228"],
+        params={
+            "pens": pens,
+            "rows": "pen ACI k+1 (k = 0..7): y = 140 - 17.5k; CIRCLE c=(15, y-6) r=6; ARC c=(15,y-6) r=3 0..270 deg; "
+            "zigzag (30,y)-(43.7,y-8)-(57.4,y)-(71.1,y-8)-(84.8,y) plinegen off; same +60 in x plinegen on; "
+            "LINE (190,y)->(150.3,y) (reversed); LINE (150.3,y-8)->(190,y-8) lineweight 1.00 mm",
+        },
+        outputs=["png", "pdf"],
+    )
+    c.plot_style_table("truedxf-lt-curves.ctb", ctb_bytes(pens))
+    for k in range(8):
+        y = 140 - 17.5 * k
+        a = {"color": k + 1, "lineweight": 0}
+        c.msp.add_circle((15, y - 6), 6, dxfattribs=a)
+        c.msp.add_arc((15, y - 6), 3, 0, 270, dxfattribs=a)
+        for dx, gen in ((0, False), (60, True)):
+            pl = c.msp.add_lwpolyline(
+                [(30 + dx, y), (43.7 + dx, y - 8), (57.4 + dx, y), (71.1 + dx, y - 8), (84.8 + dx, y)], dxfattribs=a
+            )
+            if gen:
+                pl.dxf.flags = pl.dxf.flags | 128
+        c.msp.add_line((190, y), (150.3, y), dxfattribs=a)
+        c.msp.add_line((150.3, y - 8), (190, y - 8), dxfattribs={**a, "lineweight": 100})
+    c.window((0, 0), (200, 150))
+
+    # pen linetype vs the object's own linetype, entity ltscale and LTSCALE
+    pens = {
+        1: {},  # object linetype (31)
+        2: {"linetype": 4, "adaptive_linetype": False},
+        3: {"linetype": 4, "adaptive_linetype": True},
+        4: {"linetype": 0, "adaptive_linetype": False},
+    }
+    for name, ltscale in (("lt-object", 1.0), ("lt-object-ltscale-2", 2.0)):
+        c = s.case(
+            name,
+            f"Pens 1 (object linetype), 2 (linetype 4 fixed), 3 (linetype 4 adaptive), 4 (linetype 0 solid) on LINEs with object "
+            f"linetype Continuous / DASHED / DASHED + entity ltscale 3; $LTSCALE {ltscale}",
+            tags=["CTB", "linetype", "LTSCALE", "LINE"],
+            questions=["Q-0228"],
+            header={"$LTSCALE": ltscale},
+            params={
+                "pens": pens,
+                "rows": "row r = 3*(pen-1) + j, y = 140 - 11r, LINE x 10..183.37; j = 0 Continuous, 1 DASHED, 2 DASHED ltscale 3",
+            },
+            outputs=["png", "pdf"],
+        )
+        c.plot_style_table(f"truedxf-{name}.ctb", ctb_bytes(pens))
+        dashed = c.linetype("DASHED")
+        for p in range(1, 5):
+            for j, attrs in enumerate(({}, {"linetype": dashed}, {"linetype": dashed, "ltscale": 3.0})):
+                y = 140 - 11 * (3 * (p - 1) + j)
+                c.msp.add_line((10, y), (183.37, y), dxfattribs={"color": p, "lineweight": 0, **attrs})
+        c.window((0, 0), (200, 150))
+
+    # paper space: a viewport at scale 0.5 with PSLTSCALE 1 vs the same lines in paper space
+    c = s.case(
+        "lt-layout-psltscale",
+        "Layout (paper mm, window 0..200 x 0..150 at 10 px/mm): viewport scale 0.5 over model LINEs and the same LINEs in paper space; "
+        "pen 2 = linetype 4 fixed, pen 1 = object (DASHED); PSLTSCALE 1",
+        tags=["CTB", "linetype", "PSLTSCALE", "VIEWPORT"],
+        questions=["Q-0228"],
+        header={"$PSLTSCALE": 1},
+        params={
+            "viewport": "centre (100,110) size (190,70) paper, view centre (200,70) model, view height 140 (scale 0.5)",
+            "model": "LINEs x 20..366.74 at model y 30 (pen 2), 50 (pen 1 DASHED), 70 (pen 2 DASHED), 90 (pen 1 Continuous)",
+            "paper": "LINEs x 10..183.37 at paper y 60 (pen 2), 45 (pen 1 DASHED), 30 (pen 2 DASHED)",
+        },
+        outputs=["png", "pdf"],
+    )
+    pens = {1: {}, 2: {"linetype": 4, "adaptive_linetype": False}}
+    c.plot_style_table("truedxf-lt-layout-psltscale.ctb", ctb_bytes(pens))
+    dashed = c.linetype("DASHED")
+    lay = c.doc.layouts.get("Layout1")
+    lay.page_setup(size=(200, 150), margins=(0, 0, 0, 0), units="mm")
+    vp = lay.add_viewport(center=(100, 110), size=(190, 70), view_center_point=(200, 70), view_height=140)
+    vp.dxf.layer = "0"
+    for y, aci, lt in ((30, 2, None), (50, 1, dashed), (70, 2, dashed), (90, 1, None)):
+        c.msp.add_line((20, y), (366.74, y), dxfattribs={"color": aci, "lineweight": 0, **({"linetype": lt} if lt else {})})
+    for y, aci, lt in ((60, 2, None), (45, 1, dashed), (30, 2, dashed)):
+        lay.add_line((10, y), (183.37, y), dxfattribs={"color": aci, "lineweight": 0, **({"linetype": lt} if lt else {})})
+    c.layout_window("Layout1", (0, 0), (200, 150))
+
+
+# --- CTB fill styles: geometry, phase and scale (Q-0752 follow-up) ------------------------------
+
+
+def _fill_cells(c, f: float = 1.0) -> None:
+    """Column k (pen k+2 = fill style 65+k of Fill Patterns.ctb), x0 = 5 + 24k: SOLID squares
+    20 x 20 at y 120 (unshifted), 95 (+0.13, +0.37) and 70 (+0.55, +0.71); solid HATCH at y 45;
+    LWPOLYLINE width 8 along y = 32; LINE 2.11 mm along y = 15."""
+    for k in range(8):
+        a = {"color": k + 2}
+        x0 = 5 + 24 * k
+        for y0, dx, dy in ((120, 0, 0), (95, 0.13, 0.37), (70, 0.55, 0.71)):
+            solid_rect(c.msp, (x0 + dx) * f, (y0 + dy) * f, (x0 + dx + 20) * f, (y0 + dy + 20) * f, a)
+        h = c.msp.add_hatch(color=k + 2)
+        h.paths.add_polyline_path([(x0 * f, 45 * f), ((x0 + 20) * f, 45 * f), ((x0 + 20) * f, 65 * f), (x0 * f, 65 * f)], is_closed=True)
+        pl = c.msp.add_lwpolyline([(x0 * f, 32 * f), ((x0 + 20) * f, 32 * f)], dxfattribs=a)
+        pl.dxf.const_width = 8 * f
+        c.msp.add_line((x0 * f, 15 * f), ((x0 + 20) * f, 15 * f), dxfattribs={**a, "lineweight": 211})
+
+
+def _fills(s: SuiteBuilder) -> None:
+    for name, f in (("fill-phase", 1), ("fill-phase-scale-half", 2)):
+        c = s.case(
+            name,
+            "Fill Patterns.ctb styles 65-72 (pens 2-9) on SOLID squares at three sub-unit shifts, solid HATCH, wide LWPOLYLINE, 2.11 mm LINE"
+            + (f"; geometry and window x{f} (plot scale 1/{f})" if f != 1 else ""),
+            tags=["CTB", "fill-style", "SOLID", "HATCH", "LWPOLYLINE"],
+            questions=["Q-0752"],
+            params={"layout": _fill_cells.__doc__, "factor": f},
+            style_table="Fill Patterns.ctb",
+            outputs=["png", "pdf"],
+        )
+        _fill_cells(c, f)
+        c.window((0, 0), (200 * f, 150 * f))
+
+    # which entity kinds take a fill style: every pen crosshatch (66) vs acad.ctb
+    for name, table in (("fill-targets", "custom"), ("fill-targets-ref", "acad.ctb")):
+        c = s.case(
+            name,
+            "Fill style 66 (crosshatch) on every pen" + (" (reference: acad.ctb)" if table != "custom" else "")
+            + ": TrueType TEXT/MTEXT, SHX TEXT, thin and 2.11 mm LINEs, CIRCLE 1.00 mm, ANSI31 HATCH, gradient HATCH, SOLID, wide LWPOLYLINE",
+            tags=["CTB", "fill-style", "TEXT", "MTEXT", "HATCH", "LINE"],
+            questions=["Q-0752"],
+            params={"items": "top row: TTF TEXT h 20 (y 115), SHX TEXT h 20 (y 85), MTEXT TTF h 12 (y 70); bottom: see code"},
+            outputs=["png", "pdf"],
+        )
+        if table == "custom":
+            c.plot_style_table("truedxf-fill-targets.ctb", ctb_bytes({a: {"fill_style": 66} for a in range(1, 256)}))
+        a = {"color": 5}
+        sans = c.style("SANS")
+        shx = c.style("SHX", font="simplex.shx")
+        c.msp.add_text("HEW", height=20, dxfattribs={**a, "style": sans, "insert": (10, 115)})
+        c.msp.add_text("HEW", height=20, dxfattribs={**a, "style": shx, "insert": (110, 115)})
+        c.msp.add_mtext("MTEXT", dxfattribs={**a, "style": sans, "char_height": 12, "insert": (10, 100)})
+        c.msp.add_line((10, 70), (90, 70), dxfattribs={**a, "lineweight": 0})
+        c.msp.add_line((10, 60), (90, 60), dxfattribs={**a, "lineweight": 211})
+        c.msp.add_circle((130, 70), 12, dxfattribs={**a, "lineweight": 100})
+        h = c.msp.add_hatch(color=5)
+        h.set_pattern_fill("ANSI31", scale=1.0)
+        h.paths.add_polyline_path([(10, 10), (50, 10), (50, 45), (10, 45)], is_closed=True)
+        h = c.msp.add_hatch(color=5)
+        h.set_gradient(color1=(0, 0, 255), color2=(255, 255, 0), rotation=0, name="LINEAR")
+        h.dxf.color = 5
+        h.paths.add_polyline_path([(60, 10), (100, 10), (100, 45), (60, 45)], is_closed=True)
+        solid_rect(c.msp, 110, 10, 150, 45, a)
+        pl = c.msp.add_lwpolyline([(160, 10), (160, 45)], dxfattribs=a)
+        pl.dxf.const_width = 12
+        c.window((0, 0), (200, 150))
+
+
+# --- colour books and ACI + true colour (pen selection) ------------------------------------------
+
+BOOK_ROWS = [
+    ("62=1 (reference: pen 1)", {"color": 1}),
+    ("62=52 (reference: pen 52)", {"color": 52}),
+    ("62=52 + 420 BEBD7F + 430 RAL CLASSIC$RAL 1000", {"color": 52, "true_color": 0xBEBD7F, "color_name": "RAL CLASSIC$RAL 1000"}),
+    ("62=52 + 430 RAL CLASSIC$RAL 1000 (no 420)", {"color": 52, "color_name": "RAL CLASSIC$RAL 1000"}),
+    ("62=52 + 420 BEBD7F (no 430)", {"color": 52, "true_color": 0xBEBD7F}),
+    ("62=1 + 420 FF0000 + 430 TRUEDXF BOOK$RED (unknown book)", {"color": 1, "true_color": 0xFF0000, "color_name": "TRUEDXF BOOK$RED"}),
+    ("62=1 + 420 FF0000", {"color": 1, "true_color": 0xFF0000}),
+]
+
+
+def _colorbook(s: SuiteBuilder) -> None:
+    c = s.case(
+        "colorbook-pen",
+        "Every pen green (policy 5) with lineweight index 21 (1.00 mm): which rows (ACI, colour book 430, ACI + 420) take the pen",
+        tags=["CTB", "color-book", "true-color", "LINE", "SOLID"],
+        questions=["Q-0222", "Q-0223"],
+        params={"rows": [d for d, _ in BOOK_ROWS], "geometry": "row k: SOLID (10..60, 128-18k..140-18k), LINE (70..190, 134-18k) object lineweight 0"},
+        outputs=["png", "dxf"],
+    )
+    c.plot_style_table("truedxf-colorbook-pen.ctb", ctb_bytes({a: {"color": rgb_color(*GREEN), "color_policy": 5, "lineweight": 21} for a in range(1, 256)}))
+    for k, (_, a) in enumerate(BOOK_ROWS):
+        y = 128 - 18 * k
+        solid_rect(c.msp, 10, y, 60, y + 12, a)
+        c.msp.add_line((70, y + 6), (190, y + 6), dxfattribs={**a, "lineweight": 0})
+    c.window((0, 0), (200, 150))
+
+
+# --- acad.ctb vs "plot with plot styles = No" vs no table (Q-0221) ------------------------------
+
+REF_TRUECOLORS = [0xFF0000, 0x00FF00, 0x0000FF, 0x808080, 0xC86432, 0xFAFAFA, 0x000000, 0x3366CC]
+REF_LINEWEIGHTS = [-3, 0, 5, 9, 13, 15, 18, 20, 25, 30, 35, 40, 50, 53, 60, 70, 80, 90, 100, 106, 120, 140, 158, 200, 211]
+REF_LINETYPES = ["DASHED", "DOT", "CENTER", "HIDDEN", "PHANTOM", "DASHDOT"]
+
+
+def _styles_ref(s: SuiteBuilder) -> None:
+    for name, table, styles in (
+        ("styles-ref-acad", "acad.ctb", True),
+        ("styles-ref-off", "acad.ctb", False),
+        ("styles-ref-none", ".", True),
+    ):
+        c = s.case(
+            name,
+            "ACI 1-255 SOLID + LINE cells, true colours, lineweights, linetypes, TrueType text plotted with "
+            + {"styles-ref-acad": "acad.ctb", "styles-ref-off": "plot styles = No", "styles-ref-none": "no table ('.')"}[name],
+            tags=["CTB", "ACI", "true-color", "lineweight", "linetype"],
+            questions=["Q-0221"],
+            style_table=table,
+            params={
+                "grid": "ACI = 16*row + col, cell lower-left (2 + 8*col, 134 - 8*row): SOLID (+0.5..+4.5)^2, LINE (+5, +0.5)-(+7.5, +4.5)",
+                "truecolors": REF_TRUECOLORS,
+                "lineweights": REF_LINEWEIGHTS,
+                "linetypes": REF_LINETYPES,
+            },
+            outputs=["png", "pdf"],
+        )
+        if not styles:
+            c.plot.extra["plotStyles"] = False
+        for aci in range(1, 256):
+            r, k = divmod(aci, 16)
+            x, y = 2 + 8 * k, 134 - 8 * r
+            solid_rect(c.msp, x + 0.5, y + 0.5, x + 4.5, y + 4.5, {"color": aci})
+            c.msp.add_line((x + 5, y + 0.5), (x + 7.5, y + 4.5), dxfattribs={"color": aci, "lineweight": 0})
+        for i, tc in enumerate(REF_TRUECOLORS):
+            c.msp.add_line((135, 146 - 2 * i), (198, 146 - 2 * i), dxfattribs={"color": 7, "true_color": tc, "lineweight": 50})
+        for i, lw in enumerate(REF_LINEWEIGHTS):
+            c.msp.add_line((135, 128 - 3 * i), (165, 128 - 3 * i), dxfattribs={"color": 1 + i % 7, "lineweight": lw})
+        for i, lt in enumerate(REF_LINETYPES):
+            c.msp.add_line((168, 128 - 6 * i), (198, 128 - 6 * i), dxfattribs={"color": 5, "linetype": c.linetype(lt), "lineweight": 0})
+        c.msp.add_text("Plot", height=8, dxfattribs={"color": 3, "style": c.style("SANS"), "insert": (168, 70)})
+        c.window((0, 0), (200, 150))
+
+
+# --- gradient HATCH through pens (Q-0224) --------------------------------------------------------
+
+GRAD_ROWS = [
+    # description, entity 62, gradient (aci1, rgb1, aci2, rgb2, one_color, tint)
+    ("62=7, ACI 1 -> ACI 5 (63 + 421)", 7, (1, (255, 0, 0), 5, (0, 0, 255), 0, 0.0)),
+    ("62=1, ACI 1 -> ACI 5 (63 + 421)", 1, (1, (255, 0, 0), 5, (0, 0, 255), 0, 0.0)),
+    ("62=7, one colour ACI 3, tint 0.5", 7, (3, (0, 255, 0), None, (255, 255, 255), 1, 0.5)),
+    ("62=7, true colours red -> yellow (no 63)", 7, (None, (255, 0, 0), None, (255, 255, 0), 0, 0.0)),
+    ("62=1, true colours 0000C0 -> 00C000 (no 63)", 1, (None, (0, 0, 192), None, (0, 192, 0), 0, 0.0)),
+]
+
+
+def _gradients(s: SuiteBuilder) -> None:
+    for name, table in (
+        ("gradient-pens-acad", "acad.ctb"),
+        ("gradient-pens-off", "off"),
+        ("gradient-pens-green", "custom"),
+        ("gradient-pens-gray", "Grayscale.ctb"),
+        ("gradient-pens-screen-50", "Screening 50%.ctb"),
+    ):
+        c = s.case(
+            name,
+            "Linear gradient HATCHes (ACI and true-colour gradient colours, entity 62 = 7 / 1) and SOLID references ACI 1/5/3 plotted with "
+            + {"off": "acad.ctb, plot styles = No", "custom": "every pen green (policy 5)"}.get(table, table),
+            tags=["CTB", "HATCH", "gradient", "grayscale", "screening"],
+            questions=["Q-0224"],
+            style_table="acad.ctb" if table in ("off", "custom") else table,
+            params={"rows": [d for d, _, _ in GRAD_ROWS], "geometry": "row k: gradient HATCH (10..150, 122-27k..142-27k); SOLID refs ACI 1, 5, 3 at x 160..190 rows 0-2"},
+            outputs=["png"],
+        )
+        if table == "off":
+            c.plot.extra["plotStyles"] = False
+        if table == "custom":
+            c.plot_style_table("truedxf-gradient-pens-green.ctb", ctb_bytes({a: {"color": rgb_color(*GREEN), "color_policy": 5} for a in range(1, 256)}))
+        for k, (_, ent, (a1, c1, a2, c2, one, tint)) in enumerate(GRAD_ROWS):
+            y = 122 - 27 * k
+            h = c.msp.add_hatch(color=ent)
+            h.set_gradient(color1=c1, color2=c2, rotation=0, name="LINEAR", one_color=one, tint=tint)
+            h.gradient.aci1 = a1
+            h.gradient.aci2 = a2
+            h.paths.add_polyline_path([(10, y), (150, y), (150, y + 20), (10, y + 20)], is_closed=True)
+        for k, aci in enumerate((1, 5, 3)):
+            y = 122 - 27 * k
+            solid_rect(c.msp, 160, y, 190, y + 20, {"color": aci})
+        c.window((0, 0), (200, 150))

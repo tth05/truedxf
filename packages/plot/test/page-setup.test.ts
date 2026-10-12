@@ -203,6 +203,22 @@ describe("plotPlacement (note 08 §10.17)", () => {
         expect(at(3)).toEqual([1560 - 100, 1140 - 50]);
     });
 
+    it("moves window plots by 46/47 along the paper axes (Q-0761)", () => {
+        const window = (rot: number) =>
+            readPageSetup(
+                layout(
+                    ...marginsSheet(rot, [46, 100], [47, 50], [48, 0], [49, 0], [140, 500], [141, 500]).map(
+                        (t): Tag => (t[0] === 74 ? [74, 4] : t),
+                    ),
+                ),
+            );
+        const at = (rot: number) => apply(plotPlacement(window(rot)).matrix, 0, 0);
+        expect(at(0)).toEqual([100, 1090]);
+        expect(at(1)).toEqual([50, 100]);
+        expect(at(2)).toEqual([1460, 50]);
+        expect(at(3)).toEqual([1510, 1040]);
+    });
+
     it("shifts layout plots by 148/149 and ignores them for windows", () => {
         const image: Tag[] = [
             [148, 100],

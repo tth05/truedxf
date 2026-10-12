@@ -80,6 +80,10 @@ const EPS = 1e-9;
  * Adaptive mode: N = max(1, round(L / F)) repetitions of the pattern scaled by L / (N·F),
  * starting in the middle of the first dash. AutoCAD applies it to each LINE and polyline
  * segment separately and never to circles and arcs (note 06 §6.7).
+ *
+ * On wide lines each dash is a butt-ended stroke; the pen's end style applies only where the
+ * curve itself starts or ends inside a dash, a polyline vertex inside a dash gets the pen's join
+ * style, and dots are discs of the line width (VERIFIED-BY-ACAD, Q-0761, note 06 §6.7).
  */
 export function penLinetypeDashes(
     linetype: number,

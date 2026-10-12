@@ -98,8 +98,8 @@ export interface PageSetup {
     readonly scale: PlotScale;
     /**
      * Plot offset (46/47): mm (also in inch setups), pixels on raster setups. Measured from the
-     * paper origin's printable corner along the device axes, into the sheet (Q-0757, note 08
-     * §2.1); see `plotPlacement`.
+     * paper origin's printable corner, along the device axes for layout plots and the paper axes
+     * for window plots (Q-0757, Q-0761, note 08 §2.1); see `plotPlacement`.
      */
     readonly offset: Point2;
     /**
@@ -255,13 +255,15 @@ export interface PlotPlacement {
 /**
  * Where a page setup puts the drawing on the device (note 08 §2.1, §2.5, §10.17; VERIFIED-BY-ACAD
  * 2026-10-12 for the margins, rotations, offsets and 148/149 of stored page setups plotted with
- * PLOTROTMODE 2):
+ * PLOTROTMODE 2, the default; a DXF does not carry PLOTROTMODE):
  *
  * - The device prints the printable area: the sheet (44/45) minus the margins (40–43), both in
  *   device orientation. The paper origin is its bottom-left / top-left / top-right /
  *   bottom-right corner for rotation 0 / 1 / 2 / 3.
- * - The offset (46/47) moves the origin along the device width / height into the sheet, so in
- *   paper coordinates it is (46, 47) for rotations 0/2 and (47, 46) for 1/3.
+ * - Layout plots: the offset (46/47) moves the origin along the device width / height into the
+ *   sheet, so in paper coordinates it is (46, 47) for rotations 0/2 and (47, 46) for 1/3.
+ *   Window plots: (46, 47) along the paper axes for every rotation (Q-0761). Other plot types
+ *   are treated like windows (not verified).
  * - A window plot puts the window's lower-left corner on the origin; a layout plot puts paper
  *   (0, 0) there, shifted by 148/149 (only verified unrotated).
  * - Centred plots ignore the offset and centre the plotted area in the printable area (AutoCAD
@@ -305,13 +307,18 @@ export function plotPlacement(setup: PageSetup, options: PlotPlacementOptions = 
         tx = -k * bounds!.min.x;
         ty = -k * bounds!.min.y;
     }
-    let ox = setup.offset.x * perMm;
-    let oy = setup.offset.y * perMm;
-    if (setup.centered && !layout) {
+    // Device-axis offset (layout plots only).
+    let ox = 0;
+    let oy = 0;
+    if (layout) {
+        ox = setup.offset.x * perMm;
+        oy = setup.offset.y * perMm;
+    } else if (setup.centered) {
         tx += (pw - k * aw) / 2;
         ty += (ph - k * ah) / 2;
-        ox = 0;
-        oy = 0;
+    } else {
+        tx += (setup.offset.x * perMm) / m;
+        ty += (setup.offset.y * perMm) / m;
     }
 
     const s = m * k;

@@ -23,9 +23,9 @@ const mod = (a: number, n: number) => ((a % n) + n) % n;
 
 /**
  * Whether device pixel (u, v) of an area fill is inked under `fillStyle`: u = column from the
- * left, v = row from the bottom of the device image (note 06 §6.8). Every harness canvas is a
- * multiple of 20 px high, so counting rows from the top gives the same pixels there; which edge
- * the tiles are anchored to is Q-0760.
+ * left, v = H − 1 − row of the device image (the printable area, H high). The tiles are anchored
+ * to its bottom-left pixel whatever the rotation, margins and offsets (VERIFIED-BY-ACAD, Q-0760,
+ * note 06 §6.8).
  */
 export function fillStyleInk(fillStyle: number | undefined, u: number, v: number): boolean {
     const a = mod(u, 10);

@@ -107,9 +107,10 @@ Tick items off (or delete them) when done.
       wide pen-linetype dashes are butt-ended, caps only at curve ends, joins inside dashes, dots =
       discs (Q-0761, §6.7); Window plots apply 46/47 along the paper axes, PLOTROTMODE 0/1 table
       (note 08 §2.1, §10.17).
-- [ ] `@truedxf/plot`: apply the Q-0761 results — butt dash ends with caps only at curve ends,
-      joins inside dashes, disc dots on wide pen-linetype lines; 46/47 of rotated Window page
-      setups along the paper axes (note 06 §6.7, note 08 §2.1).
+- [x] `@truedxf/plot`: 46/47 of rotated Window page setups along the paper axes (note 08 §2.1;
+      `plotPlacement`, 2026-10-12).
+- [ ] Renderer, wide pen-linetype lines (Q-0761): butt dash ends with caps only at curve ends,
+      joins inside dashes, disc dots (note 06 §6.7; documented on `penLinetypeDashes`).
 - [x] Apply the measured pen linetypes, fill-style tiles, stored margins (40–43, PNG = printable
       area), 46/47 device-axis offsets and 148/149 layout shift in `@truedxf/plot`
       (`penLinetypeDashes`, `fillStyleInk`, `plotPlacement`; 2026-10-12).

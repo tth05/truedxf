@@ -52,8 +52,8 @@ describe("readPageSetup", () => {
                 [73, 1],
                 [74, 5],
                 [7, "acad.ctb"],
-                [75, 25],
-                [147, 1],
+                [75, 26],
+                [147, 0.02],
                 [76, 0],
                 [100, "AcDbLayout"],
                 [1, "Layout1"],
@@ -70,7 +70,7 @@ describe("readPageSetup", () => {
             paperUnits: PlotPaperUnits.Millimeters,
             rotation: 1,
             area: { kind: "layout" },
-            scale: { paper: 1, drawing: 50 },
+            scale: { paper: 0.02, drawing: 1 },
             offset: { x: 1.5, y: 2.5 },
             centered: false,
             styleSheet: "acad.ctb",
@@ -110,14 +110,26 @@ describe("readPageSetup", () => {
         expect(paperMmPerDrawingUnit(setup)).toBeCloseTo(25.4 / 96);
     });
 
-    it("maps standard scale 0 to fit and imperial scales to inches per foot", () => {
-        const fit = readPageSetup(layout([100, "AcDbPlotSettings"], [70, 16], [75, 0], [100, "AcDbLayout"]));
+    it("takes the scale from 147 with bit 16, 75 = 0 meaning fit (note 08 §2.1)", () => {
+        const fit = readPageSetup(
+            layout([100, "AcDbPlotSettings"], [70, 16], [75, 0], [147, 0.3], [100, "AcDbLayout"]),
+        );
         expect(fit.scale).toBe("fit");
         expect(paperMmPerDrawingUnit(fit)).toBeUndefined();
-        const quarter = readPageSetup(
-            layout([100, "AcDbPlotSettings"], [70, 16], [72, 0], [75, 8], [100, "AcDbLayout"]),
-        );
-        expect(quarter.scale).toEqual({ paper: 0.25, drawing: 12 });
+        // 75 = 17 (1:2) and 142/143 = 1:4 are ignored; 147 decides.
+        const settings = (flags: number): Tag[] => [
+            [100, "AcDbPlotSettings"],
+            [142, 1],
+            [143, 4],
+            [70, flags],
+            [72, 1],
+            [75, 17],
+            [147, 0.5],
+            [100, "AcDbLayout"],
+        ];
+        expect(readPageSetup(layout(...settings(16))).scale).toEqual({ paper: 0.5, drawing: 1 });
+        // Bit 16 clear: 142/143, whatever 75 and 147 say.
+        expect(readPageSetup(layout(...settings(0))).scale).toEqual({ paper: 1, drawing: 4 });
     });
 
     it("falls back to 1:1 for a degenerate custom scale", () => {

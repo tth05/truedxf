@@ -36,9 +36,10 @@ export const PlotPaperUnits = { Inches: 0, Millimeters: 1, Pixels: 2 } as const;
 export type PlotPaperUnits = (typeof PlotPaperUnits)[keyof typeof PlotPaperUnits];
 
 /**
- * Standard scales (75) as [paper units, drawing units]; index 0 = scaled to fit. The imperial
- * ones (1–15) are inches per foot, i.e. paper inches per 12 drawing units (ObjectARX
- * StdScaleType; ezdxf STD_SCALES, note 08 §2.3). 33 = 1 1/2" = 1' (ObjectARX only).
+ * Standard scales (75) as [paper units, drawing units]; index 0 = scaled to fit. ObjectARX
+ * StdScaleType: the imperial ones (1–15, 34) are paper inches per foot. ezdxf's table lacks 1:5
+ * and is one off from 19 on (VERIFIED-BY-ACAD: 26 = 1:50, 27 = 1:100, note 08 §2.3). The plot
+ * scale itself comes from 147, so this table is for display.
  */
 // biome-ignore format: data table
 export const STANDARD_SCALES: readonly (readonly [number, number])[] = Object.freeze([
@@ -46,8 +47,8 @@ export const STANDARD_SCALES: readonly (readonly [number, number])[] = Object.fr
     [1 / 128, 12], [1 / 64, 12], [1 / 32, 12], [1 / 16, 12], [3 / 32, 12], [1 / 8, 12],
     [3 / 16, 12], [1 / 4, 12], [3 / 8, 12], [1 / 2, 12], [3 / 4, 12], [1, 12], [3, 12],
     [6, 12], [12, 12],
-    [1, 1], [1, 2], [1, 4], [1, 8], [1, 10], [1, 16], [1, 20], [1, 30], [1, 40], [1, 50],
-    [1, 100], [2, 1], [4, 1], [8, 1], [10, 1], [100, 1], [1000, 1],
+    [1, 1], [1, 2], [1, 4], [1, 5], [1, 8], [1, 10], [1, 16], [1, 20], [1, 30], [1, 40],
+    [1, 50], [1, 100], [2, 1], [4, 1], [8, 1], [10, 1], [100, 1], [1000, 1],
     [1.5, 12],
 ] as const);
 
@@ -69,10 +70,13 @@ export interface PageSetup {
     readonly device: string;
     /** Canonical media name (4), e.g. "ISO_A4_(210.00_x_297.00_MM)". */
     readonly media: string;
-    /** Physical paper size in mm, in unrotated device orientation (44/45). */
+    /**
+     * Physical paper size (44/45), unrotated: mm, but pixels for raster setups (72 = 2)
+     * (VERIFIED-BY-ACAD, note 08 §2.1).
+     */
     readonly paperWidth: number;
     readonly paperHeight: number;
-    /** Unprintable margins in mm (40–43), unrotated. */
+    /** Unprintable margins (40–43) in the units of the paper size, unrotated. */
     readonly margins: {
         readonly left: number;
         readonly bottom: number;
@@ -80,11 +84,15 @@ export interface PageSetup {
         readonly top: number;
     };
     readonly paperUnits: PlotPaperUnits;
-    /** Raw 73: 0 none, 1 = 90°, 2 = 180°, 3 = 270° (direction: Q-0706). */
+    /**
+     * Raw 73. Paper point (x, y) → canvas column/row (W × H, row 0 at the top): 0 (x, H−1−y)
+     * upright; 1 (y, x) 90° clockwise; 2 (W−1−x, y) 180°; 3 (W−1−y, H−1−x) 90° counter-clockwise
+     * (VERIFIED-BY-ACAD, Q-0706, note 08 §10.17). How margins rotate is still open.
+     */
     readonly rotation: 0 | 1 | 2 | 3;
     readonly area: PlotArea;
     readonly scale: PlotScale;
-    /** Plot offset (46/47), always mm. Ignored when `centered`. */
+    /** Plot offset (46/47): mm (also in inch setups), pixels on raster setups. */
     readonly offset: Point2;
     readonly centered: boolean;
     /** Plot style table file name (7), undefined = none. */
@@ -128,9 +136,13 @@ function plotArea(s: PlotSettings): PlotArea {
     }
 }
 
+// Bit 16 set: 75 = 0 is Fit, otherwise the scale is 147 (75 and 142/143 are ignored); bit 16
+// clear: 142/143 (VERIFIED-BY-ACAD, note 08 §2.1). ezdxf writes 147 as a unit factor
+// (1/25.4 for inch layouts), which AutoCAD plots as that scale.
 function plotScale(s: PlotSettings): PlotScale {
     if (s.plotFlags & PlotFlags.UseStandardScale) {
         if (s.standardScaleType === 0) return "fit";
+        if (s.scaleFactor > 0) return { paper: s.scaleFactor, drawing: 1 };
         const std = STANDARD_SCALES[s.standardScaleType];
         if (std) return { paper: std[0], drawing: std[1] };
     }

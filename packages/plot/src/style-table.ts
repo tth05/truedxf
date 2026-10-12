@@ -5,7 +5,6 @@
 // tree, so nothing is dropped. Pens/styles default to "use object …" for every property a file
 // leaves out.
 
-import { aciToRgb } from "@truedxf/model";
 import {
     decodePia,
     encodePia,
@@ -19,33 +18,27 @@ import {
 
 export type PlotStyleTableKind = "ctb" | "stb";
 
-/** Line end styles (`end_style`); 4 = use the object's style. note 06 §6.3. */
+/** Line end styles (`end_style`); 4 = use the object's (round). note 06 §6.3. */
 export const PlotEndStyle = { Butt: 0, Square: 1, Round: 2, Diamond: 3, Object: 4 } as const;
 export type PlotEndStyle = (typeof PlotEndStyle)[keyof typeof PlotEndStyle];
 
-/** Line join styles (`join_style`); 5 = use the object's style. note 06 §6.3. */
+/** Line join styles (`join_style`); 5 = use the object's (round). note 06 §6.3. */
 export const PlotJoinStyle = { Miter: 0, Bevel: 1, Round: 2, Diamond: 3, Object: 5 } as const;
 export type PlotJoinStyle = (typeof PlotJoinStyle)[keyof typeof PlotJoinStyle];
 
-/** `linetype` 31 = use the object's linetype; 0…30 are the built-in plot linetypes. */
+/** `linetype` 31 = use the object's linetype; 0 = solid, 1…30 = built-in dash patterns. */
 export const OBJECT_LINETYPE = 31;
-/** `fill_style` 73 = use the object's fill; 64…72 are solid, checkerboard, … vertical bars. */
+/** `fill_style` 73 = use the object's fill; 64 solid … 72 vertical bars. note 06 §6.3. */
 export const OBJECT_FILL_STYLE = 73;
-
-/**
- * `lineweight` values that mean "use object lineweight". ezdxf writes 0 (an index into the
- * lineweight table whose entry 0 is 0.00 mm); AutoCAD's pen tables are widely reported to use 255.
- * CONFLICT (note 06 §6.3): until verified both count as "object", and any other index outside the
- * table does too.
- */
-export const OBJECT_LINEWEIGHTS: ReadonlySet<number> = new Set([0, 255]);
-
-/** `color` value meaning "use object colour". */
+/** `lineweight` 0 = use the object lineweight; N ≥ 1 is a 1-based table index. */
+export const OBJECT_LINEWEIGHT = 0;
+/** `color` value written for "use object colour" (any value whose low 24 bits are 0xFFFFFF is). */
 export const OBJECT_COLOR = -1;
 
-// AcCmColor method bytes in the top 8 bits of a colour value (note 02 raw colours).
-const BY_COLOR = 0xc2;
-const BY_ACI = 0xc3;
+/** `color_policy` values that ignore the pen colour (VERIFIED-BY-ACAD, note 06 §6.3). */
+const OBJECT_COLOR_POLICIES: ReadonlySet<number> = new Set([1, 6, 7]);
+/** `color_policy` values that convert to grayscale. */
+const GRAYSCALE_POLICIES: ReadonlySet<number> = new Set([2, 3]);
 
 /** The 27 lineweights (mm) of AutoCAD's default `custom_lineweight_table`. note 06 §6.3. */
 // biome-ignore format: data table
@@ -58,14 +51,14 @@ export interface PlotStyle {
     readonly name: string;
     readonly localizedName: string;
     readonly description: string;
-    /** Pen colour as 0xRRGGBB, undefined = use object colour. */
+    /** Pen colour as 0xRRGGBB, undefined = use object colour (also when the policy ignores it). */
     readonly color: number | undefined;
-    /** Raw `color` and `mode_color` values (signed int32 AcCmColor). */
+    /** Raw `color` and `mode_color` (signed int32; `mode_color` undefined when absent). */
     readonly rawColor: number;
-    readonly rawModeColor: number;
-    /** `color_policy` bit 1. */
-    readonly dither: boolean;
-    /** `color_policy` bit 2: convert to grayscale. */
+    readonly rawModeColor: number | undefined;
+    /** Raw `color_policy`: not a clean bitfield, see `color` and `grayscale`. */
+    readonly colorPolicy: number;
+    /** Convert to grayscale (policies 2 and 3). */
     readonly grayscale: boolean;
     readonly physicalPen: number;
     readonly virtualPen: number;
@@ -75,9 +68,9 @@ export interface PlotStyle {
     /** Built-in plot linetype 0…30, undefined = use object linetype. */
     readonly linetype: number | undefined;
     readonly adaptiveLinetype: boolean;
-    /** Raw `lineweight` (an index into the table's lineweights). */
+    /** Raw `lineweight`: 0 = object, N ≥ 1 = `lineweights[N − 1]`. */
     readonly lineweightIndex: number;
-    /** Pen lineweight in mm, undefined = use object lineweight. */
+    /** Pen lineweight in mm (0 = thinnest), undefined = use object lineweight. */
     readonly lineweight: number | undefined;
     /** 64…72, undefined = use object fill. */
     readonly fillStyle: number | undefined;
@@ -92,9 +85,9 @@ export interface PlotStyleTable {
     readonly description: string;
     readonly scaleFactor: number;
     readonly applyFactor: boolean;
-    /** `custom_lineweight_display_units`: display only, the table values are always mm. */
+    /** `custom_lineweight_display_units` (0 mm, 1 inch): display only, the values are mm. */
     readonly lineweightDisplayUnits: number;
-    /** Lineweight table in mm, indexed by `PlotStyle.lineweightIndex`. */
+    /** Lineweight table in mm (`custom_lineweight_table`). */
     readonly lineweights: readonly number[];
     /** CTB: 255 pens, index = ACI − 1. STB: named styles, "Normal" first. */
     readonly styles: readonly PlotStyle[];
@@ -116,23 +109,18 @@ export function styleByName(table: PlotStyleTable, name: string): PlotStyle | un
 }
 
 /**
- * Decodes a plot style colour value. -1 = object; method 0xC2 = true colour in the low 24 bits;
- * 0xC3 = ACI in the low 24 bits (0xC3FFFFFF is ezdxf's second "object" marker).
+ * Decodes a pen colour value. Only the low 24 bits count, as RGB; the high byte (0xC2, 0xC3, 0xFF
+ * …) is ignored, so 0xC300001E is RGB 00001E, not ACI 30. Low bits 0xFFFFFF = use object colour,
+ * hence a pen cannot force pure white (VERIFIED-BY-ACAD, note 06 §6.3).
  */
 export function decodePlotStyleColor(raw: number): number | undefined {
-    const u = raw >>> 0;
-    const method = u >>> 24;
-    if (method === BY_COLOR) return u & 0xffffff;
-    if (method === BY_ACI) {
-        const aci = u & 0xffffff;
-        return aci >= 1 && aci <= 255 ? aciToRgb(aci) : undefined;
-    }
-    return undefined;
+    const rgb = raw & 0xffffff;
+    return rgb === 0xffffff ? undefined : rgb;
 }
 
-/** The signed int32 a CTB stores for a true colour. */
+/** The signed int32 a CTB stores for an explicit colour (the form monochrome.ctb uses). */
 export function encodePlotStyleColor(rgb: number): number {
-    return (BY_COLOR << 24) | (rgb & 0xffffff) | 0;
+    return 0xff000000 | (rgb & 0xffffff) | 0;
 }
 
 function children(node: PiaNode | undefined): readonly PiaNode[] {
@@ -145,23 +133,27 @@ function get(nodes: readonly PiaNode[], key: string): string | undefined {
 
 function readStyle(nodes: readonly PiaNode[], lineweights: readonly number[]): PlotStyle {
     const rawColor = piaNumber(get(nodes, "color"), OBJECT_COLOR) | 0;
+    const modeText = get(nodes, "mode_color");
+    const rawModeColor = modeText === undefined ? undefined : piaNumber(modeText, OBJECT_COLOR) | 0;
     const policy = piaNumber(get(nodes, "color_policy"), 1);
-    const lineweightIndex = piaNumber(get(nodes, "lineweight"), 255);
+    const lineweightIndex = piaNumber(get(nodes, "lineweight"), OBJECT_LINEWEIGHT);
     const linetype = piaNumber(get(nodes, "linetype"), OBJECT_LINETYPE);
     const fill = piaNumber(get(nodes, "fill_style"), OBJECT_FILL_STYLE);
     const end = piaNumber(get(nodes, "end_style"), PlotEndStyle.Object);
     const join = piaNumber(get(nodes, "join_style"), PlotJoinStyle.Object);
     const name = piaString(get(nodes, "name"));
+    // mode_color wins unless absent or −1 (the Autodesk-*.stb files carry both).
+    const value = rawModeColor === undefined || rawModeColor === -1 ? rawColor : rawModeColor;
     return {
         name,
         localizedName:
             get(nodes, "localized_name") === undefined ? name : piaString(get(nodes, "localized_name")),
         description: piaString(get(nodes, "description")),
-        color: decodePlotStyleColor(rawColor),
+        color: OBJECT_COLOR_POLICIES.has(policy) ? undefined : decodePlotStyleColor(value),
         rawColor,
-        rawModeColor: piaNumber(get(nodes, "mode_color"), rawColor) | 0,
-        dither: (policy & 1) !== 0,
-        grayscale: (policy & 2) !== 0,
+        rawModeColor,
+        colorPolicy: policy,
+        grayscale: GRAYSCALE_POLICIES.has(policy),
         physicalPen: piaNumber(get(nodes, "physical_pen_number"), 0),
         virtualPen: piaNumber(get(nodes, "virtual_pen_number"), 0),
         screening: piaNumber(get(nodes, "screen"), 100),
@@ -169,10 +161,11 @@ function readStyle(nodes: readonly PiaNode[], lineweights: readonly number[]): P
         linetype: linetype >= 0 && linetype < OBJECT_LINETYPE ? linetype : undefined,
         adaptiveLinetype: piaBool(get(nodes, "adaptive_linetype"), true),
         lineweightIndex,
+        // 1-based; 0 and indices past the table end (e.g. 255) = object (note 06 §6.3, `lw-index`).
         lineweight:
-            OBJECT_LINEWEIGHTS.has(lineweightIndex) || !(lineweightIndex in lineweights)
-                ? undefined
-                : lineweights[lineweightIndex],
+            lineweightIndex >= 1 && lineweightIndex <= lineweights.length
+                ? lineweights[lineweightIndex - 1]
+                : undefined,
         fillStyle: fill >= 64 && fill < OBJECT_FILL_STYLE ? fill : undefined,
         endStyle: end >= 0 && end < PlotEndStyle.Object ? (end as PlotEndStyle) : undefined,
         joinStyle: join >= 0 && join <= PlotJoinStyle.Diamond ? (join as PlotJoinStyle) : undefined,
@@ -187,7 +180,7 @@ export function plotStyleTableFromNodes(nodes: readonly PiaNode[], kind: PlotSty
         const i = Number.parseInt(n.key, 10);
         if (Number.isInteger(i) && i >= 0) lineweights[i] = piaNumber(n.value, 0);
     }
-    const table = lwNodes.length > 0 ? lineweights : DEFAULT_PLOT_LINEWEIGHTS;
+    const table = lwNodes.length > 0 ? Array.from(lineweights, (mm) => mm ?? 0) : DEFAULT_PLOT_LINEWEIGHTS;
     const styleNodes = children(nodes.find((n) => n.key === "plot_style")).filter((n) => n.children);
     // Entries are keyed 0, 1, 2 …; order by key so a CTB pen index is always ACI − 1.
     const ordered = [...styleNodes].sort((a, b) => Number(a.key) - Number(b.key));
@@ -218,7 +211,9 @@ export function writePlotStyleTable(table: PlotStyleTable): Uint8Array {
 
 /** Overrides for one pen when building a table; omitted properties use the object's. */
 export interface PenSpec {
+    /** Explicit pen colour (not 0xFFFFFF, which means "object"). */
     readonly color?: number;
+    /** 1-based index into the lineweight table. */
     readonly lineweightIndex?: number;
     readonly screening?: number;
     readonly grayscale?: boolean;
@@ -230,24 +225,28 @@ export interface PenSpec {
 
 const val = (key: string, value: string | number): PiaNode => ({ key, value: String(value) });
 
+// The policies the stock tables use: 1 object, 3 grayscale, 5 explicit colour, 2 colour + grayscale.
+function policyFor(spec: PenSpec): number {
+    if (spec.color === undefined) return spec.grayscale ? 3 : 1;
+    return spec.grayscale ? 2 : 5;
+}
+
 function penNodes(index: number, name: string, spec: PenSpec): PiaNode {
-    const color = spec.color === undefined ? OBJECT_COLOR : encodePlotStyleColor(spec.color);
     return {
         key: String(index),
         children: [
             val("name", `"${name}`),
             val("localized_name", `"${name}`),
             val("description", '"'),
-            val("color", color),
-            val("mode_color", color),
-            val("color_policy", 1 | (spec.grayscale ? 2 : 0)),
+            val("color", spec.color === undefined ? OBJECT_COLOR : encodePlotStyleColor(spec.color)),
+            val("color_policy", policyFor(spec)),
             val("physical_pen_number", 0),
             val("virtual_pen_number", 0),
             val("screen", spec.screening ?? 100),
             val("linepattern_size", "0.5"),
             val("linetype", spec.linetype ?? OBJECT_LINETYPE),
             val("adaptive_linetype", "TRUE"),
-            val("lineweight", spec.lineweightIndex ?? 255),
+            val("lineweight", spec.lineweightIndex ?? OBJECT_LINEWEIGHT),
             val("fill_style", spec.fillStyle ?? OBJECT_FILL_STYLE),
             val("end_style", spec.endStyle ?? PlotEndStyle.Object),
             val("join_style", spec.joinStyle ?? PlotJoinStyle.Object),
@@ -297,21 +296,113 @@ export function buildNamedTable(
 }
 
 /**
- * Behavioural equivalents of the standard tables (we cannot ship Autodesk's files): acad.ctb uses
- * the object's properties for every pen; monochrome.ctb plots every pen black (true colours are an
- * exception the caller handles, note 08 §10.7).
+ * Behavioural equivalents of the stock tables, which we cannot ship (pen values from note 06
+ * §6.3): acad.ctb and "Screening 100%.ctb" use the object for everything, monochrome.ctb has
+ * black pens, Grayscale.ctb policy 3, "Screening n%.ctb" screen n, "Fill Patterns.ctb" fill
+ * styles 64…72 on pens 1…9.
  */
 export const ACAD_CTB: PlotStyleTable = buildColorTable("acad.ctb equivalent");
 export const MONOCHROME_CTB: PlotStyleTable = buildColorTable("monochrome.ctb equivalent", () => ({
     color: 0,
 }));
+export const GRAYSCALE_CTB: PlotStyleTable = buildColorTable("Grayscale.ctb equivalent", () => ({
+    grayscale: true,
+}));
 
-const BUILTIN = new Map<string, PlotStyleTable>([
-    ["acad.ctb", ACAD_CTB],
-    ["monochrome.ctb", MONOCHROME_CTB],
+const BUILTIN = new Map<string, () => PlotStyleTable>([
+    ["acad.ctb", () => ACAD_CTB],
+    ["monochrome.ctb", () => MONOCHROME_CTB],
+    ["grayscale.ctb", () => GRAYSCALE_CTB],
+    ["screening 100%.ctb", () => ACAD_CTB],
+    ...[25, 50, 75].map(
+        (s) =>
+            [
+                `screening ${s}%.ctb`,
+                () => buildColorTable(`Screening ${s}%.ctb equivalent`, () => ({ screening: s })),
+            ] as const,
+    ),
+    [
+        "fill patterns.ctb",
+        () =>
+            buildColorTable("Fill Patterns.ctb equivalent", (aci) =>
+                aci <= 9 ? { fillStyle: 63 + aci } : {},
+            ),
+    ],
 ]);
 
-/** Built-in equivalent of a standard table by file name (case-insensitive), if there is one. */
+/** Built-in equivalent of a stock table by file name (case-insensitive), if there is one. */
 export function builtinPlotStyleTable(fileName: string): PlotStyleTable | undefined {
-    return BUILTIN.get(fileName.toLowerCase());
+    return BUILTIN.get(fileName.toLowerCase())?.();
+}
+
+/** Grayscale = ⌊0.299 R⌋ + ⌊0.587 G⌋ + ⌊0.114 B⌋, each term floored (VERIFIED-BY-ACAD, note 06 §6.3). */
+export function grayscaleRgb(rgb: number): number {
+    const g =
+        Math.floor(0.299 * ((rgb >> 16) & 255)) +
+        Math.floor(0.587 * ((rgb >> 8) & 255)) +
+        Math.floor(0.114 * (rgb & 255));
+    return (g << 16) | (g << 8) | g;
+}
+
+/** Screening s %: c' = 255 − ⌊(255 − c)·s/100⌋ per channel (VERIFIED-BY-ACAD, note 06 §6.3). */
+export function screenRgb(rgb: number, screening: number): number {
+    if (screening >= 100) return rgb;
+    const s = Math.max(0, screening);
+    const ch = (c: number) => 255 - Math.floor(((255 - c) * s) / 100);
+    return (ch((rgb >> 16) & 255) << 16) | (ch((rgb >> 8) & 255) << 8) | ch(rgb & 255);
+}
+
+/** An object's resolved plot properties before the pen is applied. */
+export interface ObjectPen {
+    /** Plotted RGB (ACI already mapped through the plot palette). */
+    readonly rgb: number;
+    /** Resolved ACI 1…255, or undefined for a true colour (which gets no pen). */
+    readonly aci: number | undefined;
+    /** Resolved lineweight in mm (Default already replaced by LWDEFAULT). */
+    readonly lineweight: number;
+}
+
+export interface PlottedPen {
+    readonly rgb: number;
+    /** mm; 0 = thinnest line. */
+    readonly lineweight: number;
+    readonly endStyle: PlotEndStyle | undefined;
+    readonly joinStyle: PlotJoinStyle | undefined;
+    readonly fillStyle: number | undefined;
+    readonly linetype: number | undefined;
+}
+
+/**
+ * Applies a pen (note 06 §6.5): colour (or the object's), grayscale, then screening; the pen
+ * lineweight or the object's. `style` undefined = no table, plot styles off, or a true-colour
+ * object, all of which plot with object properties. Plot-lineweights off and scale-lineweights
+ * are page-setup switches the caller applies afterwards.
+ */
+export function applyPlotStyle(style: PlotStyle | undefined, object: ObjectPen): PlottedPen {
+    if (!style)
+        return {
+            rgb: object.rgb,
+            lineweight: object.lineweight,
+            endStyle: undefined,
+            joinStyle: undefined,
+            fillStyle: undefined,
+            linetype: undefined,
+        };
+    let rgb = style.color ?? object.rgb;
+    if (style.grayscale) rgb = grayscaleRgb(rgb);
+    rgb = screenRgb(rgb, style.screening);
+    return {
+        rgb,
+        lineweight: style.lineweight ?? object.lineweight,
+        endStyle: style.endStyle,
+        joinStyle: style.joinStyle,
+        fillStyle: style.fillStyle,
+        linetype: style.linetype,
+    };
+}
+
+/** The CTB pen for an object: its resolved ACI; true colours (aci undefined) get none (note 06 §6.4). */
+export function penForObject(table: PlotStyleTable | undefined, object: ObjectPen): PlotStyle | undefined {
+    if (!table || object.aci === undefined) return undefined;
+    return penForAci(table, object.aci);
 }

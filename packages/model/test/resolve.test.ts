@@ -524,7 +524,7 @@ describe("resolveProperties: viewports", () => {
 
 describe("resolveProperties: plot styles", () => {
     const doc = makeDoc({
-        layers: [{ name: "0", plotStyle: "F" }],
+        layers: [{ name: "0", plotStyle: "E2" }],
         entities: [
             ...line([[8, "0"]]),
             ...line([
@@ -535,6 +535,15 @@ describe("resolveProperties: plot styles", () => {
             ...line([
                 [8, "0"],
                 [380, 2],
+            ]),
+            ...line([
+                [8, "0"],
+                [380, 1],
+            ]),
+            ...line([
+                [8, "0"],
+                [380, 0],
+                [390, "E1"],
             ]),
         ],
         objects: [
@@ -554,8 +563,14 @@ describe("resolveProperties: plot styles", () => {
     });
     it("resolves BYLAYER, object and dictionary-default plot styles", () => {
         const [e0, e1, e2] = doc.modelSpace.entities as [Entity, Entity, Entity];
-        expect(resolveProperties(e0, { doc, parents: [] }).plotStyleHandle).toBe("F");
+        expect(resolveProperties(e0, { doc, parents: [] }).plotStyleHandle).toBe("E2");
         expect(resolveProperties(e1, { doc, parents: [] }).plotStyleHandle).toBe("E1");
         expect(resolveProperties(e2, { doc, parents: [] }).plotStyleHandle).toBe("F");
+    });
+
+    it("gives top-level BYBLOCK the default and lets 390 win over 380 (note 06 §6.2)", () => {
+        const [, , , e3, e4] = doc.modelSpace.entities as Entity[];
+        expect(resolveProperties(e3!, { doc, parents: [] }).plotStyleHandle).toBe("F");
+        expect(resolveProperties(e4!, { doc, parents: [] }).plotStyleHandle).toBe("E1");
     });
 });

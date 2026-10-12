@@ -345,16 +345,16 @@ export class PropertyResolver {
         lp: LayerProps,
         parent: ResolvedProperties | undefined,
     ): string | undefined {
-        const rec = entity.record;
-        const i = rec.find(380);
-        const type = i < 0 ? (entity.plotStyleHandle ? 3 : 0) : rec.store.int(i);
-        switch (type) {
+        // 390 wins; otherwise 380 (absent = 0 = BYLAYER; 3 without 390 is BYLAYER too). BYBLOCK
+        // at top level is the dictionary default, not the layer's style (VERIFIED-BY-ACAD
+        // plotstyles/stb-resolution, note 06 §6.2).
+        if (entity.plotStyleHandle) return entity.plotStyleHandle;
+        const i = entity.record.find(380);
+        switch (i < 0 ? 0 : entity.record.store.int(i)) {
             case 1:
-                return parent ? parent.plotStyleHandle : lp.plotStyleHandle;
+                return parent ? parent.plotStyleHandle : this.defaultPlotStyle();
             case 2:
                 return this.defaultPlotStyle();
-            case 3:
-                return entity.plotStyleHandle ?? lp.plotStyleHandle;
             default:
                 return lp.plotStyleHandle;
         }

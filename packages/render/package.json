@@ -1,58 +1,58 @@
 {
-  "name": "@truedxf/render",
-  "version": "0.0.0",
-  "description": "Rendering frontend: layouts, viewports, blocks, properties, draw order to a renderer-agnostic display list",
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/tth05/truedxf.git",
-    "directory": "packages/render"
-  },
-  "homepage": "https://github.com/tth05/truedxf/tree/master/packages/render#readme",
-  "bugs": "https://github.com/tth05/truedxf/issues",
-  "keywords": [
-    "dxf",
-    "cad",
-    "renderer",
-    "autocad",
-    "plot"
-  ],
-  "type": "module",
-  "sideEffects": [
-    "./src/draw/*.ts",
-    "./src/text.ts",
-    "./src/index.ts",
-    "./dist/draw/*.js",
-    "./dist/text.js",
-    "./dist/index.js"
-  ],
-  "exports": {
-    ".": "./src/index.ts"
-  },
-  "publishConfig": {
+    "name": "@truedxf/render",
+    "version": "0.0.0",
+    "description": "Rendering frontend: layouts, viewports, blocks, properties, draw order to a renderer-agnostic display list",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/tth05/truedxf.git",
+        "directory": "packages/render"
+    },
+    "homepage": "https://github.com/tth05/truedxf/tree/master/packages/render#readme",
+    "bugs": "https://github.com/tth05/truedxf/issues",
+    "keywords": [
+        "dxf",
+        "cad",
+        "renderer",
+        "autocad",
+        "plot"
+    ],
+    "type": "module",
+    "sideEffects": [
+        "./src/draw/*.ts",
+        "./src/text.ts",
+        "./src/index.ts",
+        "./dist/draw/*.js",
+        "./dist/text.js",
+        "./dist/index.js"
+    ],
     "exports": {
-      ".": {
-        "types": "./dist/index.d.ts",
-        "default": "./dist/index.js"
-      }
+        ".": "./src/index.ts"
+    },
+    "publishConfig": {
+        "exports": {
+            ".": {
+                "types": "./dist/index.d.ts",
+                "default": "./dist/index.js"
+            }
+        }
+    },
+    "files": [
+        "dist",
+        "src"
+    ],
+    "dependencies": {
+        "@truedxf/core": "workspace:^",
+        "@truedxf/fonts": "workspace:^",
+        "@truedxf/geometry": "workspace:^",
+        "@truedxf/model": "workspace:^",
+        "@truedxf/text": "workspace:^",
+        "earcut": "^3.2.4",
+        "fast-png": "^8.0.0",
+        "jpeg-js": "^0.4.4",
+        "utif": "^3.1.0"
+    },
+    "devDependencies": {
+        "@types/earcut": "^3.0.0"
     }
-  },
-  "files": [
-    "dist",
-    "src"
-  ],
-  "dependencies": {
-    "@truedxf/core": "workspace:^",
-    "@truedxf/fonts": "workspace:^",
-    "@truedxf/geometry": "workspace:^",
-    "@truedxf/model": "workspace:^",
-    "@truedxf/text": "workspace:^",
-    "earcut": "^3.2.4",
-    "fast-png": "^8.0.0",
-    "jpeg-js": "^0.4.4",
-    "utif": "^3.1.0"
-  },
-  "devDependencies": {
-    "@types/earcut": "^3.0.0"
-  }
 }

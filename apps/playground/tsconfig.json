@@ -1,18 +1,18 @@
 {
-  "extends": "../../tsconfig.base.json",
-  "compilerOptions": {
-    "rootDir": ".",
-    "outDir": "node_modules/.tsc",
-    "types": ["node"],
-    "lib": ["ES2023", "DOM", "DOM.Iterable"]
-  },
-  "include": ["src", "server", "scripts", "vite.config.ts"],
-  "references": [
-    {
-      "path": "../../packages/three"
+    "extends": "../../tsconfig.base.json",
+    "compilerOptions": {
+        "rootDir": ".",
+        "outDir": "node_modules/.tsc",
+        "types": ["node"],
+        "lib": ["ES2023", "DOM", "DOM.Iterable"]
     },
-    {
-      "path": "../../packages/viewer"
-    }
-  ]
+    "include": ["src", "server", "scripts", "vite.config.ts"],
+    "references": [
+        {
+            "path": "../../packages/three"
+        },
+        {
+            "path": "../../packages/viewer"
+        }
+    ]
 }

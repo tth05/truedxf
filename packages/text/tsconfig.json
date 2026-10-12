@@ -1,20 +1,20 @@
 {
-  "extends": "../../tsconfig.base.json",
-  "compilerOptions": {
-    "rootDir": "src",
-    "outDir": "dist",
-    "types": []
-  },
-  "include": ["src", "../../types/web-globals.d.ts"],
-  "references": [
-    {
-      "path": "../core"
+    "extends": "../../tsconfig.base.json",
+    "compilerOptions": {
+        "rootDir": "src",
+        "outDir": "dist",
+        "types": []
     },
-    {
-      "path": "../fonts"
-    },
-    {
-      "path": "../geometry"
-    }
-  ]
+    "include": ["src", "../../types/web-globals.d.ts"],
+    "references": [
+        {
+            "path": "../core"
+        },
+        {
+            "path": "../fonts"
+        },
+        {
+            "path": "../geometry"
+        }
+    ]
 }

@@ -1,44 +1,44 @@
 {
-  "name": "@truedxf/model",
-  "version": "0.0.0",
-  "description": "Lossless typed DXF document model: header, tables, blocks, entities, objects, property resolution",
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/tth05/truedxf.git",
-    "directory": "packages/model"
-  },
-  "homepage": "https://github.com/tth05/truedxf/tree/master/packages/model#readme",
-  "bugs": "https://github.com/tth05/truedxf/issues",
-  "keywords": [
-    "dxf",
-    "cad",
-    "autocad",
-    "document-model"
-  ],
-  "type": "module",
-  "sideEffects": [
-    "./src/entities/*.ts",
-    "./src/*.ts",
-    "./dist/entities/*.js",
-    "./dist/*.js"
-  ],
-  "exports": {
-    ".": "./src/index.ts"
-  },
-  "publishConfig": {
+    "name": "@truedxf/model",
+    "version": "0.0.0",
+    "description": "Lossless typed DXF document model: header, tables, blocks, entities, objects, property resolution",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/tth05/truedxf.git",
+        "directory": "packages/model"
+    },
+    "homepage": "https://github.com/tth05/truedxf/tree/master/packages/model#readme",
+    "bugs": "https://github.com/tth05/truedxf/issues",
+    "keywords": [
+        "dxf",
+        "cad",
+        "autocad",
+        "document-model"
+    ],
+    "type": "module",
+    "sideEffects": [
+        "./src/entities/*.ts",
+        "./src/*.ts",
+        "./dist/entities/*.js",
+        "./dist/*.js"
+    ],
     "exports": {
-      ".": {
-        "types": "./dist/index.d.ts",
-        "default": "./dist/index.js"
-      }
+        ".": "./src/index.ts"
+    },
+    "publishConfig": {
+        "exports": {
+            ".": {
+                "types": "./dist/index.d.ts",
+                "default": "./dist/index.js"
+            }
+        }
+    },
+    "files": [
+        "dist",
+        "src"
+    ],
+    "dependencies": {
+        "@truedxf/core": "workspace:^"
     }
-  },
-  "files": [
-    "dist",
-    "src"
-  ],
-  "dependencies": {
-    "@truedxf/core": "workspace:^"
-  }
 }

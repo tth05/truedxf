@@ -1,24 +1,24 @@
 {
-  "name": "@truedxf/tools-corpus",
-  "version": "0.0.0",
-  "private": true,
-  "description": "Corpus runners: parse / round-trip / model checks over samples/external",
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/tth05/truedxf.git",
-    "directory": "tools/corpus"
-  },
-  "homepage": "https://github.com/tth05/truedxf/tree/master/tools/corpus#readme",
-  "bugs": "https://github.com/tth05/truedxf/issues",
-  "type": "module",
-  "dependencies": {
-    "@truedxf/core": "workspace:*",
-    "@truedxf/model": "workspace:*",
-    "@truedxf/render": "workspace:*",
-    "@truedxf/geometry": "workspace:*"
-  },
-  "devDependencies": {
-    "@types/node": "^26.6.3"
-  }
+    "name": "@truedxf/tools-corpus",
+    "version": "0.0.0",
+    "private": true,
+    "description": "Corpus runners: parse / round-trip / model checks over samples/external",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/tth05/truedxf.git",
+        "directory": "tools/corpus"
+    },
+    "homepage": "https://github.com/tth05/truedxf/tree/master/tools/corpus#readme",
+    "bugs": "https://github.com/tth05/truedxf/issues",
+    "type": "module",
+    "dependencies": {
+        "@truedxf/core": "workspace:*",
+        "@truedxf/model": "workspace:*",
+        "@truedxf/render": "workspace:*",
+        "@truedxf/geometry": "workspace:*"
+    },
+    "devDependencies": {
+        "@types/node": "^26.6.3"
+    }
 }

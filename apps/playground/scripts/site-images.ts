@@ -14,8 +14,8 @@ import { chromium } from "playwright";
 const OUT = resolve(import.meta.dirname, "..", "public");
 
 const MARK =
-  '<svg viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#2f81f7"/>' +
-  '<path d="M8 23 L16 9 L24 23 Z" fill="none" stroke="#fff" stroke-width="2.5" stroke-linejoin="round"/></svg>';
+    '<svg viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#2f81f7"/>' +
+    '<path d="M8 23 L16 9 L24 23 Z" fill="none" stroke="#fff" stroke-width="2.5" stroke-linejoin="round"/></svg>';
 
 /** A small floor plan with a dimension, in the viewer's dark-background colours. */
 const PLAN = `<svg viewBox="0 0 520 420" width="520" height="420" fill="none" stroke-linecap="square">
@@ -59,16 +59,16 @@ const OG = `<!doctype html><html><body style="margin:0">
 
 const browser = await chromium.launch();
 try {
-  const page = await browser.newPage({ viewport: { width: 1200, height: 630 } });
-  await page.setContent(OG);
-  await page.screenshot({ path: join(OUT, "og.png") });
-  await page.setViewportSize({ width: 180, height: 180 });
-  await page.setContent(
-    `<!doctype html><html><body style="margin:0;background:#2f81f7">` +
-      `<div style="width:180px;height:180px">${MARK.replace("<svg", '<svg width="180" height="180"').replace('rx="7"', 'rx="0"')}</div></body></html>`,
-  );
-  await page.screenshot({ path: join(OUT, "apple-touch-icon.png") });
+    const page = await browser.newPage({ viewport: { width: 1200, height: 630 } });
+    await page.setContent(OG);
+    await page.screenshot({ path: join(OUT, "og.png") });
+    await page.setViewportSize({ width: 180, height: 180 });
+    await page.setContent(
+        `<!doctype html><html><body style="margin:0;background:#2f81f7">` +
+            `<div style="width:180px;height:180px">${MARK.replace("<svg", '<svg width="180" height="180"').replace('rx="7"', 'rx="0"')}</div></body></html>`,
+    );
+    await page.screenshot({ path: join(OUT, "apple-touch-icon.png") });
 } finally {
-  await browser.close();
+    await browser.close();
 }
 console.log(`wrote ${join(OUT, "og.png")} and apple-touch-icon.png`);

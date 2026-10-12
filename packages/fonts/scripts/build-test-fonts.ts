@@ -8,8 +8,8 @@ import { buildAssets, TEST_LIN } from "./test-fonts.ts";
 const out = join(dirname(fileURLToPath(import.meta.url)), "..", "assets");
 mkdirSync(out, { recursive: true });
 for (const a of buildAssets()) {
-  writeFileSync(join(out, `${a.name}.shx`), a.shx);
-  writeFileSync(join(out, `${a.name}.shp`), Buffer.from(a.shp, "latin1"));
-  console.log(`${a.name}.shx  ${a.shx.length} bytes`);
+    writeFileSync(join(out, `${a.name}.shx`), a.shx);
+    writeFileSync(join(out, `${a.name}.shp`), Buffer.from(a.shp, "latin1"));
+    console.log(`${a.name}.shx  ${a.shx.length} bytes`);
 }
 writeFileSync(join(out, "truedxf.lin"), TEST_LIN.replace(/\n/g, "\r\n"));

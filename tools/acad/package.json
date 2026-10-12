@@ -1,21 +1,21 @@
 {
-  "name": "@truedxf/tools-acad",
-  "version": "0.0.0",
-  "private": true,
-  "description": "AutoCAD reference harness: runs accoreconsole.exe to plot generated DXF fixtures to PNG/PDF",
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/tth05/truedxf.git",
-    "directory": "tools/acad"
-  },
-  "homepage": "https://github.com/tth05/truedxf/tree/master/tools/acad#readme",
-  "bugs": "https://github.com/tth05/truedxf/issues",
-  "type": "module",
-  "dependencies": {
-    "fast-png": "^8.0.0"
-  },
-  "devDependencies": {
-    "@types/node": "^26.6.3"
-  }
+    "name": "@truedxf/tools-acad",
+    "version": "0.0.0",
+    "private": true,
+    "description": "AutoCAD reference harness: runs accoreconsole.exe to plot generated DXF fixtures to PNG/PDF",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/tth05/truedxf.git",
+        "directory": "tools/acad"
+    },
+    "homepage": "https://github.com/tth05/truedxf/tree/master/tools/acad#readme",
+    "bugs": "https://github.com/tth05/truedxf/issues",
+    "type": "module",
+    "dependencies": {
+        "fast-png": "^8.0.0"
+    },
+    "devDependencies": {
+        "@types/node": "^26.6.3"
+    }
 }

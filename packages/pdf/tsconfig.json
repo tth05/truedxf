@@ -1,15 +1,15 @@
 {
-  "extends": "../../tsconfig.base.json",
-  "compilerOptions": {
-    "rootDir": "src",
-    "outDir": "dist",
-    "types": [],
-    "lib": ["ES2023", "DOM"]
-  },
-  "include": ["src"],
-  "references": [
-    {
-      "path": "../render"
-    }
-  ]
+    "extends": "../../tsconfig.base.json",
+    "compilerOptions": {
+        "rootDir": "src",
+        "outDir": "dist",
+        "types": [],
+        "lib": ["ES2023", "DOM"]
+    },
+    "include": ["src"],
+    "references": [
+        {
+            "path": "../render"
+        }
+    ]
 }

@@ -1,37 +1,37 @@
 {
-  "name": "@truedxf/playground",
-  "version": "0.0.0",
-  "private": true,
-  "description": "truedxf playground: DXF viewer, fixture compare and corpus browser",
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/tth05/truedxf.git",
-    "directory": "apps/playground"
-  },
-  "homepage": "https://github.com/tth05/truedxf/tree/master/apps/playground#readme",
-  "bugs": "https://github.com/tth05/truedxf/issues",
-  "type": "module",
-  "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview",
-    "build:public": "vite build --mode public",
-    "preview:public": "vite build --mode public && wrangler pages dev dist",
-    "deploy:pages": "vite build --mode public && wrangler pages deploy dist --project-name truedxf",
-    "site-images": "node --disable-warning=ExperimentalWarning scripts/site-images.ts"
-  },
-  "dependencies": {
-    "@truedxf/three": "workspace:*",
-    "@truedxf/viewer": "workspace:*",
-    "three": "^0.186.1"
-  },
-  "devDependencies": {
-    "@types/node": "^26.6.3",
-    "@types/three": "^0.186.0",
-    "fast-png": "^8.0.0",
-    "playwright": "^1.63.0",
-    "vite": "^8.3.1",
-    "wrangler": "^4.145.0"
-  }
+    "name": "@truedxf/playground",
+    "version": "0.0.0",
+    "private": true,
+    "description": "truedxf playground: DXF viewer, fixture compare and corpus browser",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/tth05/truedxf.git",
+        "directory": "apps/playground"
+    },
+    "homepage": "https://github.com/tth05/truedxf/tree/master/apps/playground#readme",
+    "bugs": "https://github.com/tth05/truedxf/issues",
+    "type": "module",
+    "scripts": {
+        "dev": "vite",
+        "build": "vite build",
+        "preview": "vite preview",
+        "build:public": "vite build --mode public",
+        "preview:public": "vite build --mode public && wrangler pages dev dist",
+        "deploy:pages": "vite build --mode public && wrangler pages deploy dist --project-name truedxf",
+        "site-images": "node --disable-warning=ExperimentalWarning scripts/site-images.ts"
+    },
+    "dependencies": {
+        "@truedxf/three": "workspace:*",
+        "@truedxf/viewer": "workspace:*",
+        "three": "^0.186.1"
+    },
+    "devDependencies": {
+        "@types/node": "^26.6.3",
+        "@types/three": "^0.186.0",
+        "fast-png": "^8.0.0",
+        "playwright": "^1.63.0",
+        "vite": "^8.3.1",
+        "wrangler": "^4.145.0"
+    }
 }

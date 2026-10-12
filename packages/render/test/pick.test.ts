@@ -6,7 +6,7 @@ import { dxfBytes } from "./helpers.ts";
 // block B (a LINE with its own handle 30), inserted twice, an off-layer LINE and a DIMENSION
 // without block (regenerated: lines, arrows and text drawn as generated content)
 const doc = DxfDocument.load(
-  dxfBytes(`
+    dxfBytes(`
 0 SECTION
 2 HEADER
 9 $ACADVER
@@ -111,13 +111,13 @@ const doc = DxfDocument.load(
 );
 
 describe("pick identities", () => {
-  it("attributes all output to the top-level entity, once per entity (block content, dimensions)", async () => {
-    const r = await renderPlot(
-      doc,
-      { layout: "Model", area: { type: "extents" }, canvas: [200, 150], styleTable: "monochrome.ctb" },
-      { raster: "smooth" },
-    );
-    // not the nested LINE 30, no entry for the off-layer LINE 42
-    expect(r.displayList.entities).toEqual(["40", "41", "43"]);
-  });
+    it("attributes all output to the top-level entity, once per entity (block content, dimensions)", async () => {
+        const r = await renderPlot(
+            doc,
+            { layout: "Model", area: { type: "extents" }, canvas: [200, 150], styleTable: "monochrome.ctb" },
+            { raster: "smooth" },
+        );
+        // not the nested LINE 30, no entry for the off-layer LINE 42
+        expect(r.displayList.entities).toEqual(["40", "41", "43"]);
+    });
 });

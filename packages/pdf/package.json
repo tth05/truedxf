@@ -1,52 +1,52 @@
 {
-  "name": "@truedxf/pdf",
-  "version": "0.0.0",
-  "description": "PDF underlay rasterizer for @truedxf/render, backed by PDF.js (pdfjs-dist)",
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/tth05/truedxf.git",
-    "directory": "packages/pdf"
-  },
-  "homepage": "https://github.com/tth05/truedxf/tree/master/packages/pdf#readme",
-  "bugs": "https://github.com/tth05/truedxf/issues",
-  "keywords": [
-    "dxf",
-    "pdf",
-    "underlay",
-    "pdfjs"
-  ],
-  "type": "module",
-  "sideEffects": false,
-  "exports": {
-    ".": "./src/index.ts"
-  },
-  "imports": {
-    "#pdfjs": {
-      "types": "pdfjs-dist",
-      "node": "pdfjs-dist/legacy/build/pdf.mjs",
-      "default": "pdfjs-dist"
+    "name": "@truedxf/pdf",
+    "version": "0.0.0",
+    "description": "PDF underlay rasterizer for @truedxf/render, backed by PDF.js (pdfjs-dist)",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/tth05/truedxf.git",
+        "directory": "packages/pdf"
     },
-    "#pdfjs-worker": {
-      "types": "./src/pdfjs-worker.d.ts",
-      "node": "pdfjs-dist/legacy/build/pdf.worker.mjs",
-      "default": "pdfjs-dist/build/pdf.worker.mjs"
-    }
-  },
-  "publishConfig": {
+    "homepage": "https://github.com/tth05/truedxf/tree/master/packages/pdf#readme",
+    "bugs": "https://github.com/tth05/truedxf/issues",
+    "keywords": [
+        "dxf",
+        "pdf",
+        "underlay",
+        "pdfjs"
+    ],
+    "type": "module",
+    "sideEffects": false,
     "exports": {
-      ".": {
-        "types": "./dist/index.d.ts",
-        "default": "./dist/index.js"
-      }
+        ".": "./src/index.ts"
+    },
+    "imports": {
+        "#pdfjs": {
+            "types": "pdfjs-dist",
+            "node": "pdfjs-dist/legacy/build/pdf.mjs",
+            "default": "pdfjs-dist"
+        },
+        "#pdfjs-worker": {
+            "types": "./src/pdfjs-worker.d.ts",
+            "node": "pdfjs-dist/legacy/build/pdf.worker.mjs",
+            "default": "pdfjs-dist/build/pdf.worker.mjs"
+        }
+    },
+    "publishConfig": {
+        "exports": {
+            ".": {
+                "types": "./dist/index.d.ts",
+                "default": "./dist/index.js"
+            }
+        }
+    },
+    "files": [
+        "dist",
+        "src"
+    ],
+    "dependencies": {
+        "@truedxf/render": "workspace:^",
+        "pdfjs-dist": "~6.3.289"
     }
-  },
-  "files": [
-    "dist",
-    "src"
-  ],
-  "dependencies": {
-    "@truedxf/render": "workspace:^",
-    "pdfjs-dist": "~6.3.289"
-  }
 }

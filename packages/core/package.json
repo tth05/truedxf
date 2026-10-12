@@ -1,36 +1,36 @@
 {
-  "name": "@truedxf/core",
-  "version": "0.0.0",
-  "description": "DXF tag layer: tokenizer (ASCII + binary), encodings, lossless tag store",
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/tth05/truedxf.git",
-    "directory": "packages/core"
-  },
-  "homepage": "https://github.com/tth05/truedxf/tree/master/packages/core#readme",
-  "bugs": "https://github.com/tth05/truedxf/issues",
-  "keywords": [
-    "dxf",
-    "parser",
-    "cad",
-    "autocad"
-  ],
-  "type": "module",
-  "sideEffects": false,
-  "exports": {
-    ".": "./src/index.ts"
-  },
-  "publishConfig": {
+    "name": "@truedxf/core",
+    "version": "0.0.0",
+    "description": "DXF tag layer: tokenizer (ASCII + binary), encodings, lossless tag store",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/tth05/truedxf.git",
+        "directory": "packages/core"
+    },
+    "homepage": "https://github.com/tth05/truedxf/tree/master/packages/core#readme",
+    "bugs": "https://github.com/tth05/truedxf/issues",
+    "keywords": [
+        "dxf",
+        "parser",
+        "cad",
+        "autocad"
+    ],
+    "type": "module",
+    "sideEffects": false,
     "exports": {
-      ".": {
-        "types": "./dist/index.d.ts",
-        "default": "./dist/index.js"
-      }
-    }
-  },
-  "files": [
-    "dist",
-    "src"
-  ]
+        ".": "./src/index.ts"
+    },
+    "publishConfig": {
+        "exports": {
+            ".": {
+                "types": "./dist/index.d.ts",
+                "default": "./dist/index.js"
+            }
+        }
+    },
+    "files": [
+        "dist",
+        "src"
+    ]
 }

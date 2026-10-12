@@ -14,26 +14,26 @@ export type PdfBox = readonly [number, number, number, number];
 export type PdfTransform = readonly [number, number, number, number, number, number];
 
 export interface PdfRasterizer {
-  /** Opens a PDF file; undefined when it cannot be read (damaged, encrypted, not a PDF). */
-  open(bytes: Uint8Array): Promise<PdfFile | undefined>;
-  /** Largest bitmap side in pixels (default 4096): larger underlays are drawn coarser. */
-  readonly maxSize?: number;
+    /** Opens a PDF file; undefined when it cannot be read (damaged, encrypted, not a PDF). */
+    open(bytes: Uint8Array): Promise<PdfFile | undefined>;
+    /** Largest bitmap side in pixels (default 4096): larger underlays are drawn coarser. */
+    readonly maxSize?: number;
 }
 
 export interface PdfFile {
-  readonly pageCount: number;
-  /** Page `n` (1-based); undefined when the file has no such page. */
-  page(n: number): Promise<PdfPage | undefined>;
-  /** Releases the file (called when the renderer drops it from its cache). */
-  close?(): void;
+    readonly pageCount: number;
+    /** Page `n` (1-based); undefined when the file has no such page. */
+    page(n: number): Promise<PdfPage | undefined>;
+    /** Releases the file (called when the renderer drops it from its cache). */
+    close?(): void;
 }
 
 export interface PdfPage {
-  /** The page rectangle in PDF units. */
-  readonly mediaBox: PdfBox;
-  /**
-   * Renders the page through `transform` into a `width` × `height` bitmap: RGBA, top row first,
-   * unpremultiplied, transparent where the page paints nothing; undefined on failure.
-   */
-  render(transform: PdfTransform, width: number, height: number): Promise<Uint8Array | undefined>;
+    /** The page rectangle in PDF units. */
+    readonly mediaBox: PdfBox;
+    /**
+     * Renders the page through `transform` into a `width` × `height` bitmap: RGBA, top row first,
+     * unpremultiplied, transparent where the page paints nothing; undefined on failure.
+     */
+    render(transform: PdfTransform, width: number, height: number): Promise<Uint8Array | undefined>;
 }

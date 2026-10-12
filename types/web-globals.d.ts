@@ -3,26 +3,26 @@
 // Global script file (no imports/exports).
 
 interface TextDecodeOptions {
-  stream?: boolean;
+    stream?: boolean;
 }
 interface TextDecoderOptions {
-  fatal?: boolean;
-  ignoreBOM?: boolean;
+    fatal?: boolean;
+    ignoreBOM?: boolean;
 }
 interface TextDecoder {
-  readonly encoding: string;
-  readonly fatal: boolean;
-  decode(input?: ArrayBufferView | ArrayBuffer, options?: TextDecodeOptions): string;
+    readonly encoding: string;
+    readonly fatal: boolean;
+    decode(input?: ArrayBufferView | ArrayBuffer, options?: TextDecodeOptions): string;
 }
 declare var TextDecoder: {
-  prototype: TextDecoder;
-  new (label?: string, options?: TextDecoderOptions): TextDecoder;
+    prototype: TextDecoder;
+    new (label?: string, options?: TextDecoderOptions): TextDecoder;
 };
 interface TextEncoder {
-  readonly encoding: string;
-  encode(input?: string): Uint8Array;
+    readonly encoding: string;
+    encode(input?: string): Uint8Array;
 }
 declare var TextEncoder: {
-  prototype: TextEncoder;
-  new (): TextEncoder;
+    prototype: TextEncoder;
+    new (): TextEncoder;
 };

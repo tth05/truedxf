@@ -17,59 +17,59 @@ export const FALLBACK_FONT_DIR = join(import.meta.dirname, "..", "fonts");
 
 /** Local font folders searched by the dev server (after the bundled fonts). */
 export function localFontDirs(): string[] {
-  const dirs = [
-    process.env.TRUEDXF_FONT_DIRS?.split(";") ?? [],
-    "C:\\Windows\\Fonts",
-    process.env.LOCALAPPDATA ? join(process.env.LOCALAPPDATA, "Microsoft", "Windows", "Fonts") : "",
-    "C:\\Program Files\\Autodesk\\AutoCAD 2027\\Fonts",
-    "/usr/share/fonts/truetype",
-    "/Library/Fonts",
-  ].flat();
-  return dirs.filter((d) => d && existsSync(d));
+    const dirs = [
+        process.env.TRUEDXF_FONT_DIRS?.split(";") ?? [],
+        "C:\\Windows\\Fonts",
+        process.env.LOCALAPPDATA ? join(process.env.LOCALAPPDATA, "Microsoft", "Windows", "Fonts") : "",
+        "C:\\Program Files\\Autodesk\\AutoCAD 2027\\Fonts",
+        "/usr/share/fonts/truetype",
+        "/Library/Fonts",
+    ].flat();
+    return dirs.filter((d) => d && existsSync(d));
 }
 
 /** Lower-case file name → path over the given folders (first folder wins). */
 export function indexFonts(dirs: readonly string[]): Map<string, string> {
-  const out = new Map<string, string>();
-  for (const d of dirs) {
-    let names: string[];
-    try {
-      names = readdirSync(d);
-    } catch {
-      continue;
+    const out = new Map<string, string>();
+    for (const d of dirs) {
+        let names: string[];
+        try {
+            names = readdirSync(d);
+        } catch {
+            continue;
+        }
+        for (const n of names) {
+            const k = n.toLowerCase();
+            if (!out.has(k)) out.set(k, join(d, n));
+        }
     }
-    for (const n of names) {
-      const k = n.toLowerCase();
-      if (!out.has(k)) out.set(k, join(d, n));
-    }
-  }
-  return out;
+    return out;
 }
 
 export const FONT_FILE = /\.(shx|ttf|ttc|otf)$/i;
 
 export function fontMiddleware(dirs: () => readonly string[]) {
-  let index: Map<string, string> | undefined;
-  return (req: IncomingMessage, res: ServerResponse, next: () => void) => {
-    const url = (req.url ?? "").split("?")[0]!;
-    const m = /^\/fonts\/([^/]+)$/.exec(url);
-    if (!m) return next();
-    index ??= indexFonts(dirs());
-    if (m[1] === "index.json") {
-      // the font loader asks only for listed files: no 404s for fonts a drawing merely probes
-      res.setHeader("content-type", "application/json");
-      res.end(JSON.stringify([...index.keys()].filter((k) => FONT_FILE.test(k))));
-      return;
-    }
-    const name = decodeURIComponent(m[1]!).toLowerCase();
-    const hit = index.get(name);
-    if (!hit) {
-      res.statusCode = 404;
-      res.end();
-      return;
-    }
-    res.setHeader("content-type", "application/octet-stream");
-    res.setHeader("cache-control", "max-age=3600");
-    res.end(readFileSync(hit));
-  };
+    let index: Map<string, string> | undefined;
+    return (req: IncomingMessage, res: ServerResponse, next: () => void) => {
+        const url = (req.url ?? "").split("?")[0]!;
+        const m = /^\/fonts\/([^/]+)$/.exec(url);
+        if (!m) return next();
+        index ??= indexFonts(dirs());
+        if (m[1] === "index.json") {
+            // the font loader asks only for listed files: no 404s for fonts a drawing merely probes
+            res.setHeader("content-type", "application/json");
+            res.end(JSON.stringify([...index.keys()].filter((k) => FONT_FILE.test(k))));
+            return;
+        }
+        const name = decodeURIComponent(m[1]!).toLowerCase();
+        const hit = index.get(name);
+        if (!hit) {
+            res.statusCode = 404;
+            res.end();
+            return;
+        }
+        res.setHeader("content-type", "application/octet-stream");
+        res.setHeader("cache-control", "max-age=3600");
+        res.end(readFileSync(hit));
+    };
 }

@@ -8,62 +8,62 @@ import { type DxfRecord, internString, PartKind } from "../record.ts";
 import type { Point3 } from "../types.ts";
 
 export interface EntityBase {
-  /** Parsed type discriminator; "UNKNOWN" for types without a parser (see `dxfType`). */
-  readonly type: string;
-  /** DXF record type as written (e.g. "LINE", "AECC_…"). */
-  readonly dxfType: string;
-  /** Document-unique id (entities without handles have one too). */
-  readonly id: number;
-  /** Handle, "" if absent (R12). */
-  readonly handle: string;
-  /** Owner handle (advisory; ownership is derived from file position). */
-  readonly owner: string;
-  readonly layer: string;
-  /** Linetype name; "BYLAYER" when absent. */
-  readonly linetype: string;
-  /** ACI (0 ByBlock, 256 ByLayer, 257 ByEntity). 256 when absent. */
-  readonly color: number;
-  /** 0xRRGGBB when present (420). Takes precedence over `color` for display. */
-  readonly trueColor?: number | undefined;
-  /** Color-book name (430). */
-  readonly colorName?: string | undefined;
-  /** Raw transparency (440): 0x020000AA alpha, 0x01000000 ByBlock; undefined = ByLayer. */
-  readonly transparency?: number | undefined;
-  /** Lineweight in 1/100 mm; -1 ByLayer (default), -2 ByBlock, -3 Default. */
-  readonly lineweight: number;
-  readonly linetypeScale: number;
-  /** Group 60 = 1: invisible (hidden, e.g. inactive dynamic-block visibility states). */
-  readonly invisible: boolean;
-  /** Group 67 = 1: entity is in paper space (only meaningful in the ENTITIES section). */
-  readonly paperSpace: boolean;
-  readonly layoutName?: string | undefined;
-  readonly plotStyleHandle?: string | undefined;
-  readonly materialHandle?: string | undefined;
-  readonly extensionDictionary?: string | undefined;
-  /**
-   * Proxy graphics bytes (92/160 length tag + 310 chunks in AcDbEntity, or in AcDbProxyEntity for
-   * ACAD_PROXY_ENTITY), concatenated; undefined if absent (note 07 §15.1).
-   */
-  readonly proxyGraphics?: Uint8Array | undefined;
-  readonly record: DxfRecord;
+    /** Parsed type discriminator; "UNKNOWN" for types without a parser (see `dxfType`). */
+    readonly type: string;
+    /** DXF record type as written (e.g. "LINE", "AECC_…"). */
+    readonly dxfType: string;
+    /** Document-unique id (entities without handles have one too). */
+    readonly id: number;
+    /** Handle, "" if absent (R12). */
+    readonly handle: string;
+    /** Owner handle (advisory; ownership is derived from file position). */
+    readonly owner: string;
+    readonly layer: string;
+    /** Linetype name; "BYLAYER" when absent. */
+    readonly linetype: string;
+    /** ACI (0 ByBlock, 256 ByLayer, 257 ByEntity). 256 when absent. */
+    readonly color: number;
+    /** 0xRRGGBB when present (420). Takes precedence over `color` for display. */
+    readonly trueColor?: number | undefined;
+    /** Color-book name (430). */
+    readonly colorName?: string | undefined;
+    /** Raw transparency (440): 0x020000AA alpha, 0x01000000 ByBlock; undefined = ByLayer. */
+    readonly transparency?: number | undefined;
+    /** Lineweight in 1/100 mm; -1 ByLayer (default), -2 ByBlock, -3 Default. */
+    readonly lineweight: number;
+    readonly linetypeScale: number;
+    /** Group 60 = 1: invisible (hidden, e.g. inactive dynamic-block visibility states). */
+    readonly invisible: boolean;
+    /** Group 67 = 1: entity is in paper space (only meaningful in the ENTITIES section). */
+    readonly paperSpace: boolean;
+    readonly layoutName?: string | undefined;
+    readonly plotStyleHandle?: string | undefined;
+    readonly materialHandle?: string | undefined;
+    readonly extensionDictionary?: string | undefined;
+    /**
+     * Proxy graphics bytes (92/160 length tag + 310 chunks in AcDbEntity, or in AcDbProxyEntity for
+     * ACAD_PROXY_ENTITY), concatenated; undefined if absent (note 07 §15.1).
+     */
+    readonly proxyGraphics?: Uint8Array | undefined;
+    readonly record: DxfRecord;
 }
 
 const ENTITY = ["", "AcDbEntity"];
 
 export const COMMON_FIELDS: readonly FieldDef[] = [
-  { name: "layer", code: 8, kind: "name", subclass: ENTITY, def: "0" },
-  { name: "linetype", code: 6, kind: "name", subclass: ENTITY, def: "BYLAYER" },
-  { name: "color", code: 62, kind: "int", subclass: ENTITY, def: 256 },
-  { name: "trueColor", code: 420, kind: "int", subclass: ENTITY },
-  { name: "colorName", code: 430, kind: "str", subclass: ENTITY },
-  { name: "transparency", code: 440, kind: "int", subclass: ENTITY },
-  { name: "lineweight", code: 370, kind: "int", subclass: ENTITY, def: -1 },
-  { name: "linetypeScale", code: 48, kind: "num", subclass: ENTITY, def: 1 },
-  { name: "invisible", code: 60, kind: "bool", subclass: ENTITY, def: false },
-  { name: "paperSpace", code: 67, kind: "bool", subclass: ENTITY, def: false },
-  { name: "layoutName", code: 410, kind: "str", subclass: ENTITY },
-  { name: "plotStyleHandle", code: 390, kind: "handle", subclass: ENTITY },
-  { name: "materialHandle", code: 347, kind: "handle", subclass: ENTITY },
+    { name: "layer", code: 8, kind: "name", subclass: ENTITY, def: "0" },
+    { name: "linetype", code: 6, kind: "name", subclass: ENTITY, def: "BYLAYER" },
+    { name: "color", code: 62, kind: "int", subclass: ENTITY, def: 256 },
+    { name: "trueColor", code: 420, kind: "int", subclass: ENTITY },
+    { name: "colorName", code: 430, kind: "str", subclass: ENTITY },
+    { name: "transparency", code: 440, kind: "int", subclass: ENTITY },
+    { name: "lineweight", code: 370, kind: "int", subclass: ENTITY, def: -1 },
+    { name: "linetypeScale", code: 48, kind: "num", subclass: ENTITY, def: 1 },
+    { name: "invisible", code: 60, kind: "bool", subclass: ENTITY, def: false },
+    { name: "paperSpace", code: 67, kind: "bool", subclass: ENTITY, def: false },
+    { name: "layoutName", code: 410, kind: "str", subclass: ENTITY },
+    { name: "plotStyleHandle", code: 390, kind: "handle", subclass: ENTITY },
+    { name: "materialHandle", code: 347, kind: "handle", subclass: ENTITY },
 ];
 // read without defaults so that absent fields can be recovered from other subclasses first
 const COMMON = fieldTable(COMMON_FIELDS.map(({ def: _def, ...d }) => d));
@@ -85,99 +85,99 @@ const RECOVER_TYPES = new Set([
 const RECOVER_CODES = new Map(COMMON_FIELDS.filter((d) => d.code !== 410).map((d) => [d.code, d]));
 
 function recoverMisplaced(rec: DxfRecord, f: Record<string, unknown>): void {
-  const codes = rec.store.codes;
-  for (const p of rec.parts) {
-    if (p.kind !== PartKind.Subclass || p.name === "AcDbEntity") continue;
-    for (let i = rec.nextDataTag(p.start); i < p.end; i = rec.nextDataTag(i + 1)) {
-      const d = RECOVER_CODES.get(codes[i]!);
-      if (d && !(d.name in f)) writeFieldAt(rec, i, p.end, d, f);
+    const codes = rec.store.codes;
+    for (const p of rec.parts) {
+        if (p.kind !== PartKind.Subclass || p.name === "AcDbEntity") continue;
+        for (let i = rec.nextDataTag(p.start); i < p.end; i = rec.nextDataTag(i + 1)) {
+            const d = RECOVER_CODES.get(codes[i]!);
+            if (d && !(d.name in f)) writeFieldAt(rec, i, p.end, d, f);
+        }
     }
-  }
 }
 
 export interface ParseContext {
-  readonly diagnostics: Diagnostics;
-  /** $ACADVER of the document ("AC1009", …). */
-  readonly acadver: string;
+    readonly diagnostics: Diagnostics;
+    /** $ACADVER of the document ("AC1009", …). */
+    readonly acadver: string;
 }
 
 /** Sub-records of complex entities: VERTEX* for POLYLINE, ATTRIB* for INSERT, plus SEQEND. */
 export interface ChildRecords {
-  readonly children: readonly DxfRecord[];
-  readonly seqend: DxfRecord | undefined;
+    readonly children: readonly DxfRecord[];
+    readonly seqend: DxfRecord | undefined;
 }
 
 export type EntityParser<E extends EntityBase = EntityBase> = (
-  rec: DxfRecord,
-  base: EntityBase,
-  ctx: ParseContext,
-  children: ChildRecords | undefined,
+    rec: DxfRecord,
+    base: EntityBase,
+    ctx: ParseContext,
+    children: ChildRecords | undefined,
 ) => E;
 
 export function readBase(rec: DxfRecord, circle?: { center: Point3; extrusion: Point3 }): EntityBase {
-  const f = readFields<Record<string, unknown>>(rec, COMMON);
-  if (rec.hasMisplacedCommon && RECOVER_TYPES.has(rec.type)) recoverMisplaced(rec, f);
-  const layer = (f.layer as string) || "0";
-  const linetype = ((f.linetype as string) || "BYLAYER").trim();
-  // Missing optional circle fields read as undefined without consuming an own-property slot.
-  // Keep required defaults as own properties so enumeration still carries model values.
-  // Predeclare a simple circle's complete shape: appended fields otherwise require a
-  // separate property array per entity. Use the parser's exact default point identities.
-  const base = circle
-    ? {
-        type: rec.type,
-        dxfType: rec.type,
-        id: rec.id,
-        handle: rec.handle,
-        owner: rec.owner,
-        layer: internString(rec.store, layer),
-        linetype: internString(rec.store, linetype),
-        color: (f.color as number | undefined) ?? 256,
-        lineweight: (f.lineweight as number | undefined) ?? -1,
-        linetypeScale: (f.linetypeScale as number | undefined) ?? 1,
-        invisible: (f.invisible as boolean | undefined) ?? false,
-        paperSpace: (f.paperSpace as boolean | undefined) ?? false,
-        record: rec,
-        center: circle.center,
-        radius: 0,
-        thickness: 0,
-        extrusion: circle.extrusion,
-      }
-    : ({
-        type: rec.type,
-        dxfType: rec.type,
-        id: rec.id,
-        handle: rec.handle,
-        owner: rec.owner,
-        layer: internString(rec.store, layer),
-        linetype: internString(rec.store, linetype),
-        color: (f.color as number | undefined) ?? 256,
-        trueColor: f.trueColor as number | undefined,
-        colorName: f.colorName as string | undefined,
-        transparency: f.transparency as number | undefined,
-        lineweight: (f.lineweight as number | undefined) ?? -1,
-        linetypeScale: (f.linetypeScale as number | undefined) ?? 1,
-        invisible: (f.invisible as boolean | undefined) ?? false,
-        paperSpace: (f.paperSpace as boolean | undefined) ?? false,
-        layoutName: f.layoutName as string | undefined,
-        plotStyleHandle: f.plotStyleHandle as string | undefined,
-        materialHandle: f.materialHandle as string | undefined,
-        extensionDictionary: undefined as string | undefined,
-        proxyGraphics: undefined as Uint8Array | undefined,
-        record: rec,
-      } as EntityBase);
-  const into = base as unknown as Record<string, unknown>;
-  if (f.trueColor !== undefined) into.trueColor = f.trueColor;
-  if (f.colorName !== undefined) into.colorName = f.colorName;
-  if (f.transparency !== undefined) into.transparency = f.transparency;
-  if (f.layoutName !== undefined) into.layoutName = f.layoutName;
-  if (f.plotStyleHandle !== undefined) into.plotStyleHandle = f.plotStyleHandle;
-  if (f.materialHandle !== undefined) into.materialHandle = f.materialHandle;
-  const extensionDictionary = rec.extensionDictionary;
-  if (extensionDictionary !== undefined) into.extensionDictionary = extensionDictionary;
-  const proxyGraphics = readProxyGraphics(rec, "AcDbEntity");
-  if (proxyGraphics !== undefined) into.proxyGraphics = proxyGraphics;
-  return base;
+    const f = readFields<Record<string, unknown>>(rec, COMMON);
+    if (rec.hasMisplacedCommon && RECOVER_TYPES.has(rec.type)) recoverMisplaced(rec, f);
+    const layer = (f.layer as string) || "0";
+    const linetype = ((f.linetype as string) || "BYLAYER").trim();
+    // Missing optional circle fields read as undefined without consuming an own-property slot.
+    // Keep required defaults as own properties so enumeration still carries model values.
+    // Predeclare a simple circle's complete shape: appended fields otherwise require a
+    // separate property array per entity. Use the parser's exact default point identities.
+    const base = circle
+        ? {
+              type: rec.type,
+              dxfType: rec.type,
+              id: rec.id,
+              handle: rec.handle,
+              owner: rec.owner,
+              layer: internString(rec.store, layer),
+              linetype: internString(rec.store, linetype),
+              color: (f.color as number | undefined) ?? 256,
+              lineweight: (f.lineweight as number | undefined) ?? -1,
+              linetypeScale: (f.linetypeScale as number | undefined) ?? 1,
+              invisible: (f.invisible as boolean | undefined) ?? false,
+              paperSpace: (f.paperSpace as boolean | undefined) ?? false,
+              record: rec,
+              center: circle.center,
+              radius: 0,
+              thickness: 0,
+              extrusion: circle.extrusion,
+          }
+        : ({
+              type: rec.type,
+              dxfType: rec.type,
+              id: rec.id,
+              handle: rec.handle,
+              owner: rec.owner,
+              layer: internString(rec.store, layer),
+              linetype: internString(rec.store, linetype),
+              color: (f.color as number | undefined) ?? 256,
+              trueColor: f.trueColor as number | undefined,
+              colorName: f.colorName as string | undefined,
+              transparency: f.transparency as number | undefined,
+              lineweight: (f.lineweight as number | undefined) ?? -1,
+              linetypeScale: (f.linetypeScale as number | undefined) ?? 1,
+              invisible: (f.invisible as boolean | undefined) ?? false,
+              paperSpace: (f.paperSpace as boolean | undefined) ?? false,
+              layoutName: f.layoutName as string | undefined,
+              plotStyleHandle: f.plotStyleHandle as string | undefined,
+              materialHandle: f.materialHandle as string | undefined,
+              extensionDictionary: undefined as string | undefined,
+              proxyGraphics: undefined as Uint8Array | undefined,
+              record: rec,
+          } as EntityBase);
+    const into = base as unknown as Record<string, unknown>;
+    if (f.trueColor !== undefined) into.trueColor = f.trueColor;
+    if (f.colorName !== undefined) into.colorName = f.colorName;
+    if (f.transparency !== undefined) into.transparency = f.transparency;
+    if (f.layoutName !== undefined) into.layoutName = f.layoutName;
+    if (f.plotStyleHandle !== undefined) into.plotStyleHandle = f.plotStyleHandle;
+    if (f.materialHandle !== undefined) into.materialHandle = f.materialHandle;
+    const extensionDictionary = rec.extensionDictionary;
+    if (extensionDictionary !== undefined) into.extensionDictionary = extensionDictionary;
+    const proxyGraphics = readProxyGraphics(rec, "AcDbEntity");
+    if (proxyGraphics !== undefined) into.proxyGraphics = proxyGraphics;
+    return base;
 }
 
 /**
@@ -185,76 +185,76 @@ export function readBase(rec: DxfRecord, circle?: { center: Point3; extrusion: P
  * The version-to-length-code rule is unreliable (ezdxf#978), so both are accepted (note 07 §15.1).
  */
 export function readProxyGraphics(rec: DxfRecord, subclass: string): Uint8Array | undefined {
-  if (!rec.hasProxyGraphics) return undefined;
-  const p = rec.hasSubclasses ? rec.subclass(subclass) : undefined;
-  if (!p) return undefined;
-  const s = rec.store;
-  const codes = s.codes;
-  let chunks: Uint8Array[] | undefined;
-  let prev = -1;
-  for (let i = rec.nextDataTag(p.start); i < p.end; i = rec.nextDataTag(i + 1)) {
-    const c = codes[i]!;
-    if (chunks) {
-      if (c !== 310) break;
-      chunks.push(s.binary(i));
-    } else if (c === 310 && (prev === 92 || prev === 160)) {
-      chunks = [s.binary(i)];
+    if (!rec.hasProxyGraphics) return undefined;
+    const p = rec.hasSubclasses ? rec.subclass(subclass) : undefined;
+    if (!p) return undefined;
+    const s = rec.store;
+    const codes = s.codes;
+    let chunks: Uint8Array[] | undefined;
+    let prev = -1;
+    for (let i = rec.nextDataTag(p.start); i < p.end; i = rec.nextDataTag(i + 1)) {
+        const c = codes[i]!;
+        if (chunks) {
+            if (c !== 310) break;
+            chunks.push(s.binary(i));
+        } else if (c === 310 && (prev === 92 || prev === 160)) {
+            chunks = [s.binary(i)];
+        }
+        prev = c;
     }
-    prev = c;
-  }
-  if (!chunks) return undefined;
-  if (chunks.length === 1) return chunks[0];
-  let n = 0;
-  for (const b of chunks) n += b.length;
-  const out = new Uint8Array(n);
-  let o = 0;
-  for (const b of chunks) {
-    out.set(b, o);
-    o += b.length;
-  }
-  return out;
+    if (!chunks) return undefined;
+    if (chunks.length === 1) return chunks[0];
+    let n = 0;
+    for (const b of chunks) n += b.length;
+    const out = new Uint8Array(n);
+    let o = 0;
+    for (const b of chunks) {
+        out.set(b, o);
+        o += b.length;
+    }
+    return out;
 }
 
 /** Parser registry by DXF type name. */
 export const ENTITY_PARSERS = new Map<string, EntityParser>();
 
 export function registerEntity<E extends EntityBase>(
-  types: string | string[],
-  parser: EntityParser<E>,
+    types: string | string[],
+    parser: EntityParser<E>,
 ): void {
-  for (const t of Array.isArray(types) ? types : [types])
-    ENTITY_PARSERS.set(t, parser as unknown as EntityParser);
+    for (const t of Array.isArray(types) ? types : [types])
+        ENTITY_PARSERS.set(t, parser as unknown as EntityParser);
 }
 
 /** Tables of simple parsers whose document-owned base can become the final entity. */
 export const SIMPLE_ENTITY_FIELDS = new WeakMap<
-  EntityParser,
-  {
-    type: string;
-    table: ReturnType<typeof fieldTable>;
-    finish?: (entity: EntityBase) => EntityBase;
-    createBase?: (rec: DxfRecord) => EntityBase;
-  }
+    EntityParser,
+    {
+        type: string;
+        table: ReturnType<typeof fieldTable>;
+        finish?: (entity: EntityBase) => EntityBase;
+        createBase?: (rec: DxfRecord) => EntityBase;
+    }
 >();
 
 /** Helper for simple spec-driven entities: base properties + fields from a table. */
 export function simpleParser<E extends EntityBase>(
-  type: string,
-  defs: readonly FieldDef[],
-  finish?: (entity: E) => E,
-  createBase?: (rec: DxfRecord) => EntityBase,
+    type: string,
+    defs: readonly FieldDef[],
+    finish?: (entity: E) => E,
+    createBase?: (rec: DxfRecord) => EntityBase,
 ): EntityParser<E> {
-  // Simple entities have unambiguous codes (note 01 section 6.3).
-  const table = fieldTable(defs, { lenient: true });
-  const parser: EntityParser<E> = (rec, base) => {
-    const entity = readFields<E>(rec, table, { ...base, type } as Record<string, unknown>);
-    return finish ? finish(entity) : entity;
-  };
-  SIMPLE_ENTITY_FIELDS.set(parser as EntityParser, {
-    type,
-    table,
-    finish: finish as ((entity: EntityBase) => EntityBase) | undefined,
-    createBase,
-  });
-  return parser;
+    // Simple entities have unambiguous codes (note 01 section 6.3).
+    const table = fieldTable(defs, { lenient: true });
+    const parser: EntityParser<E> = (rec, base) => {
+        const entity = readFields<E>(rec, table, { ...base, type } as Record<string, unknown>);
+        return finish ? finish(entity) : entity;
+    };
+    SIMPLE_ENTITY_FIELDS.set(parser as EntityParser, {
+        type,
+        table,
+        finish: finish as ((entity: EntityBase) => EntityBase) | undefined,
+        createBase,
+    });
+    return parser;
 }

@@ -7,15 +7,15 @@ const USER = "truedxf";
 const PASSWORD = "truedxf";
 
 interface PagesContext {
-  request: Request;
-  next(): Promise<Response>;
+    request: Request;
+    next(): Promise<Response>;
 }
 
 export async function onRequest(context: PagesContext): Promise<Response> {
-  if (context.request.headers.get("Authorization") === `Basic ${btoa(`${USER}:${PASSWORD}`)}`)
-    return context.next();
-  return new Response("Authentication required", {
-    status: 401,
-    headers: { "WWW-Authenticate": 'Basic realm="truedxf (pre-release)"', "X-Robots-Tag": "noindex" },
-  });
+    if (context.request.headers.get("Authorization") === `Basic ${btoa(`${USER}:${PASSWORD}`)}`)
+        return context.next();
+    return new Response("Authentication required", {
+        status: 401,
+        headers: { "WWW-Authenticate": 'Basic realm="truedxf (pre-release)"', "X-Robots-Tag": "noindex" },
+    });
 }

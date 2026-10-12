@@ -76,24 +76,24 @@ const mline = `0 MLINE
 75 0`;
 
 describe("MLINE", () => {
-  it("maps vertex elements to style elements sorted by descending offset", async () => {
-    const doc = modelDoc({ entities: mline, objects: style });
-    const r = await renderPlot(
-      doc,
-      { layout: "Model", area: { type: "window", min: [-1, -2], max: [11, 7] }, canvas: [120, 90] },
-      { raster: "smooth" },
-    );
-    // upper element (a0 = 1) is the style's first element by offset: 0.5 → green (ACI 3)
-    const colorAt = (y: number) => {
-      for (const b of r.displayList.batches) {
-        for (let i = 0; i < b.positions.length / 2; i++) {
-          if (Math.abs(b.originY + b.positions[i * 2 + 1]! - y) < 1e-6)
-            return [...b.colors.subarray(i * 4, i * 4 + 3)];
-        }
-      }
-      return undefined;
-    };
-    expect(colorAt(1)).toEqual([0, 255, 0]);
-    expect(colorAt(0)).toEqual([255, 0, 0]);
-  });
+    it("maps vertex elements to style elements sorted by descending offset", async () => {
+        const doc = modelDoc({ entities: mline, objects: style });
+        const r = await renderPlot(
+            doc,
+            { layout: "Model", area: { type: "window", min: [-1, -2], max: [11, 7] }, canvas: [120, 90] },
+            { raster: "smooth" },
+        );
+        // upper element (a0 = 1) is the style's first element by offset: 0.5 → green (ACI 3)
+        const colorAt = (y: number) => {
+            for (const b of r.displayList.batches) {
+                for (let i = 0; i < b.positions.length / 2; i++) {
+                    if (Math.abs(b.originY + b.positions[i * 2 + 1]! - y) < 1e-6)
+                        return [...b.colors.subarray(i * 4, i * 4 + 3)];
+                }
+            }
+            return undefined;
+        };
+        expect(colorAt(1)).toEqual([0, 255, 0]);
+        expect(colorAt(0)).toEqual([255, 0, 0]);
+    });
 });

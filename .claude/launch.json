@@ -1,27 +1,27 @@
 {
-  "version": "0.0.1",
-  "configurations": [
-    {
-      "name": "playground",
-      "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["--filter", "@truedxf/playground", "dev", "--", "--port", "5173", "--strictPort"],
-      "port": 5173
-    },
-    {
-      "name": "playground-public",
-      "runtimeExecutable": "pnpm",
-      "runtimeArgs": [
-        "--filter",
-        "@truedxf/playground",
-        "exec",
-        "wrangler",
-        "pages",
-        "dev",
-        "dist",
-        "--port",
-        "8788"
-      ],
-      "port": 8788
-    }
-  ]
+    "version": "0.0.1",
+    "configurations": [
+        {
+            "name": "playground",
+            "runtimeExecutable": "pnpm",
+            "runtimeArgs": ["--filter", "@truedxf/playground", "dev", "--", "--port", "5173", "--strictPort"],
+            "port": 5173
+        },
+        {
+            "name": "playground-public",
+            "runtimeExecutable": "pnpm",
+            "runtimeArgs": [
+                "--filter",
+                "@truedxf/playground",
+                "exec",
+                "wrangler",
+                "pages",
+                "dev",
+                "dist",
+                "--port",
+                "8788"
+            ],
+            "port": 8788
+        }
+    ]
 }

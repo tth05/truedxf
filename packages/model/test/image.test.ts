@@ -121,63 +121,63 @@ const ENTITIES = `
 `;
 
 describe("IMAGE / WIPEOUT / UNDERLAY / OLE2FRAME", () => {
-  it("reads raster image placement, display flags and clip boundary", () => {
-    const { doc, entities } = loadEntities(ENTITIES);
-    const img = entities[0] as ImageEntity;
-    expect(img.type).toBe("IMAGE");
-    expect(img.insert).toEqual({ x: 5, y: 10, z: 0 });
-    expect(img.u).toEqual({ x: 0.05, y: 0, z: 0 });
-    expect(img.v).toEqual({ x: 3.061616997868383e-18, y: 0.05, z: 0 });
-    expect(img.size).toEqual({ x: 640, y: 480 });
-    expect(img.imageDefHandle).toBe("31");
-    expect(img.imageDefReactorHandle).toBe("33");
-    expect(img.displayFlags).toBe(7);
-    expect(img.clipping).toBe(false);
-    expect(img.brightness).toBe(50);
-    expect(img.clipType).toBe(1);
-    expect(img.clipBoundary).toEqual([
-      { x: 0, y: 0 },
-      { x: 639, y: 479 },
-    ]);
-    expect(img.clipInverted).toBe(false);
-    expect(errors(doc)).toEqual([]);
-  });
+    it("reads raster image placement, display flags and clip boundary", () => {
+        const { doc, entities } = loadEntities(ENTITIES);
+        const img = entities[0] as ImageEntity;
+        expect(img.type).toBe("IMAGE");
+        expect(img.insert).toEqual({ x: 5, y: 10, z: 0 });
+        expect(img.u).toEqual({ x: 0.05, y: 0, z: 0 });
+        expect(img.v).toEqual({ x: 3.061616997868383e-18, y: 0.05, z: 0 });
+        expect(img.size).toEqual({ x: 640, y: 480 });
+        expect(img.imageDefHandle).toBe("31");
+        expect(img.imageDefReactorHandle).toBe("33");
+        expect(img.displayFlags).toBe(7);
+        expect(img.clipping).toBe(false);
+        expect(img.brightness).toBe(50);
+        expect(img.clipType).toBe(1);
+        expect(img.clipBoundary).toEqual([
+            { x: 0, y: 0 },
+            { x: 639, y: 479 },
+        ]);
+        expect(img.clipInverted).toBe(false);
+        expect(errors(doc)).toEqual([]);
+    });
 
-  it("reads WIPEOUT (AcDbWipeout only) with normalized boundary and proxy graphics", () => {
-    const w = loadEntities(ENTITIES).entities[1] as WipeoutEntity;
-    expect(w.type).toBe("WIPEOUT");
-    expect(w.imageDefHandle).toBeUndefined();
-    expect(w.clipping).toBe(true);
-    expect(w.clipType).toBe(2);
-    expect(w.clipBoundary).toHaveLength(4);
-    expect(w.u.x).toBe(20);
-    expect(w.proxyGraphics).toEqual(new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]));
-  });
+    it("reads WIPEOUT (AcDbWipeout only) with normalized boundary and proxy graphics", () => {
+        const w = loadEntities(ENTITIES).entities[1] as WipeoutEntity;
+        expect(w.type).toBe("WIPEOUT");
+        expect(w.imageDefHandle).toBeUndefined();
+        expect(w.clipping).toBe(true);
+        expect(w.clipType).toBe(2);
+        expect(w.clipBoundary).toHaveLength(4);
+        expect(w.u.x).toBe(20);
+        expect(w.proxyGraphics).toEqual(new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]));
+    });
 
-  it("reads underlay references", () => {
-    const u = loadEntities(ENTITIES).entities[2] as UnderlayEntity;
-    expect(u.type).toBe("PDFUNDERLAY");
-    expect(u.definitionHandle).toBe("39");
-    expect(u.insert).toEqual({ x: 200, y: 50, z: 0 });
-    expect(u.scale).toEqual({ x: 3, y: 3, z: 1 });
-    expect(u.rotation).toBe(30);
-    expect(u.flags).toBe(1);
-    expect(u.contrast).toBe(100);
-    expect(u.clipBoundary).toEqual([
-      { x: 0, y: 0 },
-      { x: 8, y: 6 },
-    ]);
-    expect(u.color).toBe(3);
-  });
+    it("reads underlay references", () => {
+        const u = loadEntities(ENTITIES).entities[2] as UnderlayEntity;
+        expect(u.type).toBe("PDFUNDERLAY");
+        expect(u.definitionHandle).toBe("39");
+        expect(u.insert).toEqual({ x: 200, y: 50, z: 0 });
+        expect(u.scale).toEqual({ x: 3, y: 3, z: 1 });
+        expect(u.rotation).toBe(30);
+        expect(u.flags).toBe(1);
+        expect(u.contrast).toBe(100);
+        expect(u.clipBoundary).toEqual([
+            { x: 0, y: 0 },
+            { x: 8, y: 6 },
+        ]);
+        expect(u.color).toBe(3);
+    });
 
-  it("reads OLE2FRAME corners and binary payload", () => {
-    const o = loadEntities(ENTITIES).entities[3] as Ole2FrameEntity;
-    expect(o.type).toBe("OLE2FRAME");
-    expect(o.description).toBe("Test Object");
-    expect(o.upperLeft).toEqual({ x: 2, y: 8, z: 0 });
-    expect(o.lowerRight).toEqual({ x: 12, y: 3, z: 0 });
-    expect(o.objectType).toBe(2);
-    expect(o.dataLength).toBe(6);
-    expect([...o.data]).toEqual([0xa1, 0xb2, 0xc3, 0xd4, 0xe5, 0xf6]);
-  });
+    it("reads OLE2FRAME corners and binary payload", () => {
+        const o = loadEntities(ENTITIES).entities[3] as Ole2FrameEntity;
+        expect(o.type).toBe("OLE2FRAME");
+        expect(o.description).toBe("Test Object");
+        expect(o.upperLeft).toEqual({ x: 2, y: 8, z: 0 });
+        expect(o.lowerRight).toEqual({ x: 12, y: 3, z: 0 });
+        expect(o.objectType).toBe(2);
+        expect(o.dataLength).toBe(6);
+        expect([...o.data]).toEqual([0xa1, 0xb2, 0xc3, 0xd4, 0xe5, 0xf6]);
+    });
 });

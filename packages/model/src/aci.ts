@@ -96,33 +96,33 @@ export type Paper = "white" | "black";
  * (0, 256, 257, negative) are treated as 7.
  */
 export function aciToRgb(
-  aci: number,
-  palette: readonly number[] = PLOT_PALETTE,
-  paper: Paper = "white",
+    aci: number,
+    palette: readonly number[] = PLOT_PALETTE,
+    paper: Paper = "white",
 ): number {
-  const a = Math.trunc(Math.abs(aci));
-  if (a === 7 || a < 1 || a > 255) return paper === "white" ? 0x000000 : 0xffffff;
-  return palette[a]!;
+    const a = Math.trunc(Math.abs(aci));
+    if (a === 7 || a < 1 || a > 255) return paper === "white" ? 0x000000 : 0xffffff;
+    return palette[a]!;
 }
 
 /** Nearest ACI 1…255 (excluding 7) of an RGB, by squared RGB distance; ties → lowest index. */
 export function nearestAci(rgb: number, palette: readonly number[] = PLOT_PALETTE): number {
-  const r = (rgb >> 16) & 255;
-  const g = (rgb >> 8) & 255;
-  const b = rgb & 255;
-  let best = 1;
-  let bestD = Number.POSITIVE_INFINITY;
-  for (let i = 1; i < 256; i++) {
-    if (i === 7) continue;
-    const p = palette[i]!;
-    const dr = ((p >> 16) & 255) - r;
-    const dg = ((p >> 8) & 255) - g;
-    const db = (p & 255) - b;
-    const d = dr * dr + dg * dg + db * db;
-    if (d < bestD) {
-      bestD = d;
-      best = i;
+    const r = (rgb >> 16) & 255;
+    const g = (rgb >> 8) & 255;
+    const b = rgb & 255;
+    let best = 1;
+    let bestD = Number.POSITIVE_INFINITY;
+    for (let i = 1; i < 256; i++) {
+        if (i === 7) continue;
+        const p = palette[i]!;
+        const dr = ((p >> 16) & 255) - r;
+        const dg = ((p >> 8) & 255) - g;
+        const db = (p & 255) - b;
+        const d = dr * dr + dg * dg + db * db;
+        if (d < bestD) {
+            bestD = d;
+            best = i;
+        }
     }
-  }
-  return best;
+    return best;
 }

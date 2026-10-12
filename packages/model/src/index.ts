@@ -2,24 +2,24 @@ export * from "./aci.ts";
 export { concatBytes, TagCursor } from "./cursor.ts";
 export * from "./dimstyle.ts";
 export {
-  type Block,
-  type DxfClass,
-  DxfDocument,
-  isModelSpaceName,
-  isPaperSpaceName,
-  type Layout,
-  type LoadOptions,
-  loadDxf,
+    type Block,
+    type DxfClass,
+    DxfDocument,
+    isModelSpaceName,
+    isPaperSpaceName,
+    type Layout,
+    type LoadOptions,
+    loadDxf,
 } from "./document.ts";
 export * from "./entities/index.ts";
 export {
-  type FieldDef,
-  type FieldKind,
-  type FieldTable,
-  fieldTable,
-  readFields,
-  readValueAt,
-  tagsOf,
+    type FieldDef,
+    type FieldKind,
+    type FieldTable,
+    fieldTable,
+    readFields,
+    readValueAt,
+    tagsOf,
 } from "./fields.ts";
 export { Header, type HeaderValue } from "./header.ts";
 export * from "./objects.ts";

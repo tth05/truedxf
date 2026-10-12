@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
-  DIM_VAR_BY_CODE,
-  DIM_VAR_BY_NAME,
-  type DimensionEntity,
-  DxfDocument,
-  effectiveDimStyle,
-  headerDimVars,
-  imperialDimDefaults,
+    DIM_VAR_BY_CODE,
+    DIM_VAR_BY_NAME,
+    type DimensionEntity,
+    DxfDocument,
+    effectiveDimStyle,
+    headerDimVars,
+    imperialDimDefaults,
 } from "../src/index.ts";
 import { dxfWith, errors, listing, loadEntities } from "./snippets.ts";
 
@@ -217,57 +217,57 @@ const DIMSTYLES = `
 `;
 
 describe("DIMENSION", () => {
-  it("reads common data, subtype definition points and flags", () => {
-    const { doc, entities } = loadEntities(DIMS);
-    const [lin, ang, rad, arc] = entities as DimensionEntity[];
-    expect(lin!.type).toBe("DIMENSION");
-    expect(lin!.subtype).toBe("linear");
-    expect(lin!.blockName).toBe("*D1");
-    expect(lin!.dimStyle).toBe("METRIC-2");
-    expect(lin!.flags).toBe(32);
-    expect(lin!.defPoint).toEqual({ x: 6.6717988226486264, y: 9.992301766027062, z: 0 });
-    expect(lin!.textMidpoint).toEqual({ x: 20.839748528310782, y: 21.240377207533825, z: 0 });
-    expect(lin!.defPoint2).toEqual({ x: 10, y: 5, z: 0 });
-    expect(lin!.defPoint3).toEqual({ x: 40, y: 25, z: 0 });
-    expect(lin!.angle).toBeCloseTo(33.690067525979785);
-    expect(lin!.measurement).toBeCloseTo(36.05551275463989);
-    expect(lin!.attachment).toBe(5);
-    expect(lin!.textOverride).toBe("<>");
-    expect(lin!.overrides.size).toBe(0);
+    it("reads common data, subtype definition points and flags", () => {
+        const { doc, entities } = loadEntities(DIMS);
+        const [lin, ang, rad, arc] = entities as DimensionEntity[];
+        expect(lin!.type).toBe("DIMENSION");
+        expect(lin!.subtype).toBe("linear");
+        expect(lin!.blockName).toBe("*D1");
+        expect(lin!.dimStyle).toBe("METRIC-2");
+        expect(lin!.flags).toBe(32);
+        expect(lin!.defPoint).toEqual({ x: 6.6717988226486264, y: 9.992301766027062, z: 0 });
+        expect(lin!.textMidpoint).toEqual({ x: 20.839748528310782, y: 21.240377207533825, z: 0 });
+        expect(lin!.defPoint2).toEqual({ x: 10, y: 5, z: 0 });
+        expect(lin!.defPoint3).toEqual({ x: 40, y: 25, z: 0 });
+        expect(lin!.angle).toBeCloseTo(33.690067525979785);
+        expect(lin!.measurement).toBeCloseTo(36.05551275463989);
+        expect(lin!.attachment).toBe(5);
+        expect(lin!.textOverride).toBe("<>");
+        expect(lin!.overrides.size).toBe(0);
 
-    expect(ang!.subtype).toBe("angular");
-    expect(ang!.dimType).toBe(2);
-    expect(ang!.defPoint5).toEqual({ x: 70, y: 20, z: 0 });
+        expect(ang!.subtype).toBe("angular");
+        expect(ang!.dimType).toBe(2);
+        expect(ang!.defPoint5).toEqual({ x: 70, y: 20, z: 0 });
 
-    expect(rad!.subtype).toBe("radius");
-    expect(rad!.defPoint4).toEqual({ x: 126.12835554495183, y: 15.142300877492314, z: 0 });
-    expect(rad!.leaderLength).toBe(0);
-    expect([...rad!.overrides]).toEqual([
-      [172, 1],
-      [288, 1],
-      [44, 1.5],
-      [343, "3A"],
-      [3, "<> mm"],
-    ]);
+        expect(rad!.subtype).toBe("radius");
+        expect(rad!.defPoint4).toEqual({ x: 126.12835554495183, y: 15.142300877492314, z: 0 });
+        expect(rad!.leaderLength).toBe(0);
+        expect([...rad!.overrides]).toEqual([
+            [172, 1],
+            [288, 1],
+            [44, 1.5],
+            [343, "3A"],
+            [3, "<> mm"],
+        ]);
 
-    expect(arc!.type).toBe("ARC_DIMENSION");
-    expect(arc!.subtype).toBe("arc");
-    // 70 of AcDbDimension (R2018 arc type 8 | 32) vs. 70 of AcDbArcDimension (is partial)
-    expect(arc!.flags).toBe(40);
-    expect(arc!.isPartial).toBe(false);
-    expect(arc!.hasLeader).toBe(false);
-    expect(arc!.arcStart).toBe(0);
-    expect(arc!.arcEnd).toBeCloseTo(Math.PI / 2);
-    // 41 of AcDbArcDimension must not become the line spacing factor
-    expect(arc!.lineSpacingFactor).toBe(1);
-    expect(arc!.defPoint4).toEqual({ x: 150, y: 0, z: 0 });
-    expect(arc!.defPoint6).toEqual({ x: 0, y: 0, z: 0 });
-    expect(errors(doc)).toEqual([]);
-  });
+        expect(arc!.type).toBe("ARC_DIMENSION");
+        expect(arc!.subtype).toBe("arc");
+        // 70 of AcDbDimension (R2018 arc type 8 | 32) vs. 70 of AcDbArcDimension (is partial)
+        expect(arc!.flags).toBe(40);
+        expect(arc!.isPartial).toBe(false);
+        expect(arc!.hasLeader).toBe(false);
+        expect(arc!.arcStart).toBe(0);
+        expect(arc!.arcEnd).toBeCloseTo(Math.PI / 2);
+        // 41 of AcDbArcDimension must not become the line spacing factor
+        expect(arc!.lineSpacingFactor).toBe(1);
+        expect(arc!.defPoint4).toEqual({ x: 150, y: 0, z: 0 });
+        expect(arc!.defPoint6).toEqual({ x: 0, y: 0, z: 0 });
+        expect(errors(doc)).toEqual([]);
+    });
 
-  it("reads R12 dimensions without subclass markers and flags", () => {
-    const { entities } = loadEntities(
-      `
+    it("reads R12 dimensions without subclass markers and flags", () => {
+        const { entities } = loadEntities(
+            `
   0 DIMENSION
   8 0
   2 *D1
@@ -285,73 +285,73 @@ describe("DIMENSION", () => {
  25 4
  40 2.5
 `,
-      "AC1009",
-    );
-    const d = entities[0] as DimensionEntity;
-    expect(d.subtype).toBe("radius");
-    expect(d.userTextPosition).toBe(true);
-    expect(d.textOverride).toBe("R<>");
-    expect(d.defPoint4).toEqual({ x: 3, y: 4, z: 0 });
-    expect(d.leaderLength).toBe(2.5);
-  });
+            "AC1009",
+        );
+        const d = entities[0] as DimensionEntity;
+        expect(d.subtype).toBe("radius");
+        expect(d.userTextPosition).toBe(true);
+        expect(d.textOverride).toBe("R<>");
+        expect(d.defPoint4).toEqual({ x: 3, y: 4, z: 0 });
+        expect(d.leaderLength).toBe(2.5);
+    });
 });
 
 describe("DIMSTYLE", () => {
-  it("maps group codes to variable names with imperial defaults", () => {
-    expect(DIM_VAR_BY_CODE.get(41)?.name).toBe("DIMASZ");
-    expect(DIM_VAR_BY_NAME.get("DIMTFILLCLR")?.code).toBe(70);
-    const d = imperialDimDefaults();
-    expect(d.DIMASZ).toBe(0.18);
-    expect(d.DIMTXT).toBe(0.18);
-    expect(d.DIMTIH).toBe(true);
-    expect(d.DIMTAD).toBe(0);
-    expect(d.DIMDEC).toBe(4);
-    expect(d.DIMDSEP).toBe(46);
-    expect(d.DIMALTF).toBe(25.4);
-    expect(d.DIMLWD).toBe(-2);
-  });
+    it("maps group codes to variable names with imperial defaults", () => {
+        expect(DIM_VAR_BY_CODE.get(41)?.name).toBe("DIMASZ");
+        expect(DIM_VAR_BY_NAME.get("DIMTFILLCLR")?.code).toBe(70);
+        const d = imperialDimDefaults();
+        expect(d.DIMASZ).toBe(0.18);
+        expect(d.DIMTXT).toBe(0.18);
+        expect(d.DIMTIH).toBe(true);
+        expect(d.DIMTAD).toBe(0);
+        expect(d.DIMDEC).toBe(4);
+        expect(d.DIMDSEP).toBe(46);
+        expect(d.DIMALTF).toBe(25.4);
+        expect(d.DIMLWD).toBe(-2);
+    });
 
-  it("resolves override > DIMSTYLE record > imperial default", () => {
-    const doc = DxfDocument.load(dxfWith({ tables: DIMSTYLES, entities: DIMS }));
-    const metric = doc.tables.dimstyles.get("metric-2")!;
-    const standard = doc.tables.dimstyles.get("Standard")!;
-    const std = effectiveDimStyle(standard);
-    expect(std.DIMASZ).toBe(0.18);
-    expect(std.DIMTXSTY).toBe("1B");
-    expect(std.DIMTOFL).toBe(false);
-    const e = effectiveDimStyle(metric);
-    expect(e.DIMASZ).toBe(2);
-    expect(e.DIMTIH).toBe(false);
-    expect(e.DIMTAD).toBe(1);
-    expect(e.DIMDSEP).toBe(44);
-    expect(e.DIMCLRD).toBe(0);
-    expect(e.DIMLFAC).toBe(1);
-    const rad = doc.getEntity("54") as DimensionEntity;
-    const o = effectiveDimStyle(metric, rad.overrides);
-    expect(o.DIMTOFL).toBe(true);
-    expect(o.DIMUPT).toBe(true);
-    expect(o.DIMEXE).toBe(1.5);
-    expect(o.DIMBLK1).toBe("3A");
-    expect(o.DIMPOST).toBe("<> mm");
-    expect(o.DIMASZ).toBe(2);
-    // missing style → built-in defaults
-    expect(effectiveDimStyle(undefined).DIMGAP).toBe(0.09);
-  });
+    it("resolves override > DIMSTYLE record > imperial default", () => {
+        const doc = DxfDocument.load(dxfWith({ tables: DIMSTYLES, entities: DIMS }));
+        const metric = doc.tables.dimstyles.get("metric-2")!;
+        const standard = doc.tables.dimstyles.get("Standard")!;
+        const std = effectiveDimStyle(standard);
+        expect(std.DIMASZ).toBe(0.18);
+        expect(std.DIMTXSTY).toBe("1B");
+        expect(std.DIMTOFL).toBe(false);
+        const e = effectiveDimStyle(metric);
+        expect(e.DIMASZ).toBe(2);
+        expect(e.DIMTIH).toBe(false);
+        expect(e.DIMTAD).toBe(1);
+        expect(e.DIMDSEP).toBe(44);
+        expect(e.DIMCLRD).toBe(0);
+        expect(e.DIMLFAC).toBe(1);
+        const rad = doc.getEntity("54") as DimensionEntity;
+        const o = effectiveDimStyle(metric, rad.overrides);
+        expect(o.DIMTOFL).toBe(true);
+        expect(o.DIMUPT).toBe(true);
+        expect(o.DIMEXE).toBe(1.5);
+        expect(o.DIMBLK1).toBe("3A");
+        expect(o.DIMPOST).toBe("<> mm");
+        expect(o.DIMASZ).toBe(2);
+        // missing style → built-in defaults
+        expect(effectiveDimStyle(undefined).DIMGAP).toBe(0.09);
+    });
 
-  it("reads the second 70 as DIMTFILLCLR and the ACAD_DSTYLE_* XDATA extensions", () => {
-    const doc = DxfDocument.load(dxfWith({ tables: DIMSTYLES }));
-    const c = doc.tables.dimstyles.get("TFILL")!;
-    const e = effectiveDimStyle(c);
-    expect(e.DIMTFILL).toBe(2);
-    expect(e.DIMTFILLCLR).toBe(5);
-    expect(e.DIMCLRD).toBe(1);
-    expect(e.DIMBREAK).toBe(0.75);
-    expect(e.DIMLTYPE).toBe("3B");
-    expect(e.DIMJAG).toBe(1.5);
-  });
+    it("reads the second 70 as DIMTFILLCLR and the ACAD_DSTYLE_* XDATA extensions", () => {
+        const doc = DxfDocument.load(dxfWith({ tables: DIMSTYLES }));
+        const c = doc.tables.dimstyles.get("TFILL")!;
+        const e = effectiveDimStyle(c);
+        expect(e.DIMTFILL).toBe(2);
+        expect(e.DIMTFILLCLR).toBe(5);
+        expect(e.DIMCLRD).toBe(1);
+        expect(e.DIMBREAK).toBe(0.75);
+        expect(e.DIMLTYPE).toBe("3B");
+        expect(e.DIMJAG).toBe(1.5);
+    });
 
-  it("reads header $DIM* values but never uses them as fallback by default", () => {
-    const tags = listing(`
+    it("reads header $DIM* values but never uses them as fallback by default", () => {
+        const tags = listing(`
   0 SECTION
   2 HEADER
   9 $ACADVER
@@ -365,13 +365,13 @@ describe("DIMSTYLE", () => {
   0 ENDSEC
   0 EOF
 `);
-    const text = `${tags.map(([c, v]) => `${c}\r\n${v}`).join("\r\n")}\r\n`;
-    const doc = DxfDocument.load(new TextEncoder().encode(text));
-    expect(headerDimVars(doc.header)).toEqual({ DIMASZ: 5, DIMTAD: 1, DIMBLK: "BoxBlank" });
-    expect(effectiveDimStyle(undefined).DIMASZ).toBe(0.18);
-    const h = effectiveDimStyle(undefined, undefined, { fallback: "header", header: doc.header });
-    expect(h.DIMASZ).toBe(5);
-    expect(h.DIMTAD).toBe(1);
-    expect(h.DIMEXO).toBe(0.0625);
-  });
+        const text = `${tags.map(([c, v]) => `${c}\r\n${v}`).join("\r\n")}\r\n`;
+        const doc = DxfDocument.load(new TextEncoder().encode(text));
+        expect(headerDimVars(doc.header)).toEqual({ DIMASZ: 5, DIMTAD: 1, DIMBLK: "BoxBlank" });
+        expect(effectiveDimStyle(undefined).DIMASZ).toBe(0.18);
+        const h = effectiveDimStyle(undefined, undefined, { fallback: "header", header: doc.header });
+        expect(h.DIMASZ).toBe(5);
+        expect(h.DIMTAD).toBe(1);
+        expect(h.DIMEXO).toBe(0.0625);
+    });
 });

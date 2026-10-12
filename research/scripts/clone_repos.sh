@@ -24,10 +24,10 @@ clone LibreCAD/LibreCAD LibreCAD
 clone qcad/qcad qcad
 clone jscad/sample-files jscad-sample-files
 if [ ! -d gdal ]; then
-  git clone -q --depth 1 --filter=blob:none --sparse https://github.com/OSGeo/gdal.git gdal
-  (cd gdal && git sparse-checkout set --no-cone 'ogr/ogrsf_frmts/dxf/' 'autotest/ogr/data/dxf/' '/autotest/ogr/ogr_dxf.py' '/doc/source/drivers/vector/dxf.rst')
+    git clone -q --depth 1 --filter=blob:none --sparse https://github.com/OSGeo/gdal.git gdal
+    (cd gdal && git sparse-checkout set --no-cone 'ogr/ogrsf_frmts/dxf/' 'autotest/ogr/data/dxf/' '/autotest/ogr/ogr_dxf.py' '/doc/source/drivers/vector/dxf.rst')
 fi
 if [ ! -d FreeCAD ]; then
-  git clone -q --depth 1 --filter=blob:none --sparse https://github.com/FreeCAD/FreeCAD.git FreeCAD
-  (cd FreeCAD && git sparse-checkout set --no-cone 'src/Mod/Import/App/dxf/' '/src/Mod/Draft/importDXF.py')
+    git clone -q --depth 1 --filter=blob:none --sparse https://github.com/FreeCAD/FreeCAD.git FreeCAD
+    (cd FreeCAD && git sparse-checkout set --no-cone 'src/Mod/Import/App/dxf/' '/src/Mod/Draft/importDXF.py')
 fi

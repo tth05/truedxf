@@ -18,14 +18,14 @@ const meta = JSON.parse(readFileSync(`${base}.json`, "utf8"));
 const doc = loadDxf(new Uint8Array(readFileSync(`${base}.dxf`)));
 const ref = readPng(join(ROOT, "samples", "refs", "acad2027-R26.0", suite!, `${name}.png`));
 for (const v of variants.length ? variants : ["{}"]) {
-  const calibration = JSON.parse(v);
-  const r = await renderPlot(doc, meta.plot, { calibration });
-  const img = rasterize(r.displayList, r.view, meta.plot.canvas);
-  const m = compare(img, ref);
-  console.log(
-    v.padEnd(30),
-    `exact=${m.exactMismatch}`,
-    `f1=${m.f1.map((x) => x.toFixed(4)).join("/")}`,
-    `ink ${m.inkA}/${m.inkB}`,
-  );
+    const calibration = JSON.parse(v);
+    const r = await renderPlot(doc, meta.plot, { calibration });
+    const img = rasterize(r.displayList, r.view, meta.plot.canvas);
+    const m = compare(img, ref);
+    console.log(
+        v.padEnd(30),
+        `exact=${m.exactMismatch}`,
+        `f1=${m.f1.map((x) => x.toFixed(4)).join("/")}`,
+        `ink ${m.inkA}/${m.inkB}`,
+    );
 }

@@ -5,15 +5,15 @@ const enc = new TextEncoder();
 
 /** Parses "code value" lines into a DXF byte stream. */
 export function dxfBytes(listing: string): Uint8Array {
-  const out: string[] = [];
-  for (const raw of listing.split("\n")) {
-    const line = raw.trim();
-    if (!line) continue;
-    const m = /^(-?\d+)(?: (.*))?$/.exec(line);
-    if (!m) throw new Error(`bad listing line: ${line}`);
-    out.push(m[1]!.padStart(3), m[2] ?? "");
-  }
-  return enc.encode(`${out.join("\r\n")}\r\n`);
+    const out: string[] = [];
+    for (const raw of listing.split("\n")) {
+        const line = raw.trim();
+        if (!line) continue;
+        const m = /^(-?\d+)(?: (.*))?$/.exec(line);
+        if (!m) throw new Error(`bad listing line: ${line}`);
+        out.push(m[1]!.padStart(3), m[2] ?? "");
+    }
+    return enc.encode(`${out.join("\r\n")}\r\n`);
 }
 
 /**
@@ -21,8 +21,8 @@ export function dxfBytes(listing: string): Uint8Array {
  * 1F, the given entities (owner 1F) and objects.
  */
 export function modelDoc(opts: { entities: string; objects?: string; header?: string }): DxfDocument {
-  return DxfDocument.load(
-    dxfBytes(`
+    return DxfDocument.load(
+        dxfBytes(`
 0 SECTION
 2 HEADER
 9 $ACADVER
@@ -53,12 +53,12 @@ ${opts.objects ?? ""}
 0 ENDSEC
 0 EOF
 `),
-  );
+    );
 }
 
 /** A LINE entity listing with a handle. */
 export function line(handle: string, x0: number, y0: number, x1: number, y1: number, color = 7): string {
-  return `0 LINE
+    return `0 LINE
 5 ${handle}
 330 1F
 100 AcDbEntity

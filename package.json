@@ -1,38 +1,38 @@
 {
-  "name": "truedxf-monorepo",
-  "private": true,
-  "type": "module",
-  "packageManager": "pnpm@12.8.1",
-  "engines": {
-    "node": ">=22.18"
-  },
-  "scripts": {
-    "build": "tsc -b && node --disable-warning=ExperimentalWarning scripts/package-dist.ts",
-    "packages:check": "node --disable-warning=ExperimentalWarning scripts/check-packages.ts",
-    "typecheck": "tsc -b",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "lint": "biome check .",
-    "format": "biome check --write .",
-    "fingerprint": "node --disable-warning=ExperimentalWarning --max-old-space-size=8192 tools/corpus/src/fingerprint.ts",
-    "corpus:tags": "node --disable-warning=ExperimentalWarning tools/corpus/src/parse-tags.ts",
-    "corpus:model": "node --disable-warning=ExperimentalWarning tools/corpus/src/load-model.ts",
-    "test:visual": "node --disable-warning=ExperimentalWarning packages/testkit/src/visual.ts",
-    "playground": "pnpm --filter @truedxf/playground dev",
-    "playground:build": "pnpm --filter @truedxf/playground build",
-    "playground:deploy": "pnpm --filter @truedxf/playground run deploy:pages",
-    "perf:viewer": "node --disable-warning=ExperimentalWarning apps/playground/scripts/perf.ts"
-  },
-  "devDependencies": {
-    "@biomejs/biome": "^2.5.14",
-    "@types/node": "^26.6.3",
-    "fast-check": "^4.10.2",
-    "typescript": "^7.0.2",
-    "vitest": "^5.0.2"
-  },
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/tth05/truedxf.git"
-  }
+    "name": "truedxf-monorepo",
+    "private": true,
+    "type": "module",
+    "packageManager": "pnpm@12.8.1",
+    "engines": {
+        "node": ">=22.18"
+    },
+    "scripts": {
+        "build": "tsc -b && node --disable-warning=ExperimentalWarning scripts/package-dist.ts",
+        "packages:check": "node --disable-warning=ExperimentalWarning scripts/check-packages.ts",
+        "typecheck": "tsc -b",
+        "test": "vitest run",
+        "test:watch": "vitest",
+        "lint": "biome check .",
+        "format": "biome check --write .",
+        "fingerprint": "node --disable-warning=ExperimentalWarning --max-old-space-size=8192 tools/corpus/src/fingerprint.ts",
+        "corpus:tags": "node --disable-warning=ExperimentalWarning tools/corpus/src/parse-tags.ts",
+        "corpus:model": "node --disable-warning=ExperimentalWarning tools/corpus/src/load-model.ts",
+        "test:visual": "node --disable-warning=ExperimentalWarning packages/testkit/src/visual.ts",
+        "playground": "pnpm --filter @truedxf/playground dev",
+        "playground:build": "pnpm --filter @truedxf/playground build",
+        "playground:deploy": "pnpm --filter @truedxf/playground run deploy:pages",
+        "perf:viewer": "node --disable-warning=ExperimentalWarning apps/playground/scripts/perf.ts"
+    },
+    "devDependencies": {
+        "@biomejs/biome": "^2.5.14",
+        "@types/node": "^26.6.3",
+        "fast-check": "^4.10.2",
+        "typescript": "^7.0.2",
+        "vitest": "^5.0.2"
+    },
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/tth05/truedxf.git"
+    }
 }

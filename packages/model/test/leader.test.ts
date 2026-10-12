@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
-  BY_BLOCK_RAW,
-  decodeRawColor,
-  type LeaderEntity,
-  type MultiLeaderEntity,
-  type ToleranceEntity,
+    BY_BLOCK_RAW,
+    decodeRawColor,
+    type LeaderEntity,
+    type MultiLeaderEntity,
+    type ToleranceEntity,
 } from "../src/index.ts";
 import { errors, loadEntities } from "./snippets.ts";
 
@@ -285,105 +285,109 @@ const MLEADER_BLOCK = `
 `;
 
 describe("LEADER", () => {
-  it("reads vertices, flags, annotation and DSTYLE overrides", () => {
-    const { doc, entities } = loadEntities(LEADER);
-    const l = entities[0] as LeaderEntity;
-    expect(l.type).toBe("LEADER");
-    expect(l.dimStyle).toBe("Standard");
-    expect(l.arrowhead).toBe(true);
-    expect(l.creationFlag).toBe(0);
-    expect(l.hookDirection).toBe(0);
-    expect(l.hasHook).toBe(true);
-    expect(l.textHeight).toBe(2.5);
-    expect(l.vertices).toHaveLength(4);
-    expect(l.vertices[3]).toEqual({ x: 43.5, y: 30, z: 0 });
-    expect(l.annotationHandle).toBe("3C");
-    expect(l.horizontalDirection).toEqual({ x: 1, y: 0, z: 0 });
-    expect(l.overrides.get(41)).toBe(2.5);
-    expect(errors(doc)).toEqual([]);
-  });
+    it("reads vertices, flags, annotation and DSTYLE overrides", () => {
+        const { doc, entities } = loadEntities(LEADER);
+        const l = entities[0] as LeaderEntity;
+        expect(l.type).toBe("LEADER");
+        expect(l.dimStyle).toBe("Standard");
+        expect(l.arrowhead).toBe(true);
+        expect(l.creationFlag).toBe(0);
+        expect(l.hookDirection).toBe(0);
+        expect(l.hasHook).toBe(true);
+        expect(l.textHeight).toBe(2.5);
+        expect(l.vertices).toHaveLength(4);
+        expect(l.vertices[3]).toEqual({ x: 43.5, y: 30, z: 0 });
+        expect(l.annotationHandle).toBe("3C");
+        expect(l.horizontalDirection).toEqual({ x: 1, y: 0, z: 0 });
+        expect(l.overrides.get(41)).toBe(2.5);
+        expect(errors(doc)).toEqual([]);
+    });
 });
 
 describe("TOLERANCE", () => {
-  it("reads the frame string and placement", () => {
-    const t = loadEntities(TOLERANCE).entities[0] as ToleranceEntity;
-    expect(t.type).toBe("TOLERANCE");
-    expect(t.text).toBe("{\\Fgdt;p}%%v0.2%%vA^J{\\Fgdt;r}%%v0.05");
-    expect(t.insert).toEqual({ x: 50, y: 12, z: 0 });
-    expect(t.direction).toEqual({ x: 1, y: 0, z: 0 });
-  });
+    it("reads the frame string and placement", () => {
+        const t = loadEntities(TOLERANCE).entities[0] as ToleranceEntity;
+        expect(t.type).toBe("TOLERANCE");
+        expect(t.text).toBe("{\\Fgdt;p}%%v0.2%%vA^J{\\Fgdt;r}%%v0.05");
+        expect(t.insert).toEqual({ x: 50, y: 12, z: 0 });
+        expect(t.direction).toEqual({ x: 1, y: 0, z: 0 });
+    });
 });
 
 describe("MULTILEADER", () => {
-  it("reads the CONTEXT_DATA / LEADER / LEADER_LINE structure with MTEXT content", () => {
-    const { doc, entities } = loadEntities(MLEADER);
-    const m = entities[0] as MultiLeaderEntity;
-    expect(m.type).toBe("MULTILEADER");
-    expect(m.proxyGraphics).toEqual(new Uint8Array([1, 2, 3, 4]));
-    const c = m.context;
-    expect(c.scale).toBe(1);
-    expect(c.basePoint).toEqual({ x: 78, y: 49, z: 0 });
-    expect(c.textHeight).toBe(2);
-    expect(c.arrowSize).toBe(4);
-    expect(c.landingGap).toBe(2);
-    expect(c.block).toBeUndefined();
-    expect(c.mtext?.text).toBe("Hello leader");
-    expect(c.mtext?.insert).toEqual({ x: 80, y: 50, z: 0 });
-    expect(c.mtext?.width).toBe(0);
-    expect(c.mtext?.attachment).toBe(1);
-    expect(c.mtext?.flowDirection).toBe(1);
-    expect(c.mtext?.styleHandle).toBe("29");
-    expect(c.planeOrigin).toEqual({ x: 0, y: 0, z: 0 });
-    expect(c.leaders).toHaveLength(1);
-    const leader = c.leaders[0]!;
-    expect(leader.hasLastLeaderLine).toBe(true);
-    expect(leader.lastLeaderPoint).toEqual({ x: 70, y: 49, z: 0 });
-    expect(leader.doglegLength).toBe(8);
-    expect(leader.lines).toHaveLength(1);
-    expect(leader.lines[0]!.vertices).toEqual([{ x: 60, y: 40, z: 0 }]);
-    expect(c.topAttachment).toBe(9);
-    expect(m.styleHandle).toBe("2C");
-    expect(m.overrideFlags).toBe(2147483647);
-    expect(m.leaderType).toBe(1);
-    expect(m.leaderColor).toBe(BY_BLOCK_RAW);
-    expect(m.leaderLinetypeHandle).toBe("25");
-    expect(m.leaderLineweight).toBe(-2);
-    expect(m.doglegLength).toBe(8);
-    expect(m.arrowSize).toBe(4);
-    expect(m.contentType).toBe(2);
-    expect(m.textStyleHandle).toBe("29");
-    expect(m.blockScale).toEqual({ x: 1, y: 1, z: 1 });
-    expect(m.textAttachmentPoint).toBe(1);
-    expect(errors(doc)).toEqual([]);
-  });
+    it("reads the CONTEXT_DATA / LEADER / LEADER_LINE structure with MTEXT content", () => {
+        const { doc, entities } = loadEntities(MLEADER);
+        const m = entities[0] as MultiLeaderEntity;
+        expect(m.type).toBe("MULTILEADER");
+        expect(m.proxyGraphics).toEqual(new Uint8Array([1, 2, 3, 4]));
+        const c = m.context;
+        expect(c.scale).toBe(1);
+        expect(c.basePoint).toEqual({ x: 78, y: 49, z: 0 });
+        expect(c.textHeight).toBe(2);
+        expect(c.arrowSize).toBe(4);
+        expect(c.landingGap).toBe(2);
+        expect(c.block).toBeUndefined();
+        expect(c.mtext?.text).toBe("Hello leader");
+        expect(c.mtext?.insert).toEqual({ x: 80, y: 50, z: 0 });
+        expect(c.mtext?.width).toBe(0);
+        expect(c.mtext?.attachment).toBe(1);
+        expect(c.mtext?.flowDirection).toBe(1);
+        expect(c.mtext?.styleHandle).toBe("29");
+        expect(c.planeOrigin).toEqual({ x: 0, y: 0, z: 0 });
+        expect(c.leaders).toHaveLength(1);
+        const leader = c.leaders[0]!;
+        expect(leader.hasLastLeaderLine).toBe(true);
+        expect(leader.lastLeaderPoint).toEqual({ x: 70, y: 49, z: 0 });
+        expect(leader.doglegLength).toBe(8);
+        expect(leader.lines).toHaveLength(1);
+        expect(leader.lines[0]!.vertices).toEqual([{ x: 60, y: 40, z: 0 }]);
+        expect(c.topAttachment).toBe(9);
+        expect(m.styleHandle).toBe("2C");
+        expect(m.overrideFlags).toBe(2147483647);
+        expect(m.leaderType).toBe(1);
+        expect(m.leaderColor).toBe(BY_BLOCK_RAW);
+        expect(m.leaderLinetypeHandle).toBe("25");
+        expect(m.leaderLineweight).toBe(-2);
+        expect(m.doglegLength).toBe(8);
+        expect(m.arrowSize).toBe(4);
+        expect(m.contentType).toBe(2);
+        expect(m.textStyleHandle).toBe("29");
+        expect(m.blockScale).toEqual({ x: 1, y: 1, z: 1 });
+        expect(m.textAttachmentPoint).toBe(1);
+        expect(errors(doc)).toEqual([]);
+    });
 
-  it("reads block content, attributes, breaks and arrow heads", () => {
-    const m = loadEntities(MLEADER_BLOCK).entities[0] as MultiLeaderEntity;
-    const b = m.context.block!;
-    expect(m.context.mtext).toBeUndefined();
-    expect(b.blockRecordHandle).toBe("1A");
-    expect(b.insert).toEqual({ x: 12, y: 10, z: 0 });
-    expect(b.scale).toEqual({ x: 2, y: 2, z: 2 });
-    expect(b.rotation).toBe(0.5);
-    expect(decodeRawColor(b.color)).toEqual({ method: 0xc3, aci: 5, rgb: undefined });
-    expect(b.matrix).toEqual([1, 0]);
-    const leader = m.context.leaders[0]!;
-    expect(leader.breaks).toEqual([
-      { index: undefined, start: { x: 10.1, y: 10, z: 0 }, end: { x: 10.2, y: 10, z: 0 } },
-    ]);
-    expect(leader.lines).toHaveLength(2);
-    expect(leader.lines[0]!.vertices).toHaveLength(2);
-    expect(leader.lines[0]!.breaks).toEqual([
-      { index: 0, start: { x: 1, y: 1, z: 0 }, end: { x: 2, y: 2, z: 0 } },
-    ]);
-    expect(decodeRawColor(leader.lines[1]!.color)).toEqual({ method: 0xc2, aci: undefined, rgb: 0xff0000 });
-    expect(m.leaderType).toBe(2);
-    expect(m.contentType).toBe(1);
-    expect(m.blockHandle).toBe("1A");
-    expect(m.arrowHeads).toEqual([{ index: 1, handle: "2B" }]);
-    expect(m.blockAttributes).toEqual([
-      { attdefHandle: "3C", index: 1, width: 0, text: "VALUE-1" },
-      { attdefHandle: "3D", index: 2, width: 0, text: "VALUE-2" },
-    ]);
-  });
+    it("reads block content, attributes, breaks and arrow heads", () => {
+        const m = loadEntities(MLEADER_BLOCK).entities[0] as MultiLeaderEntity;
+        const b = m.context.block!;
+        expect(m.context.mtext).toBeUndefined();
+        expect(b.blockRecordHandle).toBe("1A");
+        expect(b.insert).toEqual({ x: 12, y: 10, z: 0 });
+        expect(b.scale).toEqual({ x: 2, y: 2, z: 2 });
+        expect(b.rotation).toBe(0.5);
+        expect(decodeRawColor(b.color)).toEqual({ method: 0xc3, aci: 5, rgb: undefined });
+        expect(b.matrix).toEqual([1, 0]);
+        const leader = m.context.leaders[0]!;
+        expect(leader.breaks).toEqual([
+            { index: undefined, start: { x: 10.1, y: 10, z: 0 }, end: { x: 10.2, y: 10, z: 0 } },
+        ]);
+        expect(leader.lines).toHaveLength(2);
+        expect(leader.lines[0]!.vertices).toHaveLength(2);
+        expect(leader.lines[0]!.breaks).toEqual([
+            { index: 0, start: { x: 1, y: 1, z: 0 }, end: { x: 2, y: 2, z: 0 } },
+        ]);
+        expect(decodeRawColor(leader.lines[1]!.color)).toEqual({
+            method: 0xc2,
+            aci: undefined,
+            rgb: 0xff0000,
+        });
+        expect(m.leaderType).toBe(2);
+        expect(m.contentType).toBe(1);
+        expect(m.blockHandle).toBe("1A");
+        expect(m.arrowHeads).toEqual([{ index: 1, handle: "2B" }]);
+        expect(m.blockAttributes).toEqual([
+            { attdefHandle: "3C", index: 1, width: 0, text: "VALUE-1" },
+            { attdefHandle: "3D", index: 2, width: 0, text: "VALUE-2" },
+        ]);
+    });
 });

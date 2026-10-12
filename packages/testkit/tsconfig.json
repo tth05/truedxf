@@ -1,27 +1,27 @@
 {
-  "extends": "../../tsconfig.base.json",
-  "compilerOptions": {
-    "rootDir": "src",
-    "outDir": "dist",
-    "types": ["node"],
-    "lib": ["ES2023", "DOM"]
-  },
-  "include": ["src"],
-  "references": [
-    {
-      "path": "../core"
+    "extends": "../../tsconfig.base.json",
+    "compilerOptions": {
+        "rootDir": "src",
+        "outDir": "dist",
+        "types": ["node"],
+        "lib": ["ES2023", "DOM"]
     },
-    {
-      "path": "../model"
-    },
-    {
-      "path": "../pdf"
-    },
-    {
-      "path": "../render"
-    },
-    {
-      "path": "../three"
-    }
-  ]
+    "include": ["src"],
+    "references": [
+        {
+            "path": "../core"
+        },
+        {
+            "path": "../model"
+        },
+        {
+            "path": "../pdf"
+        },
+        {
+            "path": "../render"
+        },
+        {
+            "path": "../three"
+        }
+    ]
 }

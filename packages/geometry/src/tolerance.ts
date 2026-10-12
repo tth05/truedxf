@@ -35,5 +35,5 @@ export const MAX_SUBDIVISION_DEPTH = 20;
 
 /** True when `|a - b| <= abs + rel * max(|a|, |b|)`. */
 export function isClose(a: number, b: number, rel = REL_EPSILON, abs = EPSILON): boolean {
-  return Math.abs(a - b) <= Math.max(abs, rel * Math.max(Math.abs(a), Math.abs(b)));
+    return Math.abs(a - b) <= Math.max(abs, rel * Math.max(Math.abs(a), Math.abs(b)));
 }

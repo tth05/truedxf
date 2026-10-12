@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
-  type AcadTableEntity,
-  type AcisEntity,
-  DxfDocument,
-  decodeSatLine,
-  type HelixEntity,
-  type LineEntity,
-  type MeshEntity,
-  type MLineEntity,
-  type ProxyEntity,
+    type AcadTableEntity,
+    type AcisEntity,
+    DxfDocument,
+    decodeSatLine,
+    type HelixEntity,
+    type LineEntity,
+    type MeshEntity,
+    type MLineEntity,
+    type ProxyEntity,
 } from "../src/index.ts";
 import { errors, loadEntities } from "./snippets.ts";
 
@@ -279,119 +279,119 @@ const PROXY = `
 `;
 
 describe("MLINE", () => {
-  it("reads vertices with miter directions and element parameters", () => {
-    const { doc, entities } = loadEntities(MLINE);
-    const m = entities[0] as MLineEntity;
-    expect(m.type).toBe("MLINE");
-    expect(m.styleName).toBe("Standard");
-    expect(m.styleHandle).toBe("22");
-    expect(m.scale).toBe(2);
-    expect(m.justification).toBe(0);
-    expect(m.styleElementCount).toBe(2);
-    expect(m.start).toEqual({ x: 10, y: 5, z: 0 });
-    expect(m.vertices).toHaveLength(3);
-    expect(m.vertices[0]!.direction).toEqual({ x: 0, y: 1, z: 0 });
-    expect(m.vertices[0]!.elements).toEqual([
-      { params: [0, 0], fillParams: [] },
-      { params: [-2, 0], fillParams: [] },
-    ]);
-    expect(m.vertices[1]!.miter.x).toBeCloseTo(-0.7071067811865475);
-    expect(m.vertices[1]!.elements[0]).toEqual({ params: [0, 0, 1.5, 3], fillParams: [0.25] });
-    expect(errors(doc)).toEqual([]);
-  });
+    it("reads vertices with miter directions and element parameters", () => {
+        const { doc, entities } = loadEntities(MLINE);
+        const m = entities[0] as MLineEntity;
+        expect(m.type).toBe("MLINE");
+        expect(m.styleName).toBe("Standard");
+        expect(m.styleHandle).toBe("22");
+        expect(m.scale).toBe(2);
+        expect(m.justification).toBe(0);
+        expect(m.styleElementCount).toBe(2);
+        expect(m.start).toEqual({ x: 10, y: 5, z: 0 });
+        expect(m.vertices).toHaveLength(3);
+        expect(m.vertices[0]!.direction).toEqual({ x: 0, y: 1, z: 0 });
+        expect(m.vertices[0]!.elements).toEqual([
+            { params: [0, 0], fillParams: [] },
+            { params: [-2, 0], fillParams: [] },
+        ]);
+        expect(m.vertices[1]!.miter.x).toBeCloseTo(-0.7071067811865475);
+        expect(m.vertices[1]!.elements[0]).toEqual({ params: [0, 0, 1.5, 3], fillParams: [0.25] });
+        expect(errors(doc)).toEqual([]);
+    });
 });
 
 describe("ACAD_TABLE", () => {
-  it("reads the block reference and table geometry, stopping at the cell data", () => {
-    const t = loadEntities(TABLE).entities[0] as AcadTableEntity;
-    expect(t.type).toBe("ACAD_TABLE");
-    expect(t.blockName).toBe("*T1");
-    expect(t.insert).toEqual({ x: 120.5, y: -40.25, z: 0 });
-    expect(t.scale).toEqual({ x: 1, y: 1, z: 1 });
-    expect(t.tableStyleHandle).toBe("51");
-    expect(t.blockRecordHandle).toBe("62");
-    expect(t.rowCount).toBe(2);
-    expect(t.columnCount).toBe(3);
-    expect(t.rowHeights).toEqual([8, 6.5]);
-    expect(t.columnWidths).toEqual([30, 20, 25]);
-  });
+    it("reads the block reference and table geometry, stopping at the cell data", () => {
+        const t = loadEntities(TABLE).entities[0] as AcadTableEntity;
+        expect(t.type).toBe("ACAD_TABLE");
+        expect(t.blockName).toBe("*T1");
+        expect(t.insert).toEqual({ x: 120.5, y: -40.25, z: 0 });
+        expect(t.scale).toEqual({ x: 1, y: 1, z: 1 });
+        expect(t.tableStyleHandle).toBe("51");
+        expect(t.blockRecordHandle).toBe("62");
+        expect(t.rowCount).toBe(2);
+        expect(t.columnCount).toBe(3);
+        expect(t.rowHeights).toEqual([8, 6.5]);
+        expect(t.columnWidths).toEqual([30, 20, 25]);
+    });
 });
 
 describe("MESH", () => {
-  it("reads vertices, n-gon face list, edges and creases", () => {
-    const m = loadEntities(MESH).entities[0] as MeshEntity;
-    expect(m.type).toBe("MESH");
-    expect(m.subdivisionLevel).toBe(1);
-    expect(m.vertices).toHaveLength(4);
-    expect(m.faces).toEqual([
-      [0, 1, 2],
-      [0, 2, 3],
-    ]);
-    expect(m.edges).toEqual([
-      [0, 1],
-      [1, 2],
-    ]);
-    expect(m.creases).toEqual([0, -1]);
-  });
+    it("reads vertices, n-gon face list, edges and creases", () => {
+        const m = loadEntities(MESH).entities[0] as MeshEntity;
+        expect(m.type).toBe("MESH");
+        expect(m.subdivisionLevel).toBe(1);
+        expect(m.vertices).toHaveLength(4);
+        expect(m.faces).toEqual([
+            [0, 1, 2],
+            [0, 2, 3],
+        ]);
+        expect(m.edges).toEqual([
+            [0, 1],
+            [1, 2],
+        ]);
+        expect(m.creases).toEqual([0, -1]);
+    });
 });
 
 describe("HELIX", () => {
-  it("reads the embedded spline and the helix parameters", () => {
-    const h = loadEntities(HELIX).entities[0] as HelixEntity;
-    expect(h.type).toBe("HELIX");
-    expect(h.degree).toBe(3);
-    expect(h.controlPoints).toHaveLength(4);
-    expect(h.knots).toHaveLength(8);
-    expect(h.axisBase).toEqual({ x: 0, y: 0, z: 0 });
-    expect(h.startPoint).toEqual({ x: 4, y: 0, z: 0 });
-    expect(h.axisVector).toEqual({ x: 0, y: 0, z: 1 });
-    expect(h.radius).toBe(4);
-    expect(h.turns).toBe(0.25);
-    expect(h.rightHanded).toBe(true);
-    expect(h.proxyGraphics).toEqual(new Uint8Array([10, 11, 12, 13]));
-  });
+    it("reads the embedded spline and the helix parameters", () => {
+        const h = loadEntities(HELIX).entities[0] as HelixEntity;
+        expect(h.type).toBe("HELIX");
+        expect(h.degree).toBe(3);
+        expect(h.controlPoints).toHaveLength(4);
+        expect(h.knots).toHaveLength(8);
+        expect(h.axisBase).toEqual({ x: 0, y: 0, z: 0 });
+        expect(h.startPoint).toEqual({ x: 4, y: 0, z: 0 });
+        expect(h.axisVector).toEqual({ x: 0, y: 0, z: 1 });
+        expect(h.radius).toBe(4);
+        expect(h.turns).toBe(0.25);
+        expect(h.rightHanded).toBe(true);
+        expect(h.proxyGraphics).toEqual(new Uint8Array([10, 11, 12, 13]));
+    });
 });
 
 describe("ACIS entities", () => {
-  it("decodes SAT lines of R2000–R2010 files and flags R2013+ ACDSDATA storage", () => {
-    const [region, solid] = loadEntities(ACIS).entities as AcisEntity[];
-    expect(region!.type).toBe("REGION");
-    expect(region!.modelerVersion).toBe(1);
-    expect(region!.satLines).toEqual([
-      "400 3 1 0",
-      "7 truedxf 8 ACIS 4.0 NT 24 Fri Oct 02 12:00:00 2026",
-      "1 9.9999999999999995e-007 1e-010",
-    ]);
-    expect(region!.acisInAcdsData).toBe(false);
-    expect(solid!.type).toBe("3DSOLID");
-    expect(solid!.satLines).toEqual([]);
-    expect(solid!.acisInAcdsData).toBe(true);
-    expect(solid!.uid).toBe("{6c1d0e4a-2b3f-4a5d-9e8f-0a1b2c3d4e5f}");
-    expect(solid!.historyHandle).toBe("71");
-  });
+    it("decodes SAT lines of R2000–R2010 files and flags R2013+ ACDSDATA storage", () => {
+        const [region, solid] = loadEntities(ACIS).entities as AcisEntity[];
+        expect(region!.type).toBe("REGION");
+        expect(region!.modelerVersion).toBe(1);
+        expect(region!.satLines).toEqual([
+            "400 3 1 0",
+            "7 truedxf 8 ACIS 4.0 NT 24 Fri Oct 02 12:00:00 2026",
+            "1 9.9999999999999995e-007 1e-010",
+        ]);
+        expect(region!.acisInAcdsData).toBe(false);
+        expect(solid!.type).toBe("3DSOLID");
+        expect(solid!.satLines).toEqual([]);
+        expect(solid!.acisInAcdsData).toBe(true);
+        expect(solid!.uid).toBe("{6c1d0e4a-2b3f-4a5d-9e8f-0a1b2c3d4e5f}");
+        expect(solid!.historyHandle).toBe("71");
+    });
 
-  it("decodeSatLine inverts 159 − c and drops the space after an encoded 'A'", () => {
-    expect(decodeSatLine("^ -:> jn")).toBe("Area 51");
-    expect(decodeSatLine("koo l")).toBe("400 3");
-  });
+    it("decodeSatLine inverts 159 − c and drops the space after an encoded 'A'", () => {
+        expect(decodeSatLine("^ -:> jn")).toBe("Area 51");
+        expect(decodeSatLine("koo l")).toBe("400 3");
+    });
 });
 
 describe("ACAD_PROXY_ENTITY", () => {
-  it("reads class ids, proxy graphics, entity data and object ids", () => {
-    const p = loadEntities(PROXY).entities[0] as ProxyEntity;
-    expect(p.type).toBe("ACAD_PROXY_ENTITY");
-    expect(p.proxyClassId).toBe(498);
-    expect(p.applicationClassId).toBe(503);
-    expect(p.proxyGraphics).toEqual(new Uint8Array([0x0c, 0, 0, 0, 0x02, 0, 0, 0]));
-    expect(p.entityDataBits).toBe(24);
-    expect(p.entityData).toEqual(new Uint8Array([0x1a, 0x2b, 0x3c]));
-    expect(p.objectIds).toEqual(["2A", "3F", "0"]);
-    expect(p.dwgFormat).toBe(33);
-    expect(p.originalFormat).toBe(1);
-  });
+    it("reads class ids, proxy graphics, entity data and object ids", () => {
+        const p = loadEntities(PROXY).entities[0] as ProxyEntity;
+        expect(p.type).toBe("ACAD_PROXY_ENTITY");
+        expect(p.proxyClassId).toBe(498);
+        expect(p.applicationClassId).toBe(503);
+        expect(p.proxyGraphics).toEqual(new Uint8Array([0x0c, 0, 0, 0, 0x02, 0, 0, 0]));
+        expect(p.entityDataBits).toBe(24);
+        expect(p.entityData).toEqual(new Uint8Array([0x1a, 0x2b, 0x3c]));
+        expect(p.objectIds).toEqual(["2A", "3F", "0"]);
+        expect(p.dwgFormat).toBe(33);
+        expect(p.originalFormat).toBe(1);
+    });
 
-  it("exposes AcDbEntity proxy graphics on ordinary entities", () => {
-    const l = loadEntities(`
+    it("exposes AcDbEntity proxy graphics on ordinary entities", () => {
+        const l = loadEntities(`
   0 LINE
   5 1
 100 AcDbEntity
@@ -404,15 +404,15 @@ describe("ACAD_PROXY_ENTITY", () => {
  11 1
  21 1
 `).entities[0] as LineEntity;
-    expect(l.proxyGraphics).toEqual(new Uint8Array([0xab, 0xcd]));
-    const plain = loadEntities(MLINE).entities[0]!;
-    expect(plain.proxyGraphics).toBeUndefined();
-  });
+        expect(l.proxyGraphics).toEqual(new Uint8Array([0xab, 0xcd]));
+        const plain = loadEntities(MLINE).entities[0]!;
+        expect(plain.proxyGraphics).toBeUndefined();
+    });
 });
 
 describe("unparsable numbers (VERIFIED-BY-ACAD fileformat/overflow-*, Q-0021)", () => {
-  const line = (x: string, handle = "A1") =>
-    `0 LINE
+    const line = (x: string, handle = "A1") =>
+        `0 LINE
 5 ${handle}
 100 AcDbEntity
 8 0
@@ -422,17 +422,17 @@ describe("unparsable numbers (VERIFIED-BY-ACAD fileformat/overflow-*, Q-0021)", 
 11 10
 21 -5`;
 
-  it("skips an entity with nan / inf / -nan(ind) and reports it", () => {
-    for (const bad of ["nan", "inf", "-nan(ind)", "inf.0", "abc"]) {
-      const { doc, entities } = loadEntities(`${line("0", "A1")}
+    it("skips an entity with nan / inf / -nan(ind) and reports it", () => {
+        for (const bad of ["nan", "inf", "-nan(ind)", "inf.0", "abc"]) {
+            const { doc, entities } = loadEntities(`${line("0", "A1")}
 ${line(bad, "A2")}`);
-      expect(entities.map((e) => e.handle)).toEqual(["A1"]);
-      expect(errors(doc).map((d) => d.code)).toEqual(["unparsed-number"]);
-    }
-  });
+            expect(entities.map((e) => e.handle)).toEqual(["A1"]);
+            expect(errors(doc).map((d) => d.code)).toEqual(["unparsed-number"]);
+        }
+    });
 
-  it("skips a POLYLINE whose VERTEX holds nan", () => {
-    const { doc, entities } = loadEntities(`0 POLYLINE
+    it("skips a POLYLINE whose VERTEX holds nan", () => {
+        const { doc, entities } = loadEntities(`0 POLYLINE
 5 B0
 100 AcDbEntity
 8 0
@@ -459,20 +459,20 @@ ${line(bad, "A2")}`);
 5 B3
 100 AcDbEntity
 8 0`);
-    expect(entities).toEqual([]);
-    expect(errors(doc).map((d) => d.code)).toEqual(["unparsed-number"]);
-  });
+        expect(entities).toEqual([]);
+        expect(errors(doc).map((d) => d.code)).toEqual(["unparsed-number"]);
+    });
 
-  it("keeps numbers AutoCAD loads: overflow, trailing garbage, padding", () => {
-    for (const ok of ["1e999", "30xyz", " 30 ", "-5", ".5", "+30"]) {
-      const { doc, entities } = loadEntities(line(ok));
-      expect(entities).toHaveLength(1);
-      expect(errors(doc)).toEqual([]);
-    }
-  });
+    it("keeps numbers AutoCAD loads: overflow, trailing garbage, padding", () => {
+        for (const ok of ["1e999", "30xyz", " 30 ", "-5", ".5", "+30"]) {
+            const { doc, entities } = loadEntities(line(ok));
+            expect(entities).toHaveLength(1);
+            expect(errors(doc)).toEqual([]);
+        }
+    });
 
-  it("reports a header value and falls back to the default", () => {
-    const text = `0
+    it("reports a header value and falls back to the default", () => {
+        const text = `0
 SECTION
 2
 HEADER
@@ -489,8 +489,8 @@ ENDSEC
 0
 EOF
 `;
-    const doc = DxfDocument.load(new TextEncoder().encode(text));
-    expect(doc.header.num("$LTSCALE", 1)).toBe(1);
-    expect(errors(doc).map((d) => d.code)).toEqual(["unparsed-number"]);
-  });
+        const doc = DxfDocument.load(new TextEncoder().encode(text));
+        expect(doc.header.num("$LTSCALE", 1)).toBe(1);
+        expect(errors(doc).map((d) => d.code)).toEqual(["unparsed-number"]);
+    });
 });

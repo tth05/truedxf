@@ -12,38 +12,38 @@ const INTERVAL_MS = 30 * 60_000;
 const MIN_GAP_MS = 60_000;
 
 export interface UpdateWatch {
-  /** Checks now (unless checked within the last minute), e.g. after a failed load. */
-  check(): void;
+    /** Checks now (unless checked within the last minute), e.g. after a failed load. */
+    check(): void;
 }
 
 export function watchUpdates(options: {
-  /** Whether reloading would lose something (a drawing or files are open). */
-  inUse(): boolean;
-  /** A newer version exists: offer `reload`. */
-  offer(reload: () => void): void;
+    /** Whether reloading would lose something (a drawing or files are open). */
+    inUse(): boolean;
+    /** A newer version exists: offer `reload`. */
+    offer(reload: () => void): void;
 }): UpdateWatch {
-  let last = 0;
-  let found = false;
-  const reload = () => location.reload();
-  const check = async (force = false, returned = false) => {
-    if (found || (!force && performance.now() - last < MIN_GAP_MS)) return;
-    last = performance.now();
-    let id: unknown;
-    try {
-      const r = await fetch("version.json", { cache: "no-store" });
-      if (!r.ok) return;
-      id = ((await r.json()) as { id?: unknown }).id;
-    } catch {
-      return; // offline or blocked: try again next time
-    }
-    if (typeof id !== "string" || id === __BUILD__.id) return;
-    found = true;
-    if (returned && !options.inUse()) reload();
-    else options.offer(reload);
-  };
-  document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible") void check(false, true);
-  });
-  setInterval(() => void check(true), INTERVAL_MS);
-  return { check: () => void check() };
+    let last = 0;
+    let found = false;
+    const reload = () => location.reload();
+    const check = async (force = false, returned = false) => {
+        if (found || (!force && performance.now() - last < MIN_GAP_MS)) return;
+        last = performance.now();
+        let id: unknown;
+        try {
+            const r = await fetch("version.json", { cache: "no-store" });
+            if (!r.ok) return;
+            id = ((await r.json()) as { id?: unknown }).id;
+        } catch {
+            return; // offline or blocked: try again next time
+        }
+        if (typeof id !== "string" || id === __BUILD__.id) return;
+        found = true;
+        if (returned && !options.inUse()) reload();
+        else options.offer(reload);
+    };
+    document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") void check(false, true);
+    });
+    setInterval(() => void check(true), INTERVAL_MS);
+    return { check: () => void check() };
 }

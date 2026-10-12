@@ -2,15 +2,15 @@
 const enc = new TextEncoder();
 
 export function dxf(listing: string): Uint8Array {
-  const out: string[] = [];
-  for (const raw of listing.split("\n")) {
-    const line = raw.trim();
-    if (!line) continue;
-    const m = /^(-?\d+)(?: (.*))?$/.exec(line);
-    if (!m) throw new Error(`bad listing line: ${line}`);
-    out.push(m[1]!.padStart(3), m[2] ?? "");
-  }
-  return enc.encode(`${out.join("\r\n")}\r\n`);
+    const out: string[] = [];
+    for (const raw of listing.split("\n")) {
+        const line = raw.trim();
+        if (!line) continue;
+        const m = /^(-?\d+)(?: (.*))?$/.exec(line);
+        if (!m) throw new Error(`bad listing line: ${line}`);
+        out.push(m[1]!.padStart(3), m[2] ?? "");
+    }
+    return enc.encode(`${out.join("\r\n")}\r\n`);
 }
 
 /**

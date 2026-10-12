@@ -14,25 +14,25 @@ export type BigFontEncoding = "shift_jis" | "big5" | "gbk" | "euc-kr";
 
 /** Base names (lower case, without `.shx` and a leading `@`) → code page. */
 const KNOWN: Readonly<Record<string, BigFontEncoding>> = {
-  // Japanese (AutoCAD 2027 Fonts folder)
-  bigfont: "shift_jis",
-  extfont: "shift_jis",
-  extfont2: "shift_jis",
-  // Traditional Chinese
-  chineset: "big5",
-  // Simplified Chinese: gbcbig ships with AutoCAD; hz* / tssd* are the common third-party ones
-  gbcbig: "gbk",
-  hztxt: "gbk",
-  hzfs: "gbk",
-  hzdx: "gbk",
-  hztxt1: "gbk",
-  hztxtb: "gbk",
-  tssdchn: "gbk",
-  // Korean
-  whgtxt: "euc-kr",
-  whgdtxt: "euc-kr",
-  whtgtxt: "euc-kr",
-  whtmtxt: "euc-kr",
+    // Japanese (AutoCAD 2027 Fonts folder)
+    bigfont: "shift_jis",
+    extfont: "shift_jis",
+    extfont2: "shift_jis",
+    // Traditional Chinese
+    chineset: "big5",
+    // Simplified Chinese: gbcbig ships with AutoCAD; hz* / tssd* are the common third-party ones
+    gbcbig: "gbk",
+    hztxt: "gbk",
+    hzfs: "gbk",
+    hzdx: "gbk",
+    hztxt1: "gbk",
+    hztxtb: "gbk",
+    tssdchn: "gbk",
+    // Korean
+    whgtxt: "euc-kr",
+    whgdtxt: "euc-kr",
+    whtgtxt: "euc-kr",
+    whtmtxt: "euc-kr",
 };
 
 /**
@@ -42,17 +42,17 @@ const KNOWN: Readonly<Record<string, BigFontEncoding>> = {
  * fonts with escape ranges only above 0xA0 are GB2312, KS X 1001 or Big5 alike).
  */
 export function bigFontEncoding(
-  fileName: string,
-  ranges: readonly (readonly [number, number])[],
+    fileName: string,
+    ranges: readonly (readonly [number, number])[],
 ): BigFontEncoding | undefined {
-  const base = baseName(fileName)
-    .toLowerCase()
-    .replace(/#\d+$/, "")
-    .replace(/\.shx$/, "")
-    .replace(/^@/, "");
-  const known = KNOWN[base];
-  if (known) return known;
-  const covers = (lo: number, hi: number) => ranges.some(([a, b]) => a <= hi && b >= lo);
-  if (covers(0x81, 0x9f) && !covers(0xa1, 0xdf)) return "shift_jis";
-  return undefined;
+    const base = baseName(fileName)
+        .toLowerCase()
+        .replace(/#\d+$/, "")
+        .replace(/\.shx$/, "")
+        .replace(/^@/, "");
+    const known = KNOWN[base];
+    if (known) return known;
+    const covers = (lo: number, hi: number) => ranges.some(([a, b]) => a <= hi && b >= lo);
+    if (covers(0x81, 0x9f) && !covers(0xa1, 0xdf)) return "shift_jis";
+    return undefined;
 }

@@ -29,30 +29,30 @@ let jsonOut: string | undefined;
 const targets: string[] = [];
 const pdf = createPdfRasterizer();
 for (let i = 0; i < args.length; i++) {
-  if (args[i] === "--out") out = resolve(args[++i]!);
-  else if (args[i] === "--quiet") quiet = true;
-  else if (args[i] === "--draw-raster") drawRaster = true;
-  else if (args[i] === "--hide-fonts") hideFonts = args[++i]!;
-  else if (args[i] === "--json") jsonOut = resolve(args[++i]!);
-  else targets.push(args[i]!);
+    if (args[i] === "--out") out = resolve(args[++i]!);
+    else if (args[i] === "--quiet") quiet = true;
+    else if (args[i] === "--draw-raster") drawRaster = true;
+    else if (args[i] === "--hide-fonts") hideFonts = args[++i]!;
+    else if (args[i] === "--json") jsonOut = resolve(args[++i]!);
+    else targets.push(args[i]!);
 }
 const FONT_DIRS = [
-  join(ROOT, "packages", "fonts", "assets"),
-  "C:/Windows/Fonts",
-  "C:/Program Files/Autodesk/AutoCAD 2027/Fonts",
+    join(ROOT, "packages", "fonts", "assets"),
+    "C:/Windows/Fonts",
+    "C:/Program Files/Autodesk/AutoCAD 2027/Fonts",
 ].filter((d) => existsSync(d));
 const fontIndex = new Map<string, string>();
 for (const d of FONT_DIRS)
-  for (const f of readdirSync(d))
-    if (!fontIndex.has(f.toLowerCase())) fontIndex.set(f.toLowerCase(), join(d, f));
+    for (const f of readdirSync(d))
+        if (!fontIndex.has(f.toLowerCase())) fontIndex.set(f.toLowerCase(), join(d, f));
 const fontCache = new Map<string, Uint8Array | undefined>();
 async function loadFont(name: string): Promise<Uint8Array | undefined> {
-  const key = name.toLowerCase();
-  if (!fontCache.has(key)) {
-    const path = fontIndex.get(key);
-    fontCache.set(key, path ? new Uint8Array(readFileSync(path)) : undefined);
-  }
-  return fontCache.get(key);
+    const key = name.toLowerCase();
+    if (!fontCache.has(key)) {
+        const path = fontIndex.get(key);
+        fontCache.set(key, path ? new Uint8Array(readFileSync(path)) : undefined);
+    }
+    return fontCache.get(key);
 }
 
 let n = 0;
@@ -62,57 +62,57 @@ let good = 0;
 const cases: Record<string, { exact: number; f1: number[] } | { error: string }> = {};
 const perSuite: Record<string, { cases: number; exact: number; good: number; f1: number }> = {};
 for (const t of targets) {
-  const [suite, name] = t.split("/");
-  const dir = join(GEN, suite!);
-  if (!existsSync(dir)) continue;
-  for (const f of readdirSync(dir)
-    .filter((x) => x.endsWith(".json") && (!name || x === `${name}.json`))
-    .sort()) {
-    const meta = JSON.parse(readFileSync(join(dir, f), "utf8"));
-    const refPng = join(REF, suite!, f.replace(/\.json$/, ".png"));
-    const dxf = join(dir, f.replace(/\.json$/, ".dxf"));
-    if (!existsSync(refPng) || !existsSync(dxf)) continue;
-    try {
-      const doc = loadDxf(new Uint8Array(readFileSync(dxf)));
-      // the harness prologue sets PLOTTRANSPARENCYOVERRIDE 0 unless the case overrides it
-      const plot = { ...meta.plot, sysvars: { PLOTTRANSPARENCYOVERRIDE: 0, ...meta.plot.sysvars } };
-      const r = await renderPlot(doc, plot, {
-        loadImage: nodeImageLoader(dir),
-        loadFont,
-        pdf,
-        rasterEntities: drawRaster ? "draw" : "omit",
-        ...(hideFonts ? { text: { unavailableFonts: new RegExp(hideFonts, "i") } } : {}),
-      });
-      const img = rasterize(r.displayList, r.view, meta.plot.canvas);
-      const ref = readPng(refPng);
-      const m = compare(img, ref);
-      n++;
-      if (m.exactMismatch === 0) exact++;
-      if (m.f1[1] >= 0.99) good++;
-      const ps = (perSuite[suite!] ??= { cases: 0, exact: 0, good: 0, f1: 0 });
-      ps.cases++;
-      if (m.exactMismatch === 0) ps.exact++;
-      if (m.f1[1] >= 0.99) ps.good++;
-      ps.f1 += m.f1[1];
-      cases[meta.id] = { exact: m.exactMismatch, f1: m.f1.map((x: number) => Number(x.toFixed(4))) };
-      if (out) {
-        mkdirSync(join(out, suite!), { recursive: true });
-        const base = join(out, suite!, f.replace(/\.json$/, ""));
-        writePng(`${base}.png`, img);
-        writePng(`${base}.diff.png`, diffImage(img, ref));
-      }
-      if (!quiet || m.exactMismatch > 0)
-        console.log(
-          meta.id.padEnd(48),
-          `exact=${m.exactMismatch}`.padEnd(14),
-          `f1=${m.f1.map((x: number) => x.toFixed(3)).join("/")}`,
-          Object.keys(r.unsupported).length ? JSON.stringify(r.unsupported) : "",
-        );
-    } catch (e) {
-      console.log(meta.id.padEnd(48), "ERROR", e instanceof Error ? e.stack : e);
-      cases[meta.id] = { error: e instanceof Error ? e.message : String(e) };
+    const [suite, name] = t.split("/");
+    const dir = join(GEN, suite!);
+    if (!existsSync(dir)) continue;
+    for (const f of readdirSync(dir)
+        .filter((x) => x.endsWith(".json") && (!name || x === `${name}.json`))
+        .sort()) {
+        const meta = JSON.parse(readFileSync(join(dir, f), "utf8"));
+        const refPng = join(REF, suite!, f.replace(/\.json$/, ".png"));
+        const dxf = join(dir, f.replace(/\.json$/, ".dxf"));
+        if (!existsSync(refPng) || !existsSync(dxf)) continue;
+        try {
+            const doc = loadDxf(new Uint8Array(readFileSync(dxf)));
+            // the harness prologue sets PLOTTRANSPARENCYOVERRIDE 0 unless the case overrides it
+            const plot = { ...meta.plot, sysvars: { PLOTTRANSPARENCYOVERRIDE: 0, ...meta.plot.sysvars } };
+            const r = await renderPlot(doc, plot, {
+                loadImage: nodeImageLoader(dir),
+                loadFont,
+                pdf,
+                rasterEntities: drawRaster ? "draw" : "omit",
+                ...(hideFonts ? { text: { unavailableFonts: new RegExp(hideFonts, "i") } } : {}),
+            });
+            const img = rasterize(r.displayList, r.view, meta.plot.canvas);
+            const ref = readPng(refPng);
+            const m = compare(img, ref);
+            n++;
+            if (m.exactMismatch === 0) exact++;
+            if (m.f1[1] >= 0.99) good++;
+            const ps = (perSuite[suite!] ??= { cases: 0, exact: 0, good: 0, f1: 0 });
+            ps.cases++;
+            if (m.exactMismatch === 0) ps.exact++;
+            if (m.f1[1] >= 0.99) ps.good++;
+            ps.f1 += m.f1[1];
+            cases[meta.id] = { exact: m.exactMismatch, f1: m.f1.map((x: number) => Number(x.toFixed(4))) };
+            if (out) {
+                mkdirSync(join(out, suite!), { recursive: true });
+                const base = join(out, suite!, f.replace(/\.json$/, ""));
+                writePng(`${base}.png`, img);
+                writePng(`${base}.diff.png`, diffImage(img, ref));
+            }
+            if (!quiet || m.exactMismatch > 0)
+                console.log(
+                    meta.id.padEnd(48),
+                    `exact=${m.exactMismatch}`.padEnd(14),
+                    `f1=${m.f1.map((x: number) => x.toFixed(3)).join("/")}`,
+                    Object.keys(r.unsupported).length ? JSON.stringify(r.unsupported) : "",
+                );
+        } catch (e) {
+            console.log(meta.id.padEnd(48), "ERROR", e instanceof Error ? e.stack : e);
+            cases[meta.id] = { error: e instanceof Error ? e.message : String(e) };
+        }
     }
-  }
 }
 console.log(`\n${n} cases: ${exact} exact, ${good} with F1(r=1) ≥ 0.99`);
 for (const ps of Object.values(perSuite)) ps.f1 = ps.cases ? ps.f1 / ps.cases : 0;

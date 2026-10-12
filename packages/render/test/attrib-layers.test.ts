@@ -6,17 +6,17 @@ import { type PlotRequest, renderPlot } from "../src/index.ts";
 import { dxfBytes } from "./helpers.ts";
 
 const shx = new Uint8Array(
-  readFileSync(join(import.meta.dirname, "..", "..", "fonts", "assets", "truedxf-test.shx")),
+    readFileSync(join(import.meta.dirname, "..", "..", "fonts", "assets", "truedxf-test.shx")),
 );
 const loadFont = async (name: string) => (name.toLowerCase() === "txt.shx" ? shx : undefined);
 
 const attrib = (handle: string, layer: string, x: number, text: string) =>
-  `0 ATTRIB\n5 ${handle}\n100 AcDbEntity\n8 ${layer}\n100 AcDbText\n10 ${x}\n20 0\n40 5\n1 ${text}\n7 Standard\n100 AcDbAttribute\n2 TAG${handle}\n70 0`;
+    `0 ATTRIB\n5 ${handle}\n100 AcDbEntity\n8 ${layer}\n100 AcDbText\n10 ${x}\n20 0\n40 5\n1 ${text}\n7 Standard\n100 AcDbAttribute\n2 TAG${handle}\n70 0`;
 
 // An INSERT on GRID whose block draws a layer-0 circle, with one ATTRIB on layer 0 (inherits
 // GRID) and one on its own layer LABELS, like the grid bubbles of the playground sample.
 const doc = DxfDocument.load(
-  dxfBytes(`
+    dxfBytes(`
 0 SECTION
 2 HEADER
 9 $ACADVER
@@ -85,40 +85,40 @@ ${attrib("42", "LABELS", 20, "B")}
 );
 
 const request: PlotRequest = {
-  layout: "Model",
-  area: { type: "window", min: [-20, -20], max: [40, 40] },
-  canvas: [600, 600],
+    layout: "Model",
+    area: { type: "window", min: [-20, -20], max: [40, 40] },
+    canvas: [600, 600],
 };
 
 /** Total x of the drawn vertices: only the circle and "A" are left of x = 15. */
 async function drawn(hidden: string[]) {
-  const layerVisibility = new Map(hidden.map((l) => [l, false]));
-  const { displayList } = await renderPlot(doc, request, {
-    loadFont,
-    raster: "smooth",
-    visibility: "display",
-    layerVisibility,
-  });
-  let left = 0;
-  let right = 0;
-  for (const b of displayList.batches)
-    for (let i = 0; i < b.positions.length; i += 2) {
-      if (b.originX + b.positions[i]! < 15) left++;
-      else right++;
-    }
-  return { left, right };
+    const layerVisibility = new Map(hidden.map((l) => [l, false]));
+    const { displayList } = await renderPlot(doc, request, {
+        loadFont,
+        raster: "smooth",
+        visibility: "display",
+        layerVisibility,
+    });
+    let left = 0;
+    let right = 0;
+    for (const b of displayList.batches)
+        for (let i = 0; i < b.positions.length; i += 2) {
+            if (b.originX + b.positions[i]! < 15) left++;
+            else right++;
+        }
+    return { left, right };
 }
 
 describe("viewer layer toggles and ATTRIBs", () => {
-  it("draws both attributes and the block with every layer on", async () => {
-    const all = await drawn([]);
-    expect(all.left).toBeGreaterThan(0);
-    expect(all.right).toBeGreaterThan(0);
-  });
+    it("draws both attributes and the block with every layer on", async () => {
+        const all = await drawn([]);
+        expect(all.left).toBeGreaterThan(0);
+        expect(all.right).toBeGreaterThan(0);
+    });
 
-  it("hides a layer-0 ATTRIB with its INSERT's layer, and an ATTRIB with its own layer", async () => {
-    expect(await drawn(["GRID"])).toEqual({ left: 0, right: (await drawn([])).right });
-    expect((await drawn(["LABELS"])).right).toBe(0);
-    expect(await drawn(["0", "GRID", "LABELS"])).toEqual({ left: 0, right: 0 });
-  });
+    it("hides a layer-0 ATTRIB with its INSERT's layer, and an ATTRIB with its own layer", async () => {
+        expect(await drawn(["GRID"])).toEqual({ left: 0, right: (await drawn([])).right });
+        expect((await drawn(["LABELS"])).right).toBe(0);
+        expect(await drawn(["0", "GRID", "LABELS"])).toEqual({ left: 0, right: 0 });
+    });
 });

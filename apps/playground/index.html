@@ -1,144 +1,144 @@
 <!doctype html>
 <html lang="en" data-theme="dark">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Free online DXF viewer and DXF to PNG converter · truedxf</title>
-    <meta
-      name="description"
-      content="View DXF files online and convert DXF to PNG or PDF, drawn the way AutoCAD plots them. Runs in your browser: files are never uploaded. Free, no sign-up."
-    />
-    <link rel="canonical" href="%SITE_URL%/" />
-    <meta name="theme-color" content="#0f1419" />
-    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
-    <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
-    <meta property="og:type" content="website" />
-    <meta property="og:site_name" content="truedxf" />
-    <meta property="og:title" content="truedxf: free online DXF viewer and DXF to PNG converter" />
-    <meta
-      property="og:description"
-      content="View DXF drawings in your browser, drawn the way AutoCAD plots them, and save them as PNG or PDF. Files never leave your computer."
-    />
-    <meta property="og:url" content="%SITE_URL%/" />
-    <meta property="og:image" content="%SITE_URL%/og.png" />
-    <meta property="og:image:width" content="1200" />
-    <meta property="og:image:height" content="630" />
-    <meta name="twitter:card" content="summary_large_image" />
-    <script type="application/ld+json">
-      {
-        "@context": "https://schema.org",
-        "@type": "WebApplication",
-        "name": "truedxf DXF viewer",
-        "alternateName": "truedxf DXF to PNG converter",
-        "url": "%SITE_URL%/",
-        "description": "Free online DXF viewer and DXF to PNG converter that runs in your browser. Layouts, layers, text, hatches, dimensions and lineweights, drawn the way AutoCAD plots them. Save any view as a PNG image or print it to PDF. Files are never uploaded.",
-        "featureList": [
-          "View DXF files online (ASCII and binary, R12 to current)",
-          "Convert DXF to PNG: save the current view as an image",
-          "Print DXF drawings or save them as PDF from the print dialog",
-          "Copy the view to the clipboard as an image",
-          "Model space and paper-space layouts, layer toggles, text search, measuring, entity inspector"
-        ],
-        "applicationCategory": "DesignApplication",
-        "operatingSystem": "Any (web browser with WebGL)",
-        "browserRequirements": "Requires JavaScript and WebGL",
-        "isAccessibleForFree": true,
-        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
-        "license": "https://opensource.org/licenses/MIT"
-      }
-    </script>
-    <link rel="stylesheet" href="./src/style.css" />
-  </head>
-  <body>
-    <div id="app"></div>
-    <!-- Static page content (search engines, no-JS visitors). main.ts moves it into the stage as
-         the empty state; it hides while a drawing is open. -->
-    <article id="landing" class="landing">
-      <div class="empty-card">
-        <div class="empty-icon">
-          <svg aria-hidden="true" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>
-        </div>
-        <h1>Free online DXF viewer</h1>
-        <p>
-          Drop a <b>.dxf</b> file anywhere on this page, together with its fonts and images (or their
-          whole folder), or choose them. Everything runs locally in your browser: your drawing is
-          <b>never uploaded</b>.
-        </p>
-        <div class="empty-actions">
-          <button class="btn primary" data-open="files" type="button">Choose files</button>
-          <button class="btn" data-open="folder" type="button">Open folder</button>
-          <button class="btn" data-open="sample" type="button" title="A small house plan: layers, hatches, dimensions, blocks, a title block and a paper-space sheet">Try the sample drawing</button>
-        </div>
-        <noscript><p class="landing-note">The viewer needs JavaScript and WebGL.</p></noscript>
-      </div>
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Free online DXF viewer and DXF to PNG converter · truedxf</title>
+        <meta
+            name="description"
+            content="View DXF files online and convert DXF to PNG or PDF, drawn the way AutoCAD plots them. Runs in your browser: files are never uploaded. Free, no sign-up."
+        />
+        <link rel="canonical" href="%SITE_URL%/" />
+        <meta name="theme-color" content="#0f1419" />
+        <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+        <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
+        <meta property="og:type" content="website" />
+        <meta property="og:site_name" content="truedxf" />
+        <meta property="og:title" content="truedxf: free online DXF viewer and DXF to PNG converter" />
+        <meta
+            property="og:description"
+            content="View DXF drawings in your browser, drawn the way AutoCAD plots them, and save them as PNG or PDF. Files never leave your computer."
+        />
+        <meta property="og:url" content="%SITE_URL%/" />
+        <meta property="og:image" content="%SITE_URL%/og.png" />
+        <meta property="og:image:width" content="1200" />
+        <meta property="og:image:height" content="630" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <script type="application/ld+json">
+            {
+                "@context": "https://schema.org",
+                "@type": "WebApplication",
+                "name": "truedxf DXF viewer",
+                "alternateName": "truedxf DXF to PNG converter",
+                "url": "%SITE_URL%/",
+                "description": "Free online DXF viewer and DXF to PNG converter that runs in your browser. Layouts, layers, text, hatches, dimensions and lineweights, drawn the way AutoCAD plots them. Save any view as a PNG image or print it to PDF. Files are never uploaded.",
+                "featureList": [
+                    "View DXF files online (ASCII and binary, R12 to current)",
+                    "Convert DXF to PNG: save the current view as an image",
+                    "Print DXF drawings or save them as PDF from the print dialog",
+                    "Copy the view to the clipboard as an image",
+                    "Model space and paper-space layouts, layer toggles, text search, measuring, entity inspector"
+                ],
+                "applicationCategory": "DesignApplication",
+                "operatingSystem": "Any (web browser with WebGL)",
+                "browserRequirements": "Requires JavaScript and WebGL",
+                "isAccessibleForFree": true,
+                "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+                "license": "https://opensource.org/licenses/MIT"
+            }
+        </script>
+        <link rel="stylesheet" href="./src/style.css" />
+    </head>
+    <body>
+        <div id="app"></div>
+        <!-- Static page content (search engines, no-JS visitors). main.ts moves it into the stage as
+                  the empty state; it hides while a drawing is open. -->
+        <article id="landing" class="landing">
+            <div class="empty-card">
+                <div class="empty-icon">
+                    <svg aria-hidden="true" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>
+                </div>
+                <h1>Free online DXF viewer</h1>
+                <p>
+                    Drop a <b>.dxf</b> file anywhere on this page, together with its fonts and images (or their
+                    whole folder), or choose them. Everything runs locally in your browser: your drawing is
+                    <b>never uploaded</b>.
+                </p>
+                <div class="empty-actions">
+                    <button class="btn primary" data-open="files" type="button">Choose files</button>
+                    <button class="btn" data-open="folder" type="button">Open folder</button>
+                    <button class="btn" data-open="sample" type="button" title="A small house plan: layers, hatches, dimensions, blocks, a title block and a paper-space sheet">Try the sample drawing</button>
+                </div>
+                <noscript><p class="landing-note">The viewer needs JavaScript and WebGL.</p></noscript>
+            </div>
 
-      <section>
-        <h2>Drawn the way AutoCAD plots it</h2>
-        <p>
-          truedxf is an open-source DXF renderer tested case by case against AutoCAD's own plot
-          output: text and MTEXT with SHX and TrueType fonts, hatches and gradients, dimensions and
-          leaders, complex linetypes, lineweights, blocks, tables, images, viewports and
-          paper-space layouts.
-        </p>
-        <ul class="landing-list">
-          <li><b>Layouts and layers</b>: model space and every paper-space layout, with layers you can toggle or isolate.</li>
-          <li><b>Search</b> the drawing's text, block attributes included, and jump to each match.</li>
-          <li><b>Inspector</b>: click an entity for its layer, colour, linetype, lineweight and raw DXF tags.</li>
-          <li><b>Measure</b> distances and angles, snapping to end points, midpoints and centres. Dark or light background, lineweights on or off.</li>
-          <li><b>DXF to PNG</b>: save the view as a PNG image, copy it to the clipboard, or print it (or save it as PDF from the print dialog).</li>
-          <li><b>Recent drawings</b> reopen with one click (Chrome, Edge).</li>
-          <li><b>Large files</b>: parsing and rendering run in a background worker, drawn with WebGL.</li>
-          <li><b>ASCII and binary DXF</b>, from R12 to the current AutoCAD format.</li>
-        </ul>
-      </section>
+            <section>
+                <h2>Drawn the way AutoCAD plots it</h2>
+                <p>
+                    truedxf is an open-source DXF renderer tested case by case against AutoCAD's own plot
+                    output: text and MTEXT with SHX and TrueType fonts, hatches and gradients, dimensions and
+                    leaders, complex linetypes, lineweights, blocks, tables, images, viewports and
+                    paper-space layouts.
+                </p>
+                <ul class="landing-list">
+                    <li><b>Layouts and layers</b>: model space and every paper-space layout, with layers you can toggle or isolate.</li>
+                    <li><b>Search</b> the drawing's text, block attributes included, and jump to each match.</li>
+                    <li><b>Inspector</b>: click an entity for its layer, colour, linetype, lineweight and raw DXF tags.</li>
+                    <li><b>Measure</b> distances and angles, snapping to end points, midpoints and centres. Dark or light background, lineweights on or off.</li>
+                    <li><b>DXF to PNG</b>: save the view as a PNG image, copy it to the clipboard, or print it (or save it as PDF from the print dialog).</li>
+                    <li><b>Recent drawings</b> reopen with one click (Chrome, Edge).</li>
+                    <li><b>Large files</b>: parsing and rendering run in a background worker, drawn with WebGL.</li>
+                    <li><b>ASCII and binary DXF</b>, from R12 to the current AutoCAD format.</li>
+                </ul>
+            </section>
 
-      <section>
-        <h2>Questions</h2>
-        <h3>How do I convert a DXF file to PNG or PDF?</h3>
-        <p>
-          Open the DXF here, pick the layout and zoom to the part you want, then use the export button
-          in the toolbar: <b>Save view as PNG</b> downloads the image, <b>Copy view as image</b> puts it
-          on the clipboard, and <b>Print view</b> prints it on a white background, or saves it as a PDF
-          when you choose "Save as PDF" in the print dialog. The image has the size of the view on your
-          screen. Switch to the light background or turn lineweights off before saving if you prefer.
-          Nothing is uploaded: the conversion runs in your browser.
-        </p>
-        <h3>Are my files uploaded?</h3>
-        <p>
-          No. The drawing, its fonts and its images are read by your browser and never sent
-          anywhere. You can disconnect from the internet after the page has loaded. The site only
-          counts visits, without cookies (Cloudflare Web Analytics). It never sees your files.
-        </p>
-        <h3>Why does the text look different from AutoCAD?</h3>
-        <p>
-          AutoCAD's fonts (txt.shx, simplex.shx, …) and Windows fonts are not ours to distribute,
-          so this site falls back to the free Liberation fonts. Choose your own fonts folder, for
-          example a copy of AutoCAD's Fonts folder, in the Files panel or the Open menu. It stays on
-          your computer and, in Chromium-based browsers, is remembered for your next visit.
-        </p>
-        <h3>Can it open DWG files?</h3>
-        <p>
-          No, and it is not planned. Save the drawing as DXF in your CAD program (DXFOUT or Save As), or convert it
-          offline with the free <a href="https://www.opendesign.com/guestfiles/oda_file_converter">ODA File Converter</a>
-          or <a href="https://www.gnu.org/software/libredwg/">LibreDWG</a>'s <code>dwg2dxf</code>.
-        </p>
-        <h3>Something is drawn wrong.</h3>
-        <p>
-          Please <a href="%REPO_URL%/issues/new?template=rendering.yml">report it</a>, ideally with a DXF you are allowed
-          to share.
-        </p>
-      </section>
+            <section>
+                <h2>Questions</h2>
+                <h3>How do I convert a DXF file to PNG or PDF?</h3>
+                <p>
+                    Open the DXF here, pick the layout and zoom to the part you want, then use the export button
+                    in the toolbar: <b>Save view as PNG</b> downloads the image, <b>Copy view as image</b> puts it
+                    on the clipboard, and <b>Print view</b> prints it on a white background, or saves it as a PDF
+                    when you choose "Save as PDF" in the print dialog. The image has the size of the view on your
+                    screen. Switch to the light background or turn lineweights off before saving if you prefer.
+                    Nothing is uploaded: the conversion runs in your browser.
+                </p>
+                <h3>Are my files uploaded?</h3>
+                <p>
+                    No. The drawing, its fonts and its images are read by your browser and never sent
+                    anywhere. You can disconnect from the internet after the page has loaded. The site only
+                    counts visits, without cookies (Cloudflare Web Analytics). It never sees your files.
+                </p>
+                <h3>Why does the text look different from AutoCAD?</h3>
+                <p>
+                    AutoCAD's fonts (txt.shx, simplex.shx, …) and Windows fonts are not ours to distribute,
+                    so this site falls back to the free Liberation fonts. Choose your own fonts folder, for
+                    example a copy of AutoCAD's Fonts folder, in the Files panel or the Open menu. It stays on
+                    your computer and, in Chromium-based browsers, is remembered for your next visit.
+                </p>
+                <h3>Can it open DWG files?</h3>
+                <p>
+                    No, and it is not planned. Save the drawing as DXF in your CAD program (DXFOUT or Save As), or convert it
+                    offline with the free <a href="https://www.opendesign.com/guestfiles/oda_file_converter">ODA File Converter</a>
+                    or <a href="https://www.gnu.org/software/libredwg/">LibreDWG</a>'s <code>dwg2dxf</code>.
+                </p>
+                <h3>Something is drawn wrong.</h3>
+                <p>
+                    Please <a href="%REPO_URL%/issues/new?template=rendering.yml">report it</a>, ideally with a DXF you are allowed
+                    to share.
+                </p>
+            </section>
 
-      <footer class="landing-footer">
-        <a href="%REPO_URL%">Source code</a> · MIT licence ·
-        <a href="./fonts/LICENSE-Liberation.txt">Liberation</a> and
-        <a href="./fonts/LICENSE-NotoSansSC.txt">Noto Sans SC</a> fonts: SIL OFL 1.1 ·
-        <a href="./licenses.txt">Third-party licences</a>
-        <br />
-        AutoCAD is a registered trademark of Autodesk, Inc. truedxf is not affiliated with or
-        endorsed by Autodesk.
-      </footer>
-    </article>
-    <script type="module" src="./src/main.ts"></script>
-  </body>
+            <footer class="landing-footer">
+                <a href="%REPO_URL%">Source code</a> · MIT licence ·
+                <a href="./fonts/LICENSE-Liberation.txt">Liberation</a> and
+                <a href="./fonts/LICENSE-NotoSansSC.txt">Noto Sans SC</a> fonts: SIL OFL 1.1 ·
+                <a href="./licenses.txt">Third-party licences</a>
+                <br />
+                AutoCAD is a registered trademark of Autodesk, Inc. truedxf is not affiliated with or
+                endorsed by Autodesk.
+            </footer>
+        </article>
+        <script type="module" src="./src/main.ts"></script>
+    </body>
 </html>

@@ -1,18 +1,18 @@
 {
-  "extends": "../../tsconfig.base.json",
-  "compilerOptions": {
-    "rootDir": "src",
-    "outDir": "dist",
-    "types": [],
-    "lib": ["ES2023", "DOM", "DOM.Iterable"]
-  },
-  "include": ["src"],
-  "references": [
-    { "path": "../core" },
-    { "path": "../model" },
-    { "path": "../pdf" },
-    { "path": "../render" },
-    { "path": "../text" },
-    { "path": "../three" }
-  ]
+    "extends": "../../tsconfig.base.json",
+    "compilerOptions": {
+        "rootDir": "src",
+        "outDir": "dist",
+        "types": [],
+        "lib": ["ES2023", "DOM", "DOM.Iterable"]
+    },
+    "include": ["src"],
+    "references": [
+        { "path": "../core" },
+        { "path": "../model" },
+        { "path": "../pdf" },
+        { "path": "../render" },
+        { "path": "../text" },
+        { "path": "../three" }
+    ]
 }

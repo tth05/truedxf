@@ -45,54 +45,54 @@ const R2018_COLUMNS = `
 `;
 
 describe("MTEXT", () => {
-  it("reads AcDbMText codes and R2018 embedded column data without clobbering", () => {
-    const { doc, entities } = loadEntities(R2018_COLUMNS);
-    const m = entities[0] as MTextEntity;
-    expect(m.type).toBe("MTEXT");
-    expect(m.insert).toEqual({ x: 40, y: 60, z: 0 });
-    expect(m.height).toBe(2.5);
-    expect(m.width).toBe(12);
-    expect(m.attachment).toBe(1);
-    expect(m.flowDirection).toBe(5);
-    expect(m.text).toBe("first column text\\Psecond column");
-    // embedded 10 is the direction and fills the absent 11; 40/41/42 must not overwrite 40/41,
-    // embedded 44/73 not the line spacing
-    expect(m.lineSpacingStyle).toBe(2);
-    expect(m.lineSpacingFactor).toBe(1.25);
-    expect(m.direction).toEqual({ x: 1, y: 0, z: 0 });
-    expect(m.rectWidth).toBe(25.5);
-    expect(m.rectHeight).toBe(20);
-    expect(m.columns).toMatchObject({
-      type: 2,
-      count: 2,
-      width: 12,
-      gutter: 1.5,
-      autoHeight: false,
-      heights: [20, 15],
-      source: "embedded",
+    it("reads AcDbMText codes and R2018 embedded column data without clobbering", () => {
+        const { doc, entities } = loadEntities(R2018_COLUMNS);
+        const m = entities[0] as MTextEntity;
+        expect(m.type).toBe("MTEXT");
+        expect(m.insert).toEqual({ x: 40, y: 60, z: 0 });
+        expect(m.height).toBe(2.5);
+        expect(m.width).toBe(12);
+        expect(m.attachment).toBe(1);
+        expect(m.flowDirection).toBe(5);
+        expect(m.text).toBe("first column text\\Psecond column");
+        // embedded 10 is the direction and fills the absent 11; 40/41/42 must not overwrite 40/41,
+        // embedded 44/73 not the line spacing
+        expect(m.lineSpacingStyle).toBe(2);
+        expect(m.lineSpacingFactor).toBe(1.25);
+        expect(m.direction).toEqual({ x: 1, y: 0, z: 0 });
+        expect(m.rectWidth).toBe(25.5);
+        expect(m.rectHeight).toBe(20);
+        expect(m.columns).toMatchObject({
+            type: 2,
+            count: 2,
+            width: 12,
+            gutter: 1.5,
+            autoHeight: false,
+            heights: [20, 15],
+            source: "embedded",
+        });
+        expect(errors(doc)).toEqual([]);
     });
-    expect(errors(doc)).toEqual([]);
-  });
 
-  it("uses the embedded attachment point (70) over 71", () => {
-    const text = R2018_COLUMNS.replace(" 71 1\n 72 5", " 71 1\n 72 5").replace(
-      " 70 1\n 10 1.0",
-      " 70 5\n 10 1.0",
-    );
-    const m = loadEntities(text).entities[0] as MTextEntity;
-    expect(m.attachmentPoint71).toBe(1);
-    expect(m.attachment).toBe(5);
-  });
+    it("uses the embedded attachment point (70) over 71", () => {
+        const text = R2018_COLUMNS.replace(" 71 1\n 72 5", " 71 1\n 72 5").replace(
+            " 70 1\n 10 1.0",
+            " 70 5\n 10 1.0",
+        );
+        const m = loadEntities(text).entities[0] as MTextEntity;
+        expect(m.attachmentPoint71).toBe(1);
+        expect(m.attachment).toBe(5);
+    });
 
-  it("loads an absent or out-of-range 71 as top left (VERIFIED-BY-ACAD fileformat/mtext-attachment-*)", () => {
-    for (const [att71, raw] of [
-      ["", 1],
-      [" 71 0\n", 0],
-      [" 71 10\n", 10],
-      [" 71 -1\n", -1],
-      [" 71 99\n", 99],
-    ] as const) {
-      const m = loadEntities(`
+    it("loads an absent or out-of-range 71 as top left (VERIFIED-BY-ACAD fileformat/mtext-attachment-*)", () => {
+        for (const [att71, raw] of [
+            ["", 1],
+            [" 71 0\n", 0],
+            [" 71 10\n", 10],
+            [" 71 -1\n", -1],
+            [" 71 99\n", 99],
+        ] as const) {
+            const m = loadEntities(`
   0 MTEXT
   5 20
 100 AcDbEntity
@@ -103,13 +103,13 @@ describe("MTEXT", () => {
  40 2.0
 ${att71}  1 X
 `).entities[0] as MTextEntity;
-      expect(m.attachmentPoint71).toBe(raw);
-      expect(m.attachment).toBe(1);
-    }
-  });
+            expect(m.attachmentPoint71).toBe(raw);
+            expect(m.attachment).toBe(1);
+        }
+    });
 
-  it("joins 3-chunks and the 1-chunk in file order, reads rotation, direction and background", () => {
-    const { entities } = loadEntities(`
+    it("joins 3-chunks and the 1-chunk in file order, reads rotation, direction and background", () => {
+        const { entities } = loadEntities(`
   0 MTEXT
   5 20
 100 AcDbEntity
@@ -132,20 +132,20 @@ ${att71}  1 X
 421 16711680
  45 1.25
 `);
-    const m = entities[0] as MTextEntity;
-    expect(m.text).toBe("first chunk,second-last");
-    expect(m.style).toBe("Arial");
-    expect(m.rotation).toBe(30);
-    expect(m.direction).toBeUndefined();
-    expect(m.bgFlags).toBe(17);
-    expect(m.bgColor).toBe(1);
-    expect(m.bgTrueColor).toBe(0xff0000);
-    expect(m.bgScale).toBe(1.25);
-    expect(m.columns).toBeUndefined();
-  });
+        const m = entities[0] as MTextEntity;
+        expect(m.text).toBe("first chunk,second-last");
+        expect(m.style).toBe("Arial");
+        expect(m.rotation).toBe(30);
+        expect(m.direction).toBeUndefined();
+        expect(m.bgFlags).toBe(17);
+        expect(m.bgColor).toBe(1);
+        expect(m.bgTrueColor).toBe(0xff0000);
+        expect(m.bgScale).toBe(1.25);
+        expect(m.columns).toBeUndefined();
+    });
 
-  it("reads pre-R2018 column info from XDATA ACAD", () => {
-    const { entities } = loadEntities(`
+    it("reads pre-R2018 column info from XDATA ACAD", () => {
+        const { entities } = loadEntities(`
   0 MTEXT
   5 2F
 100 AcDbEntity
@@ -183,25 +183,25 @@ ${att71}  1 X
 1040 20.0
 1000 ACAD_MTEXT_DEFINED_HEIGHT_END
 `);
-    const m = entities[0] as MTextEntity;
-    expect(m.columns).toEqual({
-      type: 1,
-      count: 2,
-      autoHeight: true,
-      flowReversed: false,
-      width: 7.5,
-      gutter: 0.5,
-      definedHeight: 20,
-      totalWidth: 15.5,
-      totalHeight: 20,
-      heights: [],
-      linkedHandles: ["3F0"],
-      source: "xdata",
+        const m = entities[0] as MTextEntity;
+        expect(m.columns).toEqual({
+            type: 1,
+            count: 2,
+            autoHeight: true,
+            flowReversed: false,
+            width: 7.5,
+            gutter: 0.5,
+            definedHeight: 20,
+            totalWidth: 15.5,
+            totalHeight: 20,
+            heights: [],
+            linkedHandles: ["3F0"],
+            source: "xdata",
+        });
     });
-  });
 
-  it("decodes the embedded MTEXT of an R2018 multi-line ATTRIB", () => {
-    const { entities } = loadEntities(`
+    it("decodes the embedded MTEXT of an R2018 multi-line ATTRIB", () => {
+        const { entities } = loadEntities(`
   0 INSERT
   5 30
 100 AcDbEntity
@@ -250,14 +250,14 @@ ${att71}  1 X
 100 AcDbEntity
   8 0
 `);
-    const ins = entities[0] as InsertEntity;
-    const att = ins.attribs[0] as AttribEntity;
-    const m = parseEmbeddedMText(att.record);
-    expect(m).toBeDefined();
-    expect(m?.text).toBe("ROOM 2.14\\PSTORAGE");
-    expect(m?.insert).toEqual({ x: 131.75, y: 50, z: 0 });
-    expect(m?.attachment).toBe(5);
-    expect(m?.flowDirection).toBe(5);
-    expect(m?.style).toBe("Labels Narrow");
-  });
+        const ins = entities[0] as InsertEntity;
+        const att = ins.attribs[0] as AttribEntity;
+        const m = parseEmbeddedMText(att.record);
+        expect(m).toBeDefined();
+        expect(m?.text).toBe("ROOM 2.14\\PSTORAGE");
+        expect(m?.insert).toEqual({ x: 131.75, y: 50, z: 0 });
+        expect(m?.attachment).toBe(5);
+        expect(m?.flowDirection).toBe(5);
+        expect(m?.style).toBe("Labels Narrow");
+    });
 });

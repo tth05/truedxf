@@ -1,19 +1,19 @@
 import { describe, expect, it } from "vitest";
 import {
-  dictionaryVariables,
-  type GroupObject,
-  type ImageDefObject,
-  type ImageDefReactorObject,
-  type MLeaderStyleObject,
-  type MLineStyleObject,
-  type RasterVariablesObject,
-  recordTags,
-  type ScaleObject,
-  type SpatialFilterObject,
-  type TableStyleObject,
-  type UnderlayDefinitionObject,
-  type WipeoutVariablesObject,
-  type XRecordDataObject,
+    dictionaryVariables,
+    type GroupObject,
+    type ImageDefObject,
+    type ImageDefReactorObject,
+    type MLeaderStyleObject,
+    type MLineStyleObject,
+    type RasterVariablesObject,
+    recordTags,
+    type ScaleObject,
+    type SpatialFilterObject,
+    type TableStyleObject,
+    type UnderlayDefinitionObject,
+    type WipeoutVariablesObject,
+    type XRecordDataObject,
 } from "../src/index.ts";
 import { errors, loadObjects } from "./snippets.ts";
 
@@ -281,116 +281,116 @@ const OBJECTS = `
 `;
 
 describe("objects", () => {
-  it("parses all extra object types without errors", () => {
-    const { doc } = loadObjects(OBJECTS);
-    expect(errors(doc)).toEqual([]);
-    const types = doc.objects.map((o) => o.type);
-    expect(types).not.toContain("UNKNOWN");
-  });
-
-  it("reads DICTIONARYVAR values via the variable dictionary", () => {
-    const { doc } = loadObjects(OBJECTS);
-    const vars = dictionaryVariables(doc);
-    expect(vars.get("CANNOSCALE")).toBe("1:4");
-    expect(vars.get("WIPEOUTFRAME")).toBe("1");
-  });
-
-  it("reads MLEADERSTYLE and MLINESTYLE", () => {
-    const { doc } = loadObjects(OBJECTS);
-    const ml = doc.getObject("2C") as MLeaderStyleObject;
-    expect(ml.type).toBe("MLEADERSTYLE");
-    expect(ml.contentType).toBe(2);
-    expect(ml.landingGap).toBe(2);
-    expect(ml.doglegLength).toBe(8);
-    expect(ml.arrowSize).toBe(4);
-    expect(ml.textHeight).toBe(4);
-    expect(ml.textStyleHandle).toBe("29");
-    expect(ml.leaderLinetypeHandle).toBe("25");
-    expect(ml.arrowHandle).toBeUndefined();
-    expect(ml.blockScale).toEqual({ x: 1, y: 1, z: 1 });
-    expect(ml.annotative).toBe(true);
-    expect(ml.breakGapSize).toBe(3.75);
-    const mls = doc.getObject("3E") as MLineStyleObject;
-    expect(mls.name).toBe("TWOLINE");
-    expect(mls.flags).toBe(0);
-    expect(mls.fillColor).toBe(256);
-    expect(mls.elements).toEqual([
-      { offset: 0.25, color: 1, trueColor: undefined, linetype: "BYLAYER" },
-      { offset: -0.25, color: 256, trueColor: undefined, linetype: "DASHED" },
-    ]);
-  });
-
-  it("reads raster and underlay definition objects", () => {
-    const { doc } = loadObjects(OBJECTS);
-    const def = doc.getObject("31") as ImageDefObject;
-    expect(def.fileName).toBe("photos\\site.png");
-    expect(def.size).toEqual({ x: 640, y: 480 });
-    expect(def.pixelSize).toEqual({ x: 0.01, y: 0.01 });
-    expect(def.loaded).toBe(true);
-    expect(def.resolutionUnits).toBe(2);
-    expect((doc.getObject("33") as ImageDefReactorObject).imageHandle).toBe("32");
-    expect((doc.getObject("2F") as RasterVariablesObject).frame).toBe(1);
-    expect((doc.getObject("2F") as RasterVariablesObject).units).toBe(2);
-    expect((doc.getObject("35") as WipeoutVariablesObject).frame).toBe(1);
-    const pdf = doc.getObject("39") as UnderlayDefinitionObject;
-    expect(pdf.fileName).toBe("plans\\level-1.pdf");
-    expect(pdf.name).toBe("2");
-  });
-
-  it("reads GROUP, SCALE, TABLESTYLE", () => {
-    const { doc } = loadObjects(OBJECTS);
-    const g = doc.getObject("3D") as GroupObject;
-    expect(g.description).toBe("door frame");
-    expect(g.unnamed).toBe(true);
-    expect(g.memberHandles).toEqual(["3B", "3C"]);
-    const s = doc.getObject("50") as ScaleObject;
-    expect(s.name).toBe("1:4");
-    expect(s.drawingUnits).toBe(4);
-    const ts = doc.getObject("51") as TableStyleObject;
-    expect(ts.description).toBe("Schedule");
-    expect(ts.horizontalMargin).toBe(0.75);
-    expect(ts.cells).toHaveLength(2);
-    expect(ts.cells[0]).toMatchObject({
-      textStyle: "Standard",
-      textHeight: 2.5,
-      alignment: 5,
-      fillColor: 8,
+    it("parses all extra object types without errors", () => {
+        const { doc } = loadObjects(OBJECTS);
+        expect(errors(doc)).toEqual([]);
+        const types = doc.objects.map((o) => o.type);
+        expect(types).not.toContain("UNKNOWN");
     });
-    expect(ts.cells[1]).toMatchObject({
-      textStyle: "Headings",
-      textHeight: 3.5,
-      textColor: 3,
-      fillEnabled: true,
+
+    it("reads DICTIONARYVAR values via the variable dictionary", () => {
+        const { doc } = loadObjects(OBJECTS);
+        const vars = dictionaryVariables(doc);
+        expect(vars.get("CANNOSCALE")).toBe("1:4");
+        expect(vars.get("WIPEOUTFRAME")).toBe("1");
     });
-  });
 
-  it("reads SPATIAL_FILTER boundary and both matrices", () => {
-    const { doc } = loadObjects(OBJECTS);
-    const f = doc.getObject("47") as SpatialFilterObject;
-    expect(f.boundary).toEqual([
-      { x: -4, y: -3 },
-      { x: 6, y: 5 },
-    ]);
-    expect(f.enabled).toBe(true);
-    expect(f.frontClip).toBeUndefined();
-    expect(f.inverseInsertMatrix).toEqual([0.5, 0, 0, -25, 0, 0.5, 0, -10, 0, 0, 0.5, 0]);
-    expect(f.clipMatrix).toEqual([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0]);
-  });
+    it("reads MLEADERSTYLE and MLINESTYLE", () => {
+        const { doc } = loadObjects(OBJECTS);
+        const ml = doc.getObject("2C") as MLeaderStyleObject;
+        expect(ml.type).toBe("MLEADERSTYLE");
+        expect(ml.contentType).toBe(2);
+        expect(ml.landingGap).toBe(2);
+        expect(ml.doglegLength).toBe(8);
+        expect(ml.arrowSize).toBe(4);
+        expect(ml.textHeight).toBe(4);
+        expect(ml.textStyleHandle).toBe("29");
+        expect(ml.leaderLinetypeHandle).toBe("25");
+        expect(ml.arrowHandle).toBeUndefined();
+        expect(ml.blockScale).toEqual({ x: 1, y: 1, z: 1 });
+        expect(ml.annotative).toBe(true);
+        expect(ml.breakGapSize).toBe(3.75);
+        const mls = doc.getObject("3E") as MLineStyleObject;
+        expect(mls.name).toBe("TWOLINE");
+        expect(mls.flags).toBe(0);
+        expect(mls.fillColor).toBe(256);
+        expect(mls.elements).toEqual([
+            { offset: 0.25, color: 1, trueColor: undefined, linetype: "BYLAYER" },
+            { offset: -0.25, color: 256, trueColor: undefined, linetype: "DASHED" },
+        ]);
+    });
 
-  it("exposes XRECORD payloads and generic record tags", () => {
-    const { doc } = loadObjects(OBJECTS);
-    const x = doc.getObject("48") as XRecordDataObject;
-    expect(x.type).toBe("XRECORD");
-    expect(x.cloning).toBe(1);
-    expect(x.tags.map((t) => [t.code, t.value])).toEqual([
-      [102, "TRUEDXF_DATA"],
-      [10, 1.5],
-      [20, -2],
-      [30, 0.25],
-      [70, 12],
-    ]);
-    const t = recordTags(x.record);
-    expect(t.find((e) => e.code === 10)?.value).toEqual({ x: 1.5, y: -2, z: 0.25 });
-    expect(recordTags(x.record, { scope: "all" })[0]).toMatchObject({ code: 5, value: "48" });
-  });
+    it("reads raster and underlay definition objects", () => {
+        const { doc } = loadObjects(OBJECTS);
+        const def = doc.getObject("31") as ImageDefObject;
+        expect(def.fileName).toBe("photos\\site.png");
+        expect(def.size).toEqual({ x: 640, y: 480 });
+        expect(def.pixelSize).toEqual({ x: 0.01, y: 0.01 });
+        expect(def.loaded).toBe(true);
+        expect(def.resolutionUnits).toBe(2);
+        expect((doc.getObject("33") as ImageDefReactorObject).imageHandle).toBe("32");
+        expect((doc.getObject("2F") as RasterVariablesObject).frame).toBe(1);
+        expect((doc.getObject("2F") as RasterVariablesObject).units).toBe(2);
+        expect((doc.getObject("35") as WipeoutVariablesObject).frame).toBe(1);
+        const pdf = doc.getObject("39") as UnderlayDefinitionObject;
+        expect(pdf.fileName).toBe("plans\\level-1.pdf");
+        expect(pdf.name).toBe("2");
+    });
+
+    it("reads GROUP, SCALE, TABLESTYLE", () => {
+        const { doc } = loadObjects(OBJECTS);
+        const g = doc.getObject("3D") as GroupObject;
+        expect(g.description).toBe("door frame");
+        expect(g.unnamed).toBe(true);
+        expect(g.memberHandles).toEqual(["3B", "3C"]);
+        const s = doc.getObject("50") as ScaleObject;
+        expect(s.name).toBe("1:4");
+        expect(s.drawingUnits).toBe(4);
+        const ts = doc.getObject("51") as TableStyleObject;
+        expect(ts.description).toBe("Schedule");
+        expect(ts.horizontalMargin).toBe(0.75);
+        expect(ts.cells).toHaveLength(2);
+        expect(ts.cells[0]).toMatchObject({
+            textStyle: "Standard",
+            textHeight: 2.5,
+            alignment: 5,
+            fillColor: 8,
+        });
+        expect(ts.cells[1]).toMatchObject({
+            textStyle: "Headings",
+            textHeight: 3.5,
+            textColor: 3,
+            fillEnabled: true,
+        });
+    });
+
+    it("reads SPATIAL_FILTER boundary and both matrices", () => {
+        const { doc } = loadObjects(OBJECTS);
+        const f = doc.getObject("47") as SpatialFilterObject;
+        expect(f.boundary).toEqual([
+            { x: -4, y: -3 },
+            { x: 6, y: 5 },
+        ]);
+        expect(f.enabled).toBe(true);
+        expect(f.frontClip).toBeUndefined();
+        expect(f.inverseInsertMatrix).toEqual([0.5, 0, 0, -25, 0, 0.5, 0, -10, 0, 0, 0.5, 0]);
+        expect(f.clipMatrix).toEqual([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0]);
+    });
+
+    it("exposes XRECORD payloads and generic record tags", () => {
+        const { doc } = loadObjects(OBJECTS);
+        const x = doc.getObject("48") as XRecordDataObject;
+        expect(x.type).toBe("XRECORD");
+        expect(x.cloning).toBe(1);
+        expect(x.tags.map((t) => [t.code, t.value])).toEqual([
+            [102, "TRUEDXF_DATA"],
+            [10, 1.5],
+            [20, -2],
+            [30, 0.25],
+            [70, 12],
+        ]);
+        const t = recordTags(x.record);
+        expect(t.find((e) => e.code === 10)?.value).toEqual({ x: 1.5, y: -2, z: 0.25 });
+        expect(recordTags(x.record, { scope: "all" })[0]).toMatchObject({ code: 5, value: "48" });
+    });
 });

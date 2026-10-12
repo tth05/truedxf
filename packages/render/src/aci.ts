@@ -82,18 +82,18 @@ export const PLOT_ACI_RGB: readonly number[] = [
 
 /** Plotted RGB of an ACI (index 0 / 256 / 257 fall back to black). */
 export function plotAciToRgb(aci: number): [number, number, number] {
-  const v = aci >= 1 && aci <= 255 ? PLOT_ACI_RGB[aci]! : 0;
-  return [(v >> 16) & 255, (v >> 8) & 255, v & 255];
+    const v = aci >= 1 && aci <= 255 ? PLOT_ACI_RGB[aci]! : 0;
+    return [(v >> 16) & 255, (v >> 8) & 255, v & 255];
 }
 
 export function aciToRgb(
-  aci: number,
-  background: readonly [number, number, number] = [255, 255, 255],
+    aci: number,
+    background: readonly [number, number, number] = [255, 255, 255],
 ): [number, number, number] {
-  if (aci === 7) {
-    const light = background[0] + background[1] + background[2] > 382;
-    return light ? [0, 0, 0] : [255, 255, 255];
-  }
-  const v = ACI_RGB[aci] ?? 0xffffff;
-  return [(v >> 16) & 255, (v >> 8) & 255, v & 255];
+    if (aci === 7) {
+        const light = background[0] + background[1] + background[2] > 382;
+        return light ? [0, 0, 0] : [255, 255, 255];
+    }
+    const v = ACI_RGB[aci] ?? 0xffffff;
+    return [(v >> 16) & 255, (v >> 8) & 255, v & 255];
 }

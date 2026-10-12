@@ -25,81 +25,81 @@
 import type { View } from "./plot.ts";
 
 export class PixelGrid {
-  readonly minX: number;
-  readonly minY: number;
-  readonly pixelSize: number;
-  readonly width: number;
-  readonly height: number;
+    readonly minX: number;
+    readonly minY: number;
+    readonly pixelSize: number;
+    readonly width: number;
+    readonly height: number;
 
-  constructor(view: View, canvas: readonly [number, number]) {
-    this.minX = view.minX;
-    this.minY = view.minY;
-    this.width = canvas[0];
-    this.height = canvas[1];
-    this.pixelSize = (view.maxX - view.minX) / canvas[0];
-  }
+    constructor(view: View, canvas: readonly [number, number]) {
+        this.minX = view.minX;
+        this.minY = view.minY;
+        this.width = canvas[0];
+        this.height = canvas[1];
+        this.pixelSize = (view.maxX - view.minX) / canvas[0];
+    }
 
-  /** Device coordinate of a world x. */
-  u(x: number): number {
-    return (x - this.minX) / this.pixelSize;
-  }
+    /** Device coordinate of a world x. */
+    u(x: number): number {
+        return (x - this.minX) / this.pixelSize;
+    }
 
-  v(y: number): number {
-    return (y - this.minY) / this.pixelSize;
-  }
+    v(y: number): number {
+        return (y - this.minY) / this.pixelSize;
+    }
 
-  /** Pixel column of a world x (floor rule; the far window edge maps to the last pixel, §10.2). */
-  px(x: number): number {
-    const u = this.u(x);
-    return edge(Math.floor(u), u, this.width);
-  }
+    /** Pixel column of a world x (floor rule; the far window edge maps to the last pixel, §10.2). */
+    px(x: number): number {
+        const u = this.u(x);
+        return edge(Math.floor(u), u, this.width);
+    }
 
-  py(y: number): number {
-    const v = this.v(y);
-    return edge(Math.floor(v), v, this.height);
-  }
+    py(y: number): number {
+        const v = this.v(y);
+        return edge(Math.floor(v), v, this.height);
+    }
 
-  /** World coordinate of the centre of pixel column i. */
-  cx(i: number): number {
-    return this.minX + (i + 0.5) * this.pixelSize;
-  }
+    /** World coordinate of the centre of pixel column i. */
+    cx(i: number): number {
+        return this.minX + (i + 0.5) * this.pixelSize;
+    }
 
-  cy(j: number): number {
-    return this.minY + (j + 0.5) * this.pixelSize;
-  }
+    cy(j: number): number {
+        return this.minY + (j + 0.5) * this.pixelSize;
+    }
 
-  /** World coordinate of the lower-left corner of pixel column i. */
-  ex(i: number): number {
-    return this.minX + i * this.pixelSize;
-  }
+    /** World coordinate of the lower-left corner of pixel column i. */
+    ex(i: number): number {
+        return this.minX + i * this.pixelSize;
+    }
 
-  ey(j: number): number {
-    return this.minY + j * this.pixelSize;
-  }
+    ey(j: number): number {
+        return this.minY + j * this.pixelSize;
+    }
 
-  /** Snaps a world point to its pixel centre. */
-  snapCenter(x: number, y: number): [number, number] {
-    return [this.cx(this.px(x)), this.cy(this.py(y))];
-  }
+    /** Snaps a world point to its pixel centre. */
+    snapCenter(x: number, y: number): [number, number] {
+        return [this.cx(this.px(x)), this.cy(this.py(y))];
+    }
 
-  /** Snaps a world point to the lower-left corner of its pixel (fill vertices). */
-  snapCorner(x: number, y: number): [number, number] {
-    return [this.ex(this.px(x)), this.ey(this.py(y))];
-  }
+    /** Snaps a world point to the lower-left corner of its pixel (fill vertices). */
+    snapCorner(x: number, y: number): [number, number] {
+        return [this.ex(this.px(x)), this.ey(this.py(y))];
+    }
 
-  /** True if the pixel range [i0,i1]×[j0,j1] can intersect the canvas. */
-  visible(i0: number, j0: number, i1: number, j1: number): boolean {
-    return (
-      Math.max(i0, i1) >= 0 &&
-      Math.min(i0, i1) < this.width &&
-      Math.max(j0, j1) >= 0 &&
-      Math.min(j0, j1) < this.height
-    );
-  }
+    /** True if the pixel range [i0,i1]×[j0,j1] can intersect the canvas. */
+    visible(i0: number, j0: number, i1: number, j1: number): boolean {
+        return (
+            Math.max(i0, i1) >= 0 &&
+            Math.min(i0, i1) < this.width &&
+            Math.max(j0, j1) >= 0 &&
+            Math.min(j0, j1) < this.height
+        );
+    }
 }
 
 function edge(i: number, u: number, n: number): number {
-  return i === n && u - n < n * 1e-9 ? n - 1 : i;
+    return i === n && u - n < n * 1e-9 ? n - 1 : i;
 }
 
 /** Fraction bits of AutoCAD's fixed-point line and edge slopes (≥ 14 fit, note 08 §10.3). */
@@ -107,8 +107,8 @@ export const FIX_ONE = 65536;
 
 /** Pixel range [lo, hi] along the walked axis to generate (the canvas plus a margin). */
 interface Range {
-  lo: number;
-  hi: number;
+    lo: number;
+    hi: number;
 }
 
 /**
@@ -120,56 +120,56 @@ interface Range {
  * row floor(y*(i) + ½) of the inverted line. `grid` limits the output to the canvas.
  */
 export function linePixels(
-  i0: number,
-  j0: number,
-  i1: number,
-  j1: number,
-  out: number[],
-  grid?: { width: number; height: number },
+    i0: number,
+    j0: number,
+    i1: number,
+    j1: number,
+    out: number[],
+    grid?: { width: number; height: number },
 ): void {
-  const dx = i1 - i0;
-  const dy = j1 - j0;
-  if (dx === 0 && dy === 0) {
-    out.push(i0, j0);
-    return;
-  }
-  if (dy === 0) {
+    const dx = i1 - i0;
+    const dy = j1 - j0;
+    if (dx === 0 && dy === 0) {
+        out.push(i0, j0);
+        return;
+    }
+    if (dy === 0) {
+        const s = dx > 0 ? 1 : -1;
+        const r = clipRange(i0, s, Math.abs(dx), grid?.width);
+        for (let k = r.lo; k <= r.hi; k++) out.push(i0 + s * k, j0);
+        return;
+    }
+    const K = Math.trunc((dx * FIX_ONE) / dy);
+    if (Math.abs(dy) >= Math.abs(dx)) {
+        const s = dy > 0 ? 1 : -1;
+        const r = clipRange(j0, s, Math.abs(dy), grid?.height);
+        for (let k = r.lo; k <= r.hi; k++) {
+            const d = s * k;
+            out.push(i0 + Math.floor((2 * d * K + FIX_ONE) / (2 * FIX_ONE)), j0 + d);
+        }
+        return;
+    }
     const s = dx > 0 ? 1 : -1;
     const r = clipRange(i0, s, Math.abs(dx), grid?.width);
-    for (let k = r.lo; k <= r.hi; k++) out.push(i0 + s * k, j0);
-    return;
-  }
-  const K = Math.trunc((dx * FIX_ONE) / dy);
-  if (Math.abs(dy) >= Math.abs(dx)) {
-    const s = dy > 0 ? 1 : -1;
-    const r = clipRange(j0, s, Math.abs(dy), grid?.height);
     for (let k = r.lo; k <= r.hi; k++) {
-      const d = s * k;
-      out.push(i0 + Math.floor((2 * d * K + FIX_ONE) / (2 * FIX_ONE)), j0 + d);
+        const d = s * k;
+        // y*(i) = j0 + d·2^16/K; row = floor(y* + ½) (K ≠ 0 here since |dx| > |dy| > 0)
+        out.push(i0 + d, j0 + Math.floor((2 * d * FIX_ONE + K) / (2 * K)));
     }
-    return;
-  }
-  const s = dx > 0 ? 1 : -1;
-  const r = clipRange(i0, s, Math.abs(dx), grid?.width);
-  for (let k = r.lo; k <= r.hi; k++) {
-    const d = s * k;
-    // y*(i) = j0 + d·2^16/K; row = floor(y* + ½) (K ≠ 0 here since |dx| > |dy| > 0)
-    out.push(i0 + d, j0 + Math.floor((2 * d * FIX_ONE + K) / (2 * K)));
-  }
 }
 
 /** Steps k ∈ [0, n] of a walk start + s·k that can land within [−1, size] (all when no size). */
 function clipRange(start: number, s: number, n: number, size: number | undefined): Range {
-  if (size === undefined) return { lo: 0, hi: n };
-  const lo = s > 0 ? -1 - start : start - size;
-  const hi = s > 0 ? size - start : start + 1;
-  return { lo: Math.max(0, lo), hi: Math.min(n, hi) };
+    if (size === undefined) return { lo: 0, hi: n };
+    const lo = s > 0 ? -1 - start : start - size;
+    const hi = s > 0 ? size - start : start + 1;
+    return { lo: Math.max(0, lo), hi: Math.min(n, hi) };
 }
 
 /** Plotted width in pixels for a lineweight in 1/100 mm (≥ 1). */
 export function lineweightPixels(lw100: number, dpi = 100): number {
-  if (lw100 <= 0) return 1;
-  return Math.max(1, Math.round(((lw100 / 100) * dpi) / 25.4));
+    if (lw100 <= 0) return 1;
+    return Math.max(1, Math.round(((lw100 / 100) * dpi) / 25.4));
 }
 
 // ---- curves --------------------------------------------------------------------------------
@@ -180,7 +180,7 @@ export function lineweightPixels(lw100: number, dpi = 100): number {
  * -arcs: 110/110 distinct radius/sweep pairs; full circles n = 2·ceil(2√ri + ¼)).
  */
 export function arcSegmentCount(ri: number, sweep: number): number {
-  return 2 * Math.ceil((Math.abs(sweep) / Math.PI) * Math.sqrt(Math.max(0, ri)) + 0.25);
+    return 2 * Math.ceil((Math.abs(sweep) / Math.PI) * Math.sqrt(Math.max(0, ri)) + 0.25);
 }
 
 /**
@@ -190,16 +190,16 @@ export function arcSegmentCount(ri: number, sweep: number): number {
  * coordinates (note 08 §10.13). A full circle repeats its first vertex at the end.
  */
 export function arcVertices(cu: number, cv: number, r: number, start: number, sweep: number): number[] {
-  const ccx = Math.floor(cu) + 0.5;
-  const ccy = Math.floor(cv) + 0.5;
-  const ri = Math.max(0, Math.ceil(r) - 1);
-  const n = arcSegmentCount(ri, sweep);
-  const out: number[] = [];
-  for (let k = 0; k <= n; k++) {
-    const t = start + (sweep * k) / n;
-    out.push(Math.floor(ccx + ri * Math.cos(t)), Math.floor(ccy + ri * Math.sin(t)));
-  }
-  return out;
+    const ccx = Math.floor(cu) + 0.5;
+    const ccy = Math.floor(cv) + 0.5;
+    const ri = Math.max(0, Math.ceil(r) - 1);
+    const n = arcSegmentCount(ri, sweep);
+    const out: number[] = [];
+    for (let k = 0; k <= n; k++) {
+        const t = start + (sweep * k) / n;
+        out.push(Math.floor(ccx + ri * Math.cos(t)), Math.floor(ccy + ri * Math.sin(t)));
+    }
+    return out;
 }
 
 /**
@@ -218,8 +218,8 @@ export const GS_FILL_FACTOR = 1;
  * same rule with f = 1 at 600 dpi).
  */
 export function gsSegmentCount(a: number, sweep: number, f = GS_STROKE_FACTOR): number {
-  const full = Math.max(32, Math.PI * Math.sqrt(Math.max(0, a) * f));
-  return Math.max(1, Math.ceil((full * Math.abs(sweep)) / (2 * Math.PI) - 1e-9));
+    const full = Math.max(32, Math.PI * Math.sqrt(Math.max(0, a) * f));
+    return Math.max(1, Math.ceil((full * Math.abs(sweep)) / (2 * Math.PI) - 1e-9));
 }
 
 // ---- wide strokes --------------------------------------------------------------------------
@@ -231,27 +231,27 @@ const hu = (x: number) => Math.floor(x + 0.5);
  * VERIFIED-BY-ACAD probe-thick, thick-probe; rows listed as [dj, i-from, i-to]).
  */
 const ZERO_LENGTH: Record<number, readonly (readonly [number, number, number])[]> = {
-  2: [
-    [0, -1, 0],
-    [-1, 0, 0],
-  ],
-  5: [
-    [1, -1, 0],
-    [0, -2, 1],
-    [-1, -1, 0],
-  ],
-  8: [
-    [2, -2, 1],
-    [1, -2, 2],
-    [0, -3, 2],
-    [-1, -2, 2],
-    [-2, -2, 1],
-  ],
+    2: [
+        [0, -1, 0],
+        [-1, 0, 0],
+    ],
+    5: [
+        [1, -1, 0],
+        [0, -2, 1],
+        [-1, -1, 0],
+    ],
+    8: [
+        [2, -2, 1],
+        [1, -2, 2],
+        [0, -3, 2],
+        [-1, -2, 2],
+        [-2, -2, 1],
+    ],
 };
 
 function zeroLengthRows(w: number): readonly (readonly [number, number, number])[] {
-  // 3–4 px strokes share the 2 px dot, 6 px the 5 px one; 7 px is not producible at 100 dpi
-  return ZERO_LENGTH[w <= 4 ? 2 : w <= 6 ? 5 : 8]!;
+    // 3–4 px strokes share the 2 px dot, 6 px the 5 px one; 7 px is not producible at 100 dpi
+    return ZERO_LENGTH[w <= 4 ? 2 : w <= 6 ? 5 : 8]!;
 }
 
 /**
@@ -264,88 +264,88 @@ function zeroLengthRows(w: number): readonly (readonly [number, number, number])
  * Returns undefined for a zero-length segment (see {@link strokeDotPixels}).
  */
 export function strokeSegmentPolygon(
-  i0: number,
-  j0: number,
-  i1: number,
-  j1: number,
-  w: number,
+    i0: number,
+    j0: number,
+    i1: number,
+    j1: number,
+    w: number,
 ): number[] | undefined {
-  const dx = i1 - i0;
-  const dy = j1 - j0;
-  if (dx === 0 && dy === 0) return undefined;
-  const len = Math.hypot(dx, dy);
-  const nx = -dy / len;
-  const ny = dx / len;
-  const h = (w - 1) / 2;
-  let opx: number;
-  let opy: number;
-  let omx: number;
-  let omy: number;
-  if (w <= 2) {
-    // one extra pixel along the minor axis, on whichever side of the line that is
-    const [ex, ey] = Math.abs(dx) >= Math.abs(dy) ? [0, 1] : [1, 0];
-    if (ex * nx + ey * ny > 0) [opx, opy, omx, omy] = [ex, ey, 0, 0];
-    else [opx, opy, omx, omy] = [0, 0, ex, ey];
-  } else {
-    opx = hu(h * nx);
-    opy = hu(h * ny);
-    omx = hu(-h * nx);
-    omy = hu(-h * ny);
-  }
-  const nc = Math.max(2, Math.floor(h) + 1);
-  const phi = Math.atan2(ny, nx);
-  const v: number[] = [i0 + omx, j0 + omy, i1 + omx, j1 + omy];
-  for (let k = 1; k < nc; k++) {
-    const a = phi - Math.PI + (Math.PI * k) / nc;
-    v.push(i1 + hu(h * Math.cos(a)), j1 + hu(h * Math.sin(a)));
-  }
-  v.push(i1 + opx, j1 + opy, i0 + opx, j0 + opy);
-  for (let k = 1; k < nc; k++) {
-    const a = phi + (Math.PI * k) / nc;
-    v.push(i0 + hu(h * Math.cos(a)), j0 + hu(h * Math.sin(a)));
-  }
-  return v;
+    const dx = i1 - i0;
+    const dy = j1 - j0;
+    if (dx === 0 && dy === 0) return undefined;
+    const len = Math.hypot(dx, dy);
+    const nx = -dy / len;
+    const ny = dx / len;
+    const h = (w - 1) / 2;
+    let opx: number;
+    let opy: number;
+    let omx: number;
+    let omy: number;
+    if (w <= 2) {
+        // one extra pixel along the minor axis, on whichever side of the line that is
+        const [ex, ey] = Math.abs(dx) >= Math.abs(dy) ? [0, 1] : [1, 0];
+        if (ex * nx + ey * ny > 0) [opx, opy, omx, omy] = [ex, ey, 0, 0];
+        else [opx, opy, omx, omy] = [0, 0, ex, ey];
+    } else {
+        opx = hu(h * nx);
+        opy = hu(h * ny);
+        omx = hu(-h * nx);
+        omy = hu(-h * ny);
+    }
+    const nc = Math.max(2, Math.floor(h) + 1);
+    const phi = Math.atan2(ny, nx);
+    const v: number[] = [i0 + omx, j0 + omy, i1 + omx, j1 + omy];
+    for (let k = 1; k < nc; k++) {
+        const a = phi - Math.PI + (Math.PI * k) / nc;
+        v.push(i1 + hu(h * Math.cos(a)), j1 + hu(h * Math.sin(a)));
+    }
+    v.push(i1 + opx, j1 + opy, i0 + opx, j0 + opy);
+    for (let k = 1; k < nc; k++) {
+        const a = phi + (Math.PI * k) / nc;
+        v.push(i0 + hu(h * Math.cos(a)), j0 + hu(h * Math.sin(a)));
+    }
+    return v;
 }
 
 /** Collects filled pixels as horizontal spans per row. */
 export class SpanSet {
-  private readonly rows = new Map<number, number[]>();
+    private readonly rows = new Map<number, number[]>();
 
-  /** Adds the inclusive span [i0, i1] of row j. */
-  add(j: number, i0: number, i1: number): void {
-    if (i1 < i0) return;
-    const r = this.rows.get(j);
-    if (r) r.push(i0, i1);
-    else this.rows.set(j, [i0, i1]);
-  }
-
-  get empty(): boolean {
-    return this.rows.size === 0;
-  }
-
-  /** Merged, sorted spans: callback(j, i0, i1) with inclusive ends. */
-  forEach(fn: (j: number, i0: number, i1: number) => void): void {
-    const js = [...this.rows.keys()].sort((a, b) => a - b);
-    for (const j of js) {
-      const r = this.rows.get(j)!;
-      const idx: number[] = [];
-      for (let k = 0; k < r.length; k += 2) idx.push(k);
-      idx.sort((a, b) => r[a]! - r[b]!);
-      let s = r[idx[0]!]!;
-      let e = r[idx[0]! + 1]!;
-      for (let q = 1; q < idx.length; q++) {
-        const a = r[idx[q]!]!;
-        const b = r[idx[q]! + 1]!;
-        if (a <= e + 1) e = Math.max(e, b);
-        else {
-          fn(j, s, e);
-          s = a;
-          e = b;
-        }
-      }
-      fn(j, s, e);
+    /** Adds the inclusive span [i0, i1] of row j. */
+    add(j: number, i0: number, i1: number): void {
+        if (i1 < i0) return;
+        const r = this.rows.get(j);
+        if (r) r.push(i0, i1);
+        else this.rows.set(j, [i0, i1]);
     }
-  }
+
+    get empty(): boolean {
+        return this.rows.size === 0;
+    }
+
+    /** Merged, sorted spans: callback(j, i0, i1) with inclusive ends. */
+    forEach(fn: (j: number, i0: number, i1: number) => void): void {
+        const js = [...this.rows.keys()].sort((a, b) => a - b);
+        for (const j of js) {
+            const r = this.rows.get(j)!;
+            const idx: number[] = [];
+            for (let k = 0; k < r.length; k += 2) idx.push(k);
+            idx.sort((a, b) => r[a]! - r[b]!);
+            let s = r[idx[0]!]!;
+            let e = r[idx[0]! + 1]!;
+            for (let q = 1; q < idx.length; q++) {
+                const a = r[idx[q]!]!;
+                const b = r[idx[q]! + 1]!;
+                if (a <= e + 1) e = Math.max(e, b);
+                else {
+                    fn(j, s, e);
+                    s = a;
+                    e = b;
+                }
+            }
+            fn(j, s, e);
+        }
+    }
 }
 
 /**
@@ -354,36 +354,36 @@ export class SpanSet {
  * and rightmost boundary pixel (note 08 §10.14).
  */
 export function fillConvexByEdges(
-  v: readonly number[],
-  out: SpanSet,
-  grid?: { width: number; height: number },
+    v: readonly number[],
+    out: SpanSet,
+    grid?: { width: number; height: number },
 ): void {
-  const n = v.length >> 1;
-  const pts: number[] = [];
-  for (let k = 0; k < n; k++) {
-    const b = (k + 1) % n;
-    linePixels(v[k * 2]!, v[k * 2 + 1]!, v[b * 2]!, v[b * 2 + 1]!, pts, grid);
-  }
-  const lo = new Map<number, number>();
-  const hi = new Map<number, number>();
-  for (let q = 0; q < pts.length; q += 2) {
-    const i = pts[q]!;
-    const j = pts[q + 1]!;
-    const a = lo.get(j);
-    if (a === undefined || i < a) lo.set(j, i);
-    const b = hi.get(j);
-    if (b === undefined || i > b) hi.set(j, i);
-  }
-  for (const [j, a] of lo) out.add(j, a, hi.get(j)!);
+    const n = v.length >> 1;
+    const pts: number[] = [];
+    for (let k = 0; k < n; k++) {
+        const b = (k + 1) % n;
+        linePixels(v[k * 2]!, v[k * 2 + 1]!, v[b * 2]!, v[b * 2 + 1]!, pts, grid);
+    }
+    const lo = new Map<number, number>();
+    const hi = new Map<number, number>();
+    for (let q = 0; q < pts.length; q += 2) {
+        const i = pts[q]!;
+        const j = pts[q + 1]!;
+        const a = lo.get(j);
+        if (a === undefined || i < a) lo.set(j, i);
+        const b = hi.get(j);
+        if (b === undefined || i > b) hi.set(j, i);
+    }
+    for (const [j, a] of lo) out.add(j, a, hi.get(j)!);
 }
 
 /** Zero-length stroke of width w at pixel (i, j) (note 08 §10.14; POINT entities stay 1 px). */
 export function strokeDotPixels(i: number, j: number, w: number, out: SpanSet): void {
-  if (w <= 1) {
-    out.add(j, i, i);
-    return;
-  }
-  for (const [dj, a, b] of zeroLengthRows(w)) out.add(j + dj, i + a, i + b);
+    if (w <= 1) {
+        out.add(j, i, i);
+        return;
+    }
+    for (const [dj, a, b] of zeroLengthRows(w)) out.add(j + dj, i + a, i + b);
 }
 
 // ---- fills ---------------------------------------------------------------------------------
@@ -395,59 +395,59 @@ export function strokeDotPixels(i: number, j: number, w: number, out: SpanSet): 
  * trunc(dx·2^16/dy)/2^16, crossings [ymin, ymax); pixel i is filled when x_left < i + ½ ≤ x_right.
  */
 export function fillPolygon(
-  rings: readonly (readonly number[])[],
-  evenOdd: boolean,
-  out: SpanSet,
-  canvas?: Pick<PixelGrid, "height">,
+    rings: readonly (readonly number[])[],
+    evenOdd: boolean,
+    out: SpanSet,
+    canvas?: Pick<PixelGrid, "height">,
 ): void {
-  interface Edge {
-    xb: number;
-    yb: number;
-    yt: number;
-    k: number;
-    dir: number;
-  }
-  const edges: Edge[] = [];
-  let ymin = Infinity;
-  let ymax = -Infinity;
-  for (const r of rings) {
-    const n = r.length >> 1;
-    for (let q = 0; q < n; q++) {
-      const ax = r[q * 2]!;
-      const ay = r[q * 2 + 1]!;
-      const b = (q + 1) % n;
-      const bx = r[b * 2]!;
-      const by = r[b * 2 + 1]!;
-      if (ay === by) continue;
-      const up = ay < by;
-      const [xb, yb, xt, yt] = up ? [ax, ay, bx, by] : [bx, by, ax, ay];
-      edges.push({ xb, yb, yt, k: Math.trunc(((xt - xb) * FIX_ONE) / (yt - yb)), dir: up ? 1 : -1 });
-      if (yb < ymin) ymin = yb;
-      if (yt > ymax) ymax = yt;
+    interface Edge {
+        xb: number;
+        yb: number;
+        yt: number;
+        k: number;
+        dir: number;
     }
-  }
-  // Zoomed corpus windows can put remote fills millions of rows off canvas. Keep the original
-  // edge origins/slopes (note 08 §10.5), and only visit rows emitSpans can actually emit.
-  if (canvas) {
-    ymin = Math.max(ymin, 0);
-    ymax = Math.min(ymax, canvas.height);
-  }
-  const xs: { x: number; dir: number }[] = [];
-  for (let j = ymin; j < ymax; j++) {
-    xs.length = 0;
-    for (const e of edges)
-      if (j >= e.yb && j < e.yt) xs.push({ x: e.xb * FIX_ONE + (j - e.yb) * e.k, dir: e.dir });
-    xs.sort((a, b) => a.x - b.x);
-    let wind = 0;
-    for (let q = 0; q + 1 < xs.length; q++) {
-      wind += xs[q]!.dir;
-      if (evenOdd ? q % 2 !== 0 : wind === 0) continue;
-      // x_left < i + ½ ≤ x_right in units of 2^-16 px
-      const a = Math.floor((xs[q]!.x - FIX_ONE / 2) / FIX_ONE) + 1;
-      const b = Math.floor((xs[q + 1]!.x - FIX_ONE / 2) / FIX_ONE);
-      out.add(j, a, b);
+    const edges: Edge[] = [];
+    let ymin = Infinity;
+    let ymax = -Infinity;
+    for (const r of rings) {
+        const n = r.length >> 1;
+        for (let q = 0; q < n; q++) {
+            const ax = r[q * 2]!;
+            const ay = r[q * 2 + 1]!;
+            const b = (q + 1) % n;
+            const bx = r[b * 2]!;
+            const by = r[b * 2 + 1]!;
+            if (ay === by) continue;
+            const up = ay < by;
+            const [xb, yb, xt, yt] = up ? [ax, ay, bx, by] : [bx, by, ax, ay];
+            edges.push({ xb, yb, yt, k: Math.trunc(((xt - xb) * FIX_ONE) / (yt - yb)), dir: up ? 1 : -1 });
+            if (yb < ymin) ymin = yb;
+            if (yt > ymax) ymax = yt;
+        }
     }
-  }
+    // Zoomed corpus windows can put remote fills millions of rows off canvas. Keep the original
+    // edge origins/slopes (note 08 §10.5), and only visit rows emitSpans can actually emit.
+    if (canvas) {
+        ymin = Math.max(ymin, 0);
+        ymax = Math.min(ymax, canvas.height);
+    }
+    const xs: { x: number; dir: number }[] = [];
+    for (let j = ymin; j < ymax; j++) {
+        xs.length = 0;
+        for (const e of edges)
+            if (j >= e.yb && j < e.yt) xs.push({ x: e.xb * FIX_ONE + (j - e.yb) * e.k, dir: e.dir });
+        xs.sort((a, b) => a.x - b.x);
+        let wind = 0;
+        for (let q = 0; q + 1 < xs.length; q++) {
+            wind += xs[q]!.dir;
+            if (evenOdd ? q % 2 !== 0 : wind === 0) continue;
+            // x_left < i + ½ ≤ x_right in units of 2^-16 px
+            const a = Math.floor((xs[q]!.x - FIX_ONE / 2) / FIX_ONE) + 1;
+            const b = Math.floor((xs[q + 1]!.x - FIX_ONE / 2) / FIX_ONE);
+            out.add(j, a, b);
+        }
+    }
 }
 
 /**
@@ -457,65 +457,65 @@ export function fillPolygon(
  * (x0, y0, x1, y0, x2, y1, x3, y1).
  */
 export function trapezoids(rings: readonly ArrayLike<number>[], evenOdd: boolean): number[][] {
-  interface Edge {
-    ax: number;
-    ay: number;
-    bx: number;
-    by: number;
-    dir: number;
-  }
-  const edges: Edge[] = [];
-  const ys: number[] = [];
-  for (const r of rings) {
-    const n = r.length >> 1;
-    for (let q = 0; q < n; q++) {
-      const ax = r[q * 2]!;
-      const ay = r[q * 2 + 1]!;
-      const b = (q + 1) % n;
-      const bx = r[b * 2]!;
-      const by = r[b * 2 + 1]!;
-      ys.push(ay);
-      if (ay === by) continue;
-      edges.push(ay < by ? { ax, ay, bx, by, dir: 1 } : { ax: bx, ay: by, bx: ax, by: ay, dir: -1 });
+    interface Edge {
+        ax: number;
+        ay: number;
+        bx: number;
+        by: number;
+        dir: number;
     }
-  }
-  const xAt = (e: Edge, y: number) => e.ax + ((e.bx - e.ax) * (y - e.ay)) / (e.by - e.ay);
-  // Self-intersecting loops: edges that cross inside a slab would swap order and pair up wrong
-  // (extra triangles), so every edge–edge crossing y is a slab level too. VERIFIED-BY-ACAD
-  // hatches/selfint-bowtie, selfint-pentagram, edges-shuffled, one-loop-two-rects (note 06 §1.5)
-  edges.sort((a, b) => a.ay - b.ay);
-  for (let i = 0; i < edges.length; i++) {
-    const e = edges[i]!;
-    for (let j = i + 1; j < edges.length; j++) {
-      const f = edges[j]!;
-      if (f.ay >= e.by) break;
-      const lo = f.ay;
-      const hi = Math.min(e.by, f.by);
-      if (!(hi > lo)) continue;
-      const d0 = xAt(e, lo) - xAt(f, lo);
-      const d1 = xAt(e, hi) - xAt(f, hi);
-      if ((d0 < 0 && d1 > 0) || (d0 > 0 && d1 < 0)) {
-        const y = lo + ((hi - lo) * d0) / (d0 - d1);
-        if (y > lo && y < hi) ys.push(y);
-      }
+    const edges: Edge[] = [];
+    const ys: number[] = [];
+    for (const r of rings) {
+        const n = r.length >> 1;
+        for (let q = 0; q < n; q++) {
+            const ax = r[q * 2]!;
+            const ay = r[q * 2 + 1]!;
+            const b = (q + 1) % n;
+            const bx = r[b * 2]!;
+            const by = r[b * 2 + 1]!;
+            ys.push(ay);
+            if (ay === by) continue;
+            edges.push(ay < by ? { ax, ay, bx, by, dir: 1 } : { ax: bx, ay: by, bx: ax, by: ay, dir: -1 });
+        }
     }
-  }
-  ys.sort((a, b) => a - b);
-  const levels = ys.filter((y, k) => k === 0 || y !== ys[k - 1]);
-  const out: number[][] = [];
-  for (let q = 0; q + 1 < levels.length; q++) {
-    const y0 = levels[q]!;
-    const y1 = levels[q + 1]!;
-    const ym = (y0 + y1) / 2;
-    const act = edges.filter((e) => e.ay <= y0 && e.by >= y1).sort((a, b) => xAt(a, ym) - xAt(b, ym));
-    let wind = 0;
-    for (let k = 0; k + 1 < act.length; k++) {
-      wind += act[k]!.dir;
-      if (evenOdd ? k % 2 !== 0 : wind === 0) continue;
-      const l = act[k]!;
-      const r = act[k + 1]!;
-      out.push([xAt(l, y0), y0, xAt(r, y0), y0, xAt(r, y1), y1, xAt(l, y1), y1]);
+    const xAt = (e: Edge, y: number) => e.ax + ((e.bx - e.ax) * (y - e.ay)) / (e.by - e.ay);
+    // Self-intersecting loops: edges that cross inside a slab would swap order and pair up wrong
+    // (extra triangles), so every edge–edge crossing y is a slab level too. VERIFIED-BY-ACAD
+    // hatches/selfint-bowtie, selfint-pentagram, edges-shuffled, one-loop-two-rects (note 06 §1.5)
+    edges.sort((a, b) => a.ay - b.ay);
+    for (let i = 0; i < edges.length; i++) {
+        const e = edges[i]!;
+        for (let j = i + 1; j < edges.length; j++) {
+            const f = edges[j]!;
+            if (f.ay >= e.by) break;
+            const lo = f.ay;
+            const hi = Math.min(e.by, f.by);
+            if (!(hi > lo)) continue;
+            const d0 = xAt(e, lo) - xAt(f, lo);
+            const d1 = xAt(e, hi) - xAt(f, hi);
+            if ((d0 < 0 && d1 > 0) || (d0 > 0 && d1 < 0)) {
+                const y = lo + ((hi - lo) * d0) / (d0 - d1);
+                if (y > lo && y < hi) ys.push(y);
+            }
+        }
     }
-  }
-  return out;
+    ys.sort((a, b) => a - b);
+    const levels = ys.filter((y, k) => k === 0 || y !== ys[k - 1]);
+    const out: number[][] = [];
+    for (let q = 0; q + 1 < levels.length; q++) {
+        const y0 = levels[q]!;
+        const y1 = levels[q + 1]!;
+        const ym = (y0 + y1) / 2;
+        const act = edges.filter((e) => e.ay <= y0 && e.by >= y1).sort((a, b) => xAt(a, ym) - xAt(b, ym));
+        let wind = 0;
+        for (let k = 0; k + 1 < act.length; k++) {
+            wind += act[k]!.dir;
+            if (evenOdd ? k % 2 !== 0 : wind === 0) continue;
+            const l = act[k]!;
+            const r = act[k + 1]!;
+            out.push([xAt(l, y0), y0, xAt(r, y0), y0, xAt(r, y1), y1, xAt(l, y1), y1]);
+        }
+    }
+    return out;
 }

@@ -1,44 +1,44 @@
 {
-  "name": "@truedxf/text",
-  "version": "0.0.0",
-  "description": "TEXT and MTEXT parsing and layout engine",
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/tth05/truedxf.git",
-    "directory": "packages/text"
-  },
-  "homepage": "https://github.com/tth05/truedxf/tree/master/packages/text#readme",
-  "bugs": "https://github.com/tth05/truedxf/issues",
-  "keywords": [
-    "dxf",
-    "mtext",
-    "text-layout",
-    "autocad"
-  ],
-  "type": "module",
-  "sideEffects": false,
-  "exports": {
-    ".": "./src/index.ts"
-  },
-  "publishConfig": {
+    "name": "@truedxf/text",
+    "version": "0.0.0",
+    "description": "TEXT and MTEXT parsing and layout engine",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/tth05/truedxf.git",
+        "directory": "packages/text"
+    },
+    "homepage": "https://github.com/tth05/truedxf/tree/master/packages/text#readme",
+    "bugs": "https://github.com/tth05/truedxf/issues",
+    "keywords": [
+        "dxf",
+        "mtext",
+        "text-layout",
+        "autocad"
+    ],
+    "type": "module",
+    "sideEffects": false,
     "exports": {
-      ".": {
-        "types": "./dist/index.d.ts",
-        "default": "./dist/index.js"
-      }
+        ".": "./src/index.ts"
+    },
+    "publishConfig": {
+        "exports": {
+            ".": {
+                "types": "./dist/index.d.ts",
+                "default": "./dist/index.js"
+            }
+        }
+    },
+    "files": [
+        "dist",
+        "src"
+    ],
+    "dependencies": {
+        "@truedxf/core": "workspace:^",
+        "@truedxf/fonts": "workspace:^",
+        "@truedxf/geometry": "workspace:^"
+    },
+    "devDependencies": {
+        "@truedxf/model": "workspace:*"
     }
-  },
-  "files": [
-    "dist",
-    "src"
-  ],
-  "dependencies": {
-    "@truedxf/core": "workspace:^",
-    "@truedxf/fonts": "workspace:^",
-    "@truedxf/geometry": "workspace:^"
-  },
-  "devDependencies": {
-    "@truedxf/model": "workspace:*"
-  }
 }

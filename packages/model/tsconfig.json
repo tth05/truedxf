@@ -1,14 +1,14 @@
 {
-  "extends": "../../tsconfig.base.json",
-  "compilerOptions": {
-    "rootDir": "src",
-    "outDir": "dist",
-    "types": []
-  },
-  "include": ["src", "../../types/web-globals.d.ts"],
-  "references": [
-    {
-      "path": "../core"
-    }
-  ]
+    "extends": "../../tsconfig.base.json",
+    "compilerOptions": {
+        "rootDir": "src",
+        "outDir": "dist",
+        "types": []
+    },
+    "include": ["src", "../../types/web-globals.d.ts"],
+    "references": [
+        {
+            "path": "../core"
+        }
+    ]
 }

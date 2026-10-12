@@ -47,33 +47,33 @@ import { DEFAULT_DEVICE_TOLERANCE_PX } from "./tolerance.ts";
 import { triangulateConvex } from "./triangulate.ts";
 
 export const LineCap = {
-  Butt: "butt",
-  Square: "square",
-  Round: "round",
-  Diamond: "diamond",
+    Butt: "butt",
+    Square: "square",
+    Round: "round",
+    Diamond: "diamond",
 } as const;
 export type LineCap = (typeof LineCap)[keyof typeof LineCap];
 
 export const LineJoin = {
-  Miter: "miter",
-  Bevel: "bevel",
-  Round: "round",
-  Diamond: "diamond",
+    Miter: "miter",
+    Bevel: "bevel",
+    Round: "round",
+    Diamond: "diamond",
 } as const;
 export type LineJoin = (typeof LineJoin)[keyof typeof LineJoin];
 
 export interface StrokeOptions {
-  /** Full stroke width (same units as the points). */
-  readonly width: number;
-  readonly closed?: boolean;
-  readonly cap?: LineCap;
-  readonly join?: LineJoin;
-  /** Max miter length / width before a miter becomes a bevel. Default 10 (PDF default). */
-  readonly miterLimit?: number;
-  /** Chord tolerance for round caps/joins (same units). Default 0.1 (device px). */
-  readonly tolerance?: number;
-  /** Direction (radians) of a stroke that degenerates to a single point. Default 0. */
-  readonly dotDirection?: number;
+    /** Full stroke width (same units as the points). */
+    readonly width: number;
+    readonly closed?: boolean;
+    readonly cap?: LineCap;
+    readonly join?: LineJoin;
+    /** Max miter length / width before a miter becomes a bevel. Default 10 (PDF default). */
+    readonly miterLimit?: number;
+    /** Chord tolerance for round caps/joins (same units). Default 0.1 (device px). */
+    readonly tolerance?: number;
+    /** Direction (radians) of a stroke that degenerates to a single point. Default 0. */
+    readonly dotDirection?: number;
 }
 
 export const DEFAULT_MITER_LIMIT = 10;
@@ -82,224 +82,224 @@ export const DEFAULT_MITER_LIMIT = 10;
 type PieceSink = (ring: number[]) => void;
 
 function signedArea2(r: number[]): number {
-  let s = 0;
-  const n = r.length >> 1;
-  for (let i = 0; i < n; i++) {
-    const j = i + 1 === n ? 0 : i + 1;
-    s += r[2 * i]! * r[2 * j + 1]! - r[2 * j]! * r[2 * i + 1]!;
-  }
-  return s;
+    let s = 0;
+    const n = r.length >> 1;
+    for (let i = 0; i < n; i++) {
+        const j = i + 1 === n ? 0 : i + 1;
+        s += r[2 * i]! * r[2 * j + 1]! - r[2 * j]! * r[2 * i + 1]!;
+    }
+    return s;
 }
 
 function emitCcw(sink: PieceSink, r: number[]): void {
-  const a = signedArea2(r);
-  if (a === 0 || !Number.isFinite(a)) return;
-  if (a < 0) {
-    const n = r.length >> 1;
-    const rev: number[] = [];
-    for (let i = n - 1; i >= 0; i--) rev.push(r[2 * i]!, r[2 * i + 1]!);
-    sink(rev);
-  } else sink(r);
+    const a = signedArea2(r);
+    if (a === 0 || !Number.isFinite(a)) return;
+    if (a < 0) {
+        const n = r.length >> 1;
+        const rev: number[] = [];
+        for (let i = n - 1; i >= 0; i--) rev.push(r[2 * i]!, r[2 * i + 1]!);
+        sink(rev);
+    } else sink(r);
 }
 
 /** Polyline with near-duplicate points removed (see module comment). */
 function cleanPoints(points: Float64Array, closed: boolean, eps: number): number[] {
-  const out: number[] = [];
-  for (let i = 0; i + 1 < points.length; i += 2) {
-    const x = points[i]!;
-    const y = points[i + 1]!;
-    const n = out.length;
-    if (n >= 2 && Math.hypot(x - out[n - 2]!, y - out[n - 1]!) <= eps) continue;
-    out.push(x, y);
-  }
-  if (closed && out.length >= 4) {
-    const n = out.length;
-    if (Math.hypot(out[n - 2]! - out[0]!, out[n - 1]! - out[1]!) <= eps) out.length -= 2;
-  }
-  return out;
+    const out: number[] = [];
+    for (let i = 0; i + 1 < points.length; i += 2) {
+        const x = points[i]!;
+        const y = points[i + 1]!;
+        const n = out.length;
+        if (n >= 2 && Math.hypot(x - out[n - 2]!, y - out[n - 1]!) <= eps) continue;
+        out.push(x, y);
+    }
+    if (closed && out.length >= 4) {
+        const n = out.length;
+        if (Math.hypot(out[n - 2]! - out[0]!, out[n - 1]! - out[1]!) <= eps) out.length -= 2;
+    }
+    return out;
 }
 
 /** Fan of points on the circle (cx, cy, h) from angle a0 sweeping `sweep`, centre first. */
 function wedge(cx: number, cy: number, h: number, a0: number, sweep: number, tol: number): number[] {
-  const n = arcSegmentCount(h, sweep, tol);
-  const r: number[] = [cx, cy];
-  for (let i = 0; i <= n; i++) {
-    const a = a0 + (sweep * i) / n;
-    r.push(cx + h * Math.cos(a), cy + h * Math.sin(a));
-  }
-  return r;
+    const n = arcSegmentCount(h, sweep, tol);
+    const r: number[] = [cx, cy];
+    for (let i = 0; i <= n; i++) {
+        const a = a0 + (sweep * i) / n;
+        r.push(cx + h * Math.cos(a), cy + h * Math.sin(a));
+    }
+    return r;
 }
 
 interface Resolved {
-  readonly h: number;
-  readonly cap: LineCap;
-  readonly join: LineJoin;
-  readonly miterLimit: number;
-  readonly tol: number;
+    readonly h: number;
+    readonly cap: LineCap;
+    readonly join: LineJoin;
+    readonly miterLimit: number;
+    readonly tol: number;
 }
 
 function resolve(o: StrokeOptions): Resolved {
-  return {
-    h: Math.abs(o.width) / 2,
-    cap: o.cap ?? LineCap.Round,
-    join: o.join ?? LineJoin.Round,
-    miterLimit: o.miterLimit ?? DEFAULT_MITER_LIMIT,
-    tol: o.tolerance ?? DEFAULT_DEVICE_TOLERANCE_PX,
-  };
+    return {
+        h: Math.abs(o.width) / 2,
+        cap: o.cap ?? LineCap.Round,
+        join: o.join ?? LineJoin.Round,
+        miterLimit: o.miterLimit ?? DEFAULT_MITER_LIMIT,
+        tol: o.tolerance ?? DEFAULT_DEVICE_TOLERANCE_PX,
+    };
 }
 
 /** Cap at (x, y) facing the unit direction (dx, dy) (pointing away from the stroke). */
 function capPiece(sink: PieceSink, x: number, y: number, dx: number, dy: number, r: Resolved): void {
-  const { h } = r;
-  const nx = -dy * h;
-  const ny = dx * h;
-  switch (r.cap) {
-    case LineCap.Butt:
-      return;
-    case LineCap.Square:
-      emitCcw(sink, [
-        x + nx,
-        y + ny,
-        x - nx,
-        y - ny,
-        x - nx + dx * h,
-        y - ny + dy * h,
-        x + nx + dx * h,
-        y + ny + dy * h,
-      ]);
-      return;
-    case LineCap.Diamond:
-      emitCcw(sink, [x + nx, y + ny, x - nx, y - ny, x + dx * h, y + dy * h]);
-      return;
-    case LineCap.Round: {
-      // Half-disc from the left normal clockwise through the outward direction.
-      const a0 = Math.atan2(ny, nx);
-      emitCcw(sink, wedge(x, y, h, a0, -Math.PI, r.tol));
-      return;
+    const { h } = r;
+    const nx = -dy * h;
+    const ny = dx * h;
+    switch (r.cap) {
+        case LineCap.Butt:
+            return;
+        case LineCap.Square:
+            emitCcw(sink, [
+                x + nx,
+                y + ny,
+                x - nx,
+                y - ny,
+                x - nx + dx * h,
+                y - ny + dy * h,
+                x + nx + dx * h,
+                y + ny + dy * h,
+            ]);
+            return;
+        case LineCap.Diamond:
+            emitCcw(sink, [x + nx, y + ny, x - nx, y - ny, x + dx * h, y + dy * h]);
+            return;
+        case LineCap.Round: {
+            // Half-disc from the left normal clockwise through the outward direction.
+            const a0 = Math.atan2(ny, nx);
+            emitCcw(sink, wedge(x, y, h, a0, -Math.PI, r.tol));
+            return;
+        }
     }
-  }
 }
 
 /** Join at (x, y) between unit directions d0 (incoming) and d1 (outgoing). */
 function joinPiece(
-  sink: PieceSink,
-  x: number,
-  y: number,
-  d0x: number,
-  d0y: number,
-  d1x: number,
-  d1y: number,
-  r: Resolved,
+    sink: PieceSink,
+    x: number,
+    y: number,
+    d0x: number,
+    d0y: number,
+    d1x: number,
+    d1y: number,
+    r: Resolved,
 ): void {
-  const cross = d0x * d1y - d0y * d1x;
-  const dot = d0x * d1x + d0y * d1y;
-  if (cross === 0 && dot > 0) return; // straight on
-  const theta = Math.atan2(cross, dot); // signed turn angle in (−π, π]
-  const s = theta >= 0 ? 1 : -1;
-  const { h } = r;
-  // Outer normals: rotate the directions by −s·90°.
-  const o0x = s * d0y;
-  const o0y = -s * d0x;
-  const o1x = s * d1y;
-  const o1y = -s * d1x;
-  const ax = x + o0x * h;
-  const ay = y + o0y * h;
-  const bx = x + o1x * h;
-  const by = y + o1y * h;
-  const half = Math.abs(theta) / 2;
-  switch (r.join) {
-    case LineJoin.Round:
-      emitCcw(sink, wedge(x, y, h, Math.atan2(o0y, o0x), theta, r.tol));
-      return;
-    case LineJoin.Bevel:
-      emitCcw(sink, [x, y, ax, ay, bx, by]);
-      return;
-    case LineJoin.Miter: {
-      const c = Math.cos(half);
-      if (!(c > 0) || 1 / c > r.miterLimit) {
-        emitCcw(sink, [x, y, ax, ay, bx, by]);
-        return;
-      }
-      let mx = o0x + o1x;
-      let my = o0y + o1y;
-      const ml = Math.hypot(mx, my);
-      mx = (mx / ml) * (h / c);
-      my = (my / ml) * (h / c);
-      emitCcw(sink, [x, y, ax, ay, x + mx, y + my, bx, by]);
-      return;
+    const cross = d0x * d1y - d0y * d1x;
+    const dot = d0x * d1x + d0y * d1y;
+    if (cross === 0 && dot > 0) return; // straight on
+    const theta = Math.atan2(cross, dot); // signed turn angle in (−π, π]
+    const s = theta >= 0 ? 1 : -1;
+    const { h } = r;
+    // Outer normals: rotate the directions by −s·90°.
+    const o0x = s * d0y;
+    const o0y = -s * d0x;
+    const o1x = s * d1y;
+    const o1y = -s * d1x;
+    const ax = x + o0x * h;
+    const ay = y + o0y * h;
+    const bx = x + o1x * h;
+    const by = y + o1y * h;
+    const half = Math.abs(theta) / 2;
+    switch (r.join) {
+        case LineJoin.Round:
+            emitCcw(sink, wedge(x, y, h, Math.atan2(o0y, o0x), theta, r.tol));
+            return;
+        case LineJoin.Bevel:
+            emitCcw(sink, [x, y, ax, ay, bx, by]);
+            return;
+        case LineJoin.Miter: {
+            const c = Math.cos(half);
+            if (!(c > 0) || 1 / c > r.miterLimit) {
+                emitCcw(sink, [x, y, ax, ay, bx, by]);
+                return;
+            }
+            let mx = o0x + o1x;
+            let my = o0y + o1y;
+            const ml = Math.hypot(mx, my);
+            mx = (mx / ml) * (h / c);
+            my = (my / ml) * (h / c);
+            emitCcw(sink, [x, y, ax, ay, x + mx, y + my, bx, by]);
+            return;
+        }
+        case LineJoin.Diamond: {
+            let mx = o0x + o1x;
+            let my = o0y + o1y;
+            const ml = Math.hypot(mx, my);
+            if (!(ml > 0)) {
+                // 180° reversal: tip straight ahead along d0.
+                mx = d0x;
+                my = d0y;
+            } else {
+                mx /= ml;
+                my /= ml;
+            }
+            emitCcw(sink, [x, y, ax, ay, x + mx * h, y + my * h, bx, by]);
+            return;
+        }
     }
-    case LineJoin.Diamond: {
-      let mx = o0x + o1x;
-      let my = o0y + o1y;
-      const ml = Math.hypot(mx, my);
-      if (!(ml > 0)) {
-        // 180° reversal: tip straight ahead along d0.
-        mx = d0x;
-        my = d0y;
-      } else {
-        mx /= ml;
-        my /= ml;
-      }
-      emitCcw(sink, [x, y, ax, ay, x + mx * h, y + my * h, bx, by]);
-      return;
-    }
-  }
 }
 
 function strokePieces(points: Float64Array, options: StrokeOptions, sink: PieceSink): void {
-  const r = resolve(options);
-  if (!(r.h > 0)) return;
-  const closed = options.closed ?? false;
-  const p = cleanPoints(points, closed, r.tol * 1e-3);
-  const n = p.length >> 1;
-  if (n === 0) return;
-  if (n === 1) {
-    strokeDotPieces(p[0]!, p[1]!, options.dotDirection ?? 0, r, sink);
-    return;
-  }
-  const segs = closed && n > 2 ? n : n - 1;
-  const dirs = new Float64Array(segs * 2);
-  for (let i = 0; i < segs; i++) {
-    const j = (i + 1) % n;
-    const dx = p[2 * j]! - p[2 * i]!;
-    const dy = p[2 * j + 1]! - p[2 * i + 1]!;
-    const l = Math.hypot(dx, dy);
-    dirs[2 * i] = dx / l;
-    dirs[2 * i + 1] = dy / l;
-    const nx = (-dy / l) * r.h;
-    const ny = (dx / l) * r.h;
-    const x0 = p[2 * i]!;
-    const y0 = p[2 * i + 1]!;
-    const x1 = p[2 * j]!;
-    const y1 = p[2 * j + 1]!;
-    emitCcw(sink, [x0 - nx, y0 - ny, x1 - nx, y1 - ny, x1 + nx, y1 + ny, x0 + nx, y0 + ny]);
-  }
-  const isClosed = closed && n > 2;
-  for (let v = isClosed ? 0 : 1; v < (isClosed ? n : n - 1); v++) {
-    const i0 = (v - 1 + segs) % segs;
-    joinPiece(
-      sink,
-      p[2 * v]!,
-      p[2 * v + 1]!,
-      dirs[2 * i0]!,
-      dirs[2 * i0 + 1]!,
-      dirs[2 * v]!,
-      dirs[2 * v + 1]!,
-      r,
-    );
-  }
-  if (!isClosed) {
-    capPiece(sink, p[0]!, p[1]!, -dirs[0]!, -dirs[1]!, r);
-    const e = segs - 1;
-    capPiece(sink, p[2 * (n - 1)]!, p[2 * (n - 1) + 1]!, dirs[2 * e]!, dirs[2 * e + 1]!, r);
-  }
+    const r = resolve(options);
+    if (!(r.h > 0)) return;
+    const closed = options.closed ?? false;
+    const p = cleanPoints(points, closed, r.tol * 1e-3);
+    const n = p.length >> 1;
+    if (n === 0) return;
+    if (n === 1) {
+        strokeDotPieces(p[0]!, p[1]!, options.dotDirection ?? 0, r, sink);
+        return;
+    }
+    const segs = closed && n > 2 ? n : n - 1;
+    const dirs = new Float64Array(segs * 2);
+    for (let i = 0; i < segs; i++) {
+        const j = (i + 1) % n;
+        const dx = p[2 * j]! - p[2 * i]!;
+        const dy = p[2 * j + 1]! - p[2 * i + 1]!;
+        const l = Math.hypot(dx, dy);
+        dirs[2 * i] = dx / l;
+        dirs[2 * i + 1] = dy / l;
+        const nx = (-dy / l) * r.h;
+        const ny = (dx / l) * r.h;
+        const x0 = p[2 * i]!;
+        const y0 = p[2 * i + 1]!;
+        const x1 = p[2 * j]!;
+        const y1 = p[2 * j + 1]!;
+        emitCcw(sink, [x0 - nx, y0 - ny, x1 - nx, y1 - ny, x1 + nx, y1 + ny, x0 + nx, y0 + ny]);
+    }
+    const isClosed = closed && n > 2;
+    for (let v = isClosed ? 0 : 1; v < (isClosed ? n : n - 1); v++) {
+        const i0 = (v - 1 + segs) % segs;
+        joinPiece(
+            sink,
+            p[2 * v]!,
+            p[2 * v + 1]!,
+            dirs[2 * i0]!,
+            dirs[2 * i0 + 1]!,
+            dirs[2 * v]!,
+            dirs[2 * v + 1]!,
+            r,
+        );
+    }
+    if (!isClosed) {
+        capPiece(sink, p[0]!, p[1]!, -dirs[0]!, -dirs[1]!, r);
+        const e = segs - 1;
+        capPiece(sink, p[2 * (n - 1)]!, p[2 * (n - 1) + 1]!, dirs[2 * e]!, dirs[2 * e + 1]!, r);
+    }
 }
 
 function strokeDotPieces(x: number, y: number, angle: number, r: Resolved, sink: PieceSink): void {
-  const dx = Math.cos(angle);
-  const dy = Math.sin(angle);
-  capPiece(sink, x, y, dx, dy, r);
-  capPiece(sink, x, y, -dx, -dy, r);
+    const dx = Math.cos(angle);
+    const dy = Math.sin(angle);
+    capPiece(sink, x, y, dx, dy, r);
+    capPiece(sink, x, y, -dx, -dy, r);
 }
 
 /**
@@ -307,14 +307,14 @@ function strokeDotPieces(x: number, y: number, angle: number, r: Resolved, sink:
  * module comment for the construction and the transparency caveat.
  */
 export function strokePolyline(points: Float64Array, options: StrokeOptions): Float64Array {
-  const out: number[] = [];
-  strokePieces(points, options, (ring) => triangulateConvex(Float64Array.from(ring), out));
-  return Float64Array.from(out);
+    const out: number[] = [];
+    strokePieces(points, options, (ring) => triangulateConvex(Float64Array.from(ring), out));
+    return Float64Array.from(out);
 }
 
 /** Append the stroke triangles to `out` (for batching many strokes into one array). */
 export function strokePolylineInto(points: Float64Array, options: StrokeOptions, out: number[]): void {
-  strokePieces(points, options, (ring) => triangulateConvex(Float64Array.from(ring), out));
+    strokePieces(points, options, (ring) => triangulateConvex(Float64Array.from(ring), out));
 }
 
 /**
@@ -322,9 +322,9 @@ export function strokePolylineInto(points: Float64Array, options: StrokeOptions,
  * outline, or use {@link strokeOutline}.
  */
 export function strokePieceRings(points: Float64Array, options: StrokeOptions): Float64Array[] {
-  const out: Float64Array[] = [];
-  strokePieces(points, options, (ring) => out.push(Float64Array.from(ring)));
-  return out;
+    const out: Float64Array[] = [];
+    strokePieces(points, options, (ring) => out.push(Float64Array.from(ring)));
+    return out;
 }
 
 /**
@@ -332,15 +332,15 @@ export function strokePieceRings(points: Float64Array, options: StrokeOptions): 
  * to the fixed-point grid of `grid` (default: from the stroke tolerance). Overlap-free.
  */
 export function strokeOutline(
-  points: Float64Array,
-  options: StrokeOptions,
-  grid: GridOptions = {},
+    points: Float64Array,
+    options: StrokeOptions,
+    grid: GridOptions = {},
 ): PolygonWithHoles[] {
-  const rings = strokePieceRings(points, options);
-  return normalizePolygons(rings, FillRule.NonZero, {
-    tolerance: options.tolerance ?? DEFAULT_DEVICE_TOLERANCE_PX,
-    ...grid,
-  });
+    const rings = strokePieceRings(points, options);
+    return normalizePolygons(rings, FillRule.NonZero, {
+        tolerance: options.tolerance ?? DEFAULT_DEVICE_TOLERANCE_PX,
+        ...grid,
+    });
 }
 
 /**
@@ -349,8 +349,8 @@ export function strokeOutline(
  * (note 06 §2.6 "Zero-length dash": ASSUMPTION disc of diameter = lineweight with round caps).
  */
 export function strokeDot(x: number, y: number, angle: number, options: StrokeOptions): Float64Array {
-  const out: number[] = [];
-  const r = resolve(options);
-  if (r.h > 0) strokeDotPieces(x, y, angle, r, (ring) => triangulateConvex(Float64Array.from(ring), out));
-  return Float64Array.from(out);
+    const out: number[] = [];
+    const r = resolve(options);
+    if (r.h > 0) strokeDotPieces(x, y, angle, r, (ring) => triangulateConvex(Float64Array.from(ring), out));
+    return Float64Array.from(out);
 }

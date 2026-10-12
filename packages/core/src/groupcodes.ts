@@ -3,17 +3,17 @@
  */
 
 export const ValueKind = {
-  String: 0,
-  Double: 1,
-  Int16: 2,
-  Int32: 3,
-  Int64: 4,
-  /** 290–299. ASCII "0"/"1"; 1 byte in binary DXF. */
-  Bool: 5,
-  /** 310–319, 1004. Hex string in ASCII; uint8 length + bytes in binary DXF. */
-  Binary: 6,
-  /** Hex handle string (5, 105, 320–369, 390–399, 480–481, 1005). */
-  Handle: 7,
+    String: 0,
+    Double: 1,
+    Int16: 2,
+    Int32: 3,
+    Int64: 4,
+    /** 290–299. ASCII "0"/"1"; 1 byte in binary DXF. */
+    Bool: 5,
+    /** 310–319, 1004. Hex string in ASCII; uint8 length + bytes in binary DXF. */
+    Binary: 6,
+    /** Hex handle string (5, 105, 320–369, 390–399, 480–481, 1005). */
+    Handle: 7,
 } as const;
 export type ValueKind = (typeof ValueKind)[keyof typeof ValueKind];
 
@@ -22,7 +22,7 @@ export const MAX_GROUP_CODE = 1071;
 const KIND_TABLE = new Uint8Array(MAX_GROUP_CODE + 1); // default 0 = String
 
 function fill(kind: ValueKind, from: number, to: number): void {
-  KIND_TABLE.fill(kind, from, to + 1);
+    KIND_TABLE.fill(kind, from, to + 1);
 }
 
 fill(ValueKind.Double, 10, 59);
@@ -54,35 +54,35 @@ fill(ValueKind.Handle, 1005, 1005);
 
 /** Value kind of a group code. Codes outside 0..1071 are treated as strings. */
 export function valueKind(code: number): ValueKind {
-  return code >= 0 && code <= MAX_GROUP_CODE ? (KIND_TABLE[code] as ValueKind) : ValueKind.String;
+    return code >= 0 && code <= MAX_GROUP_CODE ? (KIND_TABLE[code] as ValueKind) : ValueKind.String;
 }
 
 /** Codes that start an (x, y[, z]) point; y = code + 10, z = code + 20. */
 export function isPointCode(code: number): boolean {
-  return (
-    (code >= 10 && code <= 18) ||
-    (code >= 110 && code <= 112) ||
-    (code >= 210 && code <= 213) ||
-    (code >= 1010 && code <= 1013)
-  );
+    return (
+        (code >= 10 && code <= 18) ||
+        (code >= 110 && code <= 112) ||
+        (code >= 210 && code <= 213) ||
+        (code >= 1010 && code <= 1013)
+    );
 }
 
 export function isNumericKind(kind: ValueKind): boolean {
-  return kind >= ValueKind.Double && kind <= ValueKind.Bool;
+    return kind >= ValueKind.Double && kind <= ValueKind.Bool;
 }
 
 /** Well-known structural codes. */
 export const Code = {
-  Structure: 0,
-  Text: 1,
-  Name: 2,
-  Handle: 5,
-  Comment: 999,
-  SubclassMarker: 100,
-  EmbeddedObject: 101,
-  AppData: 102,
-  DimStyleHandle: 105,
-  Owner: 330,
-  XDataAppId: 1001,
-  XDataControl: 1002,
+    Structure: 0,
+    Text: 1,
+    Name: 2,
+    Handle: 5,
+    Comment: 999,
+    SubclassMarker: 100,
+    EmbeddedObject: 101,
+    AppData: 102,
+    DimStyleHandle: 105,
+    Owner: 330,
+    XDataAppId: 1001,
+    XDataControl: 1002,
 } as const;

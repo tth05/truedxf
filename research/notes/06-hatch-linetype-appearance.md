@@ -1258,35 +1258,50 @@ netDxf:Transparency.cs)
   `ACAD_PLOTSTYLENAME` dictionary — the dictionary *key* is the style name, e.g. "Normal"),
   entity `380` = plot style type: 0 BYLAYER, 1 BYBLOCK, 2 BYDICTIONARYDEFAULT, 3 BYOBJECTID
   (= use 390). Same enum as `$CEPSNTYPE` (spec:L766; dxf-json#86; ezdxf dxfgfx.py:137
-  `plotstyle_enum` 380 (R2007+, default 1?), `plotstyle_handle` 390).
+  `plotstyle_enum` 380, `plotstyle_handle` 390; **ezdxf omits 380 = 1 on export**, its default).
 - LAYER `390` = handle of the layer's plot style (spec:L2289). The dictionary has a default entry
   ("Normal"), `ACDBDICTIONARYWDFLT`.
-- STB file: same container as CTB, `aci_table_available=FALSE`, styles by name, "Normal" style
-  always first and not editable (ezdxf acadctb.py `NamedPlotStyles`).
+- STB file: same container as CTB (header `STBVER1`), `aci_table_available=FALSE`, no `aci_table`
+  section, styles by name, "Normal" style first.
 - In CTB mode 390/380 are ignored; pens are selected by the resolved ACI.
+
+**Resolution in PLOT (VERIFIED-BY-ACAD `plotstyles/stb-resolution`, 2026-10-12;** `$PSTYLEMODE 0`,
+STB styles Normal/Red/Blue/Magenta/Thick, object colour ACI 3):
+
+| entity | plots with |
+|---|---|
+| 390 present (380 = 3 or absent) | that style; a name that is in the dictionary but **not in the STB → Normal** (object properties) |
+| 380 absent, no 390 | **BYLAYER** (the layer's 390) |
+| 380 = 3 without 390 | BYLAYER (DXFOUT drops the 380) |
+| 380 = 0 | the layer's style |
+| 380 = 2 | Normal (the dictionary default), also inside blocks |
+| 380 = 1 at top level | Normal (not the layer's style) |
+| 380 = 1 inside a block | the INSERT's resolved style (380 = 3 Blue INSERT → Blue; BYLAYER INSERT on a Red layer → Red; top-level BYBLOCK or 380 = 2 INSERT → Normal) |
+| BYLAYER on layer 0 inside a block | the INSERT's layer style (layer-0 inheritance, as for colours) |
+
+DXFOUT writes 380 only for 1 and 2; 0 and 3 are omitted (3 is implied by 390). A reader should use:
+390 present → that style; otherwise 380 (absent = 0 = BYLAYER).
 
 ### 6.3 CTB/STB file format
 
-(ezdxf:addons/acadctb.py; the ezdxf implementation is known to round-trip with AutoCAD.)
-
-Binary container:
+Binary container (VERIFIED on the AutoCAD 2027 stock files, tools/acad/src/pia.ts):
 ```
 "PIAFILEVERSION_2.0,CTBVER1,compress\r\npmzlibcodec"   (48 bytes; STB: ",STBVER1,")
 uint32 adler32(compressed body), uint32 uncompressed length, uint32 compressed length   (LE)
 zlib stream (from byte 60)
 ```
-`_decompress`: `zlib.decompress(content[60:])`, strip trailing NUL (acadctb.py:658).
-`_compress` writes the header with `pack("LLL", adler, len(content), len(comp))` (acadctb.py:665)
-— note: ASSUMPTION the header string differs for STB (`STBVER1`).
+The decompressed text of the stock tables has `\n` line ends and no trailing NUL. tools/gen
+`truedxf_gen/plotstyle.py` reproduces the text of acad.ctb and acad.stb byte for byte, and AutoCAD
+plots with the tables it writes (the harness installs them as `truedxf-*.ctb|stb`).
 
-Decompressed text (CTB):
+Decompressed text (CTB), key order of the stock files:
 ```
 description="...
 aci_table_available=TRUE
 scale_factor=1.0
 apply_factor=FALSE
-custom_lineweight_display_units=0
-aci_table{
+custom_lineweight_display_units=0      (0 = mm; the Autodesk-*.stb have 1 = inches; display only)
+aci_table{                             (CTB only, 255 entries)
  0="Color_1
  ...
 }
@@ -1295,66 +1310,108 @@ plot_style{
   name="Color_1
   localized_name="Color_1
   description="
-  color=-1                     (-1 = use object color; else raw color int, negative, 0xC2RRGGBB)
-  mode_color=-1006632961       (the "real" color; OBJECT_COLOR2 = -1006632961 also = object)
-  color_policy=1               (bit 1 dithering, bit 2 grayscale, bit 4 named color)
-  physical_pen_number=0        (0 = automatic)
+  color=-1
+  mode_color=...                       (optional: absent in every stock CTB, present in the
+                                        Autodesk-*.stb; colour rules below)
+  color_policy=1
+  physical_pen_number=0
   virtual_pen_number=0
-  screen=100                   (0..100 %)
-  linepattern_size=0.5         (for adaptive CTB linetypes)
-  linetype=31                  (31 = use object linetype; 0..30 = built-in plot linetypes)
+  screen=100
+  linepattern_size=0.5
+  linetype=31
   adaptive_linetype=TRUE
-  lineweight=0                 (index into custom_lineweight_table; see below)
-  fill_style=73                (64 solid … 72 vertical bars, 73 = use object)
-  end_style=4                  (0 butt, 1 square, 2 round, 3 diamond, 4 object)
-  join_style=5                 (0 miter, 1 bevel, 2 round, 3 diamond, 5 object)
+  lineweight=0
+  fill_style=73
+  end_style=4
+  join_style=5
  }
- ... 255 entries for ACI 1..255 (index = aci − 1)
+ ... 255 entries for ACI 1..255 (index = aci − 1); STB: "Normal" + the named styles
 }
-custom_lineweight_table{
- 0=0.00
- 1=0.05 ... 26=2.11            (27 default entries, mm)
+custom_lineweight_table{               (27 entries, mm: 0.0 .05 .09 .1 .13 .15 .18 .2 .25 .3 .35
+ 0=0.0                                  .4 .45 .5 .53 .6 .65 .7 .8 .9 1.0 1.06 1.2 1.4 1.58 2.0 2.11)
+ ...
 }
 ```
-Strings start with `"` and have no closing quote (ezdxf writer). Colors are stored as negative
-ints (`-((type<<24) + rgb) & 0xFFFFFFFF`, acadctb.py:777). ezdxf treats `lineweight` value 0
-(table entry 0.00) as "use object lineweight" (`OBJECT_LINEWEIGHT = 0`, `get_lineweight` returns
-None for 0.0) — **CONFLICT/UNKNOWN:** it is widely reported that AutoCAD uses 255 for "Use object
-lineweight" in the pen table; with ezdxf's semantics a pen could never force 0.00 mm. Verify with a
-real acad.ctb (test P1). The default table has 27 entries including 0.10, 0.45, 0.65 which are not
-DXF lineweights.
+Strings start with `"` and have no closing quote. The stock files contain no other keys.
 
-Color policy: dithering (1), grayscale (2): grayscale conversion formula UNKNOWN (ASSUMPTION
-luminance 0.30R+0.59G+0.11B). Screening s %: ASSUMPTION `c' = 255 − (255 − c)·s/100`
-(lighten towards white). Both only matter if the harness ever uses such pens.
+**Stock tables of the AutoCAD 2027 install** (decoded 2026-10-12; facts only, files not copied):
 
-Standard tables (ASSUMPTION, typical AutoCAD installs): `acad.ctb` — every pen use object color,
-no dithering changes, screening 100, object linetype/lineweight/end/join/fill → equivalent to "no
-plot style". `monochrome.ctb` — all 255 pens color black (0,0,0), rest object → everything black
-(**wrong — VERIFIED-BY-ACAD §3.5: true-color objects keep their RGB under monochrome.ctb**). `Grayscale.ctb`, `Screening xx%.ctb`, `Fill
-Patterns.ctb`. "None" = no plot style table → object properties.
+| table | pens / styles |
+|---|---|
+| acad.ctb, Screening 100%.ctb | color −1, policy 1, screen 100, linetype 31, lineweight 0, fill 73, end 4, join 5: everything "object" |
+| monochrome.ctb | as acad.ctb, but color −16777216 (0xFF000000, black) and policy 5 |
+| Grayscale.ctb | as acad.ctb, but policy 3 |
+| Screening 25/50/75%.ctb | as acad.ctb, but screen 25/50/75 |
+| Fill Patterns.ctb | as acad.ctb, but pens 1–9 fill_style 64–72 |
+| DWF Virtual Pens.ctb | colours 0xFFrrggbb (the ACI colours), policy 5, physical pen 1, virtual pen = ACI, adaptive FALSE, lineweight 1, table entry 0 = 0.254 |
+| acad.stb, monochrome.stb | Normal + "Style_1" (monochrome.stb: Style_1 black, policy 5) |
+| Autodesk-Color.stb, Autodesk-MONO.stb | Normal + Solid + 10 %…90 % screen styles; color 0xC3FFFFFF (object) or 0xC3000000 (black), with mode_color; policies 1/2/3/5; display units 1 |
+
+**Semantics (VERIFIED-BY-ACAD, suite `plotstyles`, 2026-10-12; checks:
+tools/acad/calibration/analyze_plotstyles.py):**
+
+- **`lineweight`: 0 = use the object lineweight; N ≥ 1 = `custom_lineweight_table[N − 1]`**
+  (1-based). Values past the table end (255) = object. A pen whose entry is 0.00 mm plots the
+  thinnest line (1 px); it is *not* "object" (`lw-index`: pen values 0/1/2/5/11/26/27/255 →
+  8 (object 2.11 mm)/2/3/6/1/27/28/8 px with entry i = i + 2 px, entries 10/11 = 0.00). ezdxf
+  (value = index, 0 = object) and the "255 = object" folklore are both wrong.
+- **Colour value** = `mode_color` if present and ≠ −1, else `color`. Only the **low 24 bits are used,
+  as RGB**; the high byte (0xFF, 0xC2, 0xC3, 0xC0, 0xC1) is ignored (0xC300001E plots RGB 00001E,
+  not ACI 30). **Low 24 bits = 0xFFFFFF mean "use object colour"** (−1, 0xC3FFFFFF and also
+  0xC2FFFFFF), so a pen cannot force pure white.
+- **`color_policy`** (`pen-color-matrix`, `pen-color-policy`): the pen colour is applied for policies
+  **0, 2, 3, 4, 5** and ignored for **1, 6, 7** (object colour; 6 and 7 also skip grayscale).
+  Policies **2 and 3 convert to grayscale** (the pen colour if applied, else the object colour).
+  Bit 1 (dithering) has no visible effect on the raster device. The stock files use only 1 (object),
+  3 (grayscale), 5 (explicit colour) and 2 (Autodesk-MONO "Solid": explicit black, grayscale).
+- **Grayscale = ⌊0.299·R⌋ + ⌊0.587·G⌋ + ⌊0.114·B⌋** (every term floored on its own; exact for all
+  255 ACIs of the §3.5 plot palette, `grayscale-aci-grid`; e.g. 808080 → 7F, FAFAFA → F8).
+- **Screening s: c' = 255 − ⌊(255 − c)·s / 100⌋** per channel (exact for the 255 ACIs at 50 % and
+  for 10/25/75/90 %; s = 0 → white). It is applied **after** grayscale and to pen colours too
+  (`screen-50-red`: red pen at 50 % → FF8080). Fills stay uniform: no dither pattern in the PNG.
+- **True-colour (420) objects use no pen at all**: object RGB and lineweight, no screening, grayscale
+  or pen colour, whatever their 62 says (§6.4).
+- `end_style` 0 butt (flush with the endpoint), 1 square (+ w/2), 2 round, 3 diamond (point w/2
+  beyond the end), 4 object = round. `join_style` 0 miter (no limit at a 15° V: the spike reaches
+  w / (2 sin 7.6°)), 1 bevel, 2 round, 3 diamond (≈ round at the apex), 5 object = round
+  (`endjoin`, 20 px strokes). Joins act inside polylines, end styles at polyline/line ends.
+- `fill_style` 64 solid, 65 checkerboard, 66 crosshatch, 67 diamonds, 68 horizontal bars,
+  69 slant left (`\\`), 70 slant right (`//`), 71 square dots, 72 vertical bars, 73 object. They
+  replace the fill of SOLID, solid HATCH and wide polylines (`fill-patterns-stock`); the pattern
+  spacing was not measured.
+- `linetype` 0 = solid, 1–30 = built-in dash patterns (plotted, not measured), 31 = object; the
+  adaptive flag changes the fit on short lines (`linetype-adaptive`/`-fixed`, not analysed).
+- The pen is the **resolved ACI** after BYLAYER/BYBLOCK (`pen-resolution`: ACI 7, BYLAYER on a
+  colour-7 layer, BYBLOCK inside a 62 = 2 INSERT and layer-0 block content take the pens of their
+  resolved ACI; pen 7 colour overrides apply).
+- Switches (`lw-index-*`, `pagesetup/flags-*`): "Plot with plot styles" off (70 bit 32 = 0) → the
+  table is ignored (object colour and lineweight). "Plot lineweights" off (bit 128 = 0) → **every
+  line 1 px, pen lineweights included**, while pen colours still apply.
 
 ### 6.4 Pen selection for true-color objects (CTB mode)
 
-UNKNOWN which ACI pen applies to an entity with 420 true color: color comes from the object (if the
-pen says "use object color"), but lineweight/linetype overrides of which pen? ezdxf looks up the pen
-by `entity.dxf.color` (the 62 value, which AutoCAD writes as nearest ACI) — properties.py
-`resolve_lineweight` ("Not sure if plotstyle table overrides actual entity setting?"). Avoided by the
-harness (acad.ctb has no overrides). Test P2.
+ANSWERED (VERIFIED-BY-ACAD `plotstyles/truecolor-pen`, `truecolor-pen-color`, 2026-10-12): an object
+whose resolved colour is a true colour (entity 420, or BYLAYER on a layer with a true colour) gets
+**no pen**. Neither the pen of its 62 value nor the pen of the nearest ACI changes its colour or
+lineweight (62 = 1 + 420 green, 62 = 5 + 420 red, 420 without 62, layer 62 = 2 + 420 blue all plot
+1 px in their RGB; object lineweight 1.00 mm → 4 px). ezdxf's lookup by 62 is wrong. This also
+explains the monochrome.ctb result of §3.5. Colour-book colours (430) were not tested.
 
 ### 6.5 How truedxf should emulate plot styles
 
 Pipeline per primitive after BYLAYER/BYBLOCK resolution (§7):
-1. Determine the pen: CTB → resolved ACI (1..255; ACI 7 is pen 7); STB → resolved style name
-   (380/390 with BYLAYER/BYBLOCK resolution).
-2. Color: pen color if not "object"; else object color (ACI→RGB via palette, ACI 7 → black on
-   white paper, true color as is). Then grayscale/screening/dither if enabled.
-3. Lineweight: pen lineweight if not "object"; else resolved object lineweight (DEFAULT → LWDEFAULT);
-   only if plot flag 128 (or PlotPlotStyles with a pen lineweight).
-4. Linetype: pen linetype if not 31 (object) — CTB linetypes 0..30 with "adaptive" fitting are a
-   separate feature (low priority, UNKNOWN definitions).
-5. End/join/fill style from pen unless "object" → ENDCAPS/JOINSTYLE defaults.
-Implement the CTB reader early (small) but default everything to "object".
+1. Page setup 70 bit 32 off, or no table: object properties (bit 128 still decides whether
+   lineweights plot).
+2. Pen: CTB → resolved ACI 1..255 (true colours: **no pen**, done); STB → resolved style (§6.2),
+   missing names → Normal.
+3. Colour: value = mode_color (≠ −1) else color; low 24 bits 0xFFFFFF or policy 1/6/7 → object
+   colour (ACI via the §3.5 palette); else the RGB of the value. Policy 2/3 → grayscale. Then
+   screening if screen < 100.
+4. Lineweight: only with bit 128. Pen value N in 1..table length → table[N − 1] (0.00 → thinnest),
+   else the object lineweight (DEFAULT → LWDEFAULT). Bit 64 scales it with the plot scale
+   (note 08 §10.17).
+5. End/join/fill: the pen values unless "object" (4/5/73) → round/round/solid.
+6. Linetype: pen 0..30 overrides (definitions UNKNOWN, low priority), 31 = object.
 
 ### 6.6 Reference harness settings (keep AutoCAD PLOT simple and deterministic)
 
@@ -1606,7 +1663,8 @@ rotation (§1.7.1), collinear edges (§1.6.2).
    point. (§2.2–2.3)
 4. Which ACI→RGB palette PLOT uses (light/dark, gray adjustments). (§3.3)
 5. ACI 255 / RGB white on white paper. (§3.4)
-6. CTB "use object lineweight" encoding (0 vs 255); pen selection for true-color entities. (§6.3–6.4)
+6. ~~CTB "use object lineweight" encoding (0 vs 255); pen selection for true-color entities.~~
+   ANSWERED §6.3–6.4 (2026-10-12): 0 = object, N → table[N − 1]; true colours use no pen.
 7. Lineweight → pixel rounding; lineweight 0; default end caps/joins; dash caps. (§5.2)
 8. Transparency compositing when plotted. (§4.2)
 9. Hatch: text-box loops, styles 1/2 without flags, overlapping loops, ellipse-edge angle vs param,

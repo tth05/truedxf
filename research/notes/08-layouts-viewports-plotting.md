@@ -149,24 +149,24 @@ All lengths are in **mm**, unless noted.
 |---|---|---|
 | 1 | Page setup name | ezdxf default ""; ACadSharp default "none_device" (sic). |
 | 2 | Printer / PC3 name | e.g. `PublishToWeb PNG.pc3`, `DWG To PDF.pc3`, `none_device`. An empty string means the default printer (ezdxf comment). |
-| 4 | Paper size = **canonical media name** | Scheme `Name_(W_x_H_Unit)`, e.g. `ISO_A4_(210.00_x_297.00_MM)`, `Letter_(8.50_x_11.00_Inches)`. For raster devices the unit is `Pixels` (ASSUMPTION about the exact spelling). The UI/-PLOT shows a *localized display name* such as `ISO A4 (210.00 x 297.00 MM)`. ezdxf docs: "the part in front of the braces is ignored by AutoCAD" (for unknown devices). libredwg calls it `canonical_media_name`. |
+| 4 | Paper size = **canonical media name** | Scheme `Name_(W_x_H_Unit)`, e.g. `ISO_A4_(210.00_x_297.00_MM)`, `Letter_(8.50_x_11.00_Inches)`. The UI/-PLOT shows a *localized display name* such as `ISO A4 (210.00 x 297.00 MM)`. ezdxf docs: "the part in front of the braces is ignored by AutoCAD" (for unknown devices). libredwg calls it `canonical_media_name`. **VERIFIED-BY-ACAD (2026-10-12, DXFOUT after -PLOT Save = Yes, §10.17):** PMP custom sizes are written as `UserDefinedRaster (2000.00 x 1500.00Pixels)` / `UserDefinedImperial (20.00 x 15.00Inches)` (spaces, no space before the unit), and a stored name of that form selects the size again (`pagesetup/*`). |
 | 6 | Plot view name | Used by plot type 3. In DWG ≥ R2004 it is a handle to the VIEW (libredwg `dwg.spec:5246ff`). |
 | 40/41/42/43 | Unprintable margin left/bottom/right/top | Device-defined printable area. ezdxf doc: 40/41 also define the plot origin. |
-| 44/45 | Physical paper width/height | Stored in *unrotated device* orientation. For raster devices **ASSUMPTION** px × 25.4/100 (e.g. 640 px → 162.56 mm), consistent with the fixed 100 DPI (§5.3). |
-| 46/47 | Plot origin offset X/Y | In mm, even for inch layouts. Relative to the printable area's lower-left (PLOTOFFSET=0) or to the paper edge (PLOTOFFSET=1), §5.2. |
-| 48/49 | Plot window **lower-left** X/**Y** | **CONFLICT:** spec p.190 says "49 = Y value of upper-right". ezdxf, ixmilia, ACadSharp and libredwg (`plot_window_ll` 48 / `plot_window_ur` 140) all agree on LL = (48,49), UR = (140,141). |
+| 44/45 | Physical paper width/height | Stored in *unrotated device* orientation (VERIFIED-BY-ACAD: 2000/1500 for all four rotations). mm for mm/inch devices (20 × 15 in sheet → 508/381); **for raster devices (72 = 2) in pixels** (2000/1500, not px × 25.4/100; VERIFIED-BY-ACAD 2026-10-12, §10.17). |
+| 46/47 | Plot origin offset X/Y | In mm, even for inch layouts (VERIFIED-BY-ACAD: centring a 1:50 inch plot writes 152.4/114.3 = 6/4.5 in). Relative to the printable area's lower-left (PLOTOFFSET=0) or to the paper edge (PLOTOFFSET=1), §5.2. AutoCAD writes the centring offset here when "center the plot" is on. A stored offset is applied to plot type Layout and Window plots; on a raster page setup (72 = 2) it is in pixels (`pagesetup/offset-*`, §10.17). |
+| 48/49 | Plot window **lower-left** X/**Y** | **VERIFIED-BY-ACAD (`pagesetup/model-window`, 2026-10-12): LL = (48,49), UR = (140,141)**, as ezdxf, ixmilia, ACadSharp and libredwg say; the spec (p.190, "49 = Y value of upper-right") is wrong. |
 | 140/141 | Plot window **upper-right** X/Y | Spec says "140 = X of lower-left"; that is wrong, see above. Coordinates are in drawing units of the plotted space (WCS for model if UCS = World; paper units for layouts). |
 | 142/143 | Custom scale numerator (paper units) / denominator (drawing units) | 1:50 → 142 = 1, 143 = 50. "Paper units" = 72 units (inch or mm). |
 | 70 | Plot layout flags | See 2.2. Default 688. |
-| 72 | Plot paper units | 0 = inches, 1 = mm, 2 = pixels. ezdxf comment "are pixels really supported?". For raster PC3s AutoCAD sets 2 (ASSUMPTION). |
-| 73 | Plot rotation | 0 = none, 1 = 90° CCW, 2 = upside-down (180°), 3 = 90° CW. `-PLOT` "orientation" + "upside down" map to this; which combination gives 1 vs 3 is **UNKNOWN**. |
+| 72 | Plot paper units | 0 = inches, 1 = mm, 2 = pixels. **VERIFIED-BY-ACAD: AutoCAD writes 2 for a raster PC3 page setup** (2026-10-12). |
+| 73 | Plot rotation | **VERIFIED-BY-ACAD (2026-10-12, §10.17):** on a landscape sheet `-PLOT` Landscape → 0, Portrait → 1, Landscape + upside down → 2, Portrait + upside down → 3. On the device page the drawing appears rotated **90° clockwise for 1**, 180° for 2, 90° counter-clockwise for 3; the paper origin lands top-left (1), top-right (2), bottom-right (3). (The spec's "1 = 90° CCW" describes the paper relative to the plot.) |
 | 74 | Plot type | 0 = last screen display, 1 = drawing extents, 2 = drawing limits, 3 = view (code 6), 4 = window (48/49/140/141), 5 = layout. ezdxf default 5; ixmilia/ACadSharp default 1. |
 | 7 | Current style sheet | CTB/STB file name, e.g. `acad.ctb`, `monochrome.ctb`. "" = none. **A long name can break readers** (ezdxf#1273). |
 | 75 | Standard scale type | 0 = scaled to fit, 1..15 imperial (1/128"=1' … 1'=1'), 16 = 1:1 … 32 = 1000:1. The full table is in 2.3. ezdxf writes 16 also when a custom scale is used. |
 | 76 | Shade plot mode | 0 as displayed, 1 wireframe, 2 hidden, 3 rendered (R2004+). |
 | 77 | Shade plot resolution | 0 draft, 1 preview, 2 normal, 3 presentation, 4 maximum, 5 custom. |
 | 78 | Shade plot custom DPI | 100..32767, used only if 77 = 5. |
-| 147 | Spec: "floating point scale factor that represents the standard scale value specified in code 75" | **CONFLICT:** ezdxf calls it `unit_factor`, "DXF Reference error", 1.0 for mm and 1/25.4 for inches (`ezdxf:entities/layout.py:185`, `layout_management.rst`). ixmilia (`StandardScaleValue`) and ACadSharp (`StandardScale`) follow the spec. **UNKNOWN / needs AutoCAD test:** DXFOUT page setups with inch/mm units and a standard scale ≠ 1:1. |
+| 147 | Standard scale value | **VERIFIED-BY-ACAD (2026-10-12, §10.17): the spec is right, ezdxf (`unit_factor`) is wrong.** AutoCAD writes the scale value of the standard scale (paper/drawing ratio, unit-independent: 1:50 → 0.02 in mm *and* inch setups, 1/4"=1' → 1/48, 1:1 → 1.0, Fit → the fit ratio = 142/143). For custom scales (bit 16 off) 75 and 147 keep their previous values. **On read, bit 16 set → the plot scale is 147** (75 and 142/143 are ignored; 75 = 0 still means Fit); bit 16 off → 142/143. |
 | 148/149 | Paper image origin X/Y | Unknown semantics; usually 0. |
 | 333 | Shade plot ID (optional) | Handle (visual style / render preset?). |
 | XDATA `PLOTTRANSPARENCY` 1071 | "Plot transparency" checkbox | Stored as XDATA on the LAYOUT (`ezdxf:entities/layout.py:200`). Overridden globally by sysvar `PLOTTRANSPARENCYOVERRIDE` (§5.5). |
@@ -202,16 +202,23 @@ detailed `-PLOT` that overrides every setting is our best defence.
 
 ### 2.3 Standard scale type (75) → (numerator, denominator)
 
-From `ezdxf:src/ezdxf/lldxf/const.py:582 STD_SCALES` (numerator in paper units, denominator in
-drawing units; imperial ones use inches per foot → (x, 12)):
+ObjectARX `AcDbPlotSettings::StdScaleType` (numerator in paper units, denominator in drawing units;
+imperial ones use inches per foot → (x, 12)):
 
 ```
  0 fit        1 1/128"=1' (1/128,12)  2 1/64"=1'  3 1/32"=1'  4 1/16"=1'  5 3/32"=1'
  6 1/8"=1'    7 3/16"=1'   8 1/4"=1'   9 3/8"=1'  10 1/2"=1'  11 3/4"=1'  12 1"=1' (1,12)
 13 3"=1'     14 6"=1'     15 1'=1' (12,12)
-16 1:1  17 1:2  18 1:4  19 1:8  20 1:10  21 1:16  22 1:20  23 1:30  24 1:40  25 1:50
-26 1:100  27 2:1  28 4:1  29 8:1  30 10:1  31 100:1  32 1000:1
+16 1:1  17 1:2  18 1:4  19 1:5  20 1:8  21 1:10  22 1:16  23 1:20  24 1:30  25 1:40
+26 1:50  27 1:100  28 2:1  29 4:1  30 8:1  31 10:1  32 100:1  33 1000:1  34 1 1/2"=1'
 ```
+
+**VERIFIED-BY-ACAD (2026-10-12, `pagesetup/save-*`):** AutoCAD writes 75 = 26 for 1:50, 27 for
+1:100, 8 for 1/4"=1' (142/143 = 1/48), 16 for 1:1, 0 for Fit — so `ezdxf:lldxf/const.py:582
+STD_SCALES`, which lacks 1:5 (19) and is one off from 19 upwards (25 = 1:50), is **wrong**. Typing
+1:5 at the -PLOT scale prompt gives a custom scale (bit 16 off), not 19 (the other enum values
+are from the ObjectARX header, not plotted). The plot scale itself comes from 147 (bit 16 set) or
+142/143, never from 75 (§2.1).
 
 The effective scale (drawing unit → mm on paper) is `142/143 × (25.4 if 72==0 else 1)`
 (ezdxf `Layout.get_plot_unit_scale_factor`). ezdxf ignores pixels (72 = 2).
@@ -249,7 +256,8 @@ examples, not independently verified):
   (ezdxf drawing add-on `Page.from_dxf_layout`, `addons/drawing/layout.py:223-262`). Its mapping:
   rotation 1 (90°): `top=right, right=bottom, bottom=left, left=top`; rotation 2: top↔bottom,
   left↔right; rotation 3: `top=left, right=top, bottom=right, left=bottom`.
-  **UNKNOWN:** is this the direction AutoCAD uses?
+  The plotted rotation is VERIFIED-BY-ACAD (§10.17: 73 = 1 turns the drawing 90° clockwise on the
+  page, paper origin top-left); the margin mapping is still UNKNOWN (zero-margin devices only).
 - Plot type 5 "Layout": "plots everything within the printable area of the specified paper size"
   (Plot dialog help). This fits the origin rule above. For the harness we use Window instead (§7)
   so that we do not depend on it.
@@ -1522,6 +1530,58 @@ the former is empty, and float32 rounding changes endpoints. The viewer reuses r
 batch boxes accumulated during pick-index construction, adding the float64 origin only
 after the union. Incomplete/noncontiguous pick coverage falls back to the original vertex
 scan. Clipping and exclusion of unbounded XLINE/RAY batches remain unchanged.
+
+### 10.17 Plot style tables and stored page setups (suites plotstyles, pagesetup; 2026-10-12)
+
+VERIFIED-BY-ACAD, AutoCAD 2027 through `tools/acad` (`samples/refs/acad2027-R26.0/{plotstyles,
+pagesetup}/*`; checks: `tools/acad/calibration/analyze_plotstyles.py`). CTB/STB semantics are in
+note 06 §6.2–§6.4. The `pagesetup` cases plot with a **non-detailed** -PLOT
+(`plot.mode = "pagesetup"`): AutoCAD uses every stored PLOTSETTINGS value. (The detailed -PLOT of
+the other suites overrides orientation, scale, offset and the switches, which is why §10.12 found
+73, margins and offsets "without effect".)
+
+**Raster page setup that AutoCAD accepts as stored** (written by AutoCAD itself after -PLOT with
+Save = Yes, `discovery` 2026-10-12): 2 = `truedxf PNG.pc3`, 4 = `UserDefinedRaster (2000.00 x
+1500.00Pixels)`, 72 = 2, 44/45 = 2000/1500 (pixels), 40–43 = 0, 1 paper unit = 1 px at 1:1.
+
+**Rotation 73** (`rot-{0..3}-layout`, `rot-{0..3}-window`): with plot type Layout at 1:1 and a W × H
+= 2000 × 1500 px sheet, paper point (x, y) lands at
+
+| 73 | canvas column | canvas row (0 = top) | drawing on the page |
+|---|---|---|---|
+| 0 | x | H − 1 − y | upright |
+| 1 | y | x | rotated 90° clockwise (paper +X points down) |
+| 2 | W − 1 − x | y | 180° |
+| 3 | W − 1 − y | H − 1 − x | rotated 90° counter-clockwise (+X points up) |
+
+(±1 px at fill edges, §10.5.) For 73 = 1/3 the printable paper becomes H × W in paper units.
+Window plots with Fit + centred fit the rotated window (1400 × 1050 → "1125 × 1500" effective
+area) and centre it. 44/45 and the margins stay in device orientation; how non-zero device
+margins rotate (Q-0706) is still open (the harness devices have zero margins).
+
+**Scale** (`scale-*`, window (0,0)–(1400,1400) not centred, 100-unit square): bit 16 set →
+**147** decides (75 = 17 + 147 = 0.5 → 50 px; 75 = 16 + 147 = 0.5 → 50 px; 75 = 16 + 142/143 = 1:2 +
+147 = 1 → 100 px); 75 = 0 → Fit (107 px); bit 16 off → 142/143 (1:2 → 50 px, 75 = 17 ignored).
+
+**What AutoCAD writes** (`save-*`: detailed -PLOT of a layout window on truedxf PDF, Save = Yes,
+then DXFOUT): see §2.1 (147, 4, 44/45, 46/47) and §2.3 (75). 70 records the answers: 692 =
+512 + 128 + 32 + 16 + 4 for a standard scale with "center", 676 without bit 16 for custom scales,
+756 with "scale lineweights" (64). 148/149 are 0 here; the discovery run (window trimmed by the
+missing harness ZOOM to (2,2)–(398,298)) wrote 148/149 = (−2, −2) = −(48, 49).
+
+**Offsets** (`offset-layout`, `offset-window`): 46/47 = (100, 50) on the raster setup shift plot
+type Layout and non-centred Window plots by +100 px right and +50 px up.
+
+**Switches**: stored style sheet (7) + bit 32 → pens apply; bit 32 off → object colour and
+lineweight; bit 128 off → 1 px lines (pen colours still apply) (`flags-*`). **Bit 64 (scale
+lineweights)** multiplies lineweights by the plot scale: 2.00 mm (8 px) at 1:2 → 4 px
+(`scale-lw-on` vs `-off`).
+
+**-PLOT facts** (discovery transcripts): "Enter plot style table name or [?] (enter . for none)"
+also follows "Plot with plot styles? No", and "." selects no table; the non-detailed form asks
+layout, "Enter a page setup name <>" (Enter = the layout's own settings), device, file, save,
+proceed; scale answers `1:50`, `1=50`, `1/4"=1'` and `0.25=12` are accepted (the last two give the
+same standard scale 8).
 
 ---
 

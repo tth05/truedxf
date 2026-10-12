@@ -1,12 +1,32 @@
 # @truedxf/plot
 
-Placeholder for plot settings: CTB/STB plot style tables, page setup to plot transform, lineweight to device units.
+Plot settings: page setups (LAYOUT / PLOTSETTINGS) and CTB/STB plot style tables.
 
-Not implemented: `src/index.ts` exports nothing. The plan is to
-parse CTB/STB files (zlib-compressed text, hence the `fflate` dependency) and apply them by
-resolved ACI, and to turn PLOTSETTINGS into the plot transform. Until then
-[@truedxf/render](../render) takes the plot area and canvas from its `PlotRequest`, converts
-lineweights itself and emulates only `monochrome.ctb`.
+```ts
+import { builtinPlotStyleTable, penForAci, readPageSetup, readPlotStyleTable } from "@truedxf/plot";
+
+const setup = readPageSetup(layout.object); // area, scale, offset, style sheet name, flags
+const table = setup.styleSheet
+    ? (builtinPlotStyleTable(setup.styleSheet) ?? readPlotStyleTable(ctbBytes))
+    : undefined;
+const pen = table && penForAci(table, 1); // colour / lineweight (mm) / … or undefined = object
+```
+
+- `readPageSetup` interprets the stored plot settings: plot area, scale (standard scales, custom
+  ratio or fit), paper and margins, offset and centering, style sheet name and the plot flags.
+- `readPlotStyleTable` / `writePlotStyleTable` read and write .ctb/.stb files (PIA container,
+  zlib text). The parsed tree is kept, so files round-trip.
+- `ACAD_CTB` and `MONOCHROME_CTB` reproduce the behaviour of the standard tables, which we
+  cannot ship. `buildColorTable` / `buildNamedTable` create tables in code.
+
+The DXF holds only the name of the style table, not its pens. The device resolution and the
+registry sysvars (LWDEFAULT, PLOTTRANSPARENCYOVERRIDE, …) are not in the DXF either, so the
+caller supplies them.
+
+Not implemented yet: applying pens when rendering (screening, grayscale, pen choice for true
+colours) and the page-setup to device transform. [@truedxf/render](../render) still takes the
+plot area and canvas from its `PlotRequest` and emulates only `monochrome.ctb`.
 
 See [research/notes/06-hatch-linetype-appearance.md](../../research/notes/06-hatch-linetype-appearance.md)
-§6 (plot styles) and [08-layouts-viewports-plotting.md](../../research/notes/08-layouts-viewports-plotting.md) §2 (PLOTSETTINGS).
+§6 (plot styles) and [08-layouts-viewports-plotting.md](../../research/notes/08-layouts-viewports-plotting.md)
+§2 (PLOTSETTINGS).

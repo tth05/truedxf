@@ -76,14 +76,23 @@ for (const t of targets) {
             const doc = loadDxf(new Uint8Array(readFileSync(dxf)));
             // the harness prologue sets PLOTTRANSPARENCYOVERRIDE 0 unless the case overrides it
             const plot = { ...meta.plot, sysvars: { PLOTTRANSPARENCYOVERRIDE: 0, ...meta.plot.sysvars } };
+            // the harness answers "." for "no plot style table"
+            if (plot.styleTable === ".") delete plot.styleTable;
+            // "pagesetup": AutoCAD plotted the stored page setup (tools/acad README)
+            if (plot.mode === "pagesetup") plot.pageSetup = true;
             const r = await renderPlot(doc, plot, {
                 loadImage: nodeImageLoader(dir),
                 loadFont,
+                // fixture tables (truedxf-*.ctb|stb) lie next to the case; stock names are built in
+                loadPlotStyleTable: async (name: string) => {
+                    const path = join(dir, name);
+                    return existsSync(path) ? new Uint8Array(readFileSync(path)) : undefined;
+                },
                 pdf,
                 rasterEntities: drawRaster ? "draw" : "omit",
                 ...(hideFonts ? { text: { unavailableFonts: new RegExp(hideFonts, "i") } } : {}),
             });
-            const img = rasterize(r.displayList, r.view, meta.plot.canvas);
+            const img = rasterize(r.displayList, r.view, r.canvas);
             const ref = readPng(refPng);
             const m = compare(img, ref);
             n++;

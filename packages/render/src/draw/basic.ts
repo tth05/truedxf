@@ -255,7 +255,9 @@ export function polyline2d(
     }
     const outline = widePolylineOutline(verts, { closed, constantWidth, tolerance: fe.tolerance / scale });
     if (fe.fillMode) {
-        fe.fillPath(transformPath(outline.fill, plane), fe.color(r), FillRule.NonZero);
+        fe.withFillStyle(r, () =>
+            fe.fillPath(transformPath(outline.fill, plane), fe.color(r), FillRule.NonZero),
+        );
     } else {
         // FILLMODE 0: outline only (note 03 §4)
         fe.strokePath(transformPath(outline.fill, plane), r, undefined, st);
@@ -352,13 +354,13 @@ function dashedWidePolyline(
         // plot mode: one scanline fill of all dashes (overlaps at vertices fill once); smooth mode:
         // each dash on its own — a nonzero union of all of them is quadratic in practice
         if (fe.grid) rings.push(...dash);
-        else if (dash.length > 0) fe.fillRings(dash, color, FillRule.NonZero);
+        else if (dash.length > 0) fe.withFillStyle(r, () => fe.fillRings(dash, color, FillRule.NonZero));
         if (outline.thin.length > 0)
             fe.strokePath(transformPath({ subpaths: outline.thin }, plane), r, undefined, st, {
                 noLinetype: true,
             });
     }
-    if (rings.length > 0) fe.fillRings(rings, color, FillRule.NonZero);
+    if (rings.length > 0) fe.withFillStyle(r, () => fe.fillRings(rings, color, FillRule.NonZero));
 }
 
 /**
@@ -568,7 +570,7 @@ registerDrawer(["SOLID", "TRACE"], (fe, e, st) => {
             ring[i * 2] = q.x;
             ring[i * 2 + 1] = q.y;
         });
-        fe.fillRings([ring], fe.color(r), FillRule.NonZero);
+        fe.withFillStyle(r, () => fe.fillRings([ring], fe.color(r), FillRule.NonZero));
         // zero-area SOLIDs draw nothing but still count for the extents. VERIFIED-BY-ACAD
         // (fileformat/corpus-gdal-solid-less-than-4-vertices: $EXTMIN/$EXTMAX span the degenerate ones)
         if (fe.props.extents) fe.builder.points(ring, fe.color(r));

@@ -41,7 +41,7 @@ import {
     type ViewportEntity,
     ViewportFlags,
 } from "@truedxf/model";
-import { type Frontend, registerDrawer } from "../frontend.ts";
+import { type Frontend, IDENTITY, registerDrawer } from "../frontend.ts";
 import { currentPaper, type LayoutContext, layoutPsltscale, setPaperSpaceHooks } from "../layout.ts";
 import { TOP_LEVEL } from "../props.ts";
 import { depthOverlaps } from "./xclip.ts";
@@ -135,15 +135,26 @@ function clipEntity(fe: Frontend, vp: ViewportEntity): Entity | undefined {
     return fe.doc.getEntity(vp.clipBoundaryHandle);
 }
 
-/** Clip rings of a viewport in paper coordinates. */
+/** Clip rings of a viewport in target coordinates (paper coordinates × Frontend.root). */
 export function viewportClipRings(fe: Frontend, vp: ViewportEntity): Float64Array[] {
     const ce = clipEntity(fe, vp);
+    let rings: Float64Array[] | undefined;
     if (ce) {
         const path = boundaryPath(ce);
-        if (path) return flattenPath(path, fe.tolerance / 4).map((p) => p.points);
-        fe.note(`viewport-clip:${ce.dxfType}`);
+        if (path) rings = flattenPath(path, fe.tolerance / 4).map((p) => p.points);
+        else fe.note(`viewport-clip:${ce.dxfType}`);
     }
-    return [viewportRect(vp)];
+    rings ??= [viewportRect(vp)];
+    if (fe.root === IDENTITY) return rings;
+    return rings.map((r) => {
+        const out = new Float64Array(r.length);
+        for (let k = 0; k + 1 < r.length; k += 2) {
+            const p = fe.root.transformPoint({ x: r[k]!, y: r[k + 1]!, z: 0 });
+            out[k] = p.x;
+            out[k + 1] = p.y;
+        }
+        return out;
+    });
 }
 
 function layerHandles(fe: Frontend): Map<string, string> {
@@ -176,7 +187,7 @@ export function drawViewportContent(fe: Frontend, vp: ViewportEntity, ctx: Layou
     }
     // not implemented (note 08 §3.5): perspective views
     if (vp.flags & ViewportFlags.Perspective) fe.note("viewport-perspective");
-    const m = viewportMatrix(vp);
+    const m = Matrix44.product(fe.root, viewportMatrix(vp));
     const depth = depthRange(vp);
     const prev = fe.props.viewport;
     fe.props.viewport = { handle: vp.handle, frozen: frozenLayers(fe, vp) };

@@ -73,12 +73,14 @@ window.truedxf = {
         const env: RenderEnv & { text?: { unavailableFonts?: RegExp } } = {
             loadFont,
             loadImage: imageLoader(options?.suite),
+            // fixture plot style tables (truedxf-*.ctb|stb) lie next to the case, like images
+            loadPlotStyleTable: imageLoader(options?.suite),
             rasterEntities: options?.drawRaster ? "draw" : "omit",
         };
         if (options?.hideFonts) env.text = { unavailableFonts: new RegExp(options.hideFonts, "i") };
         const plot = await renderPlot(doc, request, env);
         const t2 = performance.now();
-        const [w, h] = request.canvas;
+        const [w, h] = plot.canvas;
         renderer.setSize(w, h, true);
         renderer.setDisplayList(plot.displayList);
         renderer.render(plot.view);

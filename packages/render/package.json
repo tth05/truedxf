@@ -46,6 +46,7 @@
         "@truedxf/fonts": "workspace:^",
         "@truedxf/geometry": "workspace:^",
         "@truedxf/model": "workspace:^",
+        "@truedxf/plot": "workspace:^",
         "@truedxf/text": "workspace:^",
         "earcut": "^3.2.4",
         "fast-png": "^8.0.0",

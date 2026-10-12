@@ -12,6 +12,7 @@ import {
     booleanPolygons,
     type ComplexPlacement,
     DashUnits,
+    dashMeasured,
     dashPath,
     dilateBySquare,
     ellipticArc2SemiAxes,
@@ -22,6 +23,7 @@ import {
     LineCap,
     LineJoin,
     Matrix44,
+    measurePolyline,
     type Path2,
     segmentEnd,
     segmentPointAt,
@@ -31,13 +33,37 @@ import {
     strokePolyline,
     triangulateFill,
 } from "@truedxf/geometry";
-import type { Block, DxfDocument, Entity, EntityBase, InsertEntity } from "@truedxf/model";
+import type {
+    Block,
+    DictionaryObject,
+    DxfDocument,
+    Entity,
+    EntityBase,
+    InsertEntity,
+    LayoutObject,
+} from "@truedxf/model";
+import {
+    applyPlotStyle,
+    builtinPlotStyleTable,
+    fillStyleInk,
+    mmPerPaperUnit,
+    type PlotBounds,
+    PlotEndStyle,
+    PlotJoinStyle,
+    type PlotStyle,
+    type PlotStyleTable,
+    penForAci,
+    plotPlacement,
+    readPageSetup,
+    readPlotStyleTable,
+    styleByName,
+} from "@truedxf/plot";
 import { plotAciToRgb } from "./aci.ts";
 import { BlockRecorder, type BlockStream, replayBlockStream, splitBlockTransform } from "./block-stream.ts";
 import { type DisplayList, DisplayListBuilder, type Rgba, SnapKind } from "./displaylist.ts";
 import { DrawOrder } from "./draworder.ts";
-import { drawSpace, findLayout, layoutAreaView } from "./layout.ts";
-import { LinetypeResolver, type LinetypeSpec } from "./linetype.ts";
+import { drawSpace, findLayout, type LayoutContext, layoutAreaView } from "./layout.ts";
+import { LinetypeResolver, type LinetypeSpec, penLinetypeSpec } from "./linetype.ts";
 import type { PdfRasterizer } from "./pdf.ts";
 import {
     DEFAULT_CALIBRATION,
@@ -51,6 +77,7 @@ import {
 import { droppedOnLoad, type Inherited, PropertyResolver, type Resolved, TOP_LEVEL } from "./props.ts";
 import {
     arcVertices,
+    discPixels,
     fillConvexByEdges,
     fillPolygon,
     GS_FILL_FACTOR,
@@ -60,7 +87,12 @@ import {
     lineweightPixels,
     PixelGrid,
     SpanSet,
+    type StrokeCap,
+    type StrokeJoin,
+    strokeBodyPolygon,
+    strokeCapPolygon,
     strokeDotPixels,
+    strokeJoinPolygons,
     strokeSegmentPolygon,
     trapezoids,
 } from "./raster.ts";
@@ -86,6 +118,11 @@ export interface RenderEnv {
      * underlay frames are drawn (note 07 §10.3). PDF files are fetched with `loadImage`.
      */
     pdf?: PdfRasterizer;
+    /**
+     * Plot style table file bytes (.ctb / .stb) for `PlotRequest.styleTable`; undefined = not
+     * available, in which case the built-in equivalents of AutoCAD's stock tables are used.
+     */
+    loadPlotStyleTable?: (name: string) => Promise<Uint8Array | undefined>;
     calibration?: Partial<PlotCalibration>;
     /**
      * `autocad` (default for plots): emulate AutoCAD's raster plot rules exactly (pixel-snapped
@@ -127,6 +164,8 @@ export interface RenderEnv {
 export interface PlotResult {
     displayList: DisplayList;
     view: View;
+    /** Output size in device pixels: the request's canvas, or the printable area of a page setup. */
+    canvas: readonly [number, number];
     /** Counts of things the frontend could not render (entity types, features). */
     unsupported: Record<string, number>;
     /** Diagnostics for the user (e.g. missing fonts); absent when there are none. */
@@ -218,6 +257,23 @@ export function registerPreparer(p: Preparer): void {
 /** Linetype periods below this many device pixels plot continuous (note 06 §2.6.1). */
 export const DENSE_LINETYPE_PERIOD_PX = 0.5;
 
+/** The default {@link Frontend.root}: target coordinates are the plotted space's. */
+export const IDENTITY: Matrix44 = Matrix44.identity();
+
+/** Whether a stroke's start / end take the end style; false = butt (a dash cut out of a curve). */
+export interface StrokeEnds {
+    readonly start: boolean;
+    readonly end: boolean;
+}
+
+/** Plot style end / join styles as raster shapes; object (undefined) = round (note 06 §6.3). */
+const PEN_CAPS: Record<number, StrokeCap> = { 0: "butt", 1: "square", 2: "round", 3: "diamond" };
+// diamond joins plot ≈ round at the apex (note 06 §6.3)
+const PEN_JOINS: Record<number, StrokeJoin> = { 0: "miter", 1: "bevel", 2: "round", 3: "round" };
+
+/** Entities whose pen linetype is never adaptive (VERIFIED-BY-ACAD plotstyles/lt-curves, note 06 §6.7). */
+const FIXED_PEN_LINETYPE: ReadonlySet<string> = new Set(["CIRCLE", "ARC", "ELLIPSE"]);
+
 /**
  * Upright (U=) linetype elements flip when the line points left **in the entity's own block
  * coordinates**: a mirrored or rotated INSERT does not flip them. VERIFIED-BY-ACAD
@@ -264,7 +320,20 @@ export class Frontend {
     readonly unsupported: Record<string, number> = {};
     /** Colours flipped for contrast by color() (interactive display): "#RRGGBB" / "ACI n" → layers. */
     readonly contrastFlips = new Map<string, Set<string>>();
-    readonly monochrome: boolean;
+    /** The plot style table in effect; undefined = object properties (none, or plot styles off). */
+    readonly plotStyleTable: PlotStyleTable | undefined;
+    /** STB: plot style name by upper-case ACDBPLACEHOLDER handle (ACAD_PLOTSTYLENAME). */
+    private readonly plotStyleNames = new Map<string, string>();
+    /** Pen fill style 65–72 of the area fill being drawn (see withFillStyle). */
+    private fillStyle: number | undefined;
+    /**
+     * Transform from the plotted space (model or paper) to target coordinates, applied to model
+     * space, paper space and viewport content: identity, or a page setup's placement on the device
+     * (rotation, scale, offsets; renderPlot with `pageSetup`).
+     */
+    root: Matrix44 = IDENTITY;
+    /** "Scale lineweights" (PLOTSETTINGS 70 bit 64): lineweights × the plot scale (note 08 §10.17). */
+    lineweightScale = 1;
     readonly lineweights: boolean;
     readonly fillMode: boolean;
     /** Per-frontend caches for drawers (keyed by module). */
@@ -344,7 +413,14 @@ export class Frontend {
         this.props.display = env.visibility === "display";
         this.linetypes = new LinetypeResolver(doc);
         this.calibration = calibration;
-        this.monochrome = (request.styleTable ?? "").toLowerCase() === "monochrome.ctb";
+        this.plotStyleTable =
+            request.plotStyles === false
+                ? undefined
+                : (request.plotStyleTable ?? builtinPlotStyleTable(request.styleTable ?? ""));
+        if (this.plotStyleTable?.kind === "stb") {
+            const dict = doc.namedObject("ACAD_PLOTSTYLENAME") as DictionaryObject | undefined;
+            for (const e of dict?.entries ?? []) this.plotStyleNames.set(e.handle.toUpperCase(), e.key);
+        }
         this.lineweights = request.lineweights ?? true;
         // Plot-time sysvars override the saved header (note 07 §15.7, shell-fillmode-zero).
         this.fillMode = Number(request.sysvars?.FILLMODE ?? doc.header.num("$FILLMODE", 1)) !== 0;
@@ -374,7 +450,7 @@ export class Frontend {
 
     // ---- traversal ---------------------------------------------------------------------------
 
-    drawBlock(block: Block, m: Matrix44 = Matrix44.identity()): void {
+    drawBlock(block: Block, m: Matrix44 = this.root): void {
         this.drawEntities(this.drawOrder.entities(block), {
             m,
             inh: TOP_LEVEL,
@@ -762,15 +838,55 @@ export class Frontend {
         return this.props.resolve(e, st.inh);
     }
 
+    /**
+     * The plot style (pen) of a resolved entity: CTB by its ACI (true and colour-book colours get
+     * none, note 06 §6.4), STB by its resolved style name, a name missing from the table → Normal
+     * (§6.2).
+     */
+    pen(r: Resolved): PlotStyle | undefined {
+        const t = this.plotStyleTable;
+        if (!t) return undefined;
+        if (t.kind === "ctb") return r.trueColor === undefined ? penForAci(t, r.aci) : undefined;
+        const handle = r.props?.plotStyleHandle;
+        const name = handle ? this.plotStyleNames.get(handle.toUpperCase()) : undefined;
+        return (name ? styleByName(t, name) : undefined) ?? styleByName(t, "Normal");
+    }
+
+    /**
+     * Draws an area fill (SOLID, solid HATCH, wide polyline) with the pen's fill style: in plot
+     * mode styles 65–72 keep only the pixels of their device tile, the rest stays paper (note 06
+     * §6.8). Other fills (text, gradients) never take it.
+     */
+    withFillStyle(r: Resolved, draw: () => void): void {
+        const prev = this.fillStyle;
+        const f = this.grid ? this.pen(r)?.fillStyle : undefined;
+        this.fillStyle = f !== undefined && f > 64 ? f : undefined;
+        try {
+            draw();
+        } finally {
+            this.fillStyle = prev;
+        }
+    }
+
+    /** Effective lineweight in 1/100 mm: the pen's, else the object's (note 06 §6.5). */
+    lineweightOf(r: Resolved): number {
+        const lw = this.pen(r)?.lineweight;
+        const v = lw === undefined ? r.lineweight : Math.round(lw * 100);
+        return this.lineweightScale === 1 ? v : v * this.lineweightScale;
+    }
+
     color(r: Resolved): Rgba {
         const a = this.alpha(r);
-        // true colours keep their RGB even with monochrome.ctb (note 08 §10.7)
-        if (r.trueColor === undefined) {
-            if (this.monochrome) return [0, 0, 0, a];
-            if (this.grid) {
-                const [red, g, b] = plotAciToRgb(r.aci);
-                return [red, g, b, a];
-            }
+        const pen = this.pen(r);
+        // plots draw ACI colours with the plot palette; true colours keep their RGB
+        const aci = r.trueColor === undefined && this.grid !== undefined;
+        if (pen || aci) {
+            const [red, g, b] = aci ? plotAciToRgb(r.aci) : r.rgb;
+            let rgb = (red << 16) | (g << 8) | b;
+            if (pen) rgb = applyPlotStyle(pen, { rgb, aci: r.aci, lineweight: 0 }).rgb;
+            const out: [number, number, number] = [(rgb >> 16) & 255, (rgb >> 8) & 255, rgb & 255];
+            if (this.grid) return [...out, a];
+            r = { ...r, rgb: out };
         }
         // interactive display (no pixel grid): (near-)white on a light background and (near-)black
         // on a dark one contrast with it like ACI 7 — true colours such as QCAD's layer 0 with
@@ -820,7 +936,7 @@ export class Frontend {
     /** Plotted lineweight in device pixels (≥ 1). */
     widthPixels(r: Resolved): number {
         if (!this.lineweights) return 1;
-        return lineweightPixels(r.lineweight, this.calibration.dpi);
+        return lineweightPixels(this.lineweightOf(r), this.calibration.dpi);
     }
 
     /** A single device pixel (POINT, which ignores lineweights). */
@@ -833,8 +949,9 @@ export class Frontend {
 
     /** Lineweight in target units, or 0 for a 1-px hairline. */
     strokeWidth(r: Resolved): number {
-        if (!this.lineweights || r.lineweight <= 0) return 0;
-        const px = (r.lineweight / 100) * (this.calibration.dpi / 25.4);
+        const lw = this.lineweights ? this.lineweightOf(r) : 0;
+        if (lw <= 0) return 0;
+        const px = (lw / 100) * (this.calibration.dpi / 25.4);
         const hairlineMax = this.lod
             ? Math.max(1.5, this.calibration.hairlineMaxPx)
             : this.calibration.hairlineMaxPx;
@@ -850,6 +967,13 @@ export class Frontend {
     }
 
     linetypeFor(e: Entity, r: Resolved, st: DrawState): LinetypeSpec | undefined {
+        // a pen linetype replaces the object's; 0 = solid (note 06 §6.7)
+        const pen = this.pen(r);
+        if (pen?.linetype !== undefined) {
+            if (pen.linetype === 0) return undefined;
+            const adaptive = pen.adaptiveLinetype && !FIXED_PEN_LINETYPE.has(e.type);
+            return penLinetypeSpec(pen.linetype, adaptive, this.calibration.dpi * this.pixelSize);
+        }
         return this.linetypes.spec(r.linetype, e.linetypeScale, st.linetypeScale ?? 1);
     }
 
@@ -876,9 +1000,14 @@ export class Frontend {
             for (const pl of this.flatten(path)) this.strokeFlat(pl.points, pl.closed, r);
             return;
         }
+        if (!lt.entry && this.grid) {
+            this.strokePenDashes(path, lt, r);
+            return;
+        }
         const results = dashPath(path, lt.pattern, this.tolerance, {
-            units: options.units ?? DashUnits.Continuous,
+            units: lt.units ?? options.units ?? DashUnits.Continuous,
             upsideDown: blockUpsideDown(st.m),
+            ...(lt.fit ? { fit: lt.fit } : {}),
         });
         const color = this.color(r);
         const w = this.strokeWidth(r);
@@ -898,6 +1027,40 @@ export class Frontend {
             if (res.placements.length > 0) {
                 if (complexDrawer && e) complexDrawer(this, res.placements, e, r, st);
                 else this.note("complex-linetype-element");
+            }
+        }
+    }
+
+    /**
+     * Plot style pen linetype in plot mode (note 06 §6.7). The plot driver dashes the device
+     * polyline of the curve (its pixel arcs), not the true arc length (plotstyles/lt-curves:
+     * 4112 → 750 px off). On wide lines the dashes are butt-ended; only the curve's own start and
+     * end take the pen end style, and vertices inside a dash its join style.
+     */
+    private strokePenDashes(path: Path2, lt: LinetypeSpec, r: Resolved): void {
+        for (const pl of this.flatten(path)) {
+            const m = measurePolyline(pl.points, pl.closed, lt.units ?? DashUnits.Continuous);
+            const total = m.distances.length > 0 ? m.distances[m.distances.length - 1]! : 0;
+            const res = dashMeasured(m, lt.pattern, lt.fit ? { fit: lt.fit } : {});
+            const eps = total * 1e-9;
+            for (let k = 0; k < res.dashes.length; k++) {
+                const s0 = res.ranges[2 * k]!;
+                const s1 = res.ranges[2 * k + 1]!;
+                const ends = res.whole ? undefined : { start: s0 <= eps && s0 <= s1, end: s1 >= total - eps };
+                this.strokeFlat(res.dashes[k]!, res.whole, r, ends);
+            }
+            // dots are discs of the line width, unlike zero-length strokes (note 06 §6.7)
+            const dots = res.dots;
+            const w = this.widthPixels(r);
+            const g = this.grid!;
+            for (let i = 0; i + 2 < dots.length; i += 3) {
+                if (w <= 1) {
+                    this.rasterStroke(Float64Array.of(dots[i]!, dots[i + 1]!), false, r);
+                    continue;
+                }
+                const spans = new SpanSet();
+                discPixels(g.px(dots[i]!), g.py(dots[i + 1]!), w, spans);
+                this.emitSpans(spans, this.color(r));
             }
         }
     }
@@ -947,8 +1110,11 @@ export class Frontend {
         }
     }
 
-    /** Strokes a flattened polyline (target coordinates) with the entity's lineweight. */
-    strokeFlat(points: Float64Array, closed: boolean, r: Resolved): void {
+    /**
+     * Strokes a flattened polyline (target coordinates) with the entity's lineweight. `ends`: whether
+     * its start / end take the end style (false = butt, for dashes cut out of a curve).
+     */
+    strokeFlat(points: Float64Array, closed: boolean, r: Resolved, ends?: StrokeEnds): void {
         if (points.length < 2) return;
         const edges = this.clipStack[this.clipStack.length - 1]?.edges;
         if (edges && points.length >= 4) {
@@ -959,7 +1125,7 @@ export class Frontend {
             }
         }
         if (this.grid) {
-            this.rasterStroke(points, closed, r);
+            this.rasterStroke(points, closed, r, ends);
             return;
         }
         const color = this.color(r);
@@ -973,11 +1139,28 @@ export class Frontend {
     }
 
     /** AutoCAD raster rules for strokes (see raster.ts). */
-    private rasterStroke(points: Float64Array, closed: boolean, r: Resolved): void {
+    private rasterStroke(points: Float64Array, closed: boolean, r: Resolved, ends?: StrokeEnds): void {
         const g = this.grid!;
         const color = this.color(r);
         const w = this.widthPixels(r);
         const n = points.length >> 1;
+        if (w > 1 && n > 1) {
+            const pen = this.pen(r);
+            const cap = PEN_CAPS[pen?.endStyle ?? PlotEndStyle.Round]!;
+            const join = PEN_JOINS[pen?.joinStyle ?? PlotJoinStyle.Round]!;
+            if (cap !== "round" || join !== "round" || ends?.start === false || ends?.end === false) {
+                this.rasterStyledStroke(
+                    points,
+                    closed,
+                    w,
+                    color,
+                    ends?.start === false ? "butt" : cap,
+                    ends?.end === false ? "butt" : cap,
+                    join,
+                );
+                return;
+            }
+        }
         if (w <= 1) {
             const out = this.pixelScratch;
             out.length = 0;
@@ -1031,13 +1214,93 @@ export class Frontend {
         this.emitSpans(spans, color);
     }
 
+    /**
+     * A wide stroke with plot style end / join styles (note 06 §6.3, §6.7): butt segment bodies,
+     * the caps at the open ends and a join at every interior vertex. Round caps and joins with no
+     * butt ends take {@link rasterStroke}'s measured round-capped segments instead.
+     */
+    private rasterStyledStroke(
+        points: Float64Array,
+        closed: boolean,
+        w: number,
+        color: Rgba,
+        startCap: StrokeCap,
+        endCap: StrokeCap,
+        join: StrokeJoin,
+    ): void {
+        const g = this.grid!;
+        const n = points.length >> 1;
+        const ij: number[] = [];
+        for (let k = 0; k < n; k++) {
+            const i = g.px(points[k * 2]!);
+            const j = g.py(points[k * 2 + 1]!);
+            const m = ij.length;
+            if (m >= 2 && ij[m - 2] === i && ij[m - 1] === j) continue;
+            ij.push(i, j);
+        }
+        const spans = new SpanSet();
+        const m = ij.length >> 1;
+        if (m === 1) {
+            strokeDotPixels(ij[0]!, ij[1]!, w, spans);
+            this.emitSpans(spans, color);
+            return;
+        }
+        const ring = closed && m > 2;
+        const segs = ring ? m : m - 1;
+        const dir = (k: number): [number, number] => {
+            const b = (k + 1) % m;
+            return [ij[b * 2]! - ij[k * 2]!, ij[b * 2 + 1]! - ij[k * 2 + 1]!];
+        };
+        for (let k = 0; k < segs; k++) {
+            const b = (k + 1) % m;
+            const poly = strokeBodyPolygon(ij[k * 2]!, ij[k * 2 + 1]!, ij[b * 2]!, ij[b * 2 + 1]!, w);
+            if (poly) fillConvexByEdges(poly, spans, g);
+        }
+        for (let k = ring ? 0 : 1; k < (ring ? m : m - 1); k++) {
+            const d1 = dir((k - 1 + m) % m);
+            const d2 = dir(k);
+            for (const poly of strokeJoinPolygons(ij[k * 2]!, ij[k * 2 + 1]!, d1, d2, w, join))
+                fillConvexByEdges(poly, spans, g);
+        }
+        if (!ring) {
+            const first = strokeCapPolygon(ij[0]!, ij[1]!, ...dir(0), w, startCap, true);
+            if (first) fillConvexByEdges(first, spans, g);
+            const last = strokeCapPolygon(
+                ij[(m - 1) * 2]!,
+                ij[(m - 1) * 2 + 1]!,
+                ...dir(m - 2),
+                w,
+                endCap,
+                false,
+            );
+            if (last) fillConvexByEdges(last, spans, g);
+        }
+        this.emitSpans(spans, color);
+    }
+
     /** Emits pixel spans as pixel-aligned rectangles (renderers sample pixel centres). */
     private emitSpans(spans: SpanSet, color: Rgba): void {
         if (spans.empty) return;
         const g = this.grid!;
         const tri: number[] = [];
+        const style = this.fillStyle;
         spans.forEach((j, a, b) => {
             if (j < 0 || j >= g.height || b < 0 || a >= g.width) return;
+            if (style !== undefined) {
+                // device tile: u = column, v = row from the bottom of the image (note 06 §6.8)
+                for (let i = Math.max(a, 0), end = Math.min(b, g.width - 1); i <= end; i++) {
+                    if (!fillStyleInk(style, i, j)) continue;
+                    let k = i;
+                    while (k < end && fillStyleInk(style, k + 1, j)) k++;
+                    const x0 = g.ex(i);
+                    const x1 = g.ex(k + 1);
+                    const y0 = g.ey(j);
+                    const y1 = g.ey(j + 1);
+                    tri.push(x0, y0, x1, y0, x1, y1, x0, y0, x1, y1, x0, y1);
+                    i = k;
+                }
+                return;
+            }
             const x0 = g.ex(Math.max(a, -1));
             const x1 = g.ex(Math.min(b, g.width) + 1);
             const y0 = g.ey(j);
@@ -1235,6 +1498,16 @@ export async function renderPlot(
     for (const p of PREPARERS) notes.push(...((await p(doc, env)) ?? []));
     const calibration = { ...DEFAULT_CALIBRATION, ...env.calibration };
     const space = findLayout(doc, request.layout);
+    if (request.pageSetup) {
+        const settings = space.layout?.object;
+        if (settings) return renderPageSetup(doc, request, env, notes, calibration, space, settings);
+        notes.push({
+            code: "page-setup-missing",
+            severity: "warning",
+            message: `Layout ${space.name} has no stored page setup; plotted with the request's settings.`,
+        });
+    }
+    request = await withPlotStyleTable(request, env, notes);
     let view: View;
     if (request.area.type === "window") {
         view = fitWindow(request.area.min, request.area.max, request.canvas);
@@ -1292,6 +1565,7 @@ export async function renderPlot(
                     return {
                         displayList,
                         view: viewFromBounds(bounds, request.canvas),
+                        canvas: request.canvas,
                         unsupported: fast.unsupported,
                         ...(notes.length ? { notes } : {}),
                     };
@@ -1311,7 +1585,157 @@ export async function renderPlot(
     await fe.finish();
     const contrast = fe.contrastNote();
     if (contrast) notes.push(contrast);
-    return { displayList: fe.build(), view, unsupported: fe.unsupported, ...(notes.length ? { notes } : {}) };
+    return {
+        displayList: fe.build(),
+        view,
+        canvas: request.canvas,
+        unsupported: fe.unsupported,
+        ...(notes.length ? { notes } : {}),
+    };
+}
+
+/**
+ * Plots a layout's stored page setup (@truedxf/plot readPageSetup / plotPlacement; note 08 §2,
+ * §10.17): the drawing is transformed onto the printable area of the device (Frontend.root), which
+ * is also the output canvas, and the stored style table and switches apply.
+ */
+async function renderPageSetup(
+    doc: DxfDocument,
+    request: PlotRequest,
+    env: RenderEnv,
+    notes: PlotNote[],
+    calibration: PlotCalibration,
+    space: LayoutContext,
+    settings: LayoutObject,
+): Promise<PlotResult> {
+    const setup = readPageSetup(settings);
+    let req: PlotRequest = {
+        ...request,
+        styleTable: setup.styleSheet,
+        plotStyles: setup.plotStyles,
+        lineweights: setup.plotLineweights,
+        paperSpaceFirst: !setup.drawViewportsFirst,
+    };
+    if (!setup.styleSheet) delete req.styleTable;
+    req = await withPlotStyleTable(req, env, notes);
+    let bounds: PlotBounds | undefined;
+    const area = setup.area;
+    if (area.kind === "limits") {
+        const lo = space.isModel ? doc.header.point("$LIMMIN", { x: 0, y: 0, z: 0 }) : settings.limitsMin;
+        const hi = space.isModel ? doc.header.point("$LIMMAX", { x: 12, y: 9, z: 0 }) : settings.limitsMax;
+        bounds = { min: { x: lo.x, y: lo.y }, max: { x: hi.x, y: hi.y } };
+    } else if (area.kind === "layout") {
+        if (setup.scale === "fit") bounds = { min: settings.limitsMin, max: settings.limitsMax };
+    } else if (area.kind !== "window") {
+        // display and view plots need the saved view; plotted as extents (not implemented)
+        if (area.kind !== "extents")
+            notes.push({
+                code: "plot-area",
+                severity: "info",
+                message: `Plot area ${area.kind} is plotted as extents.`,
+            });
+        const b = drawingBounds(doc, space, req, calibration, env);
+        bounds = { min: { x: b.minX, y: b.minY }, max: { x: b.maxX, y: b.maxY } };
+    }
+    const placement = plotPlacement(setup, {
+        unitsPerMm: calibration.dpi / 25.4,
+        ...(bounds ? { bounds } : {}),
+    });
+    const w = Math.max(1, Math.round(placement.width));
+    const h = Math.max(1, Math.round(placement.height));
+    const canvas: [number, number] = [w, h];
+    req = { ...req, canvas };
+    // device coordinates with Y up: (X, H − Y)
+    const [a, b, c, d, e, f] = placement.matrix;
+    const root = Matrix44.fromRows(a, c, 0, e, -b, -d, 0, h - f, 0, 0, 1, 0, 0, 0, 0, 1);
+    const view: View = { minX: 0, minY: 0, maxX: w, maxY: h };
+    const fe = new Frontend(doc, req, view, calibration, env);
+    fe.root = root;
+    if (setup.scaleLineweights)
+        fe.lineweightScale = placement.scale / (calibration.dpi / 25.4) / mmPerPaperUnit(setup.paperUnits);
+    // a window plot shows only the window: with an offset or a larger sheet the rest of the
+    // drawing would land on the paper too (pagesetup/rotmode-2-window-*)
+    const clip = area.kind === "window" ? area : undefined;
+    if (clip) {
+        const ring = new Float64Array(8);
+        const corners = [
+            clip.min,
+            { x: clip.max.x, y: clip.min.y },
+            clip.max,
+            { x: clip.min.x, y: clip.max.y },
+        ];
+        corners.forEach((p, k) => {
+            const q = root.transformPoint({ x: p.x, y: p.y, z: 0 });
+            ring[k * 2] = q.x;
+            ring[k * 2 + 1] = q.y;
+        });
+        fe.pushClip([ring]);
+    }
+    drawSpace(fe, space);
+    if (clip) fe.popClip();
+    await fe.finish();
+    const contrast = fe.contrastNote();
+    if (contrast) notes.push(contrast);
+    return {
+        displayList: fe.build(),
+        view,
+        canvas,
+        unsupported: fe.unsupported,
+        ...(notes.length ? { notes } : {}),
+    };
+}
+
+/** Geometric bounds of a space (extents plots), from a coarse and a fine smooth probe. */
+function drawingBounds(
+    doc: DxfDocument,
+    space: LayoutContext,
+    request: PlotRequest,
+    calibration: PlotCalibration,
+    env: RenderEnv,
+) {
+    const probe = (guess: View) => {
+        const fe = new Frontend(doc, { ...request, lineweights: false }, guess, calibration, {
+            ...env,
+            raster: "smooth",
+            lod: false,
+            annotations: false,
+        });
+        fe.props.extents = true;
+        drawSpace(fe, space);
+        return fe.build().bounds;
+    };
+    const coarse = probe(fitWindow([-1e7, -1e7], [1e7, 1e7], request.canvas));
+    return probe(viewFromBounds(coarse, request.canvas));
+}
+
+/**
+ * Loads the request's plot style table through the host (stock table names fall back to the
+ * built-in equivalents). A table that is neither plots with object properties, with a note.
+ */
+async function withPlotStyleTable(
+    request: PlotRequest,
+    env: RenderEnv,
+    notes: PlotNote[],
+): Promise<PlotRequest> {
+    const name = request.styleTable;
+    if (!name || request.plotStyleTable || request.plotStyles === false) return request;
+    const bytes = await env.loadPlotStyleTable?.(name);
+    if (bytes) {
+        try {
+            return { ...request, plotStyleTable: readPlotStyleTable(bytes) };
+        } catch {
+            // unreadable: treated as missing
+        }
+    }
+    if (!builtinPlotStyleTable(name))
+        notes.push({
+            code: "plot-style-table-missing",
+            severity: "warning",
+            message: `Plot style table ${name} is not available; plotted with object properties.`,
+            count: 1,
+            items: [name],
+        });
+    return request;
 }
 
 /**

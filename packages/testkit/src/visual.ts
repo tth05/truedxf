@@ -89,6 +89,8 @@ export interface CaseMeta {
         lineweights?: boolean;
         scale?: "fit" | [number, number];
         sysvars?: Record<string, number | string>;
+        /** "pagesetup": AutoCAD plotted the layout's stored page setup. */
+        mode?: string;
     };
 }
 
@@ -238,8 +240,14 @@ async function main(): Promise<void> {
                     ([d, p, o]) => (window as unknown as HarnessWindow).truedxf.render(d, p, o),
                     [
                         b64,
-                        // the harness prologue sets PLOTTRANSPARENCYOVERRIDE 0 unless the case overrides it
-                        { ...meta.plot, sysvars: { PLOTTRANSPARENCYOVERRIDE: 0, ...meta.plot.sysvars } },
+                        // the harness prologue sets PLOTTRANSPARENCYOVERRIDE 0 unless the case overrides it;
+                        // styleTable "." is the harness's "no table"
+                        {
+                            ...meta.plot,
+                            ...(meta.plot.styleTable === "." ? { styleTable: undefined } : {}),
+                            ...(meta.plot.mode === "pagesetup" ? { pageSetup: true } : {}),
+                            sysvars: { PLOTTRANSPARENCYOVERRIDE: 0, ...meta.plot.sysvars },
+                        },
                         { hideFonts: args.hideFonts, suite: meta.suite, drawRaster: args.drawRaster },
                     ] as const,
                 );

@@ -1,7 +1,6 @@
 {
     "name": "@truedxf/plot",
     "version": "0.0.0",
-    "private": true,
     "description": "Plot settings: CTB/STB plot styles, page setup to plot transform, lineweight to device units",
     "license": "MIT",
     "repository": {
@@ -35,8 +34,8 @@
         "src"
     ],
     "dependencies": {
-        "@truedxf/core": "workspace:*",
-        "@truedxf/model": "workspace:*",
+        "@truedxf/core": "workspace:^",
+        "@truedxf/model": "workspace:^",
         "fflate": "^0.8.3"
     }
 }

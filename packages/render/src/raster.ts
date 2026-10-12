@@ -368,6 +368,138 @@ export function strokeSegmentPolygon(
     return v;
 }
 
+/** Body offsets o+ / o− of a wide segment along (dx, dy) and its half width h (see above). */
+function strokeOffsets(dx: number, dy: number, w: number) {
+    const len = Math.hypot(dx, dy);
+    const nx = -dy / len;
+    const ny = dx / len;
+    const h = (w - 1) / 2;
+    if (w <= 2) {
+        const [ex, ey] = Math.abs(dx) >= Math.abs(dy) ? [0, 1] : [1, 0];
+        const left = ex * nx + ey * ny > 0;
+        return {
+            h,
+            nx,
+            ny,
+            ux: dx / len,
+            uy: dy / len,
+            op: left ? [ex, ey] : [0, 0],
+            om: left ? [0, 0] : [ex, ey],
+        };
+    }
+    return {
+        h,
+        nx,
+        ny,
+        ux: dx / len,
+        uy: dy / len,
+        op: [hu(h * nx), hu(h * ny)],
+        om: [hu(-h * nx), hu(-h * ny)],
+    };
+}
+
+/** Wide stroke shapes for plot style end and join styles (note 06 §6.3). */
+export type StrokeCap = "butt" | "square" | "round" | "diamond";
+export type StrokeJoin = "miter" | "bevel" | "round";
+
+/**
+ * The butt body of a wide segment P0 → P1: the quadrilateral of {@link strokeSegmentPolygon}
+ * without its caps. Undefined for a zero-length segment.
+ */
+export function strokeBodyPolygon(
+    i0: number,
+    j0: number,
+    i1: number,
+    j1: number,
+    w: number,
+): number[] | undefined {
+    if (i0 === i1 && j0 === j1) return undefined;
+    const { op, om } = strokeOffsets(i1 - i0, j1 - j0, w);
+    return [
+        i0 + om[0]!,
+        j0 + om[1]!,
+        i1 + om[0]!,
+        j1 + om[1]!,
+        i1 + op[0]!,
+        j1 + op[1]!,
+        i0 + op[0]!,
+        j0 + op[1]!,
+    ];
+}
+
+/**
+ * The cap of a wide segment along (dx, dy) at its end point (i, j), or at its start point with
+ * `atStart`: square = the body extended by h, diamond = a point h beyond the end, round = the
+ * half disc of {@link strokeSegmentPolygon}. Undefined for butt.
+ */
+export function strokeCapPolygon(
+    i: number,
+    j: number,
+    dx: number,
+    dy: number,
+    w: number,
+    cap: StrokeCap,
+    atStart: boolean,
+): number[] | undefined {
+    if (cap === "butt" || (dx === 0 && dy === 0)) return undefined;
+    const { h, nx, ny, ux, uy, op, om } = strokeOffsets(dx, dy, w);
+    const sgn = atStart ? -1 : 1;
+    const ex = hu(sgn * h * ux);
+    const ey = hu(sgn * h * uy);
+    const a = [i + om[0]!, j + om[1]!];
+    const b = [i + op[0]!, j + op[1]!];
+    if (cap === "square") return [a[0]!, a[1]!, a[0]! + ex, a[1]! + ey, b[0]! + ex, b[1]! + ey, b[0]!, b[1]!];
+    if (cap === "diamond") return [a[0]!, a[1]!, i + ex, j + ey, b[0]!, b[1]!];
+    const nc = Math.max(2, Math.floor(h) + 1);
+    const phi = Math.atan2(ny, nx);
+    const v = [a[0]!, a[1]!];
+    for (let k = 1; k < nc; k++) {
+        const t = atStart ? phi + Math.PI + (Math.PI * k) / nc : phi - Math.PI + (Math.PI * k) / nc;
+        v.push(i + hu(h * Math.cos(t)), j + hu(h * Math.sin(t)));
+    }
+    v.push(b[0]!, b[1]!);
+    return v;
+}
+
+/**
+ * The join of two wide segments meeting at (i, j), arriving along d1 and leaving along d2:
+ * round = a full disc, bevel = the triangles between the body corners, miter = the corners
+ * extended to the intersection of the body edges (no limit, note 06 §6.3).
+ */
+export function strokeJoinPolygons(
+    i: number,
+    j: number,
+    d1: readonly [number, number],
+    d2: readonly [number, number],
+    w: number,
+    join: StrokeJoin,
+): number[][] {
+    if ((d1[0] === 0 && d1[1] === 0) || (d2[0] === 0 && d2[1] === 0)) return [];
+    if (join === "round") {
+        const h = (w - 1) / 2;
+        const n = 2 * Math.max(2, Math.floor(h) + 1);
+        const v: number[] = [];
+        for (let k = 0; k < n; k++) {
+            const t = (2 * Math.PI * k) / n;
+            v.push(i + hu(h * Math.cos(t)), j + hu(h * Math.sin(t)));
+        }
+        return [v];
+    }
+    const a = strokeOffsets(d1[0], d1[1], w);
+    const b = strokeOffsets(d2[0], d2[1], w);
+    // only the outer side of the turn needs filling: the right side of a left turn
+    const cross = a.ux * b.uy - a.uy * b.ux;
+    if (Math.abs(cross) < 1e-9) return [];
+    const pa = cross > 0 ? a.om : a.op;
+    const pb = cross > 0 ? b.om : b.op;
+    if (join === "bevel") return [[i, j, i + pa[0]!, j + pa[1]!, i + pb[0]!, j + pb[1]!]];
+    // the corner where the outer body edges (i + pa) + s·u1 and (i + pb) + t·u2 meet
+    const sa = ((pb[0]! - pa[0]!) * b.uy - (pb[1]! - pa[1]!) * b.ux) / cross;
+    const mx = i + pa[0]! + sa * a.ux;
+    const my = j + pa[1]! + sa * a.uy;
+    return [[i, j, i + pa[0]!, j + pa[1]!, hu(mx), hu(my), i + pb[0]!, j + pb[1]!]];
+}
+
 /** Collects filled pixels as horizontal spans per row. */
 export class SpanSet {
     private readonly rows = new Map<number, number[]>();
@@ -438,13 +570,39 @@ export function fillConvexByEdges(
     for (const [j, a] of lo) out.add(j, a, hi.get(j)!);
 }
 
-/** Zero-length stroke of width w at pixel (i, j) (note 08 §10.14; POINT entities stay 1 px). */
+/**
+ * Zero-length stroke of width w at pixel (i, j) (note 08 §10.14; POINT entities stay 1 px). Above
+ * the measured 8 px footprints: a disc 2 px narrower than the stroke (plotstyles/lt-wide-508).
+ */
 export function strokeDotPixels(i: number, j: number, w: number, out: SpanSet): void {
     if (w <= 1) {
         out.add(j, i, i);
         return;
     }
+    if (w > 8) {
+        discPixels(i, j, w - 2, out);
+        return;
+    }
     for (const [dj, a, b] of zeroLengthRows(w)) out.add(j + dj, i + a, i + b);
+}
+
+/**
+ * A disc of diameter d around the corner (i − ½, j − ½) of pixel (i, j): the pixels whose centre
+ * lies inside, d columns and rows for even d (a plot style pen linetype dot of a 20 px line covers
+ * columns i − 10 … i + 9, note 06 §6.7; AutoCAD's exact outline differs by a few edge pixels).
+ */
+export function discPixels(i: number, j: number, d: number, out: SpanSet): void {
+    const r = d / 2;
+    for (let dj = -Math.ceil(r); dj <= Math.ceil(r); dj++) {
+        const y = dj + 0.5;
+        const half = r * r - y * y;
+        if (half < 0) continue;
+        const x = Math.sqrt(half);
+        // columns whose centre di + ½ lies in [−x, x]
+        const a = Math.ceil(-x - 0.5);
+        const b = Math.floor(x - 0.5);
+        if (b >= a) out.add(j + dj, i + a, i + b);
+    }
 }
 
 // ---- fills ---------------------------------------------------------------------------------

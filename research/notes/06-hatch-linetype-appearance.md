@@ -1514,6 +1514,10 @@ Rules:
   drawn (floating-point end test; both occur).
 - **Adaptive has no effect on CIRCLE and ARC** (`lt-curves`: pens with adaptive TRUE plot the same
   dashes as fixed, from angle 0 / the start angle, the last period simply cut).
+- **On curves the pattern is measured along the device polyline** (the raster driver's pixel arc,
+  note 08 §10.13), not the true arc length: dashing the arc's pixel vertices reproduces
+  `lt-curves` (4112 → 750 px off, the rest wide-line caps), dashing the exact arc drifts by a few
+  pixels per turn (truedxf render, 2026-10-12; inferred from the reference PNG).
 - **Wide lines (VERIFIED-BY-ACAD 2026-10-12, Q-0761, `plotstyles/lt-wide-508` = 20 px,
   `lt-wide-100` = 1.00 mm = 4 px; pen linetypes 8 and 16 fixed, end styles 0–3 and object, join
   styles 0–3; check `analyze_pen_patterns.py --wide`, 15/15 pixel-exact per case).** The dashes are

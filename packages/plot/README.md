@@ -36,9 +36,8 @@ The DXF holds only the name of the style table, not its pens. The device resolut
 area of extents/limits/display/view plots and the registry sysvars (LWDEFAULT,
 PLOTTRANSPARENCYOVERRIDE, …) are not in the DXF either, so the caller supplies them.
 
-Not implemented yet: using the pens and the placement in the renderer, and STB style resolution
-(380/390). [@truedxf/render](../render) still takes the plot area and canvas from its
-`PlotRequest` and emulates only `monochrome.ctb`.
+[@truedxf/render](../render) uses all of this: pens while drawing, and the placement for
+`PlotRequest.pageSetup`. STB style names are resolved per entity by @truedxf/model (390, 380).
 
 See [research/notes/06-hatch-linetype-appearance.md](../../research/notes/06-hatch-linetype-appearance.md)
 §6 (plot styles, §6.7 pen linetypes, §6.8 fill styles) and [08-layouts-viewports-plotting.md](../../research/notes/08-layouts-viewports-plotting.md)

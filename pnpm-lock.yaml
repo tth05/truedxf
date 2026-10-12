@@ -252,10 +252,10 @@ importers:
   packages/plot:
     dependencies:
       '@truedxf/core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../core
       '@truedxf/model':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../model
       fflate:
         specifier: ^0.8.3
@@ -275,6 +275,9 @@ importers:
       '@truedxf/model':
         specifier: workspace:^
         version: link:../model
+      '@truedxf/plot':
+        specifier: workspace:^
+        version: link:../plot
       '@truedxf/text':
         specifier: workspace:^
         version: link:../text

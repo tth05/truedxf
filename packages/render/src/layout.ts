@@ -21,7 +21,7 @@
  * - PSLTSCALE: the header $PSLTSCALE for the active layout (*Paper_Space), LAYOUT 70 bit 1 for
  *   the others (psltscale-*, psltscale-two-layouts-*).
  */
-import { BooleanOp, booleanPolygons, FillRule, Matrix44 } from "@truedxf/geometry";
+import { BooleanOp, booleanPolygons, FillRule } from "@truedxf/geometry";
 import type { Block, DxfDocument, Entity, Layout, ViewportEntity } from "@truedxf/model";
 import type { Frontend } from "./frontend.ts";
 import { fitWindow, type PlotRequest, type View } from "./plot.ts";
@@ -147,7 +147,7 @@ export function drawSpace(fe: Frontend, ctx: LayoutContext): void {
         for (const vp of viewports) hooks.drawViewportContent(fe, vp, ctx);
     };
     const paper = (afterContent: boolean) => {
-        const st = { m: Matrix44.identity(), inh: TOP_LEVEL, stack: [ctx.block.name.toUpperCase()] };
+        const st = { m: fe.root, inh: TOP_LEVEL, stack: [ctx.block.name.toUpperCase()] };
         // A paper-space WIPEOUT never masks viewport content, even when paper space is plotted
         // last (VERIFIED-BY-ACAD layouts/wipeout-over-vp-psfirst-n): clip it to outside the viewports.
         const outside = afterContent && hooks ? outsideViewports(fe, viewports) : undefined;

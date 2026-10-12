@@ -33,12 +33,13 @@ import type { Frontend } from "../frontend.ts";
 
 type Rgb = readonly [number, number, number];
 
-function gradientColors(fe: Frontend, g: HatchGradient): [Rgb, Rgb] {
+// Gradient colours never take a plot style pen, not even ACI ones (VERIFIED-BY-ACAD
+// plotstyles/gradient-pens-*, note 06 §1.7).
+function gradientColors(g: HatchGradient): [Rgb, Rgb] {
     const cs = [...g.colors].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
     const conv = (c: (typeof cs)[number] | undefined): Rgb => {
         if (!c) return [0, 0, 0];
         if (c.rgb !== undefined) return [(c.rgb >> 16) & 255, (c.rgb >> 8) & 255, c.rgb & 255];
-        if (fe.monochrome) return [0, 0, 0];
         const [r, gg, b] = plotAciToRgb(c.aci ?? 7);
         return [r, gg, b];
     };
@@ -177,7 +178,7 @@ function distToBox(x: number, y: number, b: { x0: number; y0: number; x1: number
 /** Fills the selected hatch rings (target coordinates, even-odd) with a gradient. */
 export function fillGradient(fe: Frontend, rings: readonly Float64Array[], g: HatchGradient): void {
     if (rings.length === 0) return;
-    const [c1, c2] = gradientColors(fe, g);
+    const [c1, c2] = gradientColors(g);
     // rotated frame about the centre of the target bounding box
     let bx0 = Number.POSITIVE_INFINITY;
     let by0 = Number.POSITIVE_INFINITY;

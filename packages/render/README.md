@@ -25,7 +25,14 @@ ESM only. No DOM and no Node.js APIs: runs in browsers, workers and Node.
   `fillPolygon`) at the driver's 100 dpi. `raster: "smooth"` gives plain geometry for viewers.
 - Properties (`PropertyResolver`): ByLayer/ByBlock, layer on/off/frozen/no-plot/Defpoints,
   per-viewport freeze, the plotted ACI palette (`PLOT_ACI_RGB`), plotted transparency
-  (PLOTTRANSPARENCYOVERRIDE), draw order (SORTENTSTABLE with `$SORTENTS`), `monochrome.ctb`.
+  (PLOTTRANSPARENCYOVERRIDE), draw order (SORTENTSTABLE with `$SORTENTS`).
+- Plot styles (@truedxf/plot): CTB pens by resolved ACI, STB styles by name; pen colour,
+  grayscale, screening, lineweight, end / join styles, pen linetypes (fixed and adaptive) and
+  raster fill styles. `PlotRequest.styleTable` names the table; its bytes come from
+  `plotStyleTable`, `env.loadPlotStyleTable`, or the built-in equivalents of the stock tables.
+- Stored page setups: `PlotRequest.pageSetup` plots a layout's PLOTSETTINGS like a non-detailed
+  -PLOT (area, scale, rotation, margins, offsets, style table, switches); `PlotResult.canvas` is
+  then the printable area.
 - Entities: LINE, CIRCLE, ARC, ELLIPSE, SPLINE, LWPOLYLINE, POLYLINE, POINT (PDMODE), SOLID, TRACE,
   3DFACE, RAY, XLINE, INSERT/MINSERT with ATTRIBs and XCLIP, TEXT, MTEXT, ATTDEF, SHAPE, HATCH,
   MPOLYGON, DIMENSION (regenerated with `generateDimension` when the `*D` block is missing),
@@ -63,10 +70,12 @@ units). Viewers pass `raster: "smooth"`, `visibility: "display"` and `layerVisib
 
 ## Limitations
 
-- Plot styles: only `monochrome.ctb` (ACI colours to black, true colours kept) is emulated. CTB/STB
-  files are not read (rung 15, `@truedxf/plot` is a placeholder).
-- Stored page setups are not read: the caller supplies the plot area and canvas (`PlotRequest`,
-  docs/fixtures.md). Extents plots miss AutoCAD's padding (extents suite 9/18 at F1(r=1) ≥ 0.99).
+- Plot styles: pen linetypes on wide polylines and the exact outline of wide pen-linetype dots
+  are approximations; fill styles follow the raster driver only (no PDF tiling).
+- Page setups: display and view plot areas are plotted as extents; PLOTROTMODE 0/1 (not in the
+  DXF) is not modelled. Without `pageSetup` the caller supplies the plot area and canvas
+  (`PlotRequest`, docs/fixtures.md). Extents plots miss AutoCAD's padding (extents suite 9/18 at
+  F1(r=1) ≥ 0.99).
 - Model space is drawn in plan view (the `*ACTIVE` VPORT view direction is not applied).
   Perspective viewports are not supported.
 - Open features: wide polylines with linetypes, some

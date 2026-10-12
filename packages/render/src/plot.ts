@@ -4,6 +4,7 @@
  * printable-area inset) comes from the calibration results (note 08 "Calibration results");
  * adjustable via `PlotCalibration`.
  */
+import type { PlotStyleTable } from "@truedxf/plot";
 import type { Bounds } from "./displaylist.ts";
 
 export type PlotArea =
@@ -17,8 +18,23 @@ export interface PlotRequest {
     area: PlotArea;
     /** Output size in device pixels. */
     canvas: readonly [number, number];
-    /** "monochrome.ctb" | "acad.ctb" | undefined (object colours). */
+    /**
+     * Plot style table file name (PLOTSETTINGS 7), e.g. "monochrome.ctb"; undefined = none (object
+     * properties). Its pens come from `plotStyleTable`, else `RenderEnv.loadPlotStyleTable`, else
+     * the built-in equivalents of AutoCAD's stock tables (@truedxf/plot).
+     */
     styleTable?: string;
+    /** The parsed table for `styleTable` (skips loading). */
+    plotStyleTable?: PlotStyleTable;
+    /** "Plot with plot styles" (PLOTSETTINGS 70 bit 32, default true): false ignores the table. */
+    plotStyles?: boolean;
+    /**
+     * Plot the layout's stored page setup (its PLOTSETTINGS) like a non-detailed -PLOT: area, scale,
+     * rotation, margins, offsets, style table and switches come from the drawing; `area`, `scale`,
+     * `styleTable`, `plotStyles`, `lineweights` and `paperSpaceFirst` are ignored and the canvas is
+     * the printable area (raster page setups: pixels; others at `PlotCalibration.dpi`).
+     */
+    pageSetup?: boolean;
     /** Plot object lineweights (default true). */
     lineweights?: boolean;
     scale?: "fit" | readonly [number, number];

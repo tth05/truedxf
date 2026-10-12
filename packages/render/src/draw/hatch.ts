@@ -156,7 +156,7 @@ registerDrawer(["HATCH", "MPOLYGON"], (fe, e, st) => {
         return;
     }
     if (h.solid) {
-        fe.fillHatch(loops, style, color);
+        fe.withFillStyle(r, () => fe.fillHatch(loops, style, color));
         return;
     }
     let lines = h.patternLines.map((l) =>

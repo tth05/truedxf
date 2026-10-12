@@ -218,6 +218,8 @@ export interface PenSpec {
     readonly screening?: number;
     readonly grayscale?: boolean;
     readonly linetype?: number;
+    /** Adaptive pen linetype (default true, like AutoCAD's new pens). */
+    readonly adaptiveLinetype?: boolean;
     readonly endStyle?: PlotEndStyle;
     readonly joinStyle?: PlotJoinStyle;
     readonly fillStyle?: number;
@@ -245,7 +247,7 @@ function penNodes(index: number, name: string, spec: PenSpec): PiaNode {
             val("screen", spec.screening ?? 100),
             val("linepattern_size", "0.5"),
             val("linetype", spec.linetype ?? OBJECT_LINETYPE),
-            val("adaptive_linetype", "TRUE"),
+            val("adaptive_linetype", spec.adaptiveLinetype === false ? "FALSE" : "TRUE"),
             val("lineweight", spec.lineweightIndex ?? OBJECT_LINEWEIGHT),
             val("fill_style", spec.fillStyle ?? OBJECT_FILL_STYLE),
             val("end_style", spec.endStyle ?? PlotEndStyle.Object),

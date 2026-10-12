@@ -93,8 +93,13 @@ Tick items off (or delete them) when done.
 
 ## Entities and features
 
-- [ ] Plot styles in the renderer (rung 15): `@truedxf/plot` parses CTB/STB and applies pens;
-      render still emulates only monochrome.ctb. STB 380/390 resolution is not implemented.
+- [x] Plot styles in the renderer (rung 15, 2026-10-12): CTB/STB pens (colour, grayscale,
+      screening, lineweight, end/join, pen linetypes, raster fill styles), STB 380/390 resolution,
+      stored page setups (`PlotRequest.pageSetup`). CPU scores: plotstyles 69/70 at F1(r=1) ≥ 0.99
+      (before: 13), pagesetup 43/62 (rest: PLOTROTMODE 0/1 and detailed-plot cases).
+- [ ] Page setups: display / view plot areas (plotted as extents), detailed -PLOT answers that
+      `PlotRequest` lacks (offset, centring: `pagesetup/io-*`), device margins of detailed plots
+      (`margins-detailed-*`).
       AutoCAD facts are in (2026-10-12): note 06 §6.2–§6.5 (CTB/STB keys, lineweight index,
       colour/policy rules, grayscale/screening formulas, end/join/fill, STB resolution) and note 08
       §2.1/§2.3/§10.17 (page setups plotted as stored: 73, 147 vs 75 vs 142/143, flags 32/64/128,
@@ -109,8 +114,8 @@ Tick items off (or delete them) when done.
       (note 08 §2.1, §10.17).
 - [x] `@truedxf/plot`: 46/47 of rotated Window page setups along the paper axes (note 08 §2.1;
       `plotPlacement`, 2026-10-12).
-- [ ] Renderer, wide pen-linetype lines (Q-0761): butt dash ends with caps only at curve ends,
-      joins inside dashes, disc dots (note 06 §6.7; documented on `penLinetypeDashes`).
+- [x] Renderer, wide pen-linetype lines (Q-0761): butt dash ends with caps only at curve ends,
+      joins inside dashes, disc dots (note 06 §6.7; disc outline approximate, lt-wide-508 F1 0.998).
 - [x] Apply the measured pen linetypes, fill-style tiles, stored margins (40–43, PNG = printable
       area), 46/47 device-axis offsets and 148/149 layout shift in `@truedxf/plot`
       (`penLinetypeDashes`, `fillStyleInk`, `plotPlacement`; 2026-10-12).

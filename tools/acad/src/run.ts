@@ -13,12 +13,13 @@ import {
     mkdirSync,
     readdirSync,
     readFileSync,
+    renameSync,
     rmSync,
     statSync,
     writeFileSync,
 } from "node:fs";
 import { availableParallelism, tmpdir } from "node:os";
-import { basename, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { decode as decodePng } from "fast-png";
 import { CONFIG_FILES, sha256File } from "./configs.ts";
@@ -230,11 +231,30 @@ type RefMeta = {
     messages: string[];
 };
 
+/**
+ * Fixture-specific plot style tables (`truedxf-*.ctb|stb`, written by tools/gen next to the case)
+ * are installed into the Plot Styles folder, where -PLOT looks them up by name. Only files with
+ * the truedxf- prefix are ever written there; stock tables are never touched.
+ */
+export function installStyleTable(caseDir: string, styleTable: string): string | null {
+    if (!/^truedxf-[a-z0-9._-]+\.(ctb|stb)$/i.test(styleTable)) return null;
+    const src = join(caseDir, styleTable);
+    if (!existsSync(src)) return `style table ${styleTable} not found next to the case`;
+    const dst = join(PLOT_STYLES_DIR, styleTable);
+    const data = readFileSync(src);
+    if (existsSync(dst) && readFileSync(dst).equals(data)) return null;
+    // write + rename: parallel workers may install the same table
+    const tmp = `${dst}.${process.pid}.tmp`;
+    writeFileSync(tmp, data);
+    renameSync(tmp, dst);
+    return null;
+}
+
 function configHashes(styleTable: string): Record<string, string | null> {
     return {
         pc3: sha256File(CONFIG_FILES.pngPc3),
         pmp: sha256File(CONFIG_FILES.pngPmp),
-        ctb: sha256File(join(PLOT_STYLES_DIR, styleTable)),
+        ctb: styleTable === "." ? null : sha256File(join(PLOT_STYLES_DIR, styleTable)),
         pdfPc3: sha256File(CONFIG_FILES.pdfPc3),
         pdfPmp: sha256File(CONFIG_FILES.pdfPmp),
     };
@@ -307,6 +327,8 @@ export async function runCase(
     const outputs = meta.outputs ?? ["png"];
     if (!isSupportedCanvas(meta.plot.canvas))
         messages.push(`unsupported canvas ${meta.plot.canvas.join("x")}`);
+    const styleErr = installStyleTable(dirname(c.json), meta.plot.styleTable);
+    if (styleErr) messages.push(`unsupported ${styleErr}`);
 
     // Short, space-free working paths (note 08 §6.3); one directory per worker. After an AutoCAD
     // crash, Windows Error Reporting can keep files in <work>/ErrorReports locked for a long time;

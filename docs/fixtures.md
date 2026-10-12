@@ -28,9 +28,15 @@ samples/generated/<suite>/<case>.json    case metadata (below)
     "area": { "type": "window", "min": [0, 0], "max": [200, 150] },
                                    // or { "type": "extents" } | { "type": "layout" }
     "canvas": [2000, 1500],        // output pixels; must be one of the harness paper sizes
-    "styleTable": "monochrome.ctb",// "monochrome.ctb" | "acad.ctb" (colour tests)
+    "styleTable": "monochrome.ctb",// "monochrome.ctb" | "acad.ctb" (colour tests) | a stock table
+                                   // (Grayscale.ctb, Screening 50%.ctb, …) | "." (none) |
+                                   // "truedxf-*.ctb|stb" written next to the case
     "lineweights": true,
-    "scale": "fit"                 // "fit" or [paperUnits, drawingUnits] e.g. [1, 10]
+    "scale": "fit"                 // "fit", [paperUnits, drawingUnits] e.g. [1, 10], or a
+                                   // verbatim -PLOT answer such as "1:50"
+    // optional harness answers: paperSpaceFirst, sysvars, orientation, upsideDown, plotStyles,
+    // scaleLineweights, paperUnits, savePageSetup, mode ("pagesetup" = plot the stored page
+    // setup), styleTableSha256 — see tools/acad/README.md "Meta extensions"
   },
   "outputs": ["png", "pdf", "dxf"] // references to produce ("dxf" = AutoCAD re-save via DXFOUT)
 }

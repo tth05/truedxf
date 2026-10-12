@@ -129,7 +129,25 @@ work dirs and `/isolate` profiles never collide.
 
 `plot.paperSpaceFirst` (boolean, for layouts, default false = AutoCAD's default answer "No"),
 `plot.sysvars` (`{ "PLOTTRANSPARENCYOVERRIDE": 2 }` etc., set after the prologue). `outputs`
-defaults to `["png"]`.
+defaults to `["png"]`. Further optional answers (defaults = the behaviour above):
+
+| key | effect |
+|---|---|
+| `plot.orientation` | `"portrait"` / `"landscape"` (on a landscape sheet stored as 73 = 1 / 0) |
+| `plot.upsideDown` | answer to "Plot upside down?" (73 = 2 / 3 with landscape / portrait) |
+| `plot.plotStyles` | answer to "Plot with plot styles?" (the style-table prompt still follows) |
+| `plot.scaleLineweights` | answer to "Scale lineweights with plot scale?" (layouts) |
+| `plot.paperUnits` | `"inches"` (default) / `"mm"` on the PDF device |
+| `plot.scale` | also a verbatim scale answer string, e.g. `"1:50"`, `"1=3"`, `"1/4\"=1'"` |
+| `plot.savePageSetup` | "Save changes to page setup" = Yes, and DXFOUT runs *after* the plots |
+| `plot.mode: "pagesetup"` | non-detailed -PLOT: `_N`, layout, page setup name = Enter (the layout's own settings), device (must be the one stored in the layout: `truedxf PNG.pc3` with media `UserDefinedRaster (2000.00 x 1500.00Pixels)`), file, save, proceed. Every other setting comes from the stored PLOTSETTINGS |
+
+**Plot style tables.** `plot.styleTable` names a table in the Plot Styles folder, or `"."` for
+none. A table named `truedxf-*.ctb|stb` that lies next to the case
+(`samples/generated/<suite>/`, written by tools/gen `Case.plot_style_table`) is copied into the
+Plot Styles folder before the run (write + rename, skipped when unchanged); stock tables are only
+read. The tools/gen meta carries the table's sha256 (`plot.styleTableSha256`), so a changed table
+re-runs its references.
 
 ## Calibration suite
 
@@ -144,6 +162,7 @@ tools/gen/.venv/Scripts/python tools/acad/calibration/analyze_thick.py --masks  
 tools/gen/.venv/Scripts/python tools/acad/calibration/analyze_palette.py --dump # T-PL-5 colours
 tools/gen/.venv/Scripts/python tools/acad/calibration/analyze_pdf.py          # PDF widths/curves
 tools/gen/.venv/Scripts/python tools/acad/calibration/analyze_viewports.py    # twist, layouts
+tools/gen/.venv/Scripts/python tools/acad/calibration/analyze_plotstyles.py   # CTB/STB rules, page setups (suites plotstyles, pagesetup)
 ```
 
 The `calibration` suite is owned by tools/acad (tools/gen refuses to write it).

@@ -12,9 +12,29 @@ export type PlotMeta = {
     layout: string;
     area: PlotArea;
     canvas: [number, number];
+    /** CTB/STB file name in the Plot Styles folder, or "." for none (tools/acad README) */
     styleTable: string;
     lineweights: boolean;
-    scale: "fit" | [number, number];
+    /** "fit", [paperUnits, drawingUnits], or a verbatim -PLOT scale answer such as "1:50" */
+    scale: "fit" | [number, number] | string;
+    /**
+     * harness extension: "detailed" (default) answers every -PLOT prompt from this meta;
+     * "pagesetup" plots with the page setup stored in the DXF (Detailed = No; only the device,
+     * which must be the one stored in the layout, and the file name are answered)
+     */
+    mode?: "detailed" | "pagesetup";
+    /** harness extension: drawing orientation (default Landscape, Portrait for square sheets) */
+    orientation?: "portrait" | "landscape";
+    /** harness extension: answer to "Plot upside down?" (default false) */
+    upsideDown?: boolean;
+    /** harness extension: answer to "Plot with plot styles?" (default true) */
+    plotStyles?: boolean;
+    /** harness extension: answer to "Scale lineweights with plot scale?" (layouts; default false) */
+    scaleLineweights?: boolean;
+    /** harness extension: PDF paper units (default inches; raster devices have no such prompt) */
+    paperUnits?: "inches" | "mm";
+    /** harness extension: answer "Save changes to page setup" with Yes and run DXFOUT after the plots */
+    savePageSetup?: boolean;
     /** harness extension: answer to "Plot paper space first?" (layouts only; default false = AutoCAD default) */
     paperSpaceFirst?: boolean;
     /** harness extension: extra sysvars set after the prologue, e.g. { "PLOTTRANSPARENCYOVERRIDE": 2 } */
@@ -80,9 +100,25 @@ const LISP_HELPERS = [
     `(defun tdx-echo (n) (princ (strcat "\\n${MARK} ECHO " n "=" (if (getvar n) (tdx-str (getvar n)) "<none>"))) (princ))`,
 ];
 
+const yn = (b: boolean | undefined) => (b ? "_Y" : "_N");
+
 export function plotSteps(meta: CaseMeta, device: "png" | "pdf", outFile: string): Step[] {
     const p = meta.plot;
     const isModel = p.layout.toLowerCase() === "model";
+    if (p.mode === "pagesetup") {
+        // Non-detailed -PLOT (VERIFIED-BY-ACAD 2026-10-12): "Enter a page setup name <>" (Enter =
+        // the layout's own settings), device (answered with the stored device so it stays
+        // unchanged), file name, save, proceed.
+        return [
+            { prompt: "Detailed plot configuration?", answer: "_N" },
+            { prompt: "Enter a layout name or [?]", answer: isModel ? "Model" : p.layout },
+            { prompt: "Enter a page setup name", answer: "" },
+            { prompt: "Enter an output device name or [?]", answer: device === "png" ? PNG_PC3 : PDF_PC3 },
+            { prompt: "Enter file name", answer: outFile },
+            { prompt: "Save changes to page setup", answer: yn(p.savePageSetup) },
+            { prompt: "Proceed with plot", answer: "_Y" },
+        ];
+    }
     const steps: Step[] = [
         { prompt: "Detailed plot configuration?", answer: "_Y" },
         { prompt: "Enter a layout name or [?]", answer: isModel ? "Model" : p.layout },
@@ -93,15 +129,27 @@ export function plotSteps(meta: CaseMeta, device: "png" | "pdf", outFile: string
         },
     ];
     // Raster devices have no paper-units prompt (VERIFIED-BY-ACAD); PDF sheets are in inches = px/100.
-    if (device === "pdf") steps.push({ prompt: "Enter paper units [Inches/Millimeters]", answer: "_I" });
+    if (device === "pdf")
+        steps.push({
+            prompt: "Enter paper units [Inches/Millimeters]",
+            answer: p.paperUnits === "mm" ? "_M" : "_I",
+        });
     steps.push(
         // Square sheets: "Landscape" rotates the plot by 90 deg (VERIFIED-BY-ACAD, note 08 §10.1);
         // "Portrait" keeps +X to the right. Wider-than-high sheets use Landscape.
+        // On a landscape sheet Landscape/Portrait x upside-down No/Yes are stored as PLOTSETTINGS
+        // 73 = 0/1/2/3 (VERIFIED-BY-ACAD 2026-10-12, note 08 §2.1).
         {
             prompt: "Enter drawing orientation [Portrait/Landscape]",
-            answer: p.canvas[0] > p.canvas[1] ? "_L" : "_P",
+            answer: p.orientation
+                ? p.orientation === "portrait"
+                    ? "_P"
+                    : "_L"
+                : p.canvas[0] > p.canvas[1]
+                  ? "_L"
+                  : "_P",
         },
-        { prompt: "Plot upside down?", answer: "_N" },
+        { prompt: "Plot upside down?", answer: yn(p.upsideDown) },
     );
     const a = p.area;
     if (a.type === "window") {
@@ -118,6 +166,7 @@ export function plotSteps(meta: CaseMeta, device: "png" | "pdf", outFile: string
     }
     let scale: string;
     if (p.scale === "fit") scale = "_F";
+    else if (typeof p.scale === "string") scale = p.scale;
     else {
         // Paper units are pixels on the PNG device and inches (= px / 100) on the PDF device.
         const [paper, drawing] = p.scale;
@@ -129,22 +178,23 @@ export function plotSteps(meta: CaseMeta, device: "png" | "pdf", outFile: string
         a.type === "layout"
             ? { prompt: "Enter plot offset (x,y)", answer: "0,0" }
             : { prompt: "Enter plot offset (x,y) or [Center]", answer: "_C" },
-        { prompt: "Plot with plot styles?", answer: "_Y" },
+        // The style-table prompt also follows a "No" (VERIFIED-BY-ACAD 2026-10-12).
+        { prompt: "Plot with plot styles?", answer: yn(p.plotStyles ?? true) },
         { prompt: "Enter plot style table name", answer: p.styleTable },
-        { prompt: "Plot with lineweights?", answer: p.lineweights ? "_Y" : "_N" },
+        { prompt: "Plot with lineweights?", answer: yn(p.lineweights) },
     );
     if (isModel) {
         steps.push({ prompt: "Enter shade plot setting", answer: "_A" });
     } else {
         steps.push(
-            { prompt: "Scale lineweights with plot scale?", answer: "_N" },
+            { prompt: "Scale lineweights with plot scale?", answer: yn(p.scaleLineweights) },
             { prompt: "Plot paper space first?", answer: p.paperSpaceFirst ? "_Y" : "_N" },
             { prompt: "Hide paperspace objects?", answer: "_N" },
         );
     }
     steps.push(
         { prompt: "Enter file name", answer: outFile },
-        { prompt: "Save changes to page setup", answer: "_N" },
+        { prompt: "Save changes to page setup", answer: yn(p.savePageSetup) },
         { prompt: "Proceed with plot", answer: "_Y" },
     );
     return steps;
@@ -197,9 +247,11 @@ export function buildScript(
         lines.push(`(tdx-set ${lispStr(n)} ${lispVal(v)})`);
     for (const n of ECHO_SYSVARS) lines.push(`(tdx-echo ${lispStr(n)})`);
     lines.push("_.UCS", "_W");
-    // DXFOUT first, so the AutoCAD re-save does not contain the harness ZOOM below.
+    // DXFOUT first, so the AutoCAD re-save does not contain the harness ZOOM below; after the
+    // plots when the plots save their page setup (savePageSetup).
     let dxfout: Step[] | undefined;
-    if (files.dxf) {
+    const dxfoutLast = !!meta.plot.savePageSetup;
+    if (files.dxf && !dxfoutLast) {
         dxfout = dxfoutSteps(files.dxf);
         lines.push(`(princ "\\n${MARK} BEGIN dxf")`, "_.DXFOUT", ...dxfout.map((s) => s.answer));
     }
@@ -223,6 +275,10 @@ export function buildScript(
         const steps = plotSteps(meta, device, out);
         plots.push({ device, steps });
         lines.push(`(princ "\\n${MARK} BEGIN ${device}")`, "_.-PLOT", ...steps.map((s) => s.answer));
+    }
+    if (files.dxf && dxfoutLast) {
+        dxfout = dxfoutSteps(files.dxf);
+        lines.push(`(princ "\\n${MARK} BEGIN dxf")`, "_.DXFOUT", ...dxfout.map((s) => s.answer));
     }
     lines.push(`(princ "\\n${MARK} DONE\\n")`, "_.QUIT", "_Y");
     // CRLF, no BOM, final newline (note 08 §6.3).
@@ -255,7 +311,9 @@ export function verifySteps(
         }
         if (found < 0) return { at: i, error: `prompt not found: "${s.prompt}" (answer ${s.answer})` };
         const line = logLines[found]!.trimEnd();
-        if (!line.endsWith(` ${s.answer}`)) return { at: found, error: `unexpected answer line: ${line}` };
+        // An empty answer (Enter) accepts the default: the echoed line ends with the prompt.
+        if (s.answer !== "" && !line.endsWith(` ${s.answer}`))
+            return { at: found, error: `unexpected answer line: ${line}` };
         // A re-prompt of the same question means AutoCAD rejected the answer.
         const next = logLines.slice(found + 1, found + 3).find((l) => l.includes(s.prompt));
         if (next && s.prompt !== "Enter decimal places of accuracy")

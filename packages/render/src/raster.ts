@@ -24,6 +24,13 @@
  */
 import type { View } from "./plot.ts";
 
+/**
+ * Pixels around the canvas that raster strokes walk through. Pixel walks step by 1, which float64
+ * cannot do near 2^53, so segments reaching further are clipped first (PixelGrid.reach). Far
+ * beyond any drawing that fits a sheet, so their pixels are unchanged.
+ */
+export const RASTER_REACH = 1 << 24;
+
 export class PixelGrid {
     readonly minX: number;
     readonly minY: number;
@@ -85,6 +92,60 @@ export class PixelGrid {
     /** Snaps a world point to the lower-left corner of its pixel (fill vertices). */
     snapCorner(x: number, y: number): [number, number] {
         return [this.ex(this.px(x)), this.ey(this.py(y))];
+    }
+
+    /**
+     * The world segment (x0,y0)→(x1,y1) clipped to the canvas grown by RASTER_REACH pixels, or
+     * undefined if it misses that box. Segments inside the box come back unchanged, so this only
+     * acts on coordinates that pixel walks cannot step through (1e30 after `1e300` in a DXF,
+     * Q-0749). A clipped end is computed from the other (nearer) end: going from the far end
+     * would lose the near part to float64 cancellation.
+     */
+    reach(x0: number, y0: number, x1: number, y1: number): [number, number, number, number] | undefined {
+        const m = RASTER_REACH * this.pixelSize;
+        const lo = [this.minX - m, this.minY - m];
+        const hi = [
+            this.minX + this.width * this.pixelSize + m,
+            this.minY + this.height * this.pixelSize + m,
+        ];
+        const inside = (x: number, y: number) => x >= lo[0]! && x <= hi[0]! && y >= lo[1]! && y <= hi[1]!;
+        const in0 = inside(x0, y0);
+        const in1 = inside(x1, y1);
+        if (in0 && in1) return [x0, y0, x1, y1];
+        // pull p towards q (inside) to the box boundary: q + s·(p − q), s ∈ [0, 1]
+        const pull = (px: number, py: number, qx: number, qy: number): [number, number] => {
+            let s = 1;
+            const d = [px - qx, py - qy];
+            const q = [qx, qy];
+            for (let a = 0; a < 2; a++) {
+                if (d[a]! > 0) s = Math.min(s, (hi[a]! - q[a]!) / d[a]!);
+                else if (d[a]! < 0) s = Math.min(s, (lo[a]! - q[a]!) / d[a]!);
+            }
+            return [qx + s * d[0]!, qy + s * d[1]!];
+        };
+        if (in0) return [x0, y0, ...pull(x1, y1, x0, y0)];
+        if (in1) return [...pull(x0, y0, x1, y1), x1, y1];
+        // both ends outside: clip through a point of the segment inside the box (Liang–Barsky)
+        let t0 = 0;
+        let t1 = 1;
+        const p = [x0, y0];
+        const d = [x1 - x0, y1 - y0];
+        for (let a = 0; a < 2; a++) {
+            if (d[a] === 0) {
+                if (p[a]! < lo[a]! || p[a]! > hi[a]!) return undefined;
+                continue;
+            }
+            const ta = (lo[a]! - p[a]!) / d[a]!;
+            const tb = (hi[a]! - p[a]!) / d[a]!;
+            t0 = Math.max(t0, Math.min(ta, tb));
+            t1 = Math.min(t1, Math.max(ta, tb));
+        }
+        if (!(t0 <= t1)) return undefined;
+        const t = (t0 + t1) / 2;
+        const mx = x0 + t * d[0]!;
+        const my = y0 + t * d[1]!;
+        if (!inside(mx, my)) return undefined;
+        return [...pull(x0, y0, mx, my), ...pull(x1, y1, mx, my)];
     }
 
     /** True if the pixel range [i0,i1]×[j0,j1] can intersect the canvas. */

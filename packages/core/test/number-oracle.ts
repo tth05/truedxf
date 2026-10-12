@@ -51,11 +51,13 @@ const STRTOD_PREFIX = /^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?/;
  * "Infinity", which Number() would accept, are not DXF numbers.
  */
 function parseNumberString(str: string): number {
+    // AutoCAD exponent rule: leading zeros skipped, two digits read (Q-0749)
+    const acad = (x: string) => x.replace(/([eE][+-]?)0*(\d{1,2})\d*/, "$1$2");
     if (!/^[+-]?(?:0[xXbBoO]|Infinity)/.test(str)) {
-        const n = Number(str);
+        const n = Number(acad(str));
         if (!Number.isNaN(n)) return n;
     }
-    const m = STRTOD_PREFIX.exec(str.replace(/\s+/g, ""));
+    const m = STRTOD_PREFIX.exec(acad(str.replace(/\s+/g, "")));
     return m ? Number(m[0]) : Number.NaN;
 }
 

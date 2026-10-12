@@ -347,13 +347,15 @@ export function parseAsciiNumber(b: Uint8Array, s: number, e: number): number {
         } else if (b[i] === 43) i++;
         const start = i;
         let exponent = 0;
+        let significant = 0;
         while (i < e) {
             const c = b[i]! - 48;
             if (c < 0 || c > 9) break;
             exponent = exponent * 10 + c;
+            if (exponent > 0) significant++;
             i++;
         }
-        if (i === start) return parseNumberString(latin1(b, s, e));
+        if (i === start || significant > 2) return parseNumberString(latin1(b, s, e));
         exp10 += expNeg ? -exponent : exponent;
     }
     // Clinger: an exact integer mantissa and an exact power of ten need only one
@@ -368,19 +370,30 @@ export function parseAsciiNumber(b: Uint8Array, s: number, e: number): number {
 const STRTOD_PREFIX = /^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?/;
 
 /**
+ * AutoCAD reads at most two exponent digits after leading zeros, the rest is trailing garbage:
+ * 1e300 = 1e30, 1e100 = 1e10, 1e3000 = 1e30, 2.5e+0002 = 250, 1.5e-005 = 1.5e-5
+ * (VERIFIED-BY-ACAD 2026-10-12, `fileformat/exponent-*`, Q-0749, note 01 §1.4).
+ */
+const EXPONENT = /([eE][+-]?)0*(\d{1,2})\d*/;
+
+function acadExponent(str: string): string {
+    return str.replace(EXPONENT, "$1$2");
+}
+
+/**
  * Number() for well-formed values, else C `strtod` semantics after removing inner whitespace
  * (seen in the wild: "0.0l", "1.000000000000000E 20"; note 01 §1.4). Hex/binary literals and
- * "Infinity", which Number() would accept, are not DXF numbers.
+ * "Infinity", which Number() would accept, are not DXF numbers. Exponents follow acadExponent.
  */
 function parseNumberString(str: string): number {
     const start = str.charCodeAt(0) === 43 || str.charCodeAt(0) === 45 ? 1 : 0;
     const next = str.charCodeAt(start + 1) | 32;
     const literal = str.charCodeAt(start) === 48 && (next === 120 || next === 98 || next === 111);
     if (!literal && !str.startsWith("Infinity", start)) {
-        const n = Number(str);
+        const n = Number(acadExponent(str));
         if (!Number.isNaN(n)) return n;
     }
-    const m = STRTOD_PREFIX.exec(str.replace(/\s+/g, ""));
+    const m = STRTOD_PREFIX.exec(acadExponent(str.replace(/\s+/g, "")));
     return m ? Number(m[0]) : Number.NaN;
 }
 

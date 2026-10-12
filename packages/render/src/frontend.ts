@@ -985,10 +985,12 @@ export class Frontend {
             for (let k = 0; k < count; k++) {
                 const a = k;
                 const b = n === 1 ? 0 : (k + 1) % n;
-                const i0 = g.px(points[a * 2]!);
-                const j0 = g.py(points[a * 2 + 1]!);
-                const i1 = g.px(points[b * 2]!);
-                const j1 = g.py(points[b * 2 + 1]!);
+                const c = g.reach(points[a * 2]!, points[a * 2 + 1]!, points[b * 2]!, points[b * 2 + 1]!);
+                if (!c) continue;
+                const i0 = g.px(c[0]);
+                const j0 = g.py(c[1]);
+                const i1 = g.px(c[2]);
+                const j1 = g.py(c[3]);
                 if (!g.visible(i0, j0, i1, j1)) continue;
                 linePixels(i0, j0, i1, j1, out, g);
             }
@@ -1008,10 +1010,12 @@ export class Frontend {
         let spans = new SpanSet();
         for (let k = 0; k < count; k++) {
             const b = n === 1 ? 0 : (k + 1) % n;
-            const i0 = g.px(points[k * 2]!);
-            const j0 = g.py(points[k * 2 + 1]!);
-            const i1 = g.px(points[b * 2]!);
-            const j1 = g.py(points[b * 2 + 1]!);
+            const c = g.reach(points[k * 2]!, points[k * 2 + 1]!, points[b * 2]!, points[b * 2 + 1]!);
+            if (!c) continue;
+            const i0 = g.px(c[0]);
+            const j0 = g.py(c[1]);
+            const i1 = g.px(c[2]);
+            const j1 = g.py(c[3]);
             if (!g.visible(i0 - w, j0 - w, i1 + w, j1 + w) && !g.visible(i1 - w, j1 - w, i0 + w, j0 + w))
                 continue;
             const poly = strokeSegmentPolygon(i0, j0, i1, j1, w);

@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { pointSymbol } from "../src/draw/points.ts";
 import { renderPlot } from "../src/index.ts";
 import { PropertyResolver, TOP_LEVEL } from "../src/props.ts";
-import { dxfBytes } from "./helpers.ts";
+import { dxfBytes, line, modelDoc } from "./helpers.ts";
 
 function bounds(mode: number, size: number): number[] {
     const b = [Infinity, Infinity, -Infinity, -Infinity];
@@ -253,5 +253,27 @@ describe("ACAD_TABLE", () => {
         expect([b.minX, b.minY, b.maxX, b.maxY].map((v) => Math.round(v * 1e6) / 1e6)).toEqual([
             100, 50, 100, 60,
         ]);
+    });
+});
+
+describe("raster strokes far outside the canvas", () => {
+    // `10 1e300` loads as 1e30 (Q-0749): AutoCAD plots the visible stub of such a LINE
+    // (VERIFIED-BY-ACAD fileformat/exponent-1e030)
+    it("draws the visible part of a LINE with a 1e30 coordinate, thin and wide", async () => {
+        for (const lineweights of [false, true]) {
+            const d = modelDoc({ entities: line("A1", 1e30, 30, 170, 120).replace("62 7", "62 7\n370 100") });
+            const r = await renderPlot(d, {
+                layout: "Model",
+                area: { type: "window", min: [-0.05, -0.05], max: [199.95, 149.95] },
+                canvas: [2000, 1500],
+                lineweights,
+            });
+            expect(r.unsupported).toEqual({});
+            const b = r.displayList.bounds;
+            expect(b.minX).toBeCloseTo(170, 0);
+            expect(b.maxX).toBeGreaterThanOrEqual(199.9);
+            expect(b.minY).toBeCloseTo(120, 0);
+            expect(b.maxY).toBeCloseTo(120, 0);
+        }
     });
 });

@@ -322,6 +322,14 @@ def _numbers(s, mk) -> None:
         c, h = mk(f"float-{n}", f"LINE start X written as {val!r} (float syntax variant)", ["Q-0017"],
                   malformed=n in ("inner-space", "comma", "hex"), tags=["number-format"], params={"value": val})
         c.byte_filters.append(tagfilter(lambda t, h=h, val=val: _setv(t, h["line"], 10, val.encode())))
+    # exponent digits (Q-0749): DXFOUT of overflow-circle-radius-1e300 gave 1E+30, 1e999 gave ~1E+99
+    exponents = ["1.23e45", "1e99", "1e100", "1e+100", "1e0300", "1e030", "1e+030", "1e000002", "2.5e+0002", "1.5e005",
+                 "1.5e-005", "1.5E-005", "1e-30", "1e-99", "1e-100", "1e-300", "1e-0300", "1e-400", "1e3000", "1" + "0" * 400]
+    for val in exponents:
+        n = "digits-400" if len(val) > 100 else val.replace("E", "cap").replace(".", "p").replace("+", "plus").replace("-", "m")
+        c, h = mk(f"exponent-{n}", f"LINE start X written as {val[:24]!r} (exponent digits, overflow, underflow)", ["Q-0749"],
+                  malformed=True, tags=["number-format"], params={"value": val})
+        c.byte_filters.append(tagfilter(lambda t, h=h, val=val: _setv(t, h["line"], 10, val.encode())))
     garbage = [("line-x", "line", 10, "30xyz"), ("circle-radius", "circle", 40, "30.11xyz"), ("line-color", "line", 62, "3abc")]
     for n, key, code, val in garbage:
         c, h = mk(f"trailing-garbage-{n}", f"Malformed: {key.upper()} group {code} = {val!r} (number with trailing garbage)", ["Q-0018"],

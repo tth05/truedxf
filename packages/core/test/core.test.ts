@@ -209,10 +209,11 @@ describe("encoding", () => {
 });
 
 describe("numbers", () => {
-    it("matches Number() for decimal strings", () => {
+    it("matches Number() for decimal strings with up to two exponent digits", () => {
         fc.assert(
             fc.property(fc.double({ noNaN: true, noDefaultInfinity: true }), (x) => {
                 for (const s of [String(x), x.toFixed(6), x.toPrecision(15)]) {
+                    if (/e[+-]?\d{3}/.test(s)) continue; // AutoCAD exponent rule, tested below
                     const b = enc.encode(`  ${s} `);
                     const got = parseAsciiNumber(b, 0, b.length);
                     expect(Object.is(got, Number(s)) || (got === 0 && Number(s) === 0)).toBe(true);
@@ -232,6 +233,30 @@ describe("numbers", () => {
         expect(parse("1.2.3")).toBe(1.2);
         expect(parse("nan.0")).toBeNaN();
         expect(parse("0x10")).toBe(0);
+    });
+
+    it("reads two exponent digits after leading zeros (VERIFIED-BY-ACAD fileformat/exponent-*)", () => {
+        const parse = (s: string) => {
+            const b = enc.encode(s);
+            return parseAsciiNumber(b, 0, b.length);
+        };
+        expect(parse("1e300")).toBe(1e30);
+        expect(parse("1e999")).toBe(1e99);
+        expect(parse("1e100")).toBe(1e10);
+        expect(parse("1e+100")).toBe(1e10);
+        expect(parse("1e0300")).toBe(1e30);
+        expect(parse("1e3000")).toBe(1e30);
+        expect(parse("1e-100")).toBe(1e-10);
+        expect(parse("1e000002")).toBe(100);
+        expect(parse("2.5e+0002")).toBe(250);
+        expect(parse("1.5e-005")).toBe(1.5e-5);
+        expect(parse("1.5E-005")).toBe(1.5e-5);
+        expect(parse("1.23e45")).toBe(1.23e45);
+        expect(parse("1e0")).toBe(1);
+        expect(parse("1e000")).toBe(1);
+        expect(parse("1.000000000000000E 300")).toBe(1e30);
+        // mantissa overflow is not an exponent: still Infinity
+        expect(parse(`1${"0".repeat(400)}`)).toBe(Number.POSITIVE_INFINITY);
     });
 
     it("rejects empty and invalid values", () => {

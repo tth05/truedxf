@@ -485,8 +485,12 @@ AutoCAD-written example (acs-sample HATCH 3, LINEAR, blue→yellow):
   OCS or rotated extents, and the plot's gradient banding/dithering. Gradients are a low-priority
   area; test matrix G1.
 - Gradient hatch is "also a solid filled hatch" (ezdxf docstring); requires R2004+.
-- Colors used for plotting still go through the CTB? **UNKNOWN** (true colors bypass CTB colors in
-  most cases; §6).
+- Colors used for plotting still go through the CTB? **No (VERIFIED-BY-ACAD 2026-10-12,
+  `plotstyles/gradient-pens-{acad,off,green,gray,screen-50}`, Q-0224):** gradient colours bypass the
+  pens completely: pen colour (every pen green, policy 5), Grayscale.ctb and Screening 50%.ctb leave
+  the gradient pixels identical to acad.ctb and to "plot styles = No" — for ACI gradient colours
+  (63 + 421) as for true-colour ones (421 only), and whatever the HATCH's own 62 (7 or 1). SOLID
+  references in the same plots do take the pens.
 
 #### 1.7.1 Gradients in AutoCAD 2027 PLOT (VERIFIED-BY-ACAD 2026-09-30, partly empirical)
 
@@ -1003,10 +1007,11 @@ ezdxf maps invalid layer ACI to 7 (properties.py `_true_layer_color`).
 - 420: `0x00RRGGBB` (low byte blue, top byte 0) (spec:L3144). If 420 is present it **overrides 62**;
   AutoCAD still writes 62 with the nearest ACI (ezdxf `resolve_color`: "An existing true color value
   always overrides ACI color! Do not default to BYLAYER or BYBLOCK, this ACI value is ignored!").
-  CTB lookup for true-color entities: UNKNOWN which ACI pen is used (the written 62? color 7?), see §6.
-- 430: color name, format `BOOKNAME$COLORNAME` (e.g. `RAL CLASSIC$RAL 1000`) — ASSUMPTION about the
-  format from ObjectARX; 420 carries the RGB, so for rendering 430 can be ignored (ASSUMPTION: 420 is
-  always present alongside 430).
+  CTB lookup for true-color entities: none, true colours use no pen (VERIFIED-BY-ACAD, §6.4).
+- 430: color name, format `BOOKNAME$COLORNAME` (e.g. `RAL CLASSIC$RAL 1000`); 420 carries the RGB.
+  **VERIFIED-BY-ACAD (2026-10-12, `plotstyles/colorbook-pen` DXFOUT):** 430 + 420 plots the 420 RGB and
+  is kept on DXFOUT (62 rewritten to the nearest ACI, 52 → 43 for BEBD7F), also for an unknown book
+  name; **430 without 420 is dropped on load** (DXFOUT has no 430, the entity plots as its 62).
 - LAYER true color: 420 in the LAYER record (R2004+). ezdxf: "layers with only true color set have
   default ACI color 7".
 - Raw color ints (used in XDATA 1071, overrides, MLEADER, CTB): top byte `0xC0` BYLAYER, `0xC1`
@@ -1377,10 +1382,10 @@ tools/acad/calibration/analyze_plotstyles.py):**
   (`endjoin`, 20 px strokes). Joins act inside polylines, end styles at polyline/line ends.
 - `fill_style` 64 solid, 65 checkerboard, 66 crosshatch, 67 diamonds, 68 horizontal bars,
   69 slant left (`\\`), 70 slant right (`//`), 71 square dots, 72 vertical bars, 73 object. They
-  replace the fill of SOLID, solid HATCH and wide polylines (`fill-patterns-stock`); the pattern
-  spacing was not measured.
-- `linetype` 0 = solid, 1–30 = built-in dash patterns (plotted, not measured), 31 = object; the
-  adaptive flag changes the fit on short lines (`linetype-adaptive`/`-fixed`, not analysed).
+  replace the fill of SOLID, solid HATCH and wide polylines only (`fill-patterns-stock`,
+  `fill-targets`); geometry and phase in §6.8.
+- `linetype` 0 = solid, 1–30 = built-in pen linetypes, 31 = object; definitions, adaptive fitting and
+  the interaction with object linetypes in §6.7. `linepattern_size` has no effect (§6.7).
 - The pen is the **resolved ACI** after BYLAYER/BYBLOCK (`pen-resolution`: ACI 7, BYLAYER on a
   colour-7 layer, BYBLOCK inside a 62 = 2 INSERT and layer-0 block content take the pens of their
   resolved ACI; pen 7 colour overrides apply).
@@ -1395,23 +1400,29 @@ whose resolved colour is a true colour (entity 420, or BYLAYER on a layer with a
 **no pen**. Neither the pen of its 62 value nor the pen of the nearest ACI changes its colour or
 lineweight (62 = 1 + 420 green, 62 = 5 + 420 red, 420 without 62, layer 62 = 2 + 420 blue all plot
 1 px in their RGB; object lineweight 1.00 mm → 4 px). ezdxf's lookup by 62 is wrong. This also
-explains the monochrome.ctb result of §3.5. Colour-book colours (430) were not tested.
+explains the monochrome.ctb result of §3.5. **Colour-book colours behave the same** (VERIFIED-BY-ACAD
+2026-10-12, `plotstyles/colorbook-pen`, every pen green + 1.00 mm): 62 = 52 + 420 + 430 `RAL
+CLASSIC$RAL 1000`, an unknown book `TRUEDXF BOOK$RED` + 420 and 62 = 1 + 420 all plot their 420 RGB
+at 1 px; 430 without 420 is dropped on load and plots through the pen of its 62.
 
 ### 6.5 How truedxf should emulate plot styles
 
 Pipeline per primitive after BYLAYER/BYBLOCK resolution (§7):
 1. Page setup 70 bit 32 off, or no table: object properties (bit 128 still decides whether
-   lineweights plot).
-2. Pen: CTB → resolved ACI 1..255 (true colours: **no pen**, done); STB → resolved style (§6.2),
-   missing names → Normal.
+   lineweights plot). acad.ctb, "plot styles = No" and no table ('.') give pixel-identical PNGs
+   and byte-identical PDF content (ACI 1–255 fills and lines, true colours, 25 lineweights,
+   6 object linetypes, TrueType text; `plotstyles/styles-ref-{acad,off,none}`, Q-0221).
+2. Pen: CTB → resolved ACI 1..255 (true colours and colour books: **no pen**, done; gradient
+   colours never use a pen, §1.7); STB → resolved style (§6.2), missing names → Normal.
 3. Colour: value = mode_color (≠ −1) else color; low 24 bits 0xFFFFFF or policy 1/6/7 → object
    colour (ACI via the §3.5 palette); else the RGB of the value. Policy 2/3 → grayscale. Then
    screening if screen < 100.
 4. Lineweight: only with bit 128. Pen value N in 1..table length → table[N − 1] (0.00 → thinnest),
    else the object lineweight (DEFAULT → LWDEFAULT). Bit 64 scales it with the plot scale
    (note 08 §10.17).
-5. End/join/fill: the pen values unless "object" (4/5/73) → round/round/solid.
-6. Linetype: pen 0..30 overrides (definitions UNKNOWN, low priority), 31 = object.
+5. End/join/fill: the pen values unless "object" (4/5/73) → round/round/solid. Fill styles 65–72
+   only on SOLID / solid HATCH / wide polyline fills, as device-pixel tiles (§6.8).
+6. Linetype: pen 0..30 replace the object linetype with a paper-space pattern (§6.7), 31 = object.
 
 ### 6.6 Reference harness settings (keep AutoCAD PLOT simple and deterministic)
 
@@ -1426,6 +1437,121 @@ Pipeline per primitive after BYLAYER/BYBLOCK resolution (§7):
 - LWDEFAULT = 0.25 mm, LTSCALE = 1, PSLTSCALE = 1, MSLTSCALE = 0/1 (decide), FILLMODE = 1,
   $MEASUREMENT fixed, TEXTFILL = 1.
 - Fixed ACI→RGB table measured once (test C1) and stored as data.
+
+### 6.7 CTB pen linetypes 0–30 (VERIFIED-BY-ACAD 2026-10-12, Q-0228)
+
+Cases `plotstyles/lt-fixed`, `lt-adaptive`, `lt-fixed-size-1`, `lt-adaptive-size-1`,
+`lt-fixed-size-0-2`, `lt-fixed-scale-half`, `lt-fixed-mm`, `lt-curves`, `lt-object`,
+`lt-object-ltscale-2`, `lt-layout-psltscale`. Measured on the PDF (truedxf PDF.pc3 writes every dash
+as its own stroke in integer device units of 1/600 in, so lengths are exact to 0.042 mm) and seen
+identically in the PNGs (each dash is rasterized as its own hairline segment, dots = 1 px). Check:
+`tools/acad/calibration/analyze_pen_patterns.py` — the model below reproduces all 840 measured
+lines (30 linetypes × 4 lengths × 7 cases) within ±1.5/600 in.
+
+Definitions **on the sheet** (paper inches; every element is a multiple of 0.005 in; dash > 0, gap
+< 0, 0 = dot). Names: the order of the Plot Style Table Editor list (names as documented by Autodesk;
+the patterns fit them, the names were not read from AutoCAD in this run).
+
+| lt | editor name | elements, inches (dash, −gap, 0 = dot) | elements, mm | period in / mm | adaptive N from |
+|---|---|---|---|---|---|
+| 0 | Solid | continuous (forces Continuous) | | | |
+| 1 | Dashed | 0.15, −0.1 | 3.81, −2.54 | 0.25 / 6.35 | period |
+| 2 | Dotted | 0, −0.1 | 0, −2.54 | 0.1 / 2.54 | period |
+| 3 | Dash Dot | 0.13, −0.06, 0, −0.06 | 3.302, −1.524, 0, −1.524 | 0.25 / 6.35 | period |
+| 4 | Short Dash | 0.125, −0.375 | 3.175, −9.525 | 0.5 / 12.7 | period |
+| 5 | Medium Dash | 0.25, −0.25 | 6.35, −6.35 | 0.5 / 12.7 | period |
+| 6 | Long Dash | 0.375, −0.125 | 9.525, −3.175 | 0.5 / 12.7 | period |
+| 7 | Short Dash X2 | 0.25, −0.75 | 6.35, −19.05 | 1 / 25.4 | period |
+| 8 | Medium Dash X2 | 0.5, −0.5 | 12.7, −12.7 | 1 / 25.4 | period |
+| 9 | Long Dash X2 | 0.75, −0.25 | 19.05, −6.35 | 1 / 25.4 | period |
+| 10 | Medium Long Dash | 0.3, −0.2 | 7.62, −5.08 | 0.5 / 12.7 | period |
+| 11 | Medium Dash Short Dash Short Dash | 0.2, −0.06, 0.06, −0.06, 0.06, −0.06 | 5.08, −1.524, 1.524, −1.524, 1.524, −1.524 | 0.5 / 12.7 | period |
+| 12 | Long Dash Short Dash | 0.35, −0.05, 0.05, −0.05 | 8.89, −1.27, 1.27, −1.27 | 0.5 / 12.7 | period |
+| 13 | Long Dash Dot Dot | 0.35, −0.05, 0, −0.05, 0, −0.05 | 8.89, −1.27, 0, −1.27, 0, −1.27 | 0.5 / 12.7 | period |
+| 14 | Long Dash Dot | 0.4, −0.05, 0, −0.05 | 10.16, −1.27, 0, −1.27 | 0.5 / 12.7 | period |
+| 15 | Medium Dash Dot Short Dash Dot | 0.25, −0.05, 0, −0.05, 0.05, −0.05, 0, −0.05 | 6.35, −1.27, 0, −1.27, 1.27, −1.27, 0, −1.27 | 0.5 / 12.7 | period |
+| 16 | Sparse Dot | 0, −0.5 | 0, −12.7 | 0.5 / 12.7 | period |
+| 17 | ISO Dash | 0.235, −0.06 | 5.969, −1.524 | 0.295 / 7.493 | 0.5 in |
+| 18 | ISO Dash Space | 0.235, −0.355 | 5.969, −9.017 | 0.59 / 14.99 | 0.5 in |
+| 19 | ISO Long Dash Dot | 0.47, −0.06, 0, −0.06 | 11.938, −1.524, 0, −1.524 | 0.59 / 14.99 | 0.5 in |
+| 20 | ISO Long Dash Double Dot | 0.47, −0.06, 0, −0.06, 0, −0.06 | 11.938, −1.524, 0, −1.524, 0, −1.524 | 0.65 / 16.51 | 0.5 in |
+| 21 | ISO Long Dash Triple Dot | 0.47, −0.06, 0, −0.06, 0, −0.06, 0, −0.06 | 11.938, −1.524, 0, −1.524, 0, −1.524, 0, −1.524 | 0.71 / 18.03 | 0.5 in |
+| 22 | ISO Dot | 0, −0.395 | 0, −10.033 | 0.395 / 10.03 | 0.5 in |
+| 23 | ISO Long Dash Short Dash | 0.47, −0.06, 0.12, −0.06 | 11.938, −1.524, 3.048, −1.524 | 0.71 / 18.03 | 0.5 in |
+| 24 | ISO Long Dash Double Short Dash | 0.47, −0.06, 0.12, −0.06, 0.12, −0.06 | 11.938, −1.524, 3.048, −1.524, 3.048, −1.524 | 0.89 / 22.61 | 0.5 in |
+| 25 | ISO Dash Dot | 0.235, −0.06, 0, −0.06 | 5.969, −1.524, 0, −1.524 | 0.355 / 9.017 | 0.5 in |
+| 26 | ISO Double Dash Dot | 0.235, −0.06, 0.235, −0.06, 0, −0.06 | 5.969, −1.524, 5.969, −1.524, 0, −1.524 | 0.65 / 16.51 | 0.5 in |
+| 27 | ISO Dash Double Dot | 0.235, −0.06, 0, −0.06, 0, −0.06 | 5.969, −1.524, 0, −1.524, 0, −1.524 | 0.415 / 10.54 | 0.5 in |
+| 28 | ISO Double Dash Double Dot | 0.235, −0.06, 0.235, −0.06, 0, −0.06, 0, −0.06 | 5.969, −1.524, 5.969, −1.524, 0, −1.524, 0, −1.524 | 0.71 / 18.03 | 0.5 in |
+| 29 | ISO Dash Triple Dot | 0.235, −0.06, 0, −0.06, 0, −0.06, 0, −0.06 | 5.969, −1.524, 0, −1.524, 0, −1.524, 0, −1.524 | 0.475 / 12.06 | 0.5 in |
+| 30 | ISO Double Dash Triple Dot | 0.235, −0.06, 0.235, −0.06, 0, −0.06, 0, −0.06, 0, −0.06 | 5.969, −1.524, 5.969, −1.524, 0, −1.524, 0, −1.524, 0, −1.524 | 0.77 / 19.56 | 0.5 in |
+| 31 | Use object linetype | the object's own linetype (LTSCALE, 48, PSLTSCALE as usual) | | | |
+
+Rules:
+
+- **Absolute paper lengths.** The pattern does not depend on `linepattern_size` (0.2, 0.5 and 1.0 give
+  identical output, fixed and adaptive), on the plot scale (`lt-fixed-scale-half`), on the paper
+  units (`lt-fixed-mm`: PDF in mm = same inches), on a viewport's scale, PSLTSCALE or LTSCALE
+  (`lt-layout-psltscale`: model lines in a scale-0.5 viewport and paper lines get the same dashes).
+- **Pen linetype replaces the object linetype completely** (`lt-object`, `lt-object-ltscale-2`):
+  a LINE with DASHED, with entity 48 = 3, or with $LTSCALE 2 plots exactly the pen pattern; pen
+  linetype 0 makes a DASHED line continuous. Only 31 keeps the object linetype (with LTSCALE, 48,
+  PSLTSCALE as usual, §2.5).
+- **Fixed (adaptive FALSE):** the pattern starts at phase 0 at the start point of the curve (LINE:
+  start point, also for a right-to-left line; CIRCLE: angle 0, counter-clockwise; ARC: start angle)
+  and is cut at the end (a dash longer than the remaining length is truncated, e.g. a 0.12 in line
+  with "Dashed" is one 0.12 in dash). LWPOLYLINE: one continuous pattern over the whole polyline,
+  vertices do not restart it (70 bit 128 PLINEGEN on/off identical).
+- **Adaptive (TRUE)** on LINEs and on every LWPOLYLINE **segment separately**: with the run length L
+  and the fit length F (= the pattern period P for linetypes 1–16, but a constant **0.5 in for the ISO
+  linetypes 17–30**, whatever their period),
+  `N = max(1, round(L / F))`, every element is scaled by `s = L / (N · F)` and the pattern starts
+  **in the middle of its first dash** (phase −d₀·s/2). Linetypes 1–16 therefore begin and end with a
+  half dash (N whole periods, symmetric ends; dot patterns start and end on a dot). The ISO types get
+  `s ≈ 1` for long lines but are not symmetric at the end (e.g. ISO Dash on 0.12 in: s = 0.24, dashes
+  0.028 / gap 0.014 / 0.056 / gap 0.014 / 0.007 in). On polylines each segment ends with a half dash,
+  so a full dash bends over every vertex. A dot that falls exactly on the end point may or may not be
+  drawn (floating-point end test; both occur).
+- **Adaptive has no effect on CIRCLE and ARC** (`lt-curves`: pens with adaptive TRUE plot the same
+  dashes as fixed, from angle 0 / the start angle, the last period simply cut).
+- Lines with a lineweight get the same dashes; each dash is a wide stroke with the pen's end style
+  (not analysed further).
+
+### 6.8 CTB fill styles 65–72 (VERIFIED-BY-ACAD 2026-10-12, Q-0752)
+
+Cases `plotstyles/fill-phase` (Fill Patterns.ctb, SOLID squares at three sub-unit offsets, solid
+HATCH, wide LWPOLYLINE, 2.11 mm LINE), `fill-phase-scale-half` (geometry and window ×2),
+`fill-targets` / `fill-targets-ref` (crosshatch on every pen vs acad.ctb). Check:
+`tools/acad/calibration/analyze_pen_patterns.py` (40/40 regions per case pixel-exact).
+
+- Applies **only to area fills**: SOLID, solid-fill HATCH, wide (const width) LWPOLYLINE. Pixel-identical
+  to acad.ctb for TrueType TEXT and MTEXT (filled glyphs), SHX text, thin and 2.11 mm LINEs, a 1.00 mm
+  CIRCLE, an ANSI31 pattern HATCH and a gradient HATCH (`fill-targets`).
+- The pattern is drawn in the fill's (pen) colour; the other pixels of the fill stay **paper white**
+  (no background colour, no outline). The inked set = the solid fill's pixels ∧ the tile.
+- **Raster device (PNG): fixed device-pixel tiles anchored to the device origin**, independent of the
+  object position (squares shifted by 0.13/0.37 and 0.55/0.71 units show the same absolute pixels),
+  of the plot scale (×2 → same 10/20 px periods) — i.e. 0.1 in / 0.2 in at the fixed 100 dpi.
+  With u = pixel column from the left, v = pixel row from the bottom (all harness canvases are
+  multiples of 20 px high, so a top-anchored tile gives the same pixels — not separable here):
+
+| style | name | ink at (u, v) | period |
+|---|---|---|---|
+| 64 | solid | every fill pixel | – |
+| 65 | checkerboard | outlines of 5 × 5 px squares: u mod 10 ≤ 4 and v mod 10 ≤ 4 and (u mod 10 ∈ {0, 4} or v mod 10 ∈ {0, 4}) | 10 px |
+| 66 | crosshatch | u mod 10 = 0 or v mod 10 = 0 (1 px lines) | 10 px |
+| 67 | diamonds | (u + v) mod 20 = 0 or (u − v) mod 20 = 0 | 20 px |
+| 68 | horizontal bars | v mod 10 = 0 | 10 px |
+| 69 | slant left (`\`) | (u + v) mod 20 = 0 | 20 px |
+| 70 | slant right (`/`) | (u − v) mod 20 = 0 | 20 px |
+| 71 | square dots | u mod 10 ≤ 1 and v mod 10 ≤ 1 (2 × 2 px) | 10 px |
+| 72 | vertical bars | u mod 10 = 0 | 10 px |
+
+- **The patterns are device-driver output, not a geometric definition.** The PDF device draws them
+  differently: PDF tiling patterns of 8 × 8 pt cells (checkerboard = a stroked 4 × 4 pt square,
+  lines every 2 pt, diamonds = both diagonals, square dots = 1 × 1 pt squares) for some fills and
+  explicit 1/600 in strokes on a 0.5 in grid anchored to the page origin (crosshatch) for others.
+  truedxf targets the PNG tiles above.
 
 ---
 

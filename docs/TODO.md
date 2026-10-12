@@ -98,10 +98,12 @@ Tick items off (or delete them) when done.
       colour/policy rules, grayscale/screening formulas, end/join/fill, STB resolution) and note 08
       §2.1/§2.3/§10.17 (page setups plotted as stored: 73, 147 vs 75 vs 142/143, flags 32/64/128,
       offsets); references `plotstyles/*`, `pagesetup/*`, checks `analyze_plotstyles.py`.
-- [ ] Plot styles still unmeasured: CTB linetypes 1–30 and adaptive fitting (Q-0228, cases
-      `plotstyles/linetype-*` exist), fill-style pattern spacing, colour-book (430) objects, margin
-      rotation for 73 = 1/3 on a device with non-zero margins (Q-0706), offsets 46/47 on mm/inch
-      devices (Q-0757), PLOTSETTINGS 148/149 (Q-0256).
+- [x] Plot styles measured (2026-10-12): CTB pen linetypes 1–30 + adaptive fitting (note 06 §6.7),
+      fill-style tiles (§6.8), colour books and gradients bypass the pens (§6.4, §1.7), acad.ctb =
+      no styles; margins x rotation, 46/47 units and axes, 148/149 (note 08 §2.1, §2.5, §10.17);
+      checks `analyze_pen_patterns.py`, `analyze_plotstyles.py`. Still open: Q-0760, Q-0761.
+- [ ] Apply the measured pen linetypes, fill-style tiles, stored margins (40–43, PNG = printable
+      area), 46/47 device-axis offsets and 148/149 layout shift in `@truedxf/plot`.
 - [ ] Wide polylines with linetypes (`pl-wide-*`, dash phase drift on dashed wide arcs).
 - [x] PDF underlay content: PDF.js via `@truedxf/pdf` (`RenderEnv.pdf`), clip, contrast / fade /
       monochrome fitted to AutoCAD (2026-10-03, note 07 §10.3).

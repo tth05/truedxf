@@ -151,9 +151,9 @@ All lengths are in **mm**, unless noted.
 | 2 | Printer / PC3 name | e.g. `PublishToWeb PNG.pc3`, `DWG To PDF.pc3`, `none_device`. An empty string means the default printer (ezdxf comment). |
 | 4 | Paper size = **canonical media name** | Scheme `Name_(W_x_H_Unit)`, e.g. `ISO_A4_(210.00_x_297.00_MM)`, `Letter_(8.50_x_11.00_Inches)`. The UI/-PLOT shows a *localized display name* such as `ISO A4 (210.00 x 297.00 MM)`. ezdxf docs: "the part in front of the braces is ignored by AutoCAD" (for unknown devices). libredwg calls it `canonical_media_name`. **VERIFIED-BY-ACAD (2026-10-12, DXFOUT after -PLOT Save = Yes, §10.17):** PMP custom sizes are written as `UserDefinedRaster (2000.00 x 1500.00Pixels)` / `UserDefinedImperial (20.00 x 15.00Inches)` (spaces, no space before the unit), and a stored name of that form selects the size again (`pagesetup/*`). |
 | 6 | Plot view name | Used by plot type 3. In DWG ≥ R2004 it is a handle to the VIEW (libredwg `dwg.spec:5246ff`). |
-| 40/41/42/43 | Unprintable margin left/bottom/right/top | Device-defined printable area. ezdxf doc: 40/41 also define the plot origin. |
+| 40/41/42/43 | Unprintable margin left/bottom/right/top | Device-defined printable area, written in **unrotated device orientation** and in the units of 44/45 (raster: pixels): a PMP sheet with margins L/B/R/T = 10/20/30/40 px gives 40–43 = 10/20/30/40 for all four rotations (VERIFIED-BY-ACAD 2026-10-12, `pagesetup/margins-detailed-*`). **A stored page setup plots with the stored 40–43, not the device's** (`margins-rot-1-stored-zero`: 0 stored → full-sheet PNG). The paper origin is the printable-area corner of the rotation (§2.5, §10.17). |
 | 44/45 | Physical paper width/height | Stored in *unrotated device* orientation (VERIFIED-BY-ACAD: 2000/1500 for all four rotations). mm for mm/inch devices (20 × 15 in sheet → 508/381); **for raster devices (72 = 2) in pixels** (2000/1500, not px × 25.4/100; VERIFIED-BY-ACAD 2026-10-12, §10.17). |
-| 46/47 | Plot origin offset X/Y | In mm, even for inch layouts (VERIFIED-BY-ACAD: centring a 1:50 inch plot writes 152.4/114.3 = 6/4.5 in). Relative to the printable area's lower-left (PLOTOFFSET=0) or to the paper edge (PLOTOFFSET=1), §5.2. AutoCAD writes the centring offset here when "center the plot" is on. A stored offset is applied to plot type Layout and Window plots; on a raster page setup (72 = 2) it is in pixels (`pagesetup/offset-*`, §10.17). |
+| 46/47 | Plot origin offset X/Y | **In mm for mm and inch page setups** (VERIFIED-BY-ACAD 2026-10-12: written in mm — centring a 1:50 inch plot writes 152.4/114.3 = 6/4.5 in, an offset answer of 0.3,0.4 in writes 7.62/10.16 — and read in mm: 46/47 = (5, 3) shifts by 5/3 mm with 72 = 0 as with 72 = 1, `pagesetup/pdf-*-offset-5-3`); **pixels for raster setups** (72 = 2). Measured from the printable-area corner where the paper origin sits, **along the device axes**: 46 runs along the device width (44), 47 along the device height (45), both pointing into the sheet, for every rotation — in paper coordinates (46, 47) for 73 = 0/2 and (47, 46) for 73 = 1/3 (`margins-rot-*-offset`, `pdf-mm-offset-5-3-rot-1`, `pdf-in-offset-5-3-rot-3`; harness PLOTROTMODE 2). The PLOTOFFSET sysvar (1 = from the paper edge) does not change a stored page setup plotted with -PLOT (`pdf-mm-offset-*-plotoffset-1`). AutoCAD writes the centring offset here when "center the plot" is on. Applied to plot type Layout and Window plots (`pagesetup/offset-*`, §10.17). |
 | 48/49 | Plot window **lower-left** X/**Y** | **VERIFIED-BY-ACAD (`pagesetup/model-window`, 2026-10-12): LL = (48,49), UR = (140,141)**, as ezdxf, ixmilia, ACadSharp and libredwg say; the spec (p.190, "49 = Y value of upper-right") is wrong. |
 | 140/141 | Plot window **upper-right** X/Y | Spec says "140 = X of lower-left"; that is wrong, see above. Coordinates are in drawing units of the plotted space (WCS for model if UCS = World; paper units for layouts). |
 | 142/143 | Custom scale numerator (paper units) / denominator (drawing units) | 1:50 → 142 = 1, 143 = 50. "Paper units" = 72 units (inch or mm). |
@@ -167,7 +167,7 @@ All lengths are in **mm**, unless noted.
 | 77 | Shade plot resolution | 0 draft, 1 preview, 2 normal, 3 presentation, 4 maximum, 5 custom. |
 | 78 | Shade plot custom DPI | 100..32767, used only if 77 = 5. |
 | 147 | Standard scale value | **VERIFIED-BY-ACAD (2026-10-12, §10.17): the spec is right, ezdxf (`unit_factor`) is wrong.** AutoCAD writes the scale value of the standard scale (paper/drawing ratio, unit-independent: 1:50 → 0.02 in mm *and* inch setups, 1/4"=1' → 1/48, 1:1 → 1.0, Fit → the fit ratio = 142/143). For custom scales (bit 16 off) 75 and 147 keep their previous values. **On read, bit 16 set → the plot scale is 147** (75 and 142/143 are ignored; 75 = 0 still means Fit); bit 16 off → 142/143. |
-| 148/149 | Paper image origin X/Y | Unknown semantics; usually 0. |
+| 148/149 | Paper image origin X/Y | **VERIFIED-BY-ACAD (2026-10-12, Q-0256, §10.17):** AutoCAD writes **−(48, 49)** for plot type Window (raster and mm setups: −(10, 20) for a window from (10, 20), unchanged by scale 1:2, centring or an offset; inch setups ×25.4: −254/−508) and **0 for plot type Layout** (also with margins, rotations and offsets). On read, window plots ignore it; **a Layout plot is shifted by +(148, 149)** (paper units; (100, 50) on a raster setup → +100 px right, +50 px up). So it is the translation from plotted-space coordinates to the plot origin, recomputed for windows. |
 | 333 | Shade plot ID (optional) | Handle (visual style / render preset?). |
 | XDATA `PLOTTRANSPARENCY` 1071 | "Plot transparency" checkbox | Stored as XDATA on the LAYOUT (`ezdxf:entities/layout.py:200`). Overridden globally by sysvar `PLOTTRANSPARENCYOVERRIDE` (§5.5). |
 
@@ -255,9 +255,13 @@ examples, not independently verified):
 - For rotated layouts (73 = 1/3) the physical 44/45 are swapped and the margins are rotated
   (ezdxf drawing add-on `Page.from_dxf_layout`, `addons/drawing/layout.py:223-262`). Its mapping:
   rotation 1 (90°): `top=right, right=bottom, bottom=left, left=top`; rotation 2: top↔bottom,
-  left↔right; rotation 3: `top=left, right=top, bottom=right, left=bottom`.
-  The plotted rotation is VERIFIED-BY-ACAD (§10.17: 73 = 1 turns the drawing 90° clockwise on the
-  page, paper origin top-left); the margin mapping is still UNKNOWN (zero-margin devices only).
+  left↔right; rotation 3: `top=left, right=top, bottom=right, left=bottom` (paper edge = device
+  edge). **VERIFIED-BY-ACAD (2026-10-12, Q-0706, `pagesetup/margins-*`, device margins L/B/R/T =
+  10/20/30/40):** this mapping is right. The paper origin is the printable-area corner that becomes
+  the paper's lower-left (73 = 0 device bottom-left, 1 top-left, 2 top-right, 3 bottom-right), and
+  AutoCAD's own LIMMIN after saving = −(paper-frame left, bottom margin): (−10, −20), (−40, −10),
+  (−30, −40), (−20, −30) for 73 = 0..3; LIMMAX = paper size − those (the paper edge, not the
+  printable edge). Offsets 46/47 do not rotate with the paper (§2.1).
 - Plot type 5 "Layout": "plots everything within the printable area of the specified paper size"
   (Plot dialog help). This fits the origin rule above. For the harness we use Window instead (§7)
   so that we do not depend on it.
@@ -1556,8 +1560,37 @@ Save = Yes, `discovery` 2026-10-12): 2 = `truedxf PNG.pc3`, 4 = `UserDefinedRast
 
 (±1 px at fill edges, §10.5.) For 73 = 1/3 the printable paper becomes H × W in paper units.
 Window plots with Fit + centred fit the rotated window (1400 × 1050 → "1125 × 1500" effective
-area) and centre it. 44/45 and the margins stay in device orientation; how non-zero device
-margins rotate (Q-0706) is still open (the harness devices have zero margins).
+area) and centre it. 44/45 and the margins stay in device orientation.
+
+**Margins** (Q-0706; harness sheet `truedxf 1600x1200`, PMP printable bounds = margins L/B/R/T
+10/20/30/40 px, PDF 0.1/0.2/0.3/0.4 in; cases `margins-rot-{0..3}[-offset]`,
+`margins-rot-1-stored-zero`, `margins-detailed-{0..3}`, `pdf-*`):
+
+- The raster driver writes **only the printable area**: 1560 × 1140 px (canvas minus margins), for
+  every rotation; the PDF page is the whole sheet, the content translated to the printable corner
+  (`0.12 0 0 0.12 7 14 cm` for 0.1/0.2 in = 7.2/14.4 pt: **rounded to whole points**) and clipped to
+  it (9359 × 6840 units).
+- With the table of the rotation section above, (W, H) = the printable area, the paper origin lands
+  in its bottom-left / top-left / top-right / bottom-right corner for 73 = 0/1/2/3; the stored
+  page setup's 40–43 define that area (stored 0 → the whole sheet, 1600 × 1200 PNG).
+- **Offsets** 46/47 = (100, 50) px move the origin 100 px along the device width and 50 px along the
+  device height, into the sheet: 73 = 0 right/up, 1 right/down, 2 left/down, 3 left/up (the same
+  on the PDF device in mm). In paper coordinates that is (46, 47) for 73 = 0/2 and (47, 46) for 1/3.
+- What AutoCAD writes after a detailed -PLOT (Save = Yes) on the margins sheet: 40–43 = 10/20/30/40
+  in all rotations, 148/149 = 0, LIMMIN/LIMMAX as in §2.5.
+
+**Offset units on mm/inch page setups** (Q-0757; PDF device, plot type Layout 1:1, content in
+paper units): 46/47 = (5, 3) moves the origin by 118/70 units of 1/600 in = **5/3 mm both with
+72 = 0 (inches) and 72 = 1 (mm)**; never 5 in. PLOTOFFSET = 1 changes nothing for a stored page
+setup.
+
+**148/149** (Q-0256; `io-*`): see §2.1. Detailed -PLOT + Save = Yes writes −(48, 49) for Window
+plots (`io-win-offset`, `-center`, `-1-2`, `io-model-win` for Model, `io-pdf-mm-win`; ×25.4 on the
+inch setup `io-pdf-in-win`: −254/−508 for a window from (10, 20) at 1:100) and 0 for Layout plots
+(`io-layout-offset`, `margins-detailed-*`). Plotting stored setups: `io-read-win-{0,100-50,neg}`
+are pixel-identical (ignored), `io-read-layout-100-50` is shifted by +100 px / +50 px against
+`io-read-layout-0` (used). The same runs confirm 46/47 written in mm for inches (offset answer
+0.3,0.4 in → 7.62/10.16) and in paper units otherwise.
 
 **Scale** (`scale-*`, window (0,0)–(1400,1400) not centred, 100-unit square): bit 16 set →
 **147** decides (75 = 17 + 147 = 0.5 → 50 px; 75 = 16 + 147 = 0.5 → 50 px; 75 = 16 + 142/143 = 1:2 +

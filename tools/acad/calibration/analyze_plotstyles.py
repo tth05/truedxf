@@ -13,6 +13,11 @@ references and prints PASS/FAIL per rule (plus the measured values on failure):
   c' = 255 - floor((255 - c) * s / 100), after grayscale. True-colour objects use no pen.
 - page setups: rotation 73 maps paper (x, y) to the canvas as described in note 08 §10.17;
   flag 16 -> scale 147 (75 = 0 -> fit), else 142/143.
+- margins sheet (1600x1200, L/B/R/T 10/20/30/40 px): PNG = printable area, paper origin in the
+  printable corner of the rotation, 46/47 along the device axes, stored 40-43 win; PDF page setups
+  apply 46/47 in mm also for 72 = 0; AutoCAD writes 148/149 = -(48, 49) (x 25.4 for 72 = 0) and a
+  stored layout plot is shifted by +148/149; acad.ctb = no styles; gradients and colour books
+  (430 + 420) bypass the pens (note 08 §2.1, §10.17; note 06 §6.3-§6.4).
 """
 
 from __future__ import annotations
@@ -191,12 +196,115 @@ def pagesetup() -> None:
         check(f"{case}: 100-unit square plots {size} px", b[1] - b[0] + 1 == size, f"{b}")
 
 
+def _np(case: str):
+    import numpy as np
+
+    p = REFS / f"{case}.png"
+    return np.array(Image.open(p).convert("RGB")).astype(int) if p.exists() else None
+
+
+def _bbox(a, rgb):
+    import numpy as np
+
+    m = (a[:, :, 0] == rgb[0]) & (a[:, :, 1] == rgb[1]) & (a[:, :, 2] == rgb[2])
+    if not m.any():
+        return None
+    ys, xs = np.nonzero(m)
+    return int(xs.min()), int(ys.min()), int(xs.max()), int(ys.max())
+
+
+def margins() -> None:
+    """Margins sheet 1600x1200 (L/B/R/T 10/20/30/40 px): the PNG is the printable area, the paper
+    origin sits in the printable corner of the rotation, offsets 46/47 run along the device axes."""
+    corner = {0: ("l", "b"), 1: ("l", "t"), 2: ("r", "t"), 3: ("r", "b")}
+    for rot, (hx, vy) in corner.items():
+        for suffix, (ox, oy) in (("", (0, 0)), ("-offset", (100, 50))):
+            a = _np(f"pagesetup/margins-rot-{rot}{suffix}")
+            if a is None:
+                continue
+            h, w = a.shape[:2]
+            b = _bbox(a, (0, 0, 255))  # blue 100x100 square at the paper origin
+            x = b[0] if hx == "l" else w - 2 - b[2]  # fill edge rule: last column stays white
+            y = h - 1 - b[3] if vy == "b" else b[1] - 1  # fill edge rule: top row 1 px low
+            check(f"margins 73={rot}{suffix}: PNG {w}x{h} = printable area, origin in the {hx}{vy} corner + ({ox},{oy}) px along the device axes",
+                  (w, h) == (1560, 1140) and (x, y) == (ox, oy), f"{(w, h)} {b} -> {(x, y)}")
+    a = _np("pagesetup/margins-rot-1-stored-zero")
+    if a is not None:
+        check("stored 40-43 = 0 on the margins sheet: PLOT uses the stored margins (PNG 1600x1200)", a.shape[:2] == (1200, 1600), f"{a.shape}")
+
+
+def pdf_offsets() -> None:
+    """46/47 = (5, 3) on PDF page setups: mm for 72 = 0 and 72 = 1 (118/70 units of 1/600 in)."""
+    import re
+
+    def blue(case):
+        p = REFS / f"pagesetup/{case}.pdf"
+        if not p.exists():
+            return None
+        import pymupdf
+
+        c = pymupdf.open(str(p))[0].read_contents().decode("latin1")
+        i = c.index("0 0 1 rg")
+        path = c[i : c.index("\nb\n", i)]
+        pts = [(int(x), int(y)) for x, y in re.findall(r"(-?\d+) (-?\d+) [ml]\s", path)]
+        return min(x for x, _ in pts), min(y for _, y in pts)
+
+    for case, exp in (("pdf-in-offset-0", (0, 0)), ("pdf-in-offset-5-3", (118, 70)), ("pdf-mm-offset-0", (0, 0)),
+                      ("pdf-mm-offset-5-3", (118, 70)), ("pdf-mm-offset-5-3-plotoffset-1", (118, 70)),
+                      ("pdf-mm-offset-0-plotoffset-1", (0, 0))):
+        b = blue(case)
+        if b is not None:
+            check(f"{case}: origin at printable corner + 46/47 in mm", b == exp, f"{b}")
+
+
+def image_origin() -> None:
+    import ezdxf
+
+    for case, exp in (("io-win-offset", (-10, -20)), ("io-win-center", (-10, -20)), ("io-win-1-2", (-10, -20)),
+                      ("io-layout-offset", (0, 0)), ("io-model-win", (-10, -20)), ("io-pdf-in-win", (-254, -508)),
+                      ("io-pdf-mm-win", (-10, -20)), ("margins-detailed-1", (0, 0))):
+        p = REFS / f"pagesetup/{case}.dxf"
+        if not p.exists():
+            continue
+        d = ezdxf.readfile(p)
+        lay = d.layouts.get("Model" if case == "io-model-win" else "Layout1").dxf_layout.dxf
+        got = (lay.paper_image_origin_x, lay.paper_image_origin_y)
+        check(f"{case}: AutoCAD writes 148/149 = {exp}", got == exp, f"{got}")
+    w0, w1, l0, l1 = (_np(f"pagesetup/io-read-{n}") for n in ("win-0", "win-100-50", "layout-0", "layout-100-50"))
+    if w0 is not None and w1 is not None:
+        check("148/149 ignored by stored window plots", (w0 == w1).all())
+    if l0 is not None and l1 is not None:
+        b0, b1 = _bbox(l0, (0, 0, 255)), _bbox(l1, (0, 0, 255))
+        check("148/149 = (100, 50) shifts a stored layout plot by +100 px right, +50 px up",
+              (b1[0] - b0[0], b0[1] - b1[1]) == (100, 50), f"{b0} {b1}")
+
+
+def pens_misc() -> None:
+    a = [_np(f"plotstyles/styles-ref-{n}") for n in ("acad", "off", "none")]
+    if all(x is not None for x in a):
+        check("acad.ctb = plot styles No = no table (pixel-identical)", (a[0] == a[1]).all() and (a[0] == a[2]).all())
+    g = {n: _np(f"plotstyles/gradient-pens-{n}") for n in ("acad", "green", "gray", "screen-50")}
+    if all(v is not None for v in g.values()):
+        # gradient rows occupy columns 100..1500, the SOLID references 1600..1900
+        same = all((v[:, 100:1500] == g["acad"][:, 100:1500]).all() for v in g.values())
+        check("gradient HATCH colours bypass pen colour, grayscale and screening", same)
+    a = _np("plotstyles/colorbook-pen")
+    if a is not None:
+        rows = [tuple(int(v) for v in a[int(1500 - (128 - 18 * k + 6) * 10), 350]) for k in range(7)]
+        exp = [(0, 255, 0), (0, 255, 0), (190, 189, 127), (0, 255, 0), (190, 189, 127), (255, 0, 0), (255, 0, 0)]
+        check("colour book 430 + 420 gets no pen; 430 without 420 is dropped (ACI pen)", rows == exp, f"{rows}")
+
+
 def main() -> None:
     lineweights()
     colours()
     screening()
     truecolor()
     pagesetup()
+    margins()
+    pdf_offsets()
+    image_origin()
+    pens_misc()
     for name, ok, detail in results:
         print(f"{'PASS' if ok else 'FAIL'}  {name}{'' if ok else '  ' + detail}")
     if not results:

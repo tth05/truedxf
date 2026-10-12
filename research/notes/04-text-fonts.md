@@ -769,8 +769,12 @@ local probes `text-probes/mtx-*` (PDF geometry measured relative to a cross at t
   rows centred on it, bottom rows ending on it — `columns-all`: the BR text's column 3 (6 lines) grows
   upward past the stored height, column 2 sits higher by its "jgf" descenders; `mtx-cols-static-mc/bl/tr`.
   Stored column heights and group 46 never move the text (single column too: §12, `mtx-defh-mc-col1`).
-- **Horizontal attachment**: relative to all columns, n·width + (n−1)·gutter (n = the actual count);
-  single column: the reference width 41 (or the content width when 41 = 0). Lines align inside their
+- **Horizontal attachment**: relative to the reference width 41, with columns too. AutoCAD writes
+  41 = n·width + (n−1)·gutter for column MTEXT, so that is what its own files show; ezdxf writes 41 =
+  one column width, and AutoCAD then attaches on that single width — right-attached columns start
+  with column 1 ending at the insertion point (`fileformat/mtext-embedded-70-ne-71`: 41 = 50, 2 × 50 +
+  10, 70 = 3; DXFOUT rewrites 41 = 110 and moves 10 by +60 to keep the plot, 2026-10-12). The computed
+  total width only stands in for a missing 41; single column without 41: the content width. Lines align inside their
   column; a line wider than the column spills (right-aligned text to the left, `mtx-cols-mc-spill`).
 - **Frame (90 & 16) and mask (90 & 3) box** — one box per column:
   x = the column [0, width] (single column: [0, 41], or the content when 41 = 0) **widened to the ink** of

@@ -395,14 +395,17 @@ export function layoutMText(
     }
 
     // ---- attachment
-    // Horizontal: the attachment column refers to all columns (n·width + (n−1)·gutter) or the
-    // reference width. Vertical: every column is aligned on its own content height (top / middle /
-    // bottom of its extents box at the insertion point); stored column heights and 46 never move
-    // the text (VERIFIED-BY-ACAD user/columns-all, text-probes/mtx-cols-*, mtext/defined-height-*).
+    // Horizontal: the attachment column refers to the reference width 41, with columns too —
+    // AutoCAD writes 41 = n·width + (n−1)·gutter there, ezdxf the column width, and AutoCAD then
+    // shifts by that column width (VERIFIED-BY-ACAD fileformat/mtext-embedded-70-ne-71); the
+    // computed total only stands in for a missing 41. Vertical: every column is aligned on its own
+    // content height (top / middle / bottom of its extents box at the insertion point); stored
+    // column heights and 46 never move the text (VERIFIED-BY-ACAD user/columns-all,
+    // text-probes/mtx-cols-*, mtext/defined-height-*).
     const colW = cols && cols.width > 0 ? cols.width : frameW;
     const colStep = cols ? colW + cols.gutter : 0;
-    const totalW = cols ? nCols * colW + (nCols - 1) * cols.gutter : frameW;
-    const xAtt = col === 1 ? 0 : col === 2 ? totalW / 2 : totalW;
+    const refW = cols ? (e.width > 0 ? e.width : nCols * colW + (nCols - 1) * cols.gutter) : frameW;
+    const xAtt = col === 1 ? 0 : col === 2 ? refW / 2 : refW;
     const rowShift = (hc: number) => (row === 0 ? 0 : row === 1 ? hc / 2 : hc);
 
     const ins = toOcs.transformPoint(e.insert);

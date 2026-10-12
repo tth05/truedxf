@@ -422,6 +422,21 @@ describe("MTEXT columns, text frame and mask", () => {
         expect(ys[1]).toBeCloseTo(0, 9);
         expect(ys[2]).toBeCloseTo((5 / 3) * 10, 9);
     });
+    it("attaches columns horizontally on the reference width 41 (fileformat/mtext-embedded-70-ne-71)", async () => {
+        const fonts = await testFonts([style("S", "truedxf-test.shx")]);
+        const xs = (width: number) =>
+            layoutMText(mtext({ text: "H\\NH", width, attachment: 3, columns: cols({}) }), fonts).glyphs.map(
+                (g) => g.matrix.e,
+            );
+        // 41 = total width (AutoCAD): column 2 ends at the insertion point; 41 = column width
+        // (ezdxf): column 1 does, so everything sits 45 − 20 further right
+        const total = xs(45);
+        const column = xs(20);
+        expect(total[1]).toBeLessThan(0);
+        expect(column[0]).toBeLessThan(0);
+        expect(column[1]).toBeGreaterThan(0);
+        for (let i = 0; i < 2; i++) expect(column[i]! - total[i]!).toBeCloseTo(25, 9);
+    });
     it("frames the content box grown by (45 − 1)·h, also for the frame-only flag", async () => {
         const fonts = await testFonts([style("S", "truedxf-test.shx")]);
         const tight = frameBox(layoutMText(mtext({ text: "H", bgFlags: 16, bgScale: 1 }), fonts));

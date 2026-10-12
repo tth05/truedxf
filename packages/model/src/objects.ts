@@ -174,8 +174,11 @@ const PLOT_SETTINGS = [
     { name: "m3", code: 43, kind: "num", subclass: PS, def: 0 },
     { name: "paperWidth", code: 44, kind: "num", subclass: PS, def: 0 },
     { name: "paperHeight", code: 45, kind: "num", subclass: PS, def: 0 },
-    { name: "plotOrigin", code: 46, kind: "p2", subclass: PS, def: O2 },
-    { name: "windowMin", code: 48, kind: "p2", subclass: PS, def: O2 },
+    // 46/47, 48/49 and 148/149 are X/Y pairs one code apart, not the usual X/X+10 points.
+    { name: "originX", code: 46, kind: "num", subclass: PS, def: 0 },
+    { name: "originY", code: 47, kind: "num", subclass: PS, def: 0 },
+    { name: "wminX", code: 48, kind: "num", subclass: PS, def: 0 },
+    { name: "wminY", code: 49, kind: "num", subclass: PS, def: 0 },
     { name: "wmaxX", code: 140, kind: "num", subclass: PS, def: 0 },
     { name: "wmaxY", code: 141, kind: "num", subclass: PS, def: 0 },
     { name: "scaleNumerator", code: 142, kind: "num", subclass: PS, def: 1 },
@@ -188,7 +191,8 @@ const PLOT_SETTINGS = [
     { name: "standardScaleType", code: 75, kind: "int", subclass: PS, def: 0 },
     { name: "shadePlotMode", code: 76, kind: "int", subclass: PS, def: 0 },
     { name: "scaleFactor", code: 147, kind: "num", subclass: PS, def: 1 },
-    { name: "paperImageOrigin", code: 148, kind: "p2", subclass: PS, def: O2 },
+    { name: "imageX", code: 148, kind: "num", subclass: PS, def: 0 },
+    { name: "imageY", code: 149, kind: "num", subclass: PS, def: 0 },
 ] as const;
 
 const PLOT_TABLE = fieldTable(PLOT_SETTINGS);
@@ -212,7 +216,10 @@ function plotSettings(f: Record<string, unknown>): PlotSettings {
     return {
         ...(f as unknown as PlotSettings),
         margins: [f.m0 as number, f.m1 as number, f.m2 as number, f.m3 as number],
+        plotOrigin: { x: f.originX as number, y: f.originY as number },
+        windowMin: { x: f.wminX as number, y: f.wminY as number },
         windowMax: { x: f.wmaxX as number, y: f.wmaxY as number },
+        paperImageOrigin: { x: f.imageX as number, y: f.imageY as number },
     };
 }
 

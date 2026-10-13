@@ -1,7 +1,7 @@
 # Releasing
 
-Published packages: core, model, geometry, fonts, text, render, pdf, three and viewer. Packages
-marked `"private": true` (testkit, plot) are never published. Every package has its own version.
+Published packages: core, model, geometry, fonts, text, plot, render, pdf, three and viewer.
+Packages marked `"private": true` (testkit) are never published. Every package has its own version.
 
 ## With GitHub Actions
 

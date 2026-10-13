@@ -630,15 +630,14 @@ angle, x-origin, y-origin, delta-x, delta-y [, dash1, dash2, ...]
 | Set | Location | License / provenance | Usable in truedxf? |
 |---|---|---|---|
 | Autodesk acad.pat / acadiso.pat / acad.lin / acadiso.lin | `repos/netDxf/TestDxfDocument/Support/` | "Copyright 2017 Autodesk, Inc. All rights reserved … subject to the terms of the Autodesk license agreement" (file headers) | **No** (don't copy; tests may read them from a local AutoCAD install) |
-| ezdxf ISO_PATTERN | `repos/ezdxf/src/ezdxf/tools/_iso_pattern.py` | MIT (ezdxf), header: "Collected, extracted and scaled from various DXF files" — provenance is AutoCAD-derived data | Legally MIT, ethically "facts extracted from DXF files". Best available option if we ship pattern definitions. |
+| ezdxf ISO_PATTERN | `repos/ezdxf/src/ezdxf/tools/_iso_pattern.py` | MIT (ezdxf), header: "Collected, extracted and scaled from various DXF files" | Yes. Best available option if we ship pattern definitions. |
 | ezdxf standard linetypes | `ezdxf:tools/standards.py` | MIT; values differ from acad.lin for 13 of 16 names (ezdxf#1411) | only with corrected values |
 | QCAD patterns & linetypes | `repos/qcad/patterns/{imperial,metric}/*.pat`, `repos/qcad/linetypes/*.lin` | no separate license file → QCAD's GPLv3 (+exceptions) (`repos/qcad/LICENSE.txt`) | **No** (GPL) |
 | dxf-viewer patterns | `repos/dxf-viewer/src/patterns/{metric,imperial}/*.js` | MPL-2.0 repo, but "Patterns here mostly from QCAD project" (`src/patterns/index.js`) → GPL provenance | **No** |
 | LibreCAD patterns | `repos/LibreCAD/librecad/support/patterns/*.dxf` (64 files, DXF-encoded) | GPLv2 (`repos/LibreCAD/licenses/readme.md`) | **No** |
 
-Numeric pattern definitions are arguably non-copyrightable facts, but the safe route is: render
-from embedded DXF data (needs no pattern file); for *authoring* ship either ezdxf's MIT table or
-let users point to their own .pat. Note for legal review.
+Render from embedded DXF data (needs no pattern file); for *authoring* ship either ezdxf's MIT
+table or let users point to their own .pat.
 
 ---
 

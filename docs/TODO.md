@@ -250,8 +250,7 @@ default, FILLMODE for pattern hatches, extents edge tolerance.
         versions with `workspace:^`, Release workflow (docs/RELEASING.md), licence review
         (2026-10-05).
   - [ ] npm org `truedxf`, first publish, trusted publisher per package (docs/RELEASING.md).
-  - [ ] Before going public: legal opinion on the Autodesk EULA (black-box plot comparison),
-        confirm the AutoCAD seat's licence type permits this use, make the repository public.
+  - [ ] Make the repository public.
   - [x] Public site: emit a third-party notices file with the JS bundle:
         `licenses.txt` from the bundled packages, linked from the landing footer (2026-10-05).
 

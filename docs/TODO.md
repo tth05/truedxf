@@ -347,7 +347,7 @@ default, FILLMODE for pattern hatches, extents edge tolerance.
       DWG messages with a report button, zoom buttons, export (PNG, clipboard, print), keyboard
       shortcuts dialog, recent drawings (file handles, Chromium), PDF.js support files,
       small-screen notice.
-- [ ] Public site launch: remove the Basic Auth gate (`apps/playground/functions/_middleware.ts`).
+- [x] Public site launch: remove the Basic Auth gate (2026-10-13).
 - [ ] Public site: privacy policy / legal notice (Datenschutzerklärung, Impressum) before launch;
       custom domain (then set `SITE_URL`).
 

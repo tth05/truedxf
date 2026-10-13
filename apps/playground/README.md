@@ -134,12 +134,6 @@ pnpm --filter @truedxf/playground exec wrangler pages project create truedxf --p
 pnpm --filter @truedxf/playground run preview:public   # public build with _headers on http://localhost:8788
 ```
 
-**Pre-launch gate:** [functions/_middleware.ts](functions/_middleware.ts) (a Pages Function
-wrangler uploads with the site) answers every request with HTTP Basic Auth (user `truedxf`,
-password `truedxf`, also for preview URLs and `preview:public`). Delete it and redeploy to go
-public. The gate is part of each deployment: a deployment's own URL (`<id>.truedxf.pages.dev`)
-keeps the state it was deployed with (`wrangler pages deployment delete <id>` removes one).
-
 **Visitor statistics: Cloudflare Web Analytics** (cookie-free, no consent banner). It reports page
 views, visitors, referrers, countries, browsers and Core Web Vitals, but cannot see drawings.
 Either switch it on in the Pages project (Metrics → Web Analytics → Enable, and Cloudflare injects

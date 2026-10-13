@@ -22,7 +22,7 @@ import { samplesMiddleware } from "./server/samples.ts";
  */
 const PUBLIC_MODE = "public";
 /** Production URL of the public site (canonical link, Open Graph, sitemap). */
-const SITE_URL = (process.env.SITE_URL ?? "https://truedxf.pages.dev").replace(/\/+$/, "");
+const SITE_URL = (process.env.SITE_URL ?? "https://truedxf.cc").replace(/\/+$/, "");
 /** Repository (links, "Report a problem"). */
 const REPO_URL = process.env.REPO_URL ?? "https://github.com/tth05/truedxf";
 /**

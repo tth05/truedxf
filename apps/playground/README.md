@@ -103,7 +103,7 @@ truedxf`) publishes to Cloudflare Pages. The `public` mode differs from the defa
 
 - No Fixtures / Corpus code (`__SAMPLES__` is false, so it is tree-shaken) and no sourcemaps.
 - `index.html` gets the canonical URL / Open Graph URLs for `SITE_URL` (default
-  `https://truedxf.pages.dev`, set it for a custom domain) and `REPO_URL` (default
+  `https://truedxf.cc`) and `REPO_URL` (default
   `https://github.com/tth05/truedxf`). Local builds drop the canonical link.
 - `robots.txt`, `sitemap.xml` and Cloudflare's `_headers` ([cloudflare/_headers](cloudflare/_headers):
   CSP, `nosniff`, no framing, immutable `/assets/*`).

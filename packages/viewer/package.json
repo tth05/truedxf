@@ -1,7 +1,7 @@
 {
     "name": "@truedxf/viewer",
     "version": "0.1.0",
-    "description": "Embeddable DXF viewer: worker pipeline, pan/zoom, layouts, layers, picking",
+    "description": "Fast, embeddable web DXF viewer that draws like AutoCAD plots. Worker parsing, layouts, layers, picking and measuring.",
     "license": "MIT",
     "repository": {
         "type": "git",

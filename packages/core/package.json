@@ -1,7 +1,7 @@
 {
     "name": "@truedxf/core",
     "version": "0.1.0",
-    "description": "DXF tag layer: tokenizer (ASCII + binary), encodings, lossless tag store",
+    "description": "Fast, lossless DXF tokenizer for ASCII and binary files. Keeps every decoded group code and decodes every code page.",
     "license": "MIT",
     "repository": {
         "type": "git",

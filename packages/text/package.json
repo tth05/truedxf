@@ -1,7 +1,7 @@
 {
     "name": "@truedxf/text",
     "version": "0.1.0",
-    "description": "TEXT and MTEXT parsing and layout engine",
+    "description": "DXF TEXT and MTEXT layout that lines up with AutoCAD: wrapping, stacking, columns, SHX and TrueType glyphs.",
     "license": "MIT",
     "repository": {
         "type": "git",

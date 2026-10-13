@@ -1,7 +1,7 @@
 {
     "name": "@truedxf/fonts",
     "version": "0.1.0",
-    "description": "Fonts: SHX (shape, unifont, bigfont) parser and TTF/OTF via opentype.js, font resolution",
+    "description": "SHX and TrueType fonts for DXF, with font lookup and fallback that pick the same font AutoCAD does.",
     "license": "MIT",
     "repository": {
         "type": "git",

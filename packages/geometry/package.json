@@ -1,7 +1,7 @@
 {
     "name": "@truedxf/geometry",
     "version": "0.1.0",
-    "description": "Geometry kernel: vectors, matrices, OCS, arcs, ellipses, NURBS, flattening, stroking, dashing, hatching, clipping",
+    "description": "Fast float64 CAD geometry: NURBS, arcs, ellipses, OCS, dashing, hatching, stroking and clipping, tuned to AutoCAD's output.",
     "license": "MIT",
     "repository": {
         "type": "git",

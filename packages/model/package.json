@@ -1,7 +1,7 @@
 {
     "name": "@truedxf/model",
     "version": "0.1.0",
-    "description": "Lossless typed DXF document model: header, tables, blocks, entities, objects, property resolution",
+    "description": "Fast, lossless DXF parser with a typed document model. Reads real-world files from R12 to 2018+, ASCII and binary.",
     "license": "MIT",
     "repository": {
         "type": "git",

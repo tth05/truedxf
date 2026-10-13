@@ -1,6 +1,6 @@
 {
     "name": "@truedxf/render",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "description": "Draws DXF exactly like an AutoCAD plot. Fast, renderer-agnostic display lists, pixel-tested against thousands of AutoCAD plots.",
     "license": "MIT",
     "repository": {

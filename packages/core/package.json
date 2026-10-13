@@ -1,6 +1,6 @@
 {
     "name": "@truedxf/core",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "description": "Fast, lossless DXF tokenizer for ASCII and binary files. Keeps every decoded group code and decodes every code page.",
     "license": "MIT",
     "repository": {

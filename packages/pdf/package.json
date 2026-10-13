@@ -1,6 +1,6 @@
 {
     "name": "@truedxf/pdf",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "description": "PDF underlays for truedxf DXF drawings, rendered by PDF.js and placed exactly where AutoCAD puts them.",
     "license": "MIT",
     "repository": {

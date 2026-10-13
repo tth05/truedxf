@@ -1,6 +1,6 @@
 {
     "name": "@truedxf/plot",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "description": "CTB/STB plot styles and DXF page setups: pens, lineweights and plot transforms exactly as AutoCAD plots them.",
     "license": "MIT",
     "repository": {

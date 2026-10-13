@@ -1,6 +1,6 @@
 {
     "name": "@truedxf/viewer",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "description": "Fast, embeddable web DXF viewer that draws like AutoCAD plots. Worker parsing, layouts, layers, picking and measuring.",
     "license": "MIT",
     "repository": {

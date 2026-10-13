@@ -1,6 +1,6 @@
 {
     "name": "@truedxf/fonts",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "description": "SHX and TrueType fonts for DXF, with font lookup and fallback that pick the same font AutoCAD does.",
     "license": "MIT",
     "repository": {

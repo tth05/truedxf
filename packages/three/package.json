@@ -1,6 +1,6 @@
 {
     "name": "@truedxf/three",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "description": "Fast three.js (WebGL) renderer for truedxf: AutoCAD-accurate DXF drawings in the browser.",
     "license": "MIT",
     "repository": {

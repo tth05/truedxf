@@ -87,14 +87,21 @@ Lookup order (`src/fonts.ts`), after the files opened with the drawing:
    lapsed. Other browsers pick it with a folder input per visit. Up to 20 000 font files,
    4 folder levels deep.
 2. `/fonts/<file>`: `packages/fonts/assets` (our MIT test fonts) and `apps/playground/fonts`
-   (Liberation Sans / Serif / Mono, SIL OFL 1.1, see [fonts/README.md](fonts/README.md)), both
+   (Liberation Sans / Serif / Mono and Selawik, SIL OFL 1.1, see [fonts/README.md](fonts/README.md)), both
    copied into every build. The dev server and `vite preview` (only) also serve the local system
    font folders and `C:\Program Files\Autodesk\AutoCAD 2027\Fonts` (extra folders:
    `TRUEDXF_FONT_DIRS`, `;`-separated), so real drawings get real fonts on this machine. Nothing
    from those folders is copied into the repository or the build output.
-3. The metric-compatible Liberation face for a missing Windows core font (`arial*.ttf`,
-   `times*.ttf`, `cour*.ttf`). Any other missing font falls back to the viewer's list, which ends
-   in Liberation Sans on the public site.
+3. The **installed fonts** of the user's computer (Segoe UI, Verdana, Arial, …): Open menu → "Use
+   installed fonts", or the link in the Files panel when fonts are missing. Chromium desktop
+   browsers only (Local Font Access API, `queryLocalFonts()`); the browser asks once and the fonts
+   are used on later visits until the × in the Files panel turns them off. Font files are matched
+   to the installed faces by PostScript name (a table for Windows file names such as
+   `arialbd.ttf` → `Arial-BoldMT`, else the file's base name). SHX fonts are never installed
+   fonts: they come from the fonts folder.
+4. The metric-compatible free face for a missing Windows font (`arial*.ttf`, `times*.ttf`,
+   `cour*.ttf` → Liberation, `segoeui*.ttf` → Selawik). Any other missing font falls back to the
+   viewer's list, which ends in Liberation Sans on the public site.
 
 ## Public site
 

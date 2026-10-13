@@ -28,7 +28,7 @@ import { openDialog } from "./dialog.ts";
 import { h, ICONS, icon, mount } from "./dom.ts";
 import { canCopyImage, copyPng, printView, savePng } from "./export.ts";
 import { droppedFiles, FilesPanel, inputFiles, isDrawing, isDwg, pickDrawing } from "./files.ts";
-import { FontFolder, fontLoader } from "./fonts.ts";
+import { FontFolder, fontLoader, InstalledFonts } from "./fonts.ts";
 import { fmtBytes, fmtCoord, fmtMs, fmtNum } from "./format.ts";
 import { dropdown, type MenuItem } from "./menu.ts";
 import { droppedSource, openedAgo, type RecentEntry, RecentFiles, type RecentSource } from "./recent.ts";
@@ -141,6 +141,16 @@ function openButton(): HTMLElement {
                 title: "A folder with your SHX / TrueType fonts, e.g. a copy of AutoCAD's Fonts folder",
                 run: () => void fontsFolder.choose(),
             },
+            ...(installedFonts.state === "unsupported" || installedFonts.state === "ready"
+                ? []
+                : [
+                      {
+                          icon: ICONS.font,
+                          label: "Use installed fonts",
+                          title: "Read the fonts installed on this computer (Segoe UI, Verdana, …); they stay on your computer",
+                          run: () => void installedFonts.enable(),
+                      },
+                  ]),
             ...(recentItems.length ? (["separator", ...recentItems] as const) : []),
         ];
     };
@@ -368,6 +378,7 @@ let imageBase: ((path: string) => string) | undefined;
 /** `?fallbackFont=a.shx,b.ttf`: fonts for text whose font is missing (default: the viewer's). */
 const fallbackFont = new URLSearchParams(location.search).get("fallbackFont")?.split(",").filter(Boolean);
 const fontsFolder = new FontFolder();
+const installedFonts = new InstalledFonts();
 const recent = new RecentFiles();
 recent.onChange = renderRecent;
 const viewer = new DxfViewer(viewerHost, {
@@ -376,7 +387,7 @@ const viewer = new DxfViewer(viewerHost, {
     viewCulling: new URLSearchParams(location.search).get("cull") !== "0",
     antialias: new URLSearchParams(location.search).get("aa") !== "0",
     lod: new URLSearchParams(location.search).get("lod") !== "0",
-    loadFont: fontLoader(fontsFolder),
+    loadFont: fontLoader(fontsFolder, installedFonts),
     // Chinese / Japanese characters that the drawing's fonts lack (fonts/README.md); fetched only
     // for drawings with CJK text
     cjkFallbackFont: "notosanssc-regular.otf",
@@ -399,8 +410,9 @@ filesPanel = new FilesPanel(
         openDrawing: (f) => void openStored(f),
     },
     fontsFolder,
+    installedFonts,
 );
-fontsFolder.onChange = () => {
+fontsFolder.onChange = installedFonts.onChange = () => {
     viewer.reloadAssets();
     filesPanel.render();
 };
@@ -1427,6 +1439,7 @@ if (initial) void openSource(initial);
 if (__SAMPLES__) void initModes();
 updateReportLink();
 void fontsFolder.restore();
+void installedFonts.restore();
 void recent.restore();
 smallScreenNotice();
 

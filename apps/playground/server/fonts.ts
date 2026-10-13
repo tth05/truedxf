@@ -2,7 +2,7 @@
  * Font serving for the playground: `/fonts/<file name>` (case-insensitive).
  *
  * - Always: packages/fonts/assets (our own MIT test fonts) and apps/playground/fonts (the OFL
- *   Liberation fallback fonts, fonts/README.md); both are copied into the production build.
+ *   stand-in fonts, fonts/README.md); both are copied into the production build.
  * - Dev server only: the local system font folders and the AutoCAD Fonts folder, so real
  *   drawings get real fonts on this machine. Nothing from those folders is ever copied into the
  *   repository or the build output.

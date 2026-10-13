@@ -5,7 +5,7 @@
  */
 import { type DxfViewer, type FileInput, type ViewerFile, ViewerWarningCode } from "@truedxf/viewer";
 import { h, ICONS, icon, mount } from "./dom.ts";
-import type { FontFolder } from "./fonts.ts";
+import type { FontFolder, InstalledFonts } from "./fonts.ts";
 import { fmtBytes, fmtNum } from "./format.ts";
 
 /** Warnings whose items are fonts (or shape files) the fonts folder can provide. */
@@ -103,15 +103,17 @@ export class FilesPanel {
     private readonly viewer: DxfViewer;
     private readonly actions: FilesPanelActions;
     private readonly fonts: FontFolder;
+    private readonly installed: InstalledFonts;
     /** Path of the open drawing when it came from the files. */
     current: string | undefined;
     /** The last drawing opened from a URL; stays listed until another URL drawing replaces it. */
     urlDrawing: UrlDrawing | undefined;
 
-    constructor(viewer: DxfViewer, actions: FilesPanelActions, fonts: FontFolder) {
+    constructor(viewer: DxfViewer, actions: FilesPanelActions, fonts: FontFolder, installed: InstalledFonts) {
         this.viewer = viewer;
         this.actions = actions;
         this.fonts = fonts;
+        this.installed = installed;
         this.head = h("div", { class: "section-head" });
         this.list = h("div", { class: "list files" });
         this.root = h("div", { class: "section", style: "max-height: 34%" }, this.head, this.list);
@@ -159,7 +161,7 @@ export class FilesPanel {
         const fontsMissing =
             this.viewer.document !== undefined &&
             this.viewer.warnings.some((w) => FONT_CODES.includes(w.code) && w.items?.length);
-        rows.push(...this.fontsFolderRows(fontsMissing));
+        rows.push(...this.fontsRows(fontsMissing));
         if (missing.length) {
             rows.push(
                 h(
@@ -237,11 +239,46 @@ export class FilesPanel {
         mount(this.list, rows);
     }
 
-    /** The fonts folder: its state, or (fonts missing, none chosen) why text looks different. */
-    private fontsFolderRows(fontsMissing: boolean): HTMLElement[] {
+    /**
+     * The fonts: the installed fonts and the fonts folder (state rows), and while fonts are missing,
+     * why text looks different and the ways to get the fonts.
+     */
+    private fontsRows(fontsMissing: boolean): HTMLElement[] {
+        return [
+            ...this.installedFontsRows(),
+            ...this.fontsFolderRows(),
+            ...(fontsMissing ? this.missingFontsRows() : []),
+        ];
+    }
+
+    private installedFontsRows(): HTMLElement[] {
+        const f = this.installed;
+        if (f.state !== "ready") return [];
+        return [
+            h(
+                "div",
+                {
+                    class: "item static",
+                    title: "The fonts installed on this computer: read in your browser, they stay on your computer",
+                },
+                h("span", { class: "icon-16" }, icon(ICONS.font)),
+                h("span", { class: "name" }, "Fonts: installed"),
+                h("span", { class: "meta" }, `${fmtNum(f.count)} fonts`),
+                h(
+                    "button",
+                    {
+                        class: "link remove",
+                        onclick: () => void f.disable(),
+                        title: "Stop using the installed fonts",
+                    },
+                    "×",
+                ),
+            ),
+        ];
+    }
+
+    private fontsFolderRows(): HTMLElement[] {
         const f = this.fonts;
-        const choose = (label: string) =>
-            h("button", { class: "link inline", onclick: () => void f.choose() }, label);
         if (f.state === "ready")
             return [
                 h(
@@ -287,22 +324,66 @@ export class FilesPanel {
                     ".",
                 ),
             ];
-        if (!fontsMissing) return [];
-        const why =
-            "This site ships no AutoCAD or Windows fonts (txt.shx, simplex.shx, …), so missing fonts are " +
-            "drawn in Liberation Sans and text can look different from AutoCAD. Choose your fonts folder " +
-            "(e.g. a copy of AutoCAD's Fonts folder): it stays on your computer" +
-            (f.canRemember
-                ? " and is remembered for your next visit."
-                : ". This browser keeps it for this visit.");
-        return [
-            h(
-                "div",
-                { class: "diag-sub fonts-cta" },
-                choose("Choose your fonts folder"),
-                h("span", { class: "help", title: why, "aria-label": why, role: "img" }, icon(ICONS.help)),
-            ),
-        ];
+        return [];
+    }
+
+    /** Fonts missing: the ways to get them that are not in use yet. */
+    private missingFontsRows(): HTMLElement[] {
+        const folder = this.fonts;
+        const installed = this.installed;
+        const offerInstalled = installed.state === "none";
+        const offerFolder = folder.state === "none";
+        const rows: HTMLElement[] = [];
+        if (offerInstalled || offerFolder) {
+            const why =
+                "This site ships no AutoCAD or Windows fonts (txt.shx, simplex.shx, Verdana, …), so missing " +
+                "fonts are drawn in free stand-ins and text can look different from AutoCAD." +
+                (offerInstalled
+                    ? " Use your installed fonts for Windows and Mac fonts (Segoe UI, Verdana, …): your " +
+                      "browser asks for permission once, and the fonts stay on your computer."
+                    : "") +
+                (offerFolder
+                    ? " Choose your fonts folder for AutoCAD's fonts (e.g. a copy of AutoCAD's Fonts folder): " +
+                      "it stays on your computer" +
+                      (folder.canRemember
+                          ? " and is remembered for your next visit."
+                          : ". This browser keeps it for this visit.")
+                    : "");
+            const useInstalled = (label: string) =>
+                h("button", { class: "link inline", onclick: () => void installed.enable() }, label);
+            const choose = (label: string) =>
+                h("button", { class: "link inline", onclick: () => void folder.choose() }, label);
+            rows.push(
+                h(
+                    "div",
+                    { class: "diag-sub fonts-cta" },
+                    ...(offerInstalled && offerFolder
+                        ? [
+                              useInstalled("Use your installed fonts"),
+                              " or ",
+                              choose("choose your fonts folder"),
+                          ]
+                        : offerInstalled
+                          ? [useInstalled("Use your installed fonts")]
+                          : [choose("Choose your fonts folder")]),
+                    h(
+                        "span",
+                        { class: "help", title: why, "aria-label": why, role: "img" },
+                        icon(ICONS.help),
+                    ),
+                ),
+            );
+        }
+        if (installed.state === "denied")
+            rows.push(
+                h(
+                    "div",
+                    { class: "hint" },
+                    "This browser may not read your installed fonts: allow “Fonts” in the site settings " +
+                        "(the icon left of the address) and reload.",
+                ),
+            );
+        return rows;
     }
 }
 

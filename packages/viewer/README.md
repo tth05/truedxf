@@ -1,7 +1,10 @@
 # @truedxf/viewer
 
-Embeddable, framework-free DXF viewer on top of `@truedxf/model`, `@truedxf/render` and
-`@truedxf/three`.
+Fast, embeddable web DXF viewer that draws like AutoCAD plots. Worker parsing, layouts, layers, picking and measuring.
+
+Framework-free, built on [@truedxf/model](https://www.npmjs.com/package/@truedxf/model),
+[@truedxf/render](https://www.npmjs.com/package/@truedxf/render) and
+[@truedxf/three](https://www.npmjs.com/package/@truedxf/three).
 
 ## Install
 

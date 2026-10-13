@@ -1,8 +1,10 @@
 # @truedxf/pdf
 
-PDF underlay content for `@truedxf/render`, rendered by [PDF.js](https://mozilla.github.io/pdf.js/)
-(`pdfjs-dist`, Apache-2.0). truedxf never parses or draws PDF itself: PDF.js renders the page and
-the renderer places the pixels like an IMAGE.
+PDF underlays for truedxf DXF drawings, rendered by PDF.js and placed exactly where AutoCAD puts them.
+
+truedxf never parses or draws PDF itself: [PDF.js](https://mozilla.github.io/pdf.js/)
+(`pdfjs-dist`, Apache-2.0) renders the page and
+[@truedxf/render](https://www.npmjs.com/package/@truedxf/render) places the pixels like an IMAGE.
 
 ## Install
 

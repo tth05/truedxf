@@ -1,6 +1,9 @@
 # @truedxf/render
 
-The rendering frontend: walks a model-space or paper-space layout of a `DxfDocument` and emits a renderer-agnostic display list, emulating AutoCAD 2027's raster plot.
+Draws DXF exactly like an AutoCAD plot. Fast, renderer-agnostic display lists, pixel-tested against thousands of AutoCAD plots.
+
+It walks a model-space or paper-space layout of a `DxfDocument` and emits a display list that
+any renderer can draw, such as [@truedxf/three](https://www.npmjs.com/package/@truedxf/three).
 
 ## Install
 
@@ -81,18 +84,6 @@ units). Viewers pass `raster: "smooth"`, `visibility: "display"` and `layerVisib
 - Open features: wide polylines with linetypes, some
   MULTILEADER variants, XCLIP of ATTRIBs. Raster gaps: exact-pixel ties, spline tessellation, hatch
   islands, clipped huge arcs ([docs/TODO.md](https://github.com/tth05/truedxf/blob/master/docs/TODO.md)).
-- Scoreboard ([project README](https://github.com/tth05/truedxf#scoreboard), 2026-10-01): 3 279 of 3 583 reference cases at F1(r=1) ≥ 0.99, 924
-  pixel-exact.
-
-## See also
-
-- Notes: [03](https://github.com/tth05/truedxf/blob/master/research/notes/03-entities-geometry.md) geometry,
-  [05](https://github.com/tth05/truedxf/blob/master/research/notes/05-dimensions-leaders.md) dimensions,
-  [06](https://github.com/tth05/truedxf/blob/master/research/notes/06-hatch-linetype-appearance.md) hatch, linetypes, colours,
-  [07](https://github.com/tth05/truedxf/blob/master/research/notes/07-blocks-inserts-misc.md) blocks, images, proxies,
-  [08](https://github.com/tth05/truedxf/blob/master/research/notes/08-layouts-viewports-plotting.md) layouts and plotting (§10 raster rules)
-- [@truedxf/three](https://github.com/tth05/truedxf/tree/master/packages/three) (`DisplayListRenderer`), [@truedxf/viewer](https://github.com/tth05/truedxf/tree/master/packages/viewer),
-  [@truedxf/testkit](https://github.com/tth05/truedxf/tree/master/packages/testkit) (CPU rasterizer and scorer), [@truedxf/text](https://github.com/tth05/truedxf/tree/master/packages/text)
 
 ## License
 

@@ -1,7 +1,8 @@
 # @truedxf/geometry
 
-The float64 geometry kernel of truedxf: curves, OCS, flattening, stroking, dashing, hatch
-patterns and polygon clipping, with no dependency on the DXF model.
+Fast float64 CAD geometry: NURBS, arcs, ellipses, OCS, dashing, hatching, stroking and clipping, tuned to AutoCAD's output.
+
+The float64 geometry kernel of truedxf, with no dependency on the DXF model.
 
 ## Install
 
@@ -59,24 +60,6 @@ const triangles = strokePolyline(px.points, { width: 3, closed: true, join: "rou
 const dashed = dashPolyline(px.points, dashPattern([0.5, -0.25], 20), { closed: true });
 console.log(triangles.length / 6, "triangles,", dashed.dashes.length, "dashes");
 ```
-
-## Status
-
-- AutoCAD's own plot tessellation is not reproduced here. The raster-plot rules live in
-  `@truedxf/render` (`raster.ts`), and the SPLINE plot rule is still open ([docs/TODO.md](https://github.com/tth05/truedxf/blob/master/docs/TODO.md)).
-- Unknown in AutoCAD, implemented as a best guess: closed (periodic) fit-point splines are
-  treated as open, fit tolerance > 0 is treated as interpolation (Q-0177), the wide-polyline
-  miter limit between 7.2° and 30°, and the diamond cap/join shapes.
-- `autocadCandidateFit` is the UNVERIFIED dash-fitting hypothesis of note 06 §2.6. Dashed wide
-  polylines still drift in phase ([docs/TODO.md](https://github.com/tth05/truedxf/blob/master/docs/TODO.md)).
-
-## See also
-
-- [03-entities-geometry](https://github.com/tth05/truedxf/blob/master/research/notes/03-entities-geometry.md): OCS, curves, SPLINE math,
-  wide polylines, tessellation
-- [06-hatch-linetype-appearance](https://github.com/tth05/truedxf/blob/master/research/notes/06-hatch-linetype-appearance.md): hatch
-  loops and patterns, linetype fitting, lineweights
-- [@truedxf/model](https://github.com/tth05/truedxf/tree/master/packages/model) for the entity data these functions consume
 
 ## License
 

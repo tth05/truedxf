@@ -1,6 +1,6 @@
 # @truedxf/core
 
-The DXF tag layer: turns ASCII or binary DXF bytes into a lossless, lazily decoded tag store.
+Fast, lossless DXF tokenizer for ASCII and binary files. Keeps every decoded group code and decodes every code page.
 
 ## Install
 
@@ -28,6 +28,8 @@ ESM only. No DOM and no Node.js APIs: runs in browsers, workers and Node.
 - `decodeUnicodeEscapes` (`\U+XXXX`, `\M+NXXXX`) and `decodeCaret` (`^J` and friends) for the
   semantic layer. The store itself returns strings as written.
 - `Diagnostics` collects errors/warnings/info with stable codes and a per-code cap.
+- Tokenizes at about 140 MB/s. Every file of the project's real-world test corpus tokenizes
+  without exceptions.
 - No DOM and no `node:*` imports: runs in browsers and Node.
 
 ## Usage
@@ -49,17 +51,9 @@ if (entities) {
 for (const d of diagnostics.items) console.warn(d.severity, d.code, d.message);
 ```
 
-## Status
+## Limitations
 
-- Every file of the project's real-world test corpus tokenizes without exceptions, at about
-  140 MB/s.
 - Input is one complete `Uint8Array`. There is no chunked or `ReadableStream` tokenizer.
-
-## See also
-
-- [research/notes/01-file-format.md](https://github.com/tth05/truedxf/blob/master/research/notes/01-file-format.md): group codes,
-  binary DXF, encodings, tolerant parsing
-- [@truedxf/model](https://github.com/tth05/truedxf/tree/master/packages/model): the typed document built on this store
 
 ## License
 

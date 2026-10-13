@@ -1,6 +1,16 @@
 # @truedxf/plot
 
-Plot settings: page setups (LAYOUT / PLOTSETTINGS) and CTB/STB plot style tables.
+CTB/STB plot styles and DXF page setups: pens, lineweights and plot transforms exactly as AutoCAD plots them.
+
+## Install
+
+```bash
+pnpm add @truedxf/plot
+```
+
+ESM only. No DOM and no Node.js APIs: runs in browsers, workers and Node.
+
+## What it does
 
 ```ts
 import { builtinPlotStyleTable, penForAci, readPageSetup, readPlotStyleTable } from "@truedxf/plot";
@@ -36,9 +46,11 @@ The DXF holds only the name of the style table, not its pens. The device resolut
 area of extents/limits/display/view plots and the registry sysvars (LWDEFAULT,
 PLOTTRANSPARENCYOVERRIDE, …) are not in the DXF either, so the caller supplies them.
 
-[@truedxf/render](../render) uses all of this: pens while drawing, and the placement for
-`PlotRequest.pageSetup`. STB style names are resolved per entity by @truedxf/model (390, 380).
+[@truedxf/render](https://www.npmjs.com/package/@truedxf/render) uses all of this: pens while
+drawing, and the placement for `PlotRequest.pageSetup`. STB style names are resolved per entity
+by [@truedxf/model](https://www.npmjs.com/package/@truedxf/model) (390, 380).
 
-See [research/notes/06-hatch-linetype-appearance.md](../../research/notes/06-hatch-linetype-appearance.md)
-§6 (plot styles, §6.7 pen linetypes, §6.8 fill styles) and [08-layouts-viewports-plotting.md](../../research/notes/08-layouts-viewports-plotting.md)
-§2 (PLOTSETTINGS) and §10.17 (margins, rotation, offsets).
+## License
+
+MIT. AutoCAD and DXF are trademarks of Autodesk, Inc. truedxf is not affiliated with or
+endorsed by Autodesk.

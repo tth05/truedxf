@@ -17,6 +17,9 @@ and no glyph data taken from other fonts.
 The `.shx` files are generated from `scripts/test-fonts.ts` by `node packages/fonts/scripts/build-test-fonts.ts`;
 the `.shp` files are the decompiled sources (`compileShp` turns them back into identical bytes).
 A unit test checks that the committed files match the generator.
+AutoCAD and truedxf load the same files, so text fixtures built on them compare exactly.
+`node packages/fonts/scripts/render-svg.ts <font> <out.svg> [--vertical] [--codes=41,42]` draws a
+glyph sheet of any SHX font.
 
 ## Why not Hershey?
 

@@ -1,7 +1,9 @@
 # @truedxf/model
 
-A typed, read-only DXF document model whose entities, table entries and objects are views over
-the lossless tag store of [@truedxf/core](https://github.com/tth05/truedxf/tree/master/packages/core).
+Fast, lossless DXF parser with a typed document model. Reads real-world files from R12 to 2018+, ASCII and binary.
+
+Read-only: entities, table entries and objects are views over the lossless tag store of
+[@truedxf/core](https://www.npmjs.com/package/@truedxf/core), so nothing in the file is lost.
 
 ## Install
 
@@ -35,6 +37,8 @@ ESM only. No DOM and no Node.js APIs: runs in browsers, workers and Node.
 - `effectiveDimStyle`: entity DSTYLE overrides > DIMSTYLE record > AutoCAD's imperial defaults
   (records are written sparsely, note 02 §2.6). `aciToRgb`, `nearestAci`, `ACI_PALETTE_LIGHT`
   and `ACI_PALETTE_DARK` for colours.
+- Loads at about 53 MB/s. On the project's real-world corpus, 99.77 % of 50.8 M compared
+  attributes agree with ezdxf.
 - No DOM and no `node:*` imports: runs in browsers and Node.
 
 ## Usage
@@ -55,26 +59,11 @@ for (const e of doc.modelSpace.entities) {
 for (const d of doc.diagnostics.items) console.warn(d.code, d.message);
 ```
 
-## Status
+## Limitations
 
-- Read-only by design: truedxf reads and views DXF, it does not write or edit it. Parsers are
-  hand-written.
-- 182 corpus entities of 14 custom classes (KS_*, LIGHT, 3DLINE, REPEAT/ENDREP, ...) stay
-  UNKNOWN. ACAD_TABLE cell content and MESH override data are not decoded.
-- Against ezdxf over the project's real-world corpus: 99.77 % attribute agreement over 50.8 M compared
-  attributes, residuals classified. Loading runs at ~53 MB/s.
-- Some resolution rules are not confirmed in AutoCAD (ATTRIB parent, frozen vs. off INSERT
-  layers). They are marked UNVERIFIED with question ids in `resolve.ts`.
-
-## See also
-
-- [01-file-format](https://github.com/tth05/truedxf/blob/master/research/notes/01-file-format.md),
-  [02-tables-objects](https://github.com/tth05/truedxf/blob/master/research/notes/02-tables-objects.md),
-  [03-entities-geometry](https://github.com/tth05/truedxf/blob/master/research/notes/03-entities-geometry.md),
-  [05-dimensions-leaders](https://github.com/tth05/truedxf/blob/master/research/notes/05-dimensions-leaders.md),
-  [06-hatch-linetype-appearance](https://github.com/tth05/truedxf/blob/master/research/notes/06-hatch-linetype-appearance.md) (property
-  resolution), [07-blocks-inserts-misc](https://github.com/tth05/truedxf/blob/master/research/notes/07-blocks-inserts-misc.md)
-- [@truedxf/geometry](https://github.com/tth05/truedxf/tree/master/packages/geometry) takes model points (`{ x, y, z }`) directly
+- Read-only by design: truedxf reads and views DXF, it does not write or edit it.
+- Custom classes such as KS_*, LIGHT, 3DLINE and REPEAT/ENDREP stay `UnknownEntity`. ACAD_TABLE
+  cell content and MESH override data are not decoded.
 
 ## License
 

@@ -1,6 +1,8 @@
 # @truedxf/three
 
-three.js (WebGL) renderer for the display lists that `@truedxf/render` produces.
+Fast three.js (WebGL) renderer for truedxf: AutoCAD-accurate DXF drawings in the browser.
+
+It draws the display lists that [@truedxf/render](https://www.npmjs.com/package/@truedxf/render) produces.
 
 ## Install
 
@@ -83,11 +85,6 @@ Call `clear()` before dropping a list and `dispose()` when done.
 - `exactBlend` costs one framebuffer copy per transparent batch, so interactive hosts turn it off.
 - Importing the module sets `THREE.ColorManagement.enabled = false` globally, which also affects
   other three.js content on the page.
-
-## See also
-
-- [@truedxf/viewer](https://github.com/tth05/truedxf/tree/master/packages/viewer): interactive use of this renderer
-- [@truedxf/testkit](https://github.com/tth05/truedxf/tree/master/packages/testkit): pixel comparison against AutoCAD plots
 
 ## License
 

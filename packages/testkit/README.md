@@ -70,7 +70,3 @@ Visual flags: `--suite` and `--case` (repeatable), `--refs <dir>`, `--out <dir>`
 - Only the raster metrics above exist. SSIM and a display-list vs AutoCAD PDF geometry comparison are
   not implemented.
 - The densest hatch fixtures exhaust browser memory in the visual harness (docs/TODO.md).
-
-## See also
-
-- [@truedxf/three](../three/README.md)

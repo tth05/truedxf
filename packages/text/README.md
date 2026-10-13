@@ -1,6 +1,6 @@
 # @truedxf/text
 
-TEXT, ATTRIB/ATTDEF and MTEXT parsing and layout, measured against AutoCAD 2027 plots and DXFOUT values.
+DXF TEXT and MTEXT layout that lines up with AutoCAD: wrapping, stacking, columns, SHX and TrueType glyphs.
 
 ## Install
 
@@ -57,24 +57,11 @@ const layout = layoutText(
 for (const g of layout.glyphs) console.log(g.glyph.code, g.matrix); // font units to text plane
 ```
 
-## Status
+## Limitations
 
-- Scoreboard ([project README](https://github.com/tth05/truedxf#scoreboard), 2026-10-01): F1(r=1) ≥ 0.99 for 278/294 `text`, 209/250 `mtext`,
-  64/65 `attribs` and 21/23 `text-lato` cases, but only 15 `text` and 1 `mtext` pixel-exact.
-- TrueType glyph rasterization and some positions are the largest remaining gap: text after tabs,
-  wrapped `\L` paragraphs, column MTEXT with a centred attachment ([docs/TODO.md](https://github.com/tth05/truedxf/blob/master/docs/TODO.md)).
-- Open or not exact: explicit `\pt` tab stops, TrueType stack geometry, `\A1`/`\A2` against
-  stacks, synthetic italic, complex scripts (Arabic/Thai shaping, bidi), kerning (none).
-- Several rules come from single samples or are UNVERIFIED (MTEXT decoration offsets, oblique
-  order, mixed-height line pitch). The source comments say which.
-
-In the repository, `node packages/text/scripts/oracle.ts [--suite text|mtext|attribs]` compares the layout with
-AutoCAD's DXFOUT values (needs the local references in `samples/`).
-
-## See also
-
-- [research/notes/04-text-fonts.md](https://github.com/tth05/truedxf/blob/master/research/notes/04-text-fonts.md) (§1 TEXT, §3 MTEXT, §11 plot findings)
-- [@truedxf/fonts](https://github.com/tth05/truedxf/tree/master/packages/fonts), [@truedxf/render](https://github.com/tth05/truedxf/tree/master/packages/render) (`prepareTextFonts`, drawing a `TextLayout`)
+- No kerning, no complex-script shaping (Arabic, Thai) and no bidi.
+- Explicit `\pt` tab stops, TrueType stack geometry, `\A1`/`\A2` next to stacks and synthetic
+  italic are approximations.
 
 ## License
 

@@ -1,6 +1,6 @@
 {
     "name": "@truedxf/plot",
-    "version": "0.0.0",
+    "version": "0.1.0",
     "description": "Plot settings: CTB/STB plot styles, page setup to plot transform, lineweight to device units",
     "license": "MIT",
     "repository": {

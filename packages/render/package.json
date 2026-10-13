@@ -1,6 +1,6 @@
 {
     "name": "@truedxf/render",
-    "version": "0.0.0",
+    "version": "0.1.0",
     "description": "Rendering frontend: layouts, viewports, blocks, properties, draw order to a renderer-agnostic display list",
     "license": "MIT",
     "repository": {

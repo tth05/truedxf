@@ -1,6 +1,6 @@
 {
     "name": "@truedxf/text",
-    "version": "0.0.0",
+    "version": "0.1.0",
     "description": "TEXT and MTEXT parsing and layout engine",
     "license": "MIT",
     "repository": {

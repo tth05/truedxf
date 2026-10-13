@@ -1,6 +1,6 @@
 {
     "name": "@truedxf/pdf",
-    "version": "0.0.0",
+    "version": "0.1.0",
     "description": "PDF underlay rasterizer for @truedxf/render, backed by PDF.js (pdfjs-dist)",
     "license": "MIT",
     "repository": {

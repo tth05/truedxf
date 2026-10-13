@@ -1,6 +1,6 @@
 {
     "name": "@truedxf/geometry",
-    "version": "0.0.0",
+    "version": "0.1.0",
     "description": "Geometry kernel: vectors, matrices, OCS, arcs, ellipses, NURBS, flattening, stroking, dashing, hatching, clipping",
     "license": "MIT",
     "repository": {

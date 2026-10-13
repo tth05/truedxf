@@ -1,6 +1,6 @@
 {
     "name": "@truedxf/model",
-    "version": "0.0.0",
+    "version": "0.1.0",
     "description": "Lossless typed DXF document model: header, tables, blocks, entities, objects, property resolution",
     "license": "MIT",
     "repository": {

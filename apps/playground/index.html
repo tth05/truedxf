@@ -6,7 +6,7 @@
         <title>Free online DXF viewer and DXF to PNG converter · truedxf</title>
         <meta
             name="description"
-            content="View DXF files online and convert DXF to PNG or PDF, drawn the way AutoCAD plots them. Runs in your browser: files are never uploaded. Free, no sign-up."
+            content="Free online DXF viewer: open ASCII or binary DXF files of any size, drawn the way AutoCAD plots them, and save them as PNG or PDF. Never uploaded, no sign-up."
         />
         <link rel="canonical" href="%SITE_URL%/" />
         <meta name="theme-color" content="#0f1419" />
@@ -34,6 +34,8 @@
                 "description": "Free online DXF viewer and DXF to PNG converter that runs in your browser. Layouts, layers, text, hatches, dimensions and lineweights, drawn the way AutoCAD plots them. Save any view as a PNG image or print it to PDF. Files are never uploaded.",
                 "featureList": [
                     "View DXF files online (ASCII and binary, R12 to current)",
+                    "No file size limit: files are read locally, not uploaded",
+                    "Check DXF files for laser cutting, CNC and plasma cutting before ordering parts",
                     "Convert DXF to PNG: save the current view as an image",
                     "Print DXF drawings or save them as PDF from the print dialog",
                     "Copy the view to the clipboard as an image",
@@ -62,7 +64,7 @@
                 <p>
                     Drop a <b>.dxf</b> file anywhere on this page, together with its fonts and images (or their
                     whole folder), or choose them. Everything runs locally in your browser: your drawing is
-                    <b>never uploaded</b>.
+                    <b>never uploaded</b>. ASCII and binary DXF, no file size limit, no sign-up.
                 </p>
                 <div class="empty-actions">
                     <button class="btn primary" data-open="files" type="button">Choose files</button>
@@ -87,7 +89,7 @@
                     <li><b>Measure</b> distances and angles, snapping to end points, midpoints and centres. Dark or light background, lineweights on or off.</li>
                     <li><b>DXF to PNG</b>: save the view as a PNG image, copy it to the clipboard, or print it (or save it as PDF from the print dialog).</li>
                     <li><b>Recent drawings</b> reopen with one click (Chrome, Edge).</li>
-                    <li><b>Large files</b>: parsing and rendering run in a background worker, drawn with WebGL.</li>
+                    <li><b>Large files</b>: no size limit, since nothing is uploaded. Parsing runs in a background worker and drawing uses WebGL.</li>
                     <li><b>ASCII and binary DXF</b>, from R12 to the current AutoCAD format.</li>
                 </ul>
             </section>
@@ -108,6 +110,19 @@
                     No. The drawing, its fonts and its images are read by your browser and never sent
                     anywhere. You can disconnect from the internet after the page has loaded. The site only
                     counts visits, without cookies (Cloudflare Web Analytics). It never sees your files.
+                </p>
+                <h3>Can I check a DXF before sending it to a laser cutter or CNC shop?</h3>
+                <p>
+                    Yes. Open the part file here to see exactly what it contains before you order: every layer
+                    (switch off construction or note layers to see only the cut geometry), the text and its
+                    fonts, and the size, measured with snaps to end points, midpoints and centres. Click any
+                    line or arc to see its layer, colour and raw DXF data.
+                </p>
+                <h3>Is there a file size limit?</h3>
+                <p>
+                    No. The file is read by your browser instead of being uploaded, so the only limit is your
+                    computer's memory. Parsing runs in a background worker, so the page stays responsive while
+                    a large drawing loads.
                 </p>
                 <h3>Why does the text look different from AutoCAD?</h3>
                 <p>
